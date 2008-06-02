@@ -7,9 +7,9 @@
 #
 # <next few lines under version control, do not edit>
 # $URL$
-# $Id$
+# $Id: workshop_setup.csh 3325 2008-04-30 20:17:26Z nancy $
 # $Revision$
-# $Date$
+# $Date: 2008-04-30 14:17:26 -0600 (Wed, 30 Apr 2008) $
 
 # Script to manage the compilation of all components for this model;
 # executes a known "perfect model" experiment using an existing
@@ -92,12 +92,36 @@ foreach TARGET ( mkmf_* )
    endsw
 end
 
+if ( $#argv == 1 && "$1" == "-mpi" ) then
+  echo "Success: All single task DART programs compiled."  
+  echo "Script now compiling MPI parallel versions of the DART programs."
+else if ( $#argv == 1 && "$1" == "-nompi" ) then
+  echo "Success: All single task DART programs compiled."  
+  echo "Script is exiting without building the MPI version of the DART programs."
+  exit 0
+else
+  echo ""
+  echo "Success: All single task DART programs compiled."  
+  echo "Script now compiling MPI parallel versions of the DART programs."
+  echo "Run the quickbuild.csh script with a -nompi argument or"
+  echo "edit the quickbuild.csh script and add an exit line"
+  echo "to bypass compiling with MPI to run in parallel on multiple cpus."
+  echo ""
+endif
+
+#----------------------------------------------------------------------
+# to disable an MPI parallel version of filter for this model, 
+# call this script with the -nompi argument, or if you are never going to
+# build with MPI, add an exit before the entire section above.
+#----------------------------------------------------------------------
+
 #----------------------------------------------------------------------
 # Build the MPI-enabled target(s) 
 #----------------------------------------------------------------------
 
 \rm -f *.o *.mod filter wakeup_filter
 
+@ n = $n + 1
 echo
 echo "---------------------------------------------------"
 echo "build number $n is mkmf_filter"
@@ -111,8 +135,8 @@ if ($status != 0) then
    echo
    exit $n
 endif
-@ n = $n + 1
 
+@ n = $n + 1
 echo
 echo "---------------------------------------------------"
 echo "build number $n is mkmf_wakeup_filter"
