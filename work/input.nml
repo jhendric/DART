@@ -8,8 +8,8 @@
    obs_sequence_out_name    = "obs_seq.final",
    restart_in_file_name     = "filter_ic_old",
    restart_out_file_name    = "filter_ic_new", 
-   init_time_days           = 146827,
-   init_time_seconds        = 0,
+   init_time_days           = -1,
+   init_time_seconds        = -1,
    first_obs_days           = -1,
    first_obs_seconds        = -1,
    last_obs_days            = -1,
@@ -22,7 +22,7 @@
    outlier_threshold        = 3.0,
    output_forward_op_errors = .false.,
    output_inflation         = .true.,
-   trace_execution          = .false.,
+   trace_execution          = .true.,
    output_timestamps        = .false.,
    silence                  = .false.,
 
@@ -43,6 +43,9 @@
 /
 ! ! inf_flavor is 0:none, 1:obs space, 2: varying state space, 3: fixed state_space
 
+&perfect_model_obs_nml
+   /
+
 &smoother_nml
    num_lags              = 0
    start_from_restart    = .false.
@@ -51,7 +54,7 @@
    restart_out_file_name = 'smoother_restart' /
 
 &ensemble_manager_nml
-   single_restart_file_in = .false.,
+   single_restart_file_in  = .false.,
    single_restart_file_out = .false. /
 
 &assim_tools_nml
@@ -71,7 +74,7 @@
 
 &reg_factor_nml
    select_regression = 1,
-   input_reg_file = "time_mean_reg" 
+   input_reg_file = "time_mean_reg",
    save_reg_diagnostics = .false.,
    reg_diagnostics_file = 'reg_diagnostics' /
 
@@ -84,6 +87,14 @@
    /
 
 &cam_to_dart_nml
+   cam_to_dart_input_file  = 'caminput.nc',
+   cam_to_dart_output_file = 'dart_ics',
+   /
+
+&dart_to_cam_nml
+  dart_to_cam_input_file  = 'temp_ic',
+  dart_to_cam_output_file = 'caminput.nc',
+  advance_time_present    = .true.,
    /
 
 
@@ -113,7 +124,9 @@
    highest_state_pressure_mb = 150.0,
    max_obs_lat_degree        = 85.0,
    Time_step_seconds   = 21600,
-   Time_step_days      = 0    /
+   Time_step_days      = 0,
+   print_details       = .false.,
+   /
 
 ! pert_sd < 0. signals pert_base_vals to be used as the values 
 !   for each ensemble member (for 1 field), instead of the value for each field.
@@ -123,7 +136,7 @@
 !   to be randomly perturbed with a standard deviation of pert_sd.  
 !   Used by filter's call to pert_model_state.
 ! pert_base_vals /= -888888.0d0 means that the values of the fields in pert_names
-!   sill be reset to the values in pert_base_vals.  
+!  will be reset to the values in pert_base_vals.  
 
 
 &location_nml
@@ -157,10 +170,11 @@
                                 'ACARS_V_WIND_COMPONENT',
                                 'SAT_U_WIND_COMPONENT',
                                 'SAT_V_WIND_COMPONENT',
-                                'GPSRO_REFRACTIVITY' /
+                                'GPSRO_REFRACTIVITY', /
 
 !   evaluate_these_obs_types = 'RADIOSONDE_SURFACE_PRESSURE' /
 
+  /
 
 &utilities_nml
    TERMLEVEL = 1,
@@ -190,10 +204,8 @@
    gregorian_cal                = .true.   /
 
 &obs_sequence_tool_nml
-   num_input_files    = 2,
    filename_seq       = 'obs_seq.one', 'obs_seq.two',
    filename_out       = 'obs_seq.processed',
-   print_only         =  .false.,
    first_obs_days     = -1,
    first_obs_seconds  = -1,
    last_obs_days      = -1,
@@ -203,6 +215,7 @@
    min_lon            =    0.0,
    max_lon            =  360.0,
    gregorian_cal      = .true.
+   print_only         =  .false.,
 /
 
 # other possible obs tool namelist items:
