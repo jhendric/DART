@@ -11,11 +11,8 @@ program dart_to_cam
 !         Reform state vector back into CAM fields.
 !         Replace those fields on the CAM initial file with the new values,
 !         preserving all other information on the file.
-!
-! author: Kevin Raeder 2/21/03
-!         based on prog_var_to_vector and vector_to_prog_var by Jeff Anderson
-! mod:    to read temp_ic (assim_model_state_ic; 2 times) or temp_ud (1 time) and put
-!         the fields into the CAM initial file
+!         Write a 'times' file containing the time information needed to
+!         update the CAM namelist start/stop times.
 !
 !----------------------------------------------------------------------
 
@@ -98,10 +95,11 @@ call close_restart(file_unit)
 call vector_to_prog_var (statevector, var)
 deallocate (statevector)
 
-! write fields to the netCDF initial file
-! merge/MPI; this requires no change; a CAM state will exist in model_mod,
-!            but this will ignore it and write out *this* CAM state.
-call write_cam_init(dart_to_cam_output_file, var)
+! write fields to the netCDF initial file.
+call write_cam_init(dart_to_cam_output_file, var, model_time)
+
+! write cam times to a separate 'times' support file.  used to
+! update cam namelist start/stop times.
 if (advance_time_present) call write_cam_times(model_time, adv_to_time)
 
 call print_date( model_time,'dart_to_cam:CAM  model date')

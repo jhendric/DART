@@ -4,109 +4,47 @@
 
 module model_mod
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
-
-
-
-! kdr This came from Nancy for doing comparisons with Pincus runs,
-!     where we want to limit the impact of cloud liquid water to only cloud liquid water.
-!     There are some minor changes in my model_mod.f90 which I'd want to incorporate into
-!     this version, but I'm leaving them out for now.
-
-!     I've put in an error check in model_interpolate because of Patrick's trouble (1/10/10)
-
 
  
 !----------------------------------------------------------------------
-! purpose: interface between CAM and DART
-!              Translate to/from state_vector and caminput.nc,
-!              Initialize model,
-!              Write out CAM fields to Prior and Posterior_Diag.nc,
-!              Generate expected obs from model state (model_interpolate)
-!              Find state variables (or obs) that are close to a given base observation.
-!                  (get_close_obs)
-!              Provide randomly perturbed fields for initial ensemble in filter.(pert_model_state)
-
+! Interface code between CAM and DART.  Contains the required 16 interfaces
+!  as specified by DART.  Also contains several utility routines which help
+!  translate between CAM and DART formats, and deal with time.
 !
-! method: trans_pv_sv reads CAM 'initial' file (netCDF format),
-!         reforms fields into a state vector.
-!         DART assimilates obs, modifying the values of the state vector.
-!         This requires get_close_obs to find state variables to be modified by each ob.
-!         Reform state vector back into CAM fields via trans_sv_pv.
-!         Replace those fields on the CAM initial file with the new values,
-!         preserving all other information on the file.
-!         Also read hybrid coordinate coefficients from CAM input file (for plevs_cam)
+!  Contains a perturb routine for generating initial ensembles.  Does not
+!  provide adv_1step or init_conditions because CAM is a separate executable
+!  and cannot be called as a subroutine.
 !
-! author: Kevin Raeder 2/14/03  and 8/1/03
-!         based on prog_var_to_vector and vector_to_prog_var by Jeff Anderson
+!  This module intercepts the get_close_obs() calls and alters the distances
+!  for obs at the top of the model so they do not impact the state.
+! 
+!  This module keeps a copy of the ensemble mean in module global storage and
+!  uses it for computing the pressure-to-height conversions.
 !
-! modified: Tim Hoar 02 Sep 03 
-!         nc_write_model_atts, nc_write_model_vars now write out "prognostic"
-!         files instead of a nondescript state variable vector glom
+!  See the subversion code logs for history of this module.
 !
-! augmented; Kevin Raeder 7/1/04 for CAM3.0 and to use namelist input for
-!         lists of fields to include in state vector.
-!         'CAM3' marks changes
-!         Later;?
-!         Also; read field attributes from netcdf file and write them out 
-!         from nc_write_model_atts, instead of hard-coded there.
-!
-! augmented; Kevin Raeder (code from Hui Liu and CAM) 4/2006 to add vertical interpolation
-!         in height.  Also add checks of requested fields for interpolation.
-!
-! mostly rewritten: Kevin Raeder  9-10/2006 to merge FV and eulerian versions,
-!         and lay groundwork for future, non-rectangular coordinate systems.
-!         Also adapt to MPI mode of DART.
-
-!     OVERVIEW; 
+!  During the assimilation stage, only a piece of the state vector is available to each 
+!  process, and each process calls parts of model_mod.  In order to handle the conversion 
+!  of vertical coordinates of obs and/or state variables into a consistent coordinate, 
+!  an entire state vector is needed, so the ensemble mean is passed to model_mod before 
+!  the assimilation starts.  This is NOT done for model_interpolate; the whole vector is
+!  available, and should be used.  All locations are now converted to a standard coordinate 
+!  (pressure), instead of always converting the state vertical location to that of the ob.
+!  The highest_obs_level and ..._height_m variables are derived from highest_obs_pressure_mb
+!  namelist variable.
 !     
-!     This module interfaces with the MPI version of DART.  
-!
-!        model_get_close_states has been replaced with new interfaces, including get_close_obs, 
-!     which uses location_mod:get_close_obs.  This allows model_mod to use the 
-!     "generic efficient search algorithm" in DART to find the obs/state variables that
-!     are close to the given base obs, and to modify the distances according to any desired 
-!     criteria (obs_kinds, height above a threshold, etc).  
-!
-!     During the assimilation stage, only a piece of the state vector is available to each 
-!     process, and each process calls parts of model_mod.  In order to handle the conversion 
-!     of vertical coordinates of obs and/or state variables into a consistent coordinate, 
-!     an entire state vector is needed, so the ensemble mean is passed to model_mod before 
-!     the assimilation starts.  This is NOT done for model_interpolate; the whole vector is
-!     available, and should be used.  All locations are now converted to a standard coordinate 
-!     (pressure), instead of always converting the state vertical location to that of the ob.
-!     The highest_obs_level and ..._height_m variables are derived from highest_obs_pressure_mb
-!     namelist variable.
+!  This module has been rewritten to handle both the eulerian and finite volume core versions 
+!  of CAM (they have different grids), and hopefully the semi-lagrangian dynamics core, 
+!  and even lay some groundwork for future dynamical cores (such as HOMME) which are column 
+!  oriented, with irregular horizontal grids.
 !     
-!     This module has been rewritten to handle both the eulerian and finite volume core versions 
-!     of CAM (they have different grids), and hopefully the semi-lagrangian dynamics core, 
-!     and even lay some groundwork for future dynamical cores (such as HOMME) which are column 
-!     oriented, with irregular horizontal grids.
+!  The coordinate orders of fields stored in various forms have also been simplified.
+!  For example; various vintages of CAM 3D fields may be read in with (lon, lat, lev) or 
+!  (lon, lev, lat).  These are uniformly converted to (lev, lon, lat) for use in model_mod.
+!  This latter form is different than pre MPI model_mods.  Then such fields are stored in
+!  the state vector with the same coordinate order.  They are converted back to the modern
+!  CAM coordinate order when written to caminput.nc files.
 !     
-!     The coordinate orders of fields stored in various forms have also been simplified.
-!     For example; various vintages of CAM 3D fields may be read in with (lon, lat, lev) or 
-!     (lon, lev, lat).  These are uniformly converted to (lev, lon, lat) for use in model_mod.
-!     This latter form is different than pre MPI model_mods.  Then such fields are stored in
-!     the state vector with the same coordinate order.  They are converted back to the modern
-!     CAM coordinate order when written to caminput.nc files.
-!     
-!     The organization of the state vector has been changed from the B-grid style to a field 
-!     and column oriented form; see prog_var_to_vector and vector_to_prog_var.  This allows 
-!     each field to have different dimensions than all the others.  The fields are still grouped 
-!     by the rank of the array used to store them in CAM form; 0d, 1d, 2d, and 3d.  In the 3d case 
-!     all the values of a field for one column are stored contiguously, to speed up vertical 
-!     interpolations and calculations of heights on model levels.  The dimensions of each field 
-!     are stored in globally available arrays ([sf]_dim_#d) and there are functions and subroutines 
-!     for accessing the needed information (see ./model_mod.html).
-!     
-!     Observations on pressure levels or heights require various pieces of the state vector
-!     in order to calculate the expected observation.  Just the surface pressure is needed for 
-!     the former, while PS plus the temperature and moisture profiles are needed for the heights.  
 !     These may be needed on the regular A-grid (thermodynamic variables) and grids staggered 
 !     relative to the A-grid.   Currently, PS for the A-grid and the 2 staggered grids is 
 !     stored for global access and pressures and heights on model levels are (re)calculated
@@ -246,7 +184,7 @@ use types_mod,         only : r8, MISSING_I, MISSING_R8, gravity_const => gravit
 
 use time_manager_mod,  only : time_type, set_time, set_date, print_time, print_date,  &
                               set_calendar_type, get_calendar_type, operator(-),      &
-                              GREGORIAN, NOLEAP, get_time, get_date
+                              get_time, get_date
 use utilities_mod,     only : open_file, close_file, find_namelist_in_file, check_namelist_read, &
                               register_module, error_handler, file_exist, E_ERR, E_WARN, E_MSG,  &
                               logfileunit, nmlfileunit, do_output, nc_check, get_unit, do_nml_file, &
@@ -2102,29 +2040,19 @@ tfile_unit = open_file("times", "formatted", "write")
 !  -namelist "&camexp START_YMD=$times[3] START_TOD=$times[4] 
 !                     STOP_YMD=$times[1] STOP_TOD=$times[2] NHTFRQ=$times[5] " 
 
-cal_type = get_calendar_type()
-
 call get_date(adv_time, year, month, day, hour, minute, second)
-!PRINT*,'date = ',year, month, day, hour, minute, second
-if (cal_type.eq.GREGORIAN) then
-   cam_date = year*10000 + month*100 + day
-   cam_tod  = hour*3600 + minute*60 + second
-elseif (cal_type.eq.NOLEAP) then
-   cam_date = (1899 + year)*10000 + month*100 + day
-   cam_tod  = hour*3600 + minute*60 + second
-endif
-write (tfile_unit,'(2I8)') cam_date, cam_tod
+
+cam_date = year*10000 + month*100 + day
+cam_tod  = hour*3600  + minute*60 + second
+
+write (tfile_unit,'(I8.8,1X,I8)') cam_date, cam_tod
 
 call get_date(model_time, year, month, day, hour, minute, second)
-!PRINT*,'date = ',year, month, day, hour, minute, second
-if (cal_type.eq.GREGORIAN) then
-   cam_date = year*10000 + month*100 + day
-   cam_tod  = hour*3600 + minute*60 + second
-elseif (cal_type.eq.NOLEAP) then
-   cam_date = (1899 + year)*10000 + month*100 + day
-   cam_tod  = hour*3600 + minute*60 + second
-endif
-write (tfile_unit,'(2I8)') cam_date, cam_tod
+
+cam_date = year*10000 + month*100 + day
+cam_tod  = hour*3600  + minute*60 + second
+
+write (tfile_unit,'(I8.8,1X,I8)') cam_date, cam_tod
 
 ! calculate number of hours in forecast, and pass to history tape 
 ! write frequency
@@ -2132,7 +2060,7 @@ write (tfile_unit,'(2I8)') cam_date, cam_tod
 forecast_length = adv_time - model_time
 
 call get_time(forecast_length, second, day)
-!PRINT*,'forecast length = ', day, second
+
 hour = second/3600
 minute = mod(second,3600)
 if (minute.ne.0) &
@@ -4259,13 +4187,11 @@ end subroutine pert_model_state
 
 real(r8), intent(inout) :: x(:)
 
-call error_handler(E_MSG,'init_conditions:', &
-                  'WARNING!!  CAM model has no built-in default state')
-call error_handler(E_MSG,'init_conditions:', &
-                  "cannot run with 'start_from_restart = .false.' ")
-call error_handler(E_ERR,'init_conditions', &
-                  'use cam_to_dart to create a CAM state vector file', &
-                  source, revision, revdate)
+call error_handler(E_ERR,"init_conditions", &
+                  "WARNING!!  CAM model has no built-in default state", &
+                  source, revision, revdate, &
+                  text2="cannot run with 'start_from_restart = .false.'", &
+                  text3="use 'cam_to_dart' to create a CAM state vector file")
 
 end subroutine init_conditions
 
@@ -5193,4 +5119,12 @@ end subroutine init_time
 !#######################################################################
 
 end module model_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+
+
 
