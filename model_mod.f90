@@ -553,7 +553,7 @@ namelist /model_nml/ output_state_vector, model_version, cam_phis, model_config_
 ! Derived parameters
 
 ! make sure static init code only called once
-logical :: already_initialized = .false.
+logical :: module_initialized = .false.
 
 ! - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 type(time_type) :: Time_step_atmos
@@ -673,10 +673,8 @@ contains
 integer            :: iunit, io, topog_lons, topog_lats, i, num_lons, num_lats, ncfileid
 integer            :: max_levs
 
-if (already_initialized) then
- print *, 'static_init_model called again'
- return
-endif
+! only execute this code once
+if (module_initialized) return
 
 
 ! Register the module
@@ -727,7 +725,7 @@ if (print_details .and. do_out) call print_time(Time_step_atmos)
 ! read CAM 'initial' file domain info
 call nc_check(nf90_open(path = trim(model_config_file), mode = nf90_nowrite, ncid = ncfileid), &
              'static_init_model', 'opening '//trim(model_config_file))
- 
+
 ! Get sizes of dimensions/coordinates from netcdf and put in global storage.
 call read_cam_init_size(ncfileid)
 
@@ -854,7 +852,7 @@ if (len_trim(impact_only_same_kind) > 0) then
 endif
 
 ! make sure we only come through here once
-already_initialized = .true.
+module_initialized = .true.
 
 end subroutine static_init_model
 
@@ -1880,8 +1878,8 @@ end subroutine write_cam_coord_def
 
 ! write CAM 'initial' file fields that have been updated
 
-character (len = *), intent(in) :: file_name
-type(model_type),    intent(in) :: var
+character (len = *), intent(in)           :: file_name
+type(model_type),    intent(in)           :: var
 type(time_type),     intent(in), optional :: model_time
 
 integer               :: i, k, n, m, ifld, ncfileid, ncfldid, f_dim1, f_dim2
