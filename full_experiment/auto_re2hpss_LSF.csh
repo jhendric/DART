@@ -1,4 +1,4 @@
-#!/bin/csh
+#!/bin/tcsh
 #
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -6,9 +6,11 @@
 #
 # $Id$
 #
-# Saves restart files to MSS. CAM/CLM/ICE, and filter. This is the batch driver
-# for auto_re2ms.csh ...
+# Saves restart files to MSS. CAM/CLM/ICE, and filter.
 #
+# THIS VERSION is intended to work with the new HPSS system instead of the
+# original MSS system.
+
 #### LSF options for BSUB
 ### -J      job name    (master script job.csh presumes filter.xxxx.log)
 ### -o      output listing filename 
@@ -18,24 +20,22 @@
 ### -x      exclusive use of node
 ### -R "span[ptile=(num procs you want on each node)]"
 #
-#BSUB -J restart2ms
-#BSUB -o restart2ms.%J.log
-#BSUB -P [project number]
+#BSUB -J restart2hpss
+#BSUB -o restart2hpss.%J.log
 #BSUB -q share
 #BSUB -W 2:00
 #BSUB -n 1
-#xxxx -x
-#xxxx -R "span[ptile=1]"
+
+# set this to the base directory on the HPSS were files
+# are to be put.
+set userbase = /RAEDER/DAI
 
 date
-echo 'auto_re2ms starts in'
+echo 'auto_re2hpss starts in'
 pwd
 cd $LS_SUBCWD
 
 set comp = ''
-set ret_period = 1000
-set proj_num = #####
-set write_pass = $$
 
 set num_ens = 1
 while (-e CAM/caminput_${num_ens}.nc && ! -z CAM/caminput_${num_ens}.nc)
@@ -52,8 +52,8 @@ if (-e DART/filter_ic.0001) then
    set mem_parts = "$mem_parts DART/filter_ic.0001 "
    @ mem_entry = $mem_entry + 2
 endif
-if (-e ICE/iceinput_1.tar) then
-   set mem_parts = "$mem_parts ICE/iceinput_1.tar "
+if (-e ICE/iceinput_1.nc) then
+   set mem_parts = "$mem_parts ICE/iceinput_1.nc "
    @ mem_entry = $mem_entry + 2
 endif
 set list = `du -bc $mem_parts`
@@ -83,9 +83,8 @@ echo "                for num_ens = $num_ens"
 
 touch saved_restart
 echo "------------------------------------------------" >> saved_restart
-echo "with write password $write_pass" >> saved_restart
 
-if ($num_per_batch > $num_ens) exit "restart2ms; num_per_batch > num_ens"
+if ($num_per_batch > $num_ens) exit "restart2hpss; num_per_batch > num_ens"
 
 # Parse parts of the path name for construction of MSS name.
 set direct = `pwd`
@@ -101,18 +100,17 @@ set case = $direct:t
 
 cd ${exp_dir}/${obs_seq}
 
-set ms_root = /RAEDER/DAI/$case/${exp_dir}/${obs_seq}/${num_ens}x${num_per_batch}
-set ms_dir = mss:$ms_root
-echo "files will be written to ${ms_root}/batch#" >> saved_restart
-echo "files will be written to ${ms_root}/batch#"
+set hpss_root = ${userbase}/$case/${exp_dir}/${obs_seq}/${num_ens}x${num_per_batch}
+set hpss_dir = $hpss_root
+echo "files will be written to ${hpss_root}/batch#" >> saved_restart
+echo "files will be written to ${hpss_root}/batch#"
+
+# make sure the directory exists first
+hsi mkdir -p ${hpss_dir}
 
 # Figure out how many files to divide ensemble members among
 @ nbatch = $num_ens / $num_per_batch
 if ($num_ens % $num_per_batch != 0 ) @ nbatch++
-
-set opts = "-pe $ret_period -pr $proj_num -wpwd $write_pass -comment "
-set p1 = "write password $write_pass"
-echo $opts $p1 >> saved_restart
 
 set ok_to_remove = true
 
@@ -155,7 +153,7 @@ endif
 
 if ($DART_files != 'none' && $do_filter == false) then
    tar -c -f ic_files.tar DART/{$DART_files}
-   msrcp $opts "$p1" ic_files.tar ${ms_dir}/DART/ic_files.tar &
+   hsi put ic_files.tar : ${hpss_dir}/DART/ic_files.tar 
 endif
 
 # Compress here, instead of within tar; -z not available on some machines.
@@ -173,14 +171,13 @@ while($batch <= $nbatch)
    @ base = (($batch - 1) * $num_per_batch) + 1
    @ member = $base
    if ($batch == 1 && (-e CAM/caminput_0.nc || -e CAM/caminput_0.nc.gz)) set member = 0
-# BUT will there be a filter_ic.0000 ?
     echo base and member $base $member >> saved_restart
     echo base and member $base $member
 
-# create the tar file using the first ensemble member of this batch
+   # create the tar file using the first ensemble member of this batch
    set mem_parts = "CAM/caminput_$member.nc* CLM/clminput_$member.nc*"
    if ($do_filter == true)                         set mem_parts = "$mem_parts DART/filter_ic*[.0]$member"
-   if (-e ICE/iceinput_${member}.tar)              set mem_parts = "$mem_parts ICE/iceinput_${member}.tar "
+   if (-e ICE/iceinput_${member}.nc)               set mem_parts = "$mem_parts ICE/iceinput_${member}.nc "
    if ($DART_files != 'none' && $member <= $base)  set mem_parts = "$mem_parts DART/{$DART_files}"
    tar -c -f batch${batch}${comp} $mem_parts
    echo "tar -c -f batch${batch}${comp} $mem_parts" 
@@ -195,8 +192,8 @@ while($batch <= $nbatch)
          @ n = $num_per_batch + 1
       else
          set mem_parts = "CAM/caminput_$member.nc* CLM/clminput_$member.nc*"
-         if ($do_filter == true)      set mem_parts = "$mem_parts DART/filter_ic*[.0]$member"
-         if (-e ICE/iceinput_${member}.tar) set mem_parts = "$mem_parts ICE/iceinput_${member}.tar "
+         if ($do_filter == true)           set mem_parts = "$mem_parts DART/filter_ic*[.0]$member"
+         if (-e ICE/iceinput_${member}.nc) set mem_parts = "$mem_parts ICE/iceinput_${member}.nc "
          tar -r -f batch${batch}${comp} $mem_parts
          echo "tar -r -f batch${batch}${comp} $mem_parts" 
 
@@ -204,12 +201,7 @@ while($batch <= $nbatch)
       @ n++
    end
 
-#  Doing all at once, outside loop, would give more efficient MS access
-#  but
-#     msrcp $opts "$p1"  batch*${comp} ${ms_dir}
-#     $opts and "p1" contents are being interpretted as files, 
-#     maybe because of the multi-file copy batch*...
-   msrcp $opts "$p1"  batch${batch}${comp} ${ms_dir}/batch${batch}${comp}
+   hsi put batch${batch}${comp} : ${hpss_dir}/batch${batch}${comp}
    if ($batch < $nbatch) rm batch${batch}${comp}
 
    @ batch++
@@ -218,44 +210,39 @@ end
 # Correct batch back to value of last batch, for use below.
 @ batch = $batch - 1
 
-# ls -l batch*${comp}
-# echo "msrcp $opts $p1  batch*${comp} ${ms_dir}" >> saved_restart
-# msrcp $opts "$p1"  batch*${comp} ${ms_dir}
-
 wait
 
 # Check to see if it's okay to remove DART directory
 if ($do_filter != true) then
    set list = `ls -l DART/filter_ic`
    set local_size = $list[5]
-   set list = `msls -l ${ms_root}/DART/filter_ic`
-   set ms_size = $list[5]
-   echo "local_size ms_size = $local_size $ms_size" >> saved_restart
-   if ($local_size != $ms_size) set ok_to_remove = false
+   set list = `hsi -P ls -l ${hpss_root}/DART/filter_ic | fgrep filter_ic`
+   set hpss_size = $list[5]
+   echo "local_size hpss_size = $local_size $hpss_size" >> saved_restart
+   if ($local_size != $hpss_size) set ok_to_remove = false
 endif
 
 # Check to see if it's okay to remove CAM/CLM directories
 set list = `ls -l batch${batch}${comp}`
 set local_size = $list[5]
-set list = `msls -l ${ms_root}/batch${batch}${comp}`
-set ms_size = $list[5]
-echo " CAM/CLM(/DART/ICE) local_size ms_size = $local_size $ms_size" >> saved_restart
-if ($local_size != $ms_size) set ok_to_remove = false
+set list = `hsi -P ls -l ${hpss_root}/batch${batch}${comp} | fgrep batch${batch}${comp}`
+set hpss_size = $list[5]
+echo " CAM/CLM(/DART/ICE) local_size hpss_size = $local_size $hpss_size" >> saved_restart
+if ($local_size != $hpss_size) set ok_to_remove = false
 
 if ($ok_to_remove == true) then
-   echo "Archived files with write password $write_pass" >> saved_restart
-   echo "msrcp of ${ms_root} succeeded; REMOVING $obs_seq DART,CAM,CLM,ICE" >> saved_restart
+   echo "hsi put of ${hpss_root} succeeded; REMOVING $obs_seq DART,CAM,CLM,ICE" >> saved_restart
    rm -rf DART CAM CLM ICE
-   # rm batch${batch}${comp}
    rm batch*${comp}
 else
-   echo "msrcp of ${ms_root} failed; NOT removing $obs_seq DART,CAM,CLM,ICE" >> saved_restart
+   echo "hsi put of ${hpss_root} failed; NOT removing $obs_seq DART,CAM,CLM,ICE" >> saved_restart
 endif
 
 chmod 444 saved_restart
+
 #================================================
 
-echo "finished with auto_re2ms at " `date` 
+echo "finished with auto_re2hpss at " `date` 
 
 exit 0
 

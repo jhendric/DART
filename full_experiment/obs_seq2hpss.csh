@@ -1,6 +1,6 @@
 #!/usr/local/bin/tcsh
 #
-# DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+# DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
@@ -9,9 +9,9 @@
 # Script for archiving months of obs_seq.final files 
 # (for easier access than diagnostics.tar.gz)
 #
-#BSUB -J obs_seq2ms
-#BSUB -o obs_seq2ms.%J.log
-#BSUB -P 93300315
+#BSUB -J obs_seq2hpss
+#BSUB -o obs_seq2hpss.%J.log
+#BSUB -P xxxxxxxx
 #BSUB -q share
 #BSUB -W 3:00
 #BSUB -n 1
@@ -27,9 +27,6 @@ set mo_last  = 8
 set input_root = obs_
 set digits = 4
 set obs_seq_freq = 1
-# set input_root = 08_
-# set digits = 2
-# set obs_seq_freq = 2
 
 set saved = saved_obs_seq_${mo_first}-${mo_last}
 
@@ -39,12 +36,6 @@ set year = 2006
 
 set months =  (Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec)
 set mo_days = (31  28  31  30  31  30  31  31  30  31  30  31)
-
-# fix this for your local system accounting
-set proj_num = 93300315
-set ret_period = 1000
-set write_pass = da$$
-echo "with write password $write_pass" >! $saved
 
 #-----------------------------------------------------------------------------
 # Parse parts of the path name for construction of MSS name.
@@ -57,13 +48,10 @@ set case = $direct:t
 
 cd ${exp_dir}
 
-set ms_root = /RAEDER/DAI/$case/${exp_dir}
-set ms_dir = mss:$ms_root
-echo "files will be written to ${ms_root}/MM_obs_seq.tar" >> $saved
+set hpss_root = /RAEDER/DAI/$case/${exp_dir}
+set hpss_dir = $hpss_root
+echo "files will be written to ${hpss_root}/MM_obs_seq.tar" >> $saved
 
-set opts = "-pe $ret_period -pr $proj_num -wpwd $write_pass -comment "
-set p1   = "write password $write_pass"
-echo $opts $p1 >> $saved
 #
 #-----------------------------------------
 # Figure out how many months to archive
@@ -128,17 +116,17 @@ while($mo <= $mo_num)
      @ obs_seq++
    end
 
-   msrcp $opts "$p1"  $out_file ${ms_dir}/$out_file
+   hsi put $out_file : ${hpss_dir}/$out_file
 
 # Check to see if it's okay to remove obs_seq.final, etc
    set list = `ls -l $out_file`
    set local_size = $list[5]
-   set list = `msls -l ${ms_root}/$out_file`
-   set ms_size = $list[5]
-   echo "for $months[${mo_cal}] local_size, ms_size = $local_size $ms_size" >> $saved
-   if ($local_size == $ms_size) then
+   set list = `hsi -P ls -l ${hpss_root}/$out_file`
+   set hpss_size = $list[5]
+   echo "for $months[${mo_cal}] local_size, hpss_size = $local_size $hpss_size" >> $saved
+   if ($local_size == $hpss_size) then
       rm $out_file &
-      echo "msrcp of ${ms_root}/$out_file SUCCEEDED "                     >> $saved
+      echo "hsi put of ${hpss_root}/$out_file SUCCEEDED "                     >> $saved
       echo "Archived obs_seq.final files with write password $write_pass" >> $saved
       if ($remove_finals == true) then
          set obs_seq = $obs_seq_1
@@ -150,7 +138,7 @@ while($mo <= $mo_num)
          echo "REMOVED $out_file, ./obs_seq.final "                          >> $saved
       endif
    else
-      echo "msrcp failed; NOT removing $months[${mo_cal}]: $obs_seq_1 - $obs_seq_n " >> $saved
+      echo "hsi put failed; NOT removing $months[${mo_cal}]: $obs_seq_1 - $obs_seq_n " >> $saved
       set mo = $mo_num + 1
    endif
 

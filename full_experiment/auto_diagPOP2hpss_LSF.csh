@@ -1,8 +1,6 @@
 #!/bin/tcsh
-# csh doesn't let :r, :e, etc work in the coupler history files archiving section.
-#!/bin/csh
 #
-# DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+# DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
@@ -22,54 +20,20 @@
 ### -x      exclusive use of node
 ### -R "span[ptile=(num procs you want on each node)]"
 #
-#BSUB -J auto_diag2ms
-#BSUB -o auto_diag2ms.%J.log
-#BSUB -e auto_diag2ms.%J.err
-#BSUB -P 93300315
+#BSUB -J auto_diag2hpss
+#BSUB -o auto_diag2hpss.%J.log
+#BSUB -e auto_diag2hpss.%J.err
+#BSUB -P xxxxxxxx
 #BSUB -q share
 #BSUB -W 2:00
 #BSUB -n 1
 #BSUB -R "span[ptile=1]"
-#xxxx -x
-# Caused job to not run   #BSUB -xn
-
-
-
-
-# test for new NCO
-# set  echo verbose
-# 
-# set path = ( /usr/local/bin \
-# /usr/local/lsf/7.0/aix5-64/etc \
-# /usr/local/lsf/7.0/aix5-64/bin \
-# /usr/bin \
-# /etc \
-# /usr/sbin \
-# /usr/ucb \
-# /usr/bin/X11 \
-# /sbin \
-# /usr/java14/jre/bin \
-# /usr/java14/bin \
-# /bin \
-# /blhome/raeder/bin \
-# . \
-# /contrib/tunnel \
-# /usr/local/apps/nco-3.9.6/bin \
-# /blhome/raeder/scripts \ )
-# 
-# which ncap2 
-# 
-# unset echo
-# end NCO test
-
-
-
 
 
 setenv LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/dcs/lib
 
 set compress = true
-set proj_num = 93300315
+set proj_num = xxxxxxxx
 
 set diag_name = diagnostics.tar
 set saved = saved_diagnostics
@@ -81,7 +45,7 @@ endif
 
 touch $saved
 echo '------------------------------------------------------------' >> $saved
-echo 'auto_diag2ms_LSF starts in' >> $saved
+echo 'auto_diag2hpss_LSF starts in' >> $saved
 pwd                               >> $saved
 date                              >> $saved
 
@@ -97,14 +61,17 @@ set direct = `pwd`
 set exp_dir = $direct:t
 
 cd $case/${obs_seq}
-set ms_dir = /RAEDER/DAI/${exp_dir}/$case/${obs_seq}
+set hpss_dir = /RAEDER/DAI/${exp_dir}/$case/${obs_seq}
+
+# make sure this exists before we start
+hsi mkdir ${hpss_dir}
 
 # IBM tar requires 1 entry/line in list of things to exclude from tar
 echo DART                >! tar_excl_list
 echo CAM                 >> tar_excl_list
 echo CLM                 >> tar_excl_list
 echo ICE                 >> tar_excl_list
-# batch* are the files into which DART,CAM,CLM are archived by auto_re2ms_LSF.csh,
+# batch* are the files into which DART,CAM,CLM are archived by auto_re2hpss_LSF.csh,
 # which is run at the same time as this script.
 echo 'batch*'            >> tar_excl_list
 echo $saved              >> tar_excl_list
@@ -118,7 +85,7 @@ echo 'H_*'               >> tar_excl_list
 # Stuff the Posterior mean fields into CAM initial files.
 # Tar together with a CLM initial file.
 # Arguments to analyses2initial.csh are
-#   set ms_file   = $1   script searches for local Posterior_Diag.nc first, so give a dummy MS name.
+#   set hpss_file   = $1   script searches for local Posterior_Diag.nc first, so give a dummy MS name.
 #   set local_dir = $2
 #   set kind      = $3
 #   set dim       = $4
@@ -134,8 +101,7 @@ if ($status == 0) then
    tar -c -f H_all.h0.gz.tar H[012]*/*.h0.*
    set ar_status = $status
    if ($ar_status == 0 && -e H_all.h0.gz.tar) then
-      msrcp -pe 1000 -pr $proj_num -wpwd $write_pass -comment "write password $write_pass" \
-            H_all.h0.gz.tar mss:${ms_dir}/H_all.h0.gz.tar                    >>& $saved  &
+      hsi put H_all.h0.gz.tar : ${hpss_dir}/H_all.h0.gz.tar                    >>& $saved  &
       set ar_status = $status
       if ($ar_status == 0) rm H[012]*/*.h0.* 
    endif
@@ -219,8 +185,7 @@ wait
 tar -c -f H_cplr.ha2x1d.gz.tar *.ha2x1d[ax]*tar
 set ar_status = $status
 if ($ar_status == 0 && -e H_cplr.ha2x1d.gz.tar) then
-   msrcp -pe 1000 -pr $proj_num -wpwd $write_pass -comment "write password $write_pass" \
-         H_cplr.ha2x1d.gz.tar mss:${ms_dir}/H_cplr.ha2x1d.gz.tar                    >>& $saved  
+   hsi put H_cplr.ha2x1d.gz.tar : ${hpss_dir}/H_cplr.ha2x1d.gz.tar                    >>& $saved  
    set ar_status = $status
    # Leave ha2x2davg.gz.tar here for monthly archiving, like obs_seq.final
    if ($ar_status == 0) then
@@ -275,20 +240,19 @@ if (-e ../../analyses2initial.csh) then
 # This assumes 4 analysis times/obs_seq file
 #      if ($tar_stat == 0 && $num_anal[1] > 3)  \
       if ($tar_stat == 0 )  \
-         msrcp -pe 1000 -pr $proj_num -wpwd $write_pass -comment "write password $write_pass" \
-               cam_analyses.tar mss:${ms_dir}/cam_analyses.tar                    >>& $saved  
+         hsi put cam_analyses.tar : ${hpss_dir}/cam_analyses.tar                    >>& $saved  
       set list = `ls -l cam_analyses.tar`
       set local_size = $list[5]
-      set list = `msls -l ${ms_dir}/cam_analyses.tar`
-      set ms_size = $list[5]
-      echo " cam_analyses.tar local_size = $local_size, ms_size = $ms_size"       >> $saved
+      set list = `msls -l ${hpss_dir}/cam_analyses.tar`
+      set hpss_size = $list[5]
+      echo " cam_analyses.tar local_size = $local_size, hpss_size = $hpss_size"       >> $saved
    
-      if ($local_size == $ms_size) then
-         echo "Archived $ms_dir/cam_analyses.tar with write password $write_pass" >> $saved
+      if ($local_size == $hpss_size) then
+         echo "Archived $hpss_dir/cam_analyses.tar with write password $write_pass" >> $saved
          echo '    REMOVING H[0-9]* and cam_analyses.tar '                        >> $saved
          rm -rf H[0-9]*/[ci]* cam_analyses.tar cam_init
       else
-         echo "msrcp of ${ms_dir}/cam_analyses.tar  failed; "                     >> $saved
+         echo "hsi put of ${hpss_dir}/cam_analyses.tar  failed; "                     >> $saved
          echo 'NOT removing H[0-9]* and cam_analyses.tar '                        >> $saved
       endif
    endif
@@ -313,24 +277,23 @@ if ($compress == true) then
    endif
 endif
 
-echo "files will be written to ${ms_dir}/${diag_name}" >> $saved
+echo "files will be written to ${hpss_dir}/${diag_name}" >> $saved
 echo "with write password $write_pass" >> $saved
 
-msrcp -pe 1000 -pr $proj_num -wpwd $write_pass -comment "write password $write_pass" \
-      ${diag_name} mss:${ms_dir}/${diag_name} >>& $saved
+hsi put ${diag_name} : ${hpss_dir}/${diag_name} >>& $saved
 
 set list = `ls -l $diag_name`
 set local_size = $list[5]
-set list = `msls -l ${ms_dir}/${diag_name}`
-set ms_size = $list[5]
-echo " ${diag_name} local_size = $local_size, ms_size = $ms_size" >> $saved
+set list = `msls -l ${hpss_dir}/${diag_name}`
+set hpss_size = $list[5]
+echo " ${diag_name} local_size = $local_size, hpss_size = $hpss_size" >> $saved
 
-if ($local_size == $ms_size) then
+if ($local_size == $hpss_size) then
    echo "Archived files with write password $write_pass" >> $saved
-   echo "msrcp of $ms_dir/$diag_name succeeded; REMOVING $diag_name and P*Diag.nc " >> $saved
+   echo "hsi put of $hpss_dir/$diag_name succeeded; REMOVING $diag_name and P*Diag.nc " >> $saved
    rm $diag_name P*Diag.nc
 else
-   echo "msrcp of ${ms_dir}/$obs_seq  failed; " >> $saved
+   echo "hsi put of ${hpss_dir}/$obs_seq  failed; " >> $saved
    echo "NOT removing $diag_name and P*.nc"      >> $saved
 endif
 

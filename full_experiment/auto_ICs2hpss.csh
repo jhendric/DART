@@ -1,6 +1,6 @@
 #!/bin/csh
 #
-# DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+# DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
@@ -11,16 +11,16 @@
 # so that we can retrieve a subset of the ensemble members for a new experiment.
 # Then it lumps together ensemble members into batches to reduce the number of files.
 
-# change for lightning?
+# updated for HPSS which replaced MSS
+
 setenv LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/dcs/lib
-echo $LD_LIBRARY_PATH
 
 # set  echo verbose
 
 
 if ($#argv < 2) then
    echo "usage; from case/experiment/obs_seq directory; "
-   echo "       auto_re2ms.csh num_ens_members num_per_batch compress(optnl)"
+   echo "       auto_ICs2hpss.csh num_ens_members num_per_batch compress(optnl)"
    echo "       Compresses caminput and clminput files."
    echo "       tars ensemble members together into batches"
    exit
@@ -33,12 +33,10 @@ endif
 set num_ens = $1
 set num_per_batch = $2
 
-# fix this for your local system accounting
-set proj_num = 93300315
-set ret_period = 1000
-set write_pass = $$
-
-if ($num_per_batch > $num_ens) exit "restart2ms; num_per_batch > num_ens"
+if ($num_per_batch > $num_ens) then
+  echo "auto_ICs2hpss; num_per_batch > num_ens"
+  exit -1
+endif
 
 # Parse parts of the path name for construction of MSS name.
 set direct = `pwd`
@@ -67,23 +65,17 @@ set day   = $parts[2]
 set date = $months[$month]_$day
 # END of spin-up section
 
-# orig
-# set ms_root = /RAEDER/DAI/$case/${exp_dir}/${obs_seq}/${1}x${2}
-# A year of ICs goes somewhere else
-# 2x monthly from somewhere besides CAM_init
-# set ms_root = /RAEDER/DAI/CAM_init/$case/${exp_dir}/${date}/${1}x${2}
-# 5 day series
-set ms_root = /RAEDER/DAI/CAM_init/$case/${date}/${1}x${2}
-set ms_dir = mss:$ms_root
-echo "files will be written to ${ms_root}/batch#" >! saved_restart
-echo "files will be written to ${ms_root}/batch#" 
+set hpss_root = /RAEDER/DAI/CAM_init/$case/${date}/${1}x${2}
+set hpss_dir = $hpss_root
+echo "files will be written to ${hpss_root}/batch#" >! saved_restart
+echo "files will be written to ${hpss_root}/batch#" 
 
+# make sure base directory exists before starting
+hsi mkdir ${hpss_dir}
 
 # Figure out how many files to divide ensemble members among
 @ nbatch = $num_ens / $num_per_batch
 if ($num_ens % $num_per_batch != 0 ) @ nbatch++
-
-set msrcp_opts = "-pe $ret_period -pr $proj_num -wpwd $write_pass"
 
 set ok_to_remove = true
 
@@ -133,7 +125,8 @@ endif
 
 if ($DART_files != 'none' && do_filter == false) then
    tar -c -f ic_files.tar DART/{$DART_files}
-   msrcp $msrcp_opts ic_files.tar ${ms_dir}/DART/ic_files.tar &
+   hsi mkdir ${hpss_dir}/DART
+   hsi put ic_files.tar : ${hpss_dir}/DART/ic_files.tar 
 endif
 
 # Do this here, manually, or within tar; -z not available on tempest
@@ -198,7 +191,7 @@ while($batch <= $nbatch)
      @ n++
    end
 
-   msrcp $msrcp_opts batch${batch}${comp} ${ms_dir}/batch${batch}${comp}
+   hsi put batch${batch}${comp} : ${hpss_dir}/batch${batch}${comp}
    if ($batch < $nbatch) rm batch${batch}${comp}
 
    @ batch++
@@ -206,37 +199,34 @@ end
 # Correct batch back to value of last batch, for use below.
 @ batch = $batch - 1
 
-msrcp $msrcp_opts batch*${comp} ${ms_dir}
-mscomment -R -wpwd $write_pass -c "write password $write_pass" ${ms_root}
-
 wait
 
 # Check to see if it's okay to remove DART directory
 if ($do_filter != true && $num_files > 0) then
    set list = `ls -l DART/filter_ic`
    set local_size = $list[5]
-   set list = `msls -l ${ms_root}/DART/filter_ic`
-   set ms_size = $list[5]
-   echo "local_size ms_size = $local_size $ms_size" >> saved_restart
-   if ($local_size != $ms_size) set ok_to_remove = false
+   set list = `hsi -P ls -l ${hpss_root}/DART/filter_ic`
+   set hpss_size = $list[5]
+   echo "local_size hpss_size = $local_size $hpss_size" >> saved_restart
+   if ($local_size != $hpss_size) set ok_to_remove = false
 endif
 
 # Check to see if it's okay to remove CAM/CLM directories
 set list = `ls -l batch${batch}${comp}`
 set local_size = $list[5]
-set list = `msls -l ${ms_root}/batch${batch}${comp}`
-set ms_size = $list[5]
-echo " CAM/CLM/ICE(/DART) local_size ms_size = $local_size $ms_size" >> saved_restart
-if ($local_size != $ms_size) set ok_to_remove = false
+set list = `hsi -P ls -l ${hpss_root}/batch${batch}${comp}`
+set hpss_size = $list[5]
+echo " CAM/CLM/ICE(/DART) local_size hpss_size = $local_size $hpss_size" >> saved_restart
+if ($local_size != $hpss_size) set ok_to_remove = false
 
 
 if ($ok_to_remove == true) then
-   echo "Archived files with write password $write_pass" >> saved_restart
-   echo "msrcp of ${ms_root} succeeded; REMOVING $obs_seq DART,CAM,CLM,ICE" >> saved_restart
+   echo "Archived files " >> saved_restart
+   echo "archive of ${hpss_root} succeeded; REMOVING $obs_seq DART,CAM,CLM,ICE" >> saved_restart
    rm -rf DART CAM CLM ICE
    rm batch${batch}${comp}
 else
-   echo "msrcp of ${ms_root} failed; NOT removing $obs_seq DART,CAM,CLM,ICE" >> saved_restart
+   echo "archive of ${hpss_root} failed; NOT removing $obs_seq DART,CAM,CLM,ICE" >> saved_restart
 endif
 
 chmod 444 saved_restart
