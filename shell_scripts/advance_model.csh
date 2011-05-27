@@ -1,6 +1,6 @@
 #!/bin/csh
 #
-# DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+# DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
@@ -88,6 +88,7 @@ while($state_copy <= $num_states)
    # the previous script used element instead of ensemble_number.  make them
    # the same for now.
    set element = $ensemble_number
+   touch cam_out_temp
    echo "starting ${myname} for ens member $element at "`date` >> cam_out_temp
 
    # get model state initial conditions for this ensemble member
@@ -147,9 +148,10 @@ while($state_copy <= $num_states)
    # ascii 'times' file, which will be used to set the namelist for cam to tell
    # it how far to advance the model.
    if (-e temp_ic && -e ${CENTRALDIR}/dart_to_cam) then
-      echo 'advance_model; executing dart_to_cam '`date` >> cam_out_temp
-      ${CENTRALDIR}/dart_to_cam                          >> cam_out_temp
-      ls -lt                                             >> cam_out_temp
+      echo ' '                           >> cam_out_temp
+      echo 'Executing dart_to_cam'       >> cam_out_temp
+      ${CENTRALDIR}/dart_to_cam          >> cam_out_temp
+      ls -ltR                            >> cam_out_temp
       ${COPY} times ${CENTRALDIR}
    else
       echo "ERROR: either temp_ic file for $element or dart_to_cam not available" >> cam_out_temp
