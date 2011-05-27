@@ -55,12 +55,13 @@
 
 &ensemble_manager_nml
    single_restart_file_in  = .false.,
-   single_restart_file_out = .false. /
+   single_restart_file_out = .false.,
+   perturbation_amplitude  = 0.2 /
 
 &assim_tools_nml
    filter_kind                     = 1,
    cutoff                          = 0.2,
-   sort_obs_inc                    = .true.,
+   sort_obs_inc                    = .false.,
    spread_restoration              = .false.,
    sampling_error_correction       = .false.,
    adaptive_localization_threshold = -1,
@@ -73,8 +74,8 @@
    select_localization = 1  /
 
 &reg_factor_nml
-   select_regression = 1,
-   input_reg_file = "time_mean_reg",
+   select_regression    = 1,
+   input_reg_file       = "time_mean_reg",
    save_reg_diagnostics = .false.,
    reg_diagnostics_file = 'reg_diagnostics' /
 
@@ -98,12 +99,15 @@
    /
 
 
-# also a common setup:
-#   model_version       = '3.5.06',
-#   model_version       = '4.0.1',
-#   state_names_3d      = 'T','US','VS','Q','CLDLIQ','CLDICE'
+# common setups:
 #   model_version       = '3.1',
 #   state_names_3d      = 'T','U','V','Q','CLDLIQ','CLDICE'
+# or:
+#   model_version       = '3.5.06',
+# or:
+#   model_version       = '4.0.1',
+#   state_names_3d      = 'T','US','VS','Q','CLDLIQ','CLDICE'
+
 &model_nml
    output_state_vector = .false.,
    model_version       = '4.0.1',
@@ -113,16 +117,16 @@
    state_num_2d        = 1,
    state_num_3d        = 6,
    state_names_2d      = 'PS'
-   state_names_3d      = 'T','US','VS','Q','CLDLIQ','CLDICE'
+   state_names_3d      = 'T', 'US', 'VS', 'Q', 'CLDLIQ', 'CLDICE'
    which_vert_1d       = 0,
    which_vert_2d       = -1,
    which_vert_3d       = 6*1,
-   pert_names          = '',
-   pert_sd             = -888888.0d0,
+   pert_names          = 'T', 'US', 'VS',
+   pert_sd             = 0.20,
    pert_base_vals      = -888888.0d0,
    highest_obs_pressure_mb   = 100.0,
    highest_state_pressure_mb = 150.0,
-   max_obs_lat_degree        = 85.0,
+   max_obs_lat_degree        = 89.0,
    Time_step_seconds   = 21600,
    Time_step_days      = 0,
    print_details       = .false.,
@@ -131,22 +135,24 @@
 ! pert_sd < 0. signals pert_base_vals to be used as the values 
 !   for each ensemble member (for 1 field), instead of the value for each field.
 !   DART special value -888888.0d0 can be used for that.
-!   Used by trans_pv_sv_pert0's call to pert_model_state (for parameterization studies).
 ! pert_sd > 0 allows each point of the pert_names fields of each ens member 
 !   to be randomly perturbed with a standard deviation of pert_sd.  
 !   Used by filter's call to pert_model_state.
 ! pert_base_vals /= -888888.0d0 means that the values of the fields in pert_names
-!  will be reset to the values in pert_base_vals.  
-
+!   will be reset to the values in pert_base_vals.  
 
 &location_nml
-   horiz_dist_only = .false.,
+   horiz_dist_only             = .true.,
    vert_normalization_pressure = 100000.0, 
-   vert_normalization_height = 10000.0,
-   vert_normalization_level = 20.0,
+   vert_normalization_height   = 10000.0,
+   vert_normalization_level    = 20.0,
    approximate_distance = .true.,
-   nlon = 71, 
-   nlat = 36  /
+   nlon                        = 71, 
+   nlat                        = 36,
+   output_box_info             = .false.,
+   print_box_level             = 0,
+  /
+
 
 &preprocess_nml
    input_obs_kind_mod_file = '../../../obs_kind/DEFAULT_obs_kind_mod.F90',
@@ -170,11 +176,11 @@
                                 'ACARS_V_WIND_COMPONENT',
                                 'SAT_U_WIND_COMPONENT',
                                 'SAT_V_WIND_COMPONENT',
-                                'GPSRO_REFRACTIVITY', /
-
-!   evaluate_these_obs_types = 'RADIOSONDE_SURFACE_PRESSURE' /
-
+                                'GPSRO_REFRACTIVITY', 
   /
+
+!   evaluate_these_obs_types = 'RADIOSONDE_SURFACE_PRESSURE'
+
 
 &utilities_nml
    TERMLEVEL = 1,
@@ -250,7 +256,7 @@
 # in which case last_bin_center should be safely in the future.
 #
 # Acceptable latitudes range from  [-90,  90]
-# Acceptable longitudes range from [  0, Inf]
+# Acceptable longitudes range from [  0, 360]
 
 &obs_diag_nml
    obs_sequence_name = 'obs_seq.final',
@@ -294,4 +300,32 @@
    latlim2    =   90.0,
    verbose    = .false.
    /
+
+&obs_def_gps_nml
+   /
+
+&obs_common_subset_nml
+  filename_seq1       = 'obs_seq1.final', 
+  filename_seq_list1  = '', 
+  filename_seq2       = 'obs_seq2.final', 
+  filename_seq_list2  = '',
+  filename_out_suffix = '.new' ,
+  print_only          = .false., 
+  gregorian_cal       = .true.,
+  /
+
+
+# different methods to compute 'distance' from mean:
+#  1 = simple absolute difference
+#  2 = normalized absolute difference
+#  3 = simple rmse difference
+#  4 = normalized rmse difference
+
+&closest_member_tool_nml  
+   input_file_name        = 'filter_restart',
+   output_file_name       = 'closest_restart',
+   ens_size               = 20,
+   single_restart_file_in = .true.,
+   difference_method      = 4,
+ /
 
