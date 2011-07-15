@@ -23,7 +23,7 @@ function PlotVarVarCorrel( pinfo )
 % pinfo.state_var_index   = 1;
 % PlotVarVarCorrel( pinfo )
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -33,9 +33,10 @@ function PlotVarVarCorrel( pinfo )
 % $Revision$
 % $Date$
 
-if (exist(pinfo.fname) ~= 2), error('%s does not exist.',pinfo.fname), end
+if (exist(pinfo.fname,'file') ~= 2), error('%s does not exist.',pinfo.fname), end
 
 % Get some file-specific information.
+
 model      = nc_attget(pinfo.fname, nc_global, 'model');
 timeunits  = nc_attget(pinfo.fname, 'time',    'units');
 
@@ -43,7 +44,7 @@ timeunits  = nc_attget(pinfo.fname, 'time',    'units');
 
 switch lower(model)
 
-   case {'fms_bgrid','pe2lyr'}
+   case {'fms_bgrid','pe2lyr','wrf','cam'}
 
       clf;
 
@@ -54,24 +55,22 @@ switch lower(model)
       nmembers = size(comp_mem,2);
 
       correl = ens_correl(base_mem, pinfo.base_tmeind, comp_mem);
-      times  = nc_varget(pinfo.fname,'time');
 
       subplot(2,1,1)
          PlotLocator(pinfo)
 
       subplot(2,1,2)
-         plot(times,correl);
+         plot(pinfo.times,correl);
 
       s1 = sprintf('%s Correlation of ''%s'', T = %d, lvl = %d, lat = %.2f, lon=%.2f', ...
           model, pinfo.base_var, pinfo.base_time, pinfo.base_lvl, ...
           pinfo.base_lat, pinfo.base_lon);
 
-      s2 = sprintf('with ''%s'', lvl = %d, lat = %.2f, lon= %.2f, %d ensemble members -- %s', ...
-          pinfo.comp_var, pinfo.comp_lvl, pinfo.comp_lat, pinfo.comp_lon, ...
-          nmembers, pinfo.fname); 
+      s2 = sprintf('with ''%s'', lvl = %d, lat = %.2f, lon= %.2f, %d ensemble members', ...
+          pinfo.comp_var, pinfo.comp_lvl, pinfo.comp_lat, pinfo.comp_lon, nmembers); 
 
-      title({s1,s2},'interpreter','none','fontweight','bold')
-      xlabel(sprintf('time (%s) %d timesteps',timeunits, num_times))
+      title({s1,s2,pinfo.fname},'interpreter','none','fontweight','bold')
+      datetick('x','yyyymmmdd HH:MM')
       ylabel('correlation')
       
       % call out the time index in question, and put a corr==0 reference line.
@@ -174,7 +173,7 @@ function var = GetEns( fname, varname, lvlind, latind, lonind)
 % is the hard part.
 
 % find which are actual ensemble members
-metadata    = nc_varget(fname,'CopyMetaData');           % get all the metadata
+metadata    = nc_varget(fname,'CopyMetaData');       % get all the metadata
 copyindices = strmatch('ensemble member',metadata);  % find all 'member's
 
 if ( isempty(copyindices) )
@@ -187,6 +186,7 @@ if ( isempty(copyindices) )
 end
 ens_num     = length(copyindices);
 
+% Get all ensemble members, just return desired ones.
 myinfo.diagn_file = fname;
 myinfo.levelindex = lvlind;
 myinfo.latindex   = latind;

@@ -1,6 +1,6 @@
 #!/bin/csh
 #
-# DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+# DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
@@ -69,8 +69,8 @@ set endday   = $argv[4]
 # files will be located in subdirectories by month, with the names following
 # the pattern YYYYMM, and then inside the subdirectories, the files are
 # named by the pattern 'prepqmYYMMDDHH'.  for example, if the dir below
-# is the default ../data, then the 6Z file for jan 1st, 1989 would be:
-#  ../data/198901/prepqm89010106
+# is the default ../data, then the 6Z file for dec 27th, 2010 would be:
+#  ../data/201012/prepqm10122706
 # but the conventions for names of prepqm files have changed over the years,
 # so if the prepqm files do *not* follow this pattern, you will have to edit
 # the BUFR_in variable in the script below to match the filenames you have.

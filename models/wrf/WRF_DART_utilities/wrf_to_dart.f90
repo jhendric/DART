@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
  
@@ -10,7 +10,7 @@ PROGRAM wrf_to_dart
 ! $Revision$
 ! $Date$
 
-use        types_mod, only : r8, PI, DEG2RAD
+use        types_mod, only : r8, DEG2RAD
 use time_manager_mod, only : time_type, read_time, set_date, print_time, print_date
 use    utilities_mod, only : get_unit, file_exist, open_file, close_file, &
                              error_handler, E_ERR, E_MSG, initialize_utilities, &

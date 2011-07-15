@@ -1,6 +1,6 @@
 %% stats_wrf_prof
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -28,7 +28,6 @@ tlon  = nc_varget(prfname,  'XLON_d01'); we = size( tlon, 2);
 tlat  = nc_varget(prfname,  'XLAT_d01'); sn = size( tlat, 1);
 level = nc_varget(prfname, 'level_d01'); bt = size(level, 1);
 
-ens_size = get_ens_size(prfname);
 true_ind = get_copy_index(trfname,'true state');
 mean_ind = get_copy_index(prfname,'ensemble mean');
 sprd_ind = get_copy_index(prfname,'ensemble spread');

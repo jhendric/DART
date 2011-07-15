@@ -8,7 +8,7 @@ function copy_index = get_copy_index(fname, copystring)
 % copystring = 'ensemble member 5';
 % copy_index = get_copy_index(fname, copystring);
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -48,7 +48,7 @@ end
 
 if (copy_index < 0)
    fprintf('WARNING: %s is not a valid metadata string for file %s\n', ...
-                copystring, fname)
+                strtrim(copystring), fname)
    disp('valid metadata strings are: ')
    for i = 1:num_copies,
       fprintf('%s\n',deblank(copy_meta_data(i,:)))

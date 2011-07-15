@@ -1,7 +1,7 @@
 function link_obs(fname, ObsTypeString, ObsCopyString, CopyString, QCString, region)
 %% link_obs generates the 'brushable' observation plots.
 %
-% 	Three figures will be generated. In order to make any sense of this
+% 	Three figures will be generated.
 %
 %	Figure 1 will have a 3D geographic scatterplot.
 %
@@ -53,8 +53,16 @@ function link_obs(fname, ObsTypeString, ObsCopyString, CopyString, QCString, reg
 % region        = [0 360 -90 90 -Inf Inf];
 % link_obs('obs_epoch_002.nc','RADIOSONDE_TEMPERATURE', 'observation', ...
 %          'prior ensemble member 3', 'DART quality control', region)
+%
+% IMPORTANT: click on the little paintbrush icon in order to activate the
+% 'brushable' feature on the plots. Once that is highlighted, any observations
+% selected in one view become highlighted in ALL the views. 
+%
+% ALSO IMPORTANT: If you are using the Matlab GUI, doubleclick on 'obsmat' in
+% the the Workspace window to generate a spreadsheet-like view of the 
+% observations which is also linked to the data brushing.
 
-%% DART software - Copyright � 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -73,7 +81,7 @@ verbose = 1;
 obs  = read_obs_netcdf(fname, ObsTypeString, region, ObsCopyString, QCString, verbose);
 copy = read_obs_netcdf(fname, ObsTypeString, region,    CopyString, QCString, 0);
 
-if ( length(obs.lons) == 0 )
+if ( isempty(obs.lons) )
     error('There are no %s observations in the region specified in %s', ObsTypeString, fname)
 end
 
@@ -103,7 +111,7 @@ global obsmat
 obsmat = zeros(length(obs.lons),9);
 obsmat(:,obs.lonindex ) = obs.lons; obs.colnames{obs.lonindex}  = 'longitude';
 obsmat(:,obs.latindex ) = obs.lats; obs.colnames{obs.latindex}  = 'latitude';
-obsmat(:,obs.zindex   ) = obs.z   ; obs.colnames{obs.zindex}    = obs.Zunits;;
+obsmat(:,obs.zindex   ) = obs.z   ; obs.colnames{obs.zindex}    = obs.Zunits;
 obsmat(:,obs.obsindex ) = obs.obs ; obs.colnames{obs.obsindex}  = ObsCopyString;
 obsmat(:,obs.copyindex) = copy.obs; obs.colnames{obs.copyindex} = CopyString;
 obsmat(:,obs.qcindex  ) = obs.qc  ; obs.colnames{obs.qcindex}   = QCString;
@@ -114,8 +122,8 @@ obsmat(:,obs.indindex ) = 1:length(obs.time); obs.colnames{obs.indindex} = 'inde
 %% Replace all ill-posed copies with 
 % This should really check to see if the copy is a 'mean' or 'spread' ...
 
-iscalculated = ~isempty(findstr(lower(obs.colnames{obs.copyindex}),'mean')) | ...
-               ~isempty(findstr(lower(obs.colnames{obs.copyindex}),'spread'));
+iscalculated = ~isempty(strfind(lower(obs.colnames{obs.copyindex}),'mean')) | ...
+               ~isempty(strfind(lower(obs.colnames{obs.copyindex}),'spread'));
 
 if iscalculated
    disp('replacing copies with [1 < QC flag < 5] with NaN')

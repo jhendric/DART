@@ -7,7 +7,7 @@ function vars = CheckModel(fname);
 % fname = 'Prior_Diag.nc';
 % vars = CheckModel(fname) 
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -52,6 +52,8 @@ switch lower(model)
               'max_ens_mem',max(copy), ...
               'def_state_vars',def_state_vars);
 
+      vars.fname = fname;
+
    case {'lorenz_96', 'lorenz_04'}
 
       num_vars      = dim_length(fname,'StateVariable'); % determine # of state varbls
@@ -72,6 +74,8 @@ switch lower(model)
               'min_ens_mem',min(copy), ...
               'max_ens_mem',max(copy), ...
               'def_state_vars',def_state_vars);
+
+      vars.fname = fname;
 
    case 'forced_lorenz_96'
 
@@ -106,6 +110,8 @@ switch lower(model)
               'def_state_vars',def_state_vars, ...
               'def_force_vars',def_force_vars);
 
+      vars.fname = fname;
+
    case 'lorenz_96_2scale'
 
       num_X  = dim_length(fname,'Xdim'); % # of X variables
@@ -130,6 +136,8 @@ switch lower(model)
               'min_Y_var',    min(Ydim), 'max_Y_var',    max(Ydim), ...
               'min_ens_mem',  min(copy), 'max_ens_mem',  max(copy), ...
               'def_state_vars',def_X_inds);
+
+      vars.fname = fname;
 
    case 'simple_advection'
 
@@ -157,7 +165,9 @@ switch lower(model)
               'max_state_var'     ,num_locs, ...
               'def_state_vars'    ,def_inds, ...
               'num_vars'          ,length(varnames));
-      vars.vars = varnames;
+
+      vars.vars  = varnames;
+      vars.fname = fname;
 
    case 'fms_bgrid'
 
@@ -184,17 +194,12 @@ switch lower(model)
               'min_ens_mem',min(copy), ...
               'max_ens_mem',max(copy));
 
-      vars.vars = varnames;
+      vars.vars  = varnames;
+      vars.fname = fname;
 
    case 'cam'
 
-      % A more robust way would be to use the netcdf low-level ops:
-      % bob = var(f);     % bob is a cell array of ncvars
-      % name(bob{1})       % is the variable name string
-      % bob{1}(:)          % is the value of the netcdf variable  (no offset/scale)
-      % have not yet figured out a way to only use non-coordinate variables.
-
-      varnames = {'PS','T','U','V','Q','CLDLIQ','CLDICE'};
+      varnames = get_DARTvars(fname);
       num_vars = length(varnames);
       nlevels  = dim_length(fname,'lev'); % determine # of state variables
 
@@ -204,8 +209,9 @@ switch lower(model)
               'time_series_length',num_times, ...
               'min_ens_mem',min(copy), ...
               'max_ens_mem',max(copy) );
-         %    'max_ens_mem',max(copy), ...
-         %    'varnames',varnames);
+
+      vars.vars  = varnames;
+      vars.fname = fname;
 
    case 'pbl_1d'
 
@@ -228,6 +234,8 @@ switch lower(model)
               'min_ens_mem',min(copy), ...
               'max_ens_mem',max(copy));
 
+      vars.fname = fname;
+
    case 'pe2lyr'
 
       % Since this is a 3D model, only the most rudimentary information
@@ -245,7 +253,8 @@ switch lower(model)
               'min_ens_mem',min(copy), ...
               'max_ens_mem',max(copy) );
 
-      vars.vars = varnames;
+      vars.vars  = varnames;
+      vars.fname = fname;
 
    case 'mitgcm_ocean'
 
@@ -266,7 +275,32 @@ switch lower(model)
               'min_ens_mem',min(copy), ...
               'max_ens_mem',max(copy) );
 
-       vars.vars = varnames;
+      vars.vars  = varnames;
+      vars.fname = fname;
+
+   case 'wrf'
+
+      % requires a 'domain' and 'bottom_top_d01' dimension.
+      % without both of these, it will fail in an ugly fashion.
+
+      varnames    = get_DARTvars(fname);
+      num_vars    = length(varnames);
+      dinfo       = nc_getdiminfo(fname,'domain');
+      num_domains = dinfo.Length;
+      dinfo       = nc_getdiminfo(fname,'bottom_top_d01');
+      num_levels  = dinfo.Length;
+
+      vars = struct('model',model, ...
+              'num_state_vars',num_vars, ...
+              'num_ens_members',num_copies, ...
+              'time_series_length',num_times, ...
+              'num_unstaggered_levels',num_levels, ...
+              'num_domains',num_domains, ...
+              'min_ens_mem',min(copy), ...
+              'max_ens_mem',max(copy));
+
+      vars.vars  = varnames;
+      vars.fname = fname;
 
    otherwise
 
@@ -281,7 +315,7 @@ function x = dim_length(fname,dimname)
 
 y = nc_isvar(fname,dimname);
 if (y < 1)
-   error('%s has no %s dimension/coordinate variable',fname,varname)
+   error('%s has no %s dimension/coordinate variable',fname,dimname)
 end
 bob = nc_getdiminfo(fname,dimname);
 x   = bob.Length;

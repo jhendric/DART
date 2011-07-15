@@ -4,7 +4,7 @@
 % diagn_file = 'Posterior_Diag.nc';
 % plot_total_err
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -37,8 +37,8 @@ disp(sprintf('Comparing %s and \n          %s', truth_file, diagn_file))
 pinfo = CheckModel(diagn_file);
 pinfo.truth_file = truth_file;
 pinfo.diagn_file = diagn_file;
-pinfo.truth_time = [1, -1];    % The temporal intersection happens in PlotTotalErr.m
-pinfo.diagn_time = [1, -1];
+
+% Temporal Intersection happens in PlotTotalErr:CheckModelCompatibility()
 
 PlotTotalErr( pinfo );
 clear pinfo

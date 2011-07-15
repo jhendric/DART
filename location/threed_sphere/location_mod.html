@@ -4,6 +4,7 @@
 <HEAD>
 <TITLE>module location_mod</TITLE>
 <link rel="stylesheet" type="text/css" href="../../doc/html/doc.css" />
+<link href="../../doc/html/dart.ico" rel="shortcut icon" />
 </HEAD>
 <BODY>
 <A NAME="TOP"></A>
@@ -13,7 +14,7 @@
 <table border=0 summary="" cellpadding=5>
 <tr>
     <td valign=middle>
-    <img src="../../doc/html/Dartboard9.png" alt="DART project logo" height=70 />
+    <img src="../../doc/html/Dartboard7.png" alt="DART project logo" height=70 />
     </td>
     <td>
        <P>Jump to <a href="../../index.html">DART Documentation Main Index</a><br />
@@ -42,12 +43,11 @@ model interface code (model_mod.f90), and to be able to
 read and write location information to files.
 DART isolates all this location information into separate modules 
 so that the main algorithms can operate with the same code independent
-of whether the model uses latitude/longitude/height, one-d unit
+of whether the model uses latitude/longitude/height, 1D unit
 sphere coordinates, cylindrical coordinates, etc.  DART provides
 about half a dozen possible coordinate systems, and others can be added.  
 The most common one for geophysical models is this one: threed_sphere.
-</P>
-<P>
+</P> <P>
 This location module provides a representation of a physical location 
 on a 3-D spherical shell, using latitude and longitude plus a vertical
 component with choices of vertical coordinate type such as pressure or 
@@ -68,8 +68,7 @@ location module will be compiled into the program
 is controlled by which source file name is specified 
 in the <em class=file>path_names_xxx</em> file, which is used by
 the <em class=file>mkmf_xxx</em> scripts.
-</P>
-<P>
+</P> <P>
 All types of location modules define the same Fortran 90 derived type
 <em class=code>location_type</em>.
 Programs that need to pass location information to subroutines
@@ -91,8 +90,7 @@ of these routines in the filter code is to compute the distance between
 a single observation and items in the state vector, and also between a single
 observation and other nearby observations.
 However, any source for locations is supported.
-</P>
-<P>
+</P> <P>
 In simpler location modules (like the <em class=file>oned</em> version)
 there is no need for anything other than a brute force search between
 the base location and all available state vector locations.  However in
@@ -102,9 +100,10 @@ locations code, the brute-force search time is prohibitive.
 The location code pre-processes all locations into a set of <em>bins</em>
 and then only needs to search the lists of locations in nearby bins when looking
 for locations that are within a specified distance.
-
+</P> <P>
 The expected calling sequence of the <em class=code>get_close</em> routines 
 is as follows:
+</P>
 <pre>
 <em class=code>
 call get_close_maxdist_init()  ! is called before get_close_obs_init()
@@ -115,6 +114,7 @@ call get_close_obs()           ! called many, many times
 call get_close_obs_destroy()
 </em>
 </pre>
+<P>
 In the <em class=file>threed_sphere</em> implementation the
 first routine initializes some data structures, the second one
 bins up the list of locations, and then the third one is called
@@ -123,14 +123,12 @@ some reference location, and to optionally
 compute the exact separation distance from the reference location.
 The last routine deallocates the space.  See the documentation 
 below for the specific details for each routine.
-</P>
-<P>
+</P> <P>
 All 4 of these routines must be present in every location module
 but in most other versions
 all but <em class=code>get_close_obs()</em> are stubs.
 In this <em class=file>threed_sphere</em> version
 of the locations module all are fully implemented.
-</P>
 </P>
 <H4>Interaction with model_mod.f90 code</H4>
 <A NAME="ModelMod"></A>
@@ -145,8 +143,7 @@ in many cases the model_mod only needs to contain another
 from the <em class=code>location_mod</em> module.
 Thus they 'pass through' the model_mod but the user does
 not need to provide a subroutine or any code for them.
-</P>
-<P>
+</P> <P>
 However, if the model interface code wants to intercept and alter
 the default behavior of the get_close routines, it is able to.
 Typically the model_mod still calls the location_mod routines and
@@ -159,19 +156,20 @@ a module routine to be renamed in the use statement.  For example,
 a common case is for the model_mod to want to supply additions to
 the get_close_obs() routine only.  At the top of the model_mod code
 it would declare:
+</P>
 <pre>
 <em class=code>
-use location_mod, only :: location_get_close_obs => get_close_obs,    &
-                          get_close_maxdist_init, get_close_obs_init, &
+use location_mod, only :: location_get_close_obs => get_close_obs,    &amp;
+                          get_close_maxdist_init, get_close_obs_init, &amp;
                           get_close_obs_destroy
 </em>
 </pre>
+<P>
 That makes calls to the maxdist_init, init, and destroy routines simply pass
 through to the code in the location_mod, but the model_mod must supply
 a get_close_obs() subroutine.  When it wants to call the code in the 
 location_mod it calls <em class=code>location_get_close_obs()</em>.
-</P>
-<P>
+</P> <P>
 One use pattern is for the model_mod to call the location get_close_obs()
 routine without the <em class=code>dist</em> argument.  This returns a list
 of any potentially close locations without computing the exact distance
@@ -189,56 +187,34 @@ to be returned to the calling code.  To localize in the vertical in a
 particular unit type, this is the place where the conversion to that
 vertical unit should be done.
 </P>
-
-<!--=====================================================================-->
-<!--===================== DESCRIPTION OF A NAMELIST =====================-->
-<!--=====================================================================-->
-
-<A NAME="Namelist"></A>
-<HR>
-<H2>NAMELIST</H2>
-<P>We adhere to the F90 standard of starting a namelist with an ampersand
-'&amp;' and terminating with a slash '/' for all our namelist input.
-Consider yourself forewarned that character strings that contain a '/' must be
-enclosed in quotes to prevent them from prematurely terminating the namelist.
-The namelist declaration (i.e. what follows) has a different syntax, naturally.
-</P>
-<div class=namelist>
-<pre>
-<em class=call>namelist / location_nml / </em> &amp;
-   horiz_dist_only, vert_normalization_pressure, vert_normalization_height, &amp;
-   vert_normalization_level, approximate_distance, nlon, nlat, output_box_info
-</pre>
-</div>
-
-<div class=indent1>
-<!-- Description -->
-
+<H4>Horizontal Distance Only</H4>
 <P>
-Items in this namelist either control the way in which distances 
-are computed and/or influence the code performance.
-<br><br>
-If <em>horiz_distance_only</em> is .false.
+If <em>horiz_distance_only</em> is .true. in the namelist, then the
+vertical coordinate is ignored and only the great-circle distance
+between the two locations is computed, as if they were both on the
+surface of the sphere. 
+</P> <P>
+If <em>horiz_distance_only</em> is .false. in the namelist
 then the appropriate normalization constant determines the relative impact of
 vertical and horizontal separation.  Since only a single localization
 distance is specified, and the vertical scales might have very different
 distance characteristics, the vert_normalization_xxx values can be used
 to scale the vertical appropriately to control the desired influence 
 of observations in the vertical.
-<br><br>
+</P>
+<H4>Precomputation for Run-time Search Efficiency</H4>
+<P>
 For search efficiency all locations are pre-binned. The surface of the
 sphere is divided up into <em>nlon</em> by <em>nlat</em> boxes and the
 index numbers of all items (both state vector entries and observations)
 are stored in the appropriate box.  
 To locate all points close to a given location, only the locations
 listed in the boxes within the search radius must be checked.  
-<!--   Does this really clarify anything?  is it right?
 This speeds up the computations, for example, when localization controls
 which state vector items are impacted by any given observation.  The search
 radius is the localization distance and only those state vector items
 in boxes closer than the radius to the observation location are processed.
--->
-<br><br>
+</P> <P>
 The default values have given good performance on many of our
 existing model runs, but for tuning purposes the box counts
 have been added to the namelist to allow adjustment.  
@@ -258,7 +234,7 @@ contains a reasonable number of values, more or less evenly
 distributed across boxes. 
 The absolute numbers for best performance will certainly
 vary from case to case.
-<br><br>
+</P> <P>
 For latitude, the <em>nlat</em> boxes are distributed evenly across the
 actual extents of the data. (Locations are in radians, so the
 maximum limits are the poles at -PI/2 and +PI/2).   
@@ -278,7 +254,102 @@ In practice, for a global model the boxes are evenly distributed
 across the entire surface of the sphere.  
 For local or regional models, the boxes
 are distributed only across the the extent of the local grid.
-<br><br>
+</P> <P>
+For efficiency in the case where the boxes span less than half the globe,
+the 3D location module needs to be able to determine the greatest longitude 
+difference between a base point at latitude <tt>&phi;<sub>s</sub></tt>
+and all points that are separated from that point by a central 
+angle of <tt>&theta;</tt>. 
+We might also want to know the latitude, <tt>&phi;<sub>f</sub></tt> , 
+at which the largest separation occurs. Note also that an intermediate 
+form below allows the computation of the maximum longitude difference 
+at a particular latitude.
+</P> <P>
+The central angle between a point at latitude <tt>&phi;<sub>s</sub></tt>
+and a second point at latitude <tt>&phi;<sub>f</sub></tt> that are separated 
+in longitude by <tt>&Delta;&lambda;</tt> is <br> <br>
+<tt>
+&nbsp;&nbsp;&theta; = cos<sup>-1</sup>(sin&phi;<sub>s</sub>sin&phi;<sub>f</sub> + 
+   cos&phi;<sub>s</sub>cos&phi;<sub>f</sub>cos&Delta;&lambda;) 
+</tt> <br> <br>
+Taking the cos of both sides gives <br> <br>
+<tt>
+&nbsp;&nbsp;cos&theta; = (sin&phi;<sub>s</sub>sin&phi;<sub>f</sub> +
+   cos&phi;<sub>s</sub>cos&phi;<sub>f</sub>cos&Delta;&lambda;)
+</tt> <br> <br>
+Solving for <tt>cos&Delta;&lambda;</tt> gives <br> <br>
+<tt>
+&nbsp;&nbsp;cos&Delta;&lambda; 
+    = <sup>(<i>a</i> - <i>b</i>&nbsp;sin&phi;<sub>f</sub>)</sup><big>/</big><sub>(<i>c</i>&nbsp;cos&phi;<sub>f</sub>)</sub>
+    = <sup><i>a</i></sup><big>/</big><sub><i>c</i></sub>&nbsp;sec&phi;<sub>f</sub> - 
+      <sup><i>b</i></sup><big>/</big><sub><i>c</i></sub>&nbsp;tan&phi;<sub>f</sub> 
+</tt> <br> <br>
+where <tt><i>a</i> = cos&theta;</tt> , 
+<tt><i>b</i> = sin&phi;<sub>s</sub></tt> , 
+and <tt><i>c</i> = cos&phi;<sub>s</sub></tt> . 
+We want to maximize <tt>&Delta;&lambda;</tt> which implies minimizing   
+<tt>cos&Delta;&lambda;</tt> subject to constraints. Taking the 
+derivative with respect to <tt>&phi;<sub>f</sub></tt> gives  <br> <br>
+<tt>
+&nbsp;&nbsp;<sup>(<i>d</i>&nbsp;cos&Delta;&lambda;)</sup><big>/</big><sub>(<i>d</i>&phi;<sub>f</sub>)</sub> = 
+   <sup><i>a</i></sup><big>/</big><sub><i>c</i></sub>&nbsp;sec&phi;<sub>f</sub>&nbsp;tan&phi;<sub>f</sub>
+ - <sup><i>b</i></sup><big>/</big><sub><i>c</i></sub>&nbsp;sec<sup>2</sup>&phi;<sub>f</sub> = 0
+</tt> <br> <br>
+Factoring out <tt>sec&phi;<sub>f</sub></tt> which can never be 0 and using the
+definitions of <tt>sec</tt> and <tt>tan</tt> gives <br> <br>
+<tt>
+&nbsp;&nbsp;<sup>(<i>a</i>&nbsp;sin&phi;<sub>f</sub>)</sup><big>/</big><sub>(<i>c</i>&nbsp;cos&phi;<sub>f</sub>)</sub> -
+<sup><i>b</i></sup><big>/</big><sub>(<i>c</i>&nbsp;cos&phi;<sub>f</sub>)</sub> = 0
+</tt> <br> <br>
+Solving in the constrained range from 0 to PI/2 gives <br> <br>
+<tt>
+&nbsp;&nbsp; sin&phi;<sub>f</sub> = <sup><i>b</i></sup><big>/</big><sub><i>a</i></sub> = 
+   <sup>sin&phi;<sub>s</sub></sup><big>/</big><sub>cos&theta;</sub>
+</tt> <br> <br>
+So knowing 
+base point (<tt>&phi;<sub>s</sub></tt>,
+<tt>&lambda;<sub>s</sub></tt>),
+latitude <tt>&phi;<sub>f</sub></tt>, and
+distance <tt>&theta;</tt> we can use the great circle equation to find
+the longitude difference at the greatest separation point <br> <br>
+<tt>
+&nbsp;&nbsp; &Delta;&lambda; = cos<sup>-1</sup><big>(</big><sup>(<i>a</i> - 
+(<i>b</i>&nbsp;sin&phi;<sub>f</sub>))</sup> 
+ <big>/</big> <sub>(<i>c</i>&nbsp;cos&phi;<sub>f</sub>)</sub><big>)</big>
+</tt> <br> <br>
+Note that if the angle between the base point and a pole is less than 
+or equal to the central angle, all longitude differences will occur 
+as the pole is approached.
+</P>
+
+<!--=====================================================================-->
+<!--===================== DESCRIPTION OF A NAMELIST =====================-->
+<!--=====================================================================-->
+
+<A NAME="Namelist"></A>
+<HR>
+<H2>NAMELIST</H2>
+<P>We adhere to the F90 standard of starting a namelist with an ampersand
+'&amp;' and terminating with a slash '/' for all our namelist input.
+Consider yourself forewarned that character strings that contain a '/' must be
+enclosed in quotes to prevent them from prematurely terminating the namelist.
+The namelist declaration (i.e. what follows) has a different syntax, naturally.
+</P>
+<div class=namelist>
+<pre>
+<em class=call>namelist / location_nml / </em> &amp;
+   horiz_dist_only, vert_normalization_pressure, vert_normalization_height, &amp;
+   vert_normalization_level, vert_normalization_scale_height, &amp;
+   approximate_distance, nlon, nlat, output_box_info, maintain_original_vert
+</pre>
+</div>
+
+<div class=indent1>
+<!-- Description -->
+
+<P>
+Items in this namelist either control the way in which distances 
+are computed and/or influence the code performance.
 This namelist is read in a file called <em class=file>input.nml</em> .
 </P>
 
@@ -298,10 +369,21 @@ This namelist is read in a file called <em class=file>input.nml</em> .
     <!--  type  --><TD valign=top>real(r8)</TD>
     <!--descript--><TD>How many geopotential meters should be equal 
                        to one radian?  Default: 10000.0</TD></TR>
+<TR><!--contents--><TD valign=top>vert_normalization_scale_height</TD>
+    <!--  type  --><TD valign=top>real(r8)</TD>
+    <!--descript--><TD>How many scale heights should be equal to one radian? 
+                Default: 5.0</TD></TR>
 <TR><!--contents--><TD valign=top>vert_normalization_level</TD>
     <!--  type  --><TD valign=top>real(r8)</TD>
     <!--descript--><TD>How many model levels should be equal to one radian? 
                 Default: 20.0</TD></TR>
+<TR><!--contents--><TD valign=top>maintain_original_vert</TD>
+    <!--  type  --><TD valign=top>logical</TD>
+    <!--descript--><TD>If using per-type specialized localization distances
+                (see <a href="../../assim_tools/assim_tools_mod.html#Namelist">assim_tools_mod</a>)
+                by default the vertical distances are altered also.  To maintain
+                the original vertical scaling while changing the horizontal, set this
+                to true.  Default: .false.</TD></TR>
 <TR><!--contents--><TD valign=top>approximate_distance</TD>
     <!--  type  --><TD valign=top>logical</TD>
     <!--descript--><TD> If true, uses a table lookup for fast approximate
@@ -376,6 +458,7 @@ random_seq_mod
 <TR><TD>&nbsp;</TD><TD><A HREF="#vert_is_undef">vert_is_undef</A></TD></TR>
 <TR><TD>&nbsp;</TD><TD><A HREF="#vert_is_surface">vert_is_surface</A></TD></TR>
 <TR><TD>&nbsp;</TD><TD><A HREF="#vert_is_pressure">vert_is_pressure</A></TD></TR>
+<TR><TD>&nbsp;</TD><TD><A HREF="#vert_is_scale_height">vert_is_scale_height</A></TD></TR>
 <TR><TD>&nbsp;</TD><TD><A HREF="#vert_is_level">vert_is_level</A></TD></TR>
 <TR><TD>&nbsp;</TD><TD><A HREF="#vert_is_height">vert_is_height</A></TD></TR>
 <TR><TD>&nbsp;</TD><TD><A HREF="#vert_constants">VERTISUNDEF</A></TD></TR>
@@ -383,6 +466,7 @@ random_seq_mod
 <TR><TD>&nbsp;</TD><TD><A HREF="#vert_constants">VERTISLEVEL</A></TD></TR>
 <TR><TD>&nbsp;</TD><TD><A HREF="#vert_constants">VERTISPRESSURE</A></TD></TR>
 <TR><TD>&nbsp;</TD><TD><A HREF="#vert_constants">VERTISHEIGHT</A></TD></TR>
+<TR><TD>&nbsp;</TD><TD><A HREF="#vert_constants">VERTISSCALEHEIGHT</A></TD></TR>
 <TR><TD>&nbsp;</TD><TD><A HREF="#equal">operator(==)</A></TD></TR>
 <TR><TD>&nbsp;</TD><TD><A HREF="#not_equal">operator(/=)</A></TD></TR>
 </TABLE>
@@ -429,8 +513,8 @@ three-d spherical shell.
 <TR><TD valign=top> vloc       </TD>
     <TD>vertical location, units as selected by which_vert</TD></TR>
 <TR><TD valign=top> which_vert </TD>
-    <TD>type of vertical location: -2=no vert location; -1=surface; 
-        1=level; 2=pressure; 3=height</TD></TR>
+    <TD>type of vertical location: -2=no specific vert location; -1=surface; 
+        1=level; 2=pressure; 3=height, 4=scale height</TD></TR>
 </TABLE>
 
 The vertical types have parameters defined for them so they
@@ -739,10 +823,12 @@ types module.
 <A NAME="get_close_maxdist_init"></A>
 <br>
 <div class=routine>
-<em class=call> call get_close_maxdist_init(gc,maxdist) </em>
+<em class=call> call get_close_maxdist_init(gc,maxdist,
+<em class=optionalcode>[maxdist_list]</em>) </em>
 <pre>
 type(get_close_type), intent(inout) :: <em class=code>gc</em>
 real(r8), intent(in)                :: <em class=code>maxdist</em>
+real(r8), intent(in), optional      :: <em class=optionalcode>maxdist_list(:)</em>
 </pre>
 </div>
 
@@ -759,12 +845,31 @@ It allocates space so it is necessary to call
 <em class=code>get_close_obs_destroy</em>
 when completely done with getting distances between locations.
 </P>
+<P>
+If the last optional argument is not specified, maxdist
+applies to all locations.  If the last argument is specified,
+it must be a list of exactly the length of the number of
+specific types in the obs_kind_mod.f90 file.
+This length can be queried with the
+<a href="../../obs_kind/obs_kind_mod.html#get_num_obs_kinds">
+get_num_obs_kinds()</a> function to get count of obs types.
+It allows a different maximum distance to be set per base type
+when get_close() is called.
+</P>
 
 <TABLE width=100% border=0 summary="" cellpadding=3>
 <TR><TD valign=top><em class=code>gc</em></TD>
     <TD>Data for efficiently finding close locations.</TD></TR>
 <TR><TD valign=top><em class=code>maxdist</em></TD>
     <TD>Anything closer than this number of radians is a close location.</TD></TR>
+<TR><TD valign=top><em class=optionalcode>maxdist</em></TD>
+    <TD>If specified, must be a list of real values.  The length of
+        the list must be exactly the same length as the number of
+        observation types defined in the obs_def_kind.f90 file.
+        (See <a href="../../obs_kind/obs_kind_mod.html#get_num_obs_kinds">
+        get_num_obs_kinds()</a> to get count of obs types.)
+        The values in this list are used for the obs types as the
+        close distance instead of the maxdist argument.</TD></TR>
 </TABLE>
 
 </div>
@@ -1069,6 +1174,35 @@ Returns true if which_vert is for pressure, else false.
 
 <!--===================== DESCRIPTION OF A ROUTINE =====================-->
 
+<A NAME="vert_is_scale_height"></A>
+<br>
+<div class=routine>
+<em class=call> var = vert_is_scale_height(loc) </em>
+<pre>
+logical                         :: <em class=code>vert_is_scale_height</em>
+type(location_type), intent(in) :: <em class=code>loc</em>
+</pre>
+</div>
+
+<div class=indent1>
+<!-- Description -->
+
+<P>
+Returns true if which_vert is for scale_height, else false.
+</P>
+
+<TABLE width=100% border=0 summary="" cellpadding=3>
+<TR><TD valign=top><em class=code>vert_is_scale_height</em></TD>
+    <TD>Returns true if vertical coordinate type is scale_height</TD></TR>
+<TR><TD valign=top><em class=code>loc</em></TD>
+    <TD>A location type</TD></TR>
+</TABLE>
+
+</div>
+<br>
+
+<!--===================== DESCRIPTION OF A ROUTINE =====================-->
+
 <A NAME="vert_is_level"></A>
 <br>
 <div class=routine>
@@ -1208,11 +1342,12 @@ type(location_type), intent(in) :: <em class=code>loc1, loc2</em>
 <br>
 <div class=routine>
 <pre>
-<em class=call>integer, parameter :: VERTISUNDEF    = -2</em>
-<em class=call>integer, parameter :: VERTISSURFACE  = -1</em>
-<em class=call>integer, parameter :: VERTISLEVEL    =  1</em>
-<em class=call>integer, parameter :: VERTISPRESSURE =  2</em>
-<em class=call>integer, parameter :: VERTISHEIGHT   =  3</em>
+<em class=call>integer, parameter :: VERTISUNDEF       = -2</em>
+<em class=call>integer, parameter :: VERTISSURFACE     = -1</em>
+<em class=call>integer, parameter :: VERTISLEVEL       =  1</em>
+<em class=call>integer, parameter :: VERTISPRESSURE    =  2</em>
+<em class=call>integer, parameter :: VERTISHEIGHT      =  3</em>
+<em class=call>integer, parameter :: VERTISSCALEHEIGHT =  4</em>
 </pre>
 </div>
 
@@ -1277,7 +1412,7 @@ A parameter to identify this location module in output metadata.
 <div class=routine>
 <pre>
 <em class=call>character(len=129), parameter :: LocationLName = <br>
-       "threed sphere locations: lon, lat, lev or pressure"</em>
+       "threed sphere locations: lon, lat, vertical"</em>
 </pre>
 </div>
 
@@ -1286,7 +1421,7 @@ A parameter to identify this location module in output metadata.
 
 <P>
 This is a <b>constant</b>. 
-A parameter set to "threed sphere locations: lon, lat, lev or pressure" used 
+A parameter set to "threed sphere locations: lon, lat, vertical" used 
 to identify this location module in output long name metadata.
 </P>
 
@@ -1350,12 +1485,14 @@ to identify this location module in output long name metadata.
     <!-- comment --><TD VALIGN=top>Is it really a latitude?</TD>
 </TR>
 <TR><!-- routine --><TD VALIGN=top>set_location</TD>
-    <!-- message --><TD VALIGN=top>which_vert (#) must be one of 1, 2, or 3</TD>
+    <!-- message --><TD VALIGN=top>which_vert (#) must be one of -2, -1, 1, 2, 3, or 4</TD>
     <!-- comment --><TD VALIGN=top>Vertical coordinate type restricted to:<BR>
+               -2 = no specific vertical location <BR>
                -1 = surface value <BR>
-                1 = level <BR>
+                1 = (model) level <BR>
                 2 = pressure <BR>
-                3 = height <BR></TD>
+                3 = height <BR>
+                4 = scale height <BR></TD>
 </TR>
 <TR><!-- routine --><TD VALIGN=top>read_location</TD>
     <!-- message --><TD VALIGN=top>Expected location header "loc3d" in input file, got ___</TD>
@@ -1432,7 +1569,7 @@ N/A
 <H2>Terms of Use</H2>
 
 <P>
-DART software - Copyright &copy; 2004 - 2010 UCAR.<br>
+DART software - Copyright 2004 - 2011 UCAR.<br>
 This open source software is provided by UCAR, "as is",<br>
 without charge, subject to all terms of use at<br>
 <a href="http://www.image.ucar.edu/DAReS/DART/DART_download">

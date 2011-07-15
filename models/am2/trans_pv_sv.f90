@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -36,7 +36,12 @@ use time_manager_mod, only : time_type, read_time, set_time, set_date
 
 implicit none
 
-integer, external :: iargc
+interface
+  integer function iargc()
+  end function iargc
+end interface
+
+!integer, external :: iargc
 
 character (len = 128) :: dartSVout, RstFileIn, TrcFileIn
 character (len = 256) :: string1, string2

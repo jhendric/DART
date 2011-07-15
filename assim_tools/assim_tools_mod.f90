@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -12,7 +12,7 @@ module assim_tools_mod
  
 ! A variety of operations required by assimilation.
 
-use      types_mod,       only : r8, digits12, PI
+use      types_mod,       only : r8, digits12, PI, missing_r8
 use  utilities_mod,       only : file_exist, get_unit, check_namelist_read, do_output,    &
                                  find_namelist_in_file, register_module, error_handler,   &
                                  E_ERR, E_MSG, nmlfileunit, do_nml_file, do_nml_term,     &
@@ -27,6 +27,9 @@ use obs_sequence_mod,     only : obs_sequence_type, obs_type, get_num_copies, ge
    
 use          obs_def_mod, only : obs_def_type, get_obs_def_location, get_obs_def_time,    &
                                  get_obs_def_error_variance, get_obs_kind
+
+use         obs_kind_mod, only : get_num_obs_kinds, get_obs_kind_index
+
 
 use       cov_cutoff_mod, only : comp_cov_factor
 
@@ -63,14 +66,17 @@ public :: filter_assim, set_assim_tools_trace
 
 ! Indicates if module initialization subroutine has been called yet
 logical :: module_initialized = .false.
+
 integer :: print_timestamps    = 0
 integer :: print_trace_details = 0
-
 
 ! True if random sequence needs to be initialized
 logical                :: first_inc_ran_call = .true.
 type (random_seq_type) :: inc_ran_seq
 
+integer                :: num_types = 0
+real(r8), allocatable  :: cutoff_list(:)
+logical                :: has_special_cutoffs
 character(len = 129)   :: errstring
 
 ! Need to read in table for off-line based sampling correction and store it
@@ -93,27 +99,43 @@ character(len=128), parameter :: &
 !      4 = particle filter
 !      5 = random draw from posterior
 !      6 = deterministic draw from posterior with fixed kurtosis
+!      8 = Rank Histogram Filter (see Anderson 2011)
+!
+!  special_localization_obs_types -> Special treatment for the specified observation types
+!  special_localization_cutoffs   -> Different cutoff value for each specified obs type
+!
 integer  :: filter_kind                     = 1
 real(r8) :: cutoff                          = 0.2_r8
 logical  :: sort_obs_inc                    = .false.
 logical  :: spread_restoration              = .false.
 logical  :: sampling_error_correction       = .false.
 integer  :: adaptive_localization_threshold = -1
+real(r8) :: adaptive_cutoff_floor           = 0.0_r8
 integer  :: print_every_nth_obs             = 0
-logical  :: output_localization_diagnostics = .false.
+
+! since this is in the namelist, it has to have a fixed size.
+integer, parameter   :: MAX_ITEMS = 300
+character(len = 129) :: special_localization_obs_types(MAX_ITEMS)
+real(r8)             :: special_localization_cutoffs(MAX_ITEMS)
+
+logical              :: output_localization_diagnostics = .false.
 character(len = 129) :: localization_diagnostics_file = "localization_diagnostics"
+
 ! Following only relevant for filter_kind = 8
 logical  :: rectangular_quadrature          = .true.
 logical  :: gaussian_likelihood_tails       = .false.
+
 ! Not in the namelist; this var disables the experimental
 ! linear and spherical case code in the adaptive localization 
 ! sections.  to try out the alternatives, set this to .false.
 logical  :: only_area_adapt  = .true.
 
 namelist / assim_tools_nml / filter_kind, cutoff, sort_obs_inc, &
-   spread_restoration, sampling_error_correction, adaptive_localization_threshold, &
+   spread_restoration, sampling_error_correction,                          & 
+   adaptive_localization_threshold, adaptive_cutoff_floor,                 &
    print_every_nth_obs, rectangular_quadrature, gaussian_likelihood_tails, &
-   output_localization_diagnostics, localization_diagnostics_file
+   output_localization_diagnostics, localization_diagnostics_file,         &
+   special_localization_obs_types, special_localization_cutoffs
 
 !============================================================================
 
@@ -123,9 +145,16 @@ contains
 
 subroutine assim_tools_init()
 
-integer :: iunit, io
+integer :: iunit, io, i, j
+integer :: num_special_cutoff, type_index
 
 call register_module(source, revision, revdate)
+
+! give these guys initial values at runtime *before* we read
+! in the namelist.  this is to help detect how many items are
+! actually given in the namelist.
+special_localization_obs_types(:)  = 'null'
+special_localization_cutoffs(:)    =  missing_r8 
 
 ! Read the namelist entry
 call find_namelist_in_file("input.nml", "assim_tools_nml", iunit)
@@ -138,27 +167,90 @@ if (do_nml_term()) write(     *     , nml=assim_tools_nml)
 
 ! FOR NOW, can only do spread restoration with filter option 1 (need to extend this)
 if(spread_restoration .and. .not. filter_kind == 1) then
-   write(errstring, *) 'cant combine spread_restoration and filter_kind ', filter_kind
+   write(errstring, *) 'cannot combine spread_restoration and filter_kind ', filter_kind
    call error_handler(E_ERR,'assim_tools_init:', errstring, source, revision, revdate)
 endif
+
+! allocate a list in all cases - even the ones where there is only
+! a single cutoff value.  note that in spite of the name these
+! are specific types (e.g. RADIOSONDE_TEMPERATURE, AIRCRAFT_TEMPERATURE)
+! because that's what get_close() is passed.
+num_types = get_num_obs_kinds()
+allocate(cutoff_list(num_types)) 
+cutoff_list(:) = cutoff
+has_special_cutoffs = .false.
+
+! Go through special-treatment observation kinds, if any.
+num_special_cutoff = 0
+j = 0
+do i = 1, MAX_ITEMS
+   if(special_localization_obs_types(i) == 'null') exit
+   if(special_localization_cutoffs(i) == MISSING_R8) then
+      write(errstring, *) 'cutoff value', i, ' is uninitialized.'
+      call error_handler(E_ERR,'assim_tools_init:', &
+                         'special cutoff namelist for types and distances do not match', &
+                         source, revision, revdate, &
+                         text2='kind = '//trim(special_localization_obs_types(i)), &
+                         text3=trim(errstring))
+   endif
+   j = j + 1
+enddo
+num_special_cutoff = j
+
+if (num_special_cutoff > 0) has_special_cutoffs = .true.
+
+do i = 1, num_special_cutoff
+   type_index = get_obs_kind_index(special_localization_obs_types(i))
+   if (type_index < 0) then
+      write(errstring, *) 'unrecognized TYPE_ in the special localization namelist:'
+      call error_handler(E_ERR,'assim_tools_init:', errstring, source, revision, revdate, &
+                         text2=trim(special_localization_obs_types(i)))
+   endif
+   cutoff_list(type_index) = special_localization_cutoffs(i)
+end do
 
 if (do_output()) then
    write(errstring, '(A,F18.6)') 'The cutoff namelist value is ', cutoff
    call error_handler(E_MSG,'assim_tools_init:', errstring)
-   write(errstring, '(A,F18.6)') 'cutoff = localization half-width parameter, so'
+   write(errstring, '(A)') 'cutoff is the localization half-width parameter,'
    call error_handler(E_MSG,'assim_tools_init:', errstring)
-   write(errstring, '(A,F18.6)') 'the effective localization radius is ', cutoff*2.0_r8
+   write(errstring, '(A,F18.6)') 'so the effective localization radius is ', cutoff*2.0_r8
    call error_handler(E_MSG,'assim_tools_init:', errstring)
+
+   if (has_special_cutoffs) then
+      call error_handler(E_MSG, '', '')
+      call error_handler(E_MSG,'assim_tools_init:','Observations with special localization treatment:')
+      call error_handler(E_MSG,'assim_tools_init:','(type name, specified cutoff distance, effective localization radius)') 
+   
+      do i = 1, num_special_cutoff
+         write(errstring, '(A32,F18.6,F18.6)') special_localization_obs_types(i), &
+               special_localization_cutoffs(i), special_localization_cutoffs(i)*2.0_r8                     
+         call error_handler(E_MSG,'assim_tools_init:', errstring)
+      end do
+      call error_handler(E_MSG,'assim_tools_init:','all other observation types will use the default cutoff distance')
+      call error_handler(E_MSG, '', '')
+   endif
+
 
    if(adaptive_localization_threshold > 0) then
       write(errstring, '(A,I10,A)') 'Using adaptive localization, threshold ', &
          adaptive_localization_threshold, ' obs'
       call error_handler(E_MSG,'assim_tools_init:', errstring)
+      if(adaptive_cutoff_floor > 0.0_r8) then
+         write(errstring, '(A,F18.6)') 'Minimum cutoff will not go below ', &
+            adaptive_cutoff_floor
+         call error_handler(E_MSG,'assim_tools_init:', 'Using adaptive localization cutoff floor.', &
+                            text2=errstring)
+      endif
    endif
 
    if(output_localization_diagnostics) then
       call error_handler(E_MSG,'assim_tools_init:', 'Writing localization diagnostics to file:')
       call error_handler(E_MSG,'assim_tools_init:', trim(localization_diagnostics_file))
+   endif
+
+   if(sampling_error_correction) then
+      call error_handler(E_MSG,'assim_tools_init:', 'Using Sampling Error Correction')
    endif
 endif
 
@@ -189,7 +281,7 @@ real(r8) :: reg_factor
 real(r8) :: net_a(num_groups), reg_coef(num_groups), correl(num_groups)
 real(r8) :: cov_factor, obs(1), obs_err_var, my_inflate, my_inflate_sd
 real(r8) :: varying_ss_inflate, varying_ss_inflate_sd
-real(r8) :: ss_inflate_base, obs_qc, cutoff_rev
+real(r8) :: ss_inflate_base, obs_qc, cutoff_rev, cutoff_orig
 real(r8) :: gamma, ens_obs_mean, ens_obs_var, ens_var_deflate
 real(r8) :: r_mean, r_var
 real(r8) :: orig_obs_prior_mean(num_groups), orig_obs_prior_var(num_groups)
@@ -199,7 +291,7 @@ real(r8) :: close_state_dist(ens_handle%my_num_vars)
 real(r8) :: last_close_obs_dist(obs_ens_handle%my_num_vars)
 real(r8) :: last_close_state_dist(ens_handle%my_num_vars)
 
-integer  :: my_num_obs, i, j, owner, owners_index, my_num_state
+integer  :: my_num_obs, i, j, ispc, owner, owners_index, my_num_state
 integer  :: my_obs(obs_ens_handle%my_num_vars), my_state(ens_handle%my_num_vars)
 integer  :: this_obs_key, obs_mean_index, obs_var_index
 integer  :: grp_beg(num_groups), grp_end(num_groups), grp_size, grp_bot, grp_top, group
@@ -230,7 +322,6 @@ logical :: local_single_ss_inflate
 logical :: local_varying_ss_inflate
 logical :: local_obs_inflate
 logical :: get_close_buffering
-
 
 ! Initialize assim_tools_module if needed
 if(.not. module_initialized) then
@@ -321,14 +412,30 @@ if(local_varying_ss_inflate .or. local_single_ss_inflate) then
    end do
 endif
 
+! the get_close_maxdist_init() call is quick - it just allocates space.
+! it's the get_close_obs_init() call that takes time.  correct me if
+! i'm confused but the obs list is different each time, so it can't 
+! be skipped.  i guess the state space obs_init is redundant and we 
+! could just do it once the first time - but knowing when to 
+! deallocate the space is a question.
+
 ! NOTE THESE COULD ONLY BE DONE ONCE PER RUN!!! FIGURE THIS OUT.
 ! The computations in the two get_close_maxdist_init are redundant
+
 ! Initialize the method for getting state variables close to a given ob on my process
-call get_close_maxdist_init(gc_state, 2.0_r8*cutoff)
+if (has_special_cutoffs) then
+   call get_close_maxdist_init(gc_state, 2.0_r8*cutoff, 2.0_r8*cutoff_list)
+else
+   call get_close_maxdist_init(gc_state, 2.0_r8*cutoff)
+endif
 call get_close_obs_init(gc_state, my_num_state, my_state_loc)
 
 ! Initialize the method for getting obs close to a given ob on my process
-call get_close_maxdist_init(gc_obs, 2.0_r8*cutoff)
+if (has_special_cutoffs) then
+   call get_close_maxdist_init(gc_obs, 2.0_r8*cutoff, 2.0_r8*cutoff_list)
+else
+   call get_close_maxdist_init(gc_obs, 2.0_r8*cutoff)
+endif
 call get_close_obs_init(gc_obs, my_num_obs, my_obs_loc)
 
 if (get_close_buffering) then
@@ -477,8 +584,9 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
       grp_bot = grp_beg(group)
       grp_top = grp_end(group)
       obs_prior_mean(group) = sum(obs_prior(grp_bot:grp_top)) / grp_size
-      obs_prior_var(group)  = sum(obs_prior(grp_bot:grp_top) * obs_prior(grp_bot:grp_top)) - &
-         grp_size * obs_prior_mean(group)**2
+      obs_prior_var(group) = sum((obs_prior(grp_bot:grp_top) - obs_prior_mean(group))**2) / &
+         (grp_size - 1)
+      if (obs_prior_var(group) < 0.0_r8) obs_prior_var(group) = 0.0_r8
    end do
 
    ! Need to get obs density first in case of adaptive localization
@@ -502,20 +610,31 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
       endif
    endif
 
+   ! set the cutoff default, keep a copy of the original value, and avoid
+   ! looking up the cutoff in a list if the incoming obs is an identity ob
+   ! (and therefore has a negative kind).
+   if (base_obs_kind >= 0) then
+      cutoff_orig = cutoff_list(base_obs_kind)
+   else
+      cutoff_orig = cutoff
+   endif
+
+   cutoff_rev = cutoff_orig
+
    ! For adaptive localization, need number of other obs close to the chosen observation
-   cutoff_rev = cutoff
    if(adaptive_localization_threshold > 0) then
 
       ! this does a cross-task sum, so all tasks must make this call.
       total_num_close_obs = count_close(num_close_obs, close_obs_ind, my_obs_kind, &
-                                        close_obs_dist, cutoff*2.0_r8)
+                                        close_obs_dist, cutoff_rev*2.0_r8)
 
       ! Want expected number of close observations to be reduced to some threshold;
       ! accomplish this by cutting the size of the cutoff distance.
       if(total_num_close_obs > adaptive_localization_threshold) then
 
-         cutoff_rev = revised_distance(cutoff*2.0_r8, adaptive_localization_threshold, &
-                                       total_num_close_obs, base_obs_loc) / 2.0_r8
+         cutoff_rev = revised_distance(cutoff_rev*2.0_r8, adaptive_localization_threshold, &
+                                       total_num_close_obs, base_obs_loc, &
+                                       adaptive_cutoff_floor*2.0_r8) / 2.0_r8
 
          if ( output_localization_diagnostics ) then
 
@@ -545,7 +664,7 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
                call write_location(-1, base_obs_loc, charstring=base_loc_text)
 
                write(localization_unit,'(i8,1x,i5,1x,i8,1x,A,2(f14.5,1x,i10))') i, secs, days, &
-                     trim(base_loc_text), cutoff, total_num_close_obs, cutoff_rev, rev_num_close_obs
+                     trim(base_loc_text), cutoff_orig, total_num_close_obs, cutoff_rev, rev_num_close_obs
             endif
          endif
 
@@ -557,7 +676,7 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
 
       ! this does a cross-task sum, so all tasks must make this call.
       total_num_close_obs = count_close(num_close_obs, close_obs_ind, my_obs_kind, &
-                                        close_obs_dist, cutoff*2.0_r8)
+                                        close_obs_dist, cutoff_rev*2.0_r8)
 
       if (my_task_id() == 0) then
          call get_obs_def(observation, obs_def)
@@ -566,7 +685,7 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
          call write_location(-1, base_obs_loc, charstring=base_loc_text)
 
          write(localization_unit,'(i8,1x,i5,1x,i8,1x,A,f14.5,1x,i10)') i, secs, days, &
-               trim(base_loc_text), cutoff, total_num_close_obs
+               trim(base_loc_text), cutoff_rev, total_num_close_obs
       endif
    endif
 
@@ -624,7 +743,7 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
                obs_prior_var(group), obs_inc(grp_bot:grp_top), &
                ens_handle%copies(grp_bot:grp_top, state_index), grp_size, &
                increment(grp_bot:grp_top), reg_coef(group), net_a(group), correl(group))
-            else
+         else
             call update_from_obs_inc(obs_prior(grp_bot:grp_top), obs_prior_mean(group), &
                obs_prior_var(group), obs_inc(grp_bot:grp_top), &
                ens_handle%copies(grp_bot:grp_top, state_index), grp_size, &
@@ -774,7 +893,7 @@ if (get_close_buffering .and. .true.) then
                 num_close_obs_buffered + num_close_states_buffered
       if (num_close_obs_buffered+num_close_obs_calls_made+ &
           num_close_states_buffered+num_close_states_calls_made > 0) then 
-         print *, "Percent saved: ", 100. * &
+         print *, "Percent saved: ", 100.0_r8 * &
                    (real(num_close_obs_buffered+num_close_states_buffered, r8) /  &
                    (num_close_obs_calls_made+num_close_obs_buffered+ &
                     num_close_states_calls_made+num_close_states_buffered))
@@ -1308,15 +1427,15 @@ real(r8),           intent(out)   :: state_inc(ens_size), reg_coef
 real(r8),           intent(inout) :: net_a
 real(r8), optional, intent(inout) :: correl_out
 
-real(r8) :: t(ens_size), obs_state_cov
+real(r8) :: obs_state_cov
 real(r8) :: restoration_inc(ens_size), state_mean, state_var, correl
 real(r8) :: factor, exp_true_correl, mean_factor
 
 ! For efficiency, just compute regression coefficient here unless correl is needed
-t = obs - obs_prior_mean
-obs_state_cov = sum(t * state)
+state_mean = sum(state) / ens_size
+obs_state_cov = sum( (state - state_mean) * (obs - obs_prior_mean) ) / (ens_size - 1)
 
-if (obs_prior_var /= 0.0_r8) then
+if (obs_prior_var > 0.0_r8) then
    reg_coef = obs_state_cov/obs_prior_var
 else
    reg_coef = 0.0_r8
@@ -1325,8 +1444,9 @@ endif
 ! If correl_out is present, need correl for adaptive inflation
 ! Also needed for file correction below
 if(present(correl_out) .or. sampling_error_correction) then
-   state_var = sum(state * state) - sum(state)**2 / ens_size
-   if(obs_prior_var * state_var <= 0.0_r8) then
+   state_var = sum((state - state_mean)**2) / (ens_size - 1)
+   if (state_var < 0.0_r8) state_var = 0.0_r8
+   if ((obs_prior_var <= 0.0_r8) .or. (state_var <= 0.0_r8)) then
       correl = 0.0_r8
    else
       correl = obs_state_cov / sqrt(obs_prior_var * state_var)
@@ -1341,9 +1461,8 @@ if(present(correl_out)) correl_out = correl
 ! Get the expected actual correlation and the regression weight reduction factor
 if(sampling_error_correction) then
    call get_correction_from_file(ens_size, correl, mean_factor, exp_true_correl)
-   !write(*, *) correl, exp_true_correl, mean_factor
    ! Watch out for division by zero; if correl is really small regression is safely 0
-   if(abs(correl) > 0.001) then
+   if(abs(correl) > 0.001_r8) then
       reg_coef = reg_coef * (exp_true_correl / correl) * mean_factor
    else
       reg_coef = 0.0_r8
@@ -1374,7 +1493,7 @@ if(spread_restoration) then
    ! the reciprocal of the ensemble_size (slope = 0.80 / ens_size). These are empirical
    ! for now. See also README in spread_restoration_paper documentation.
    !!!factor = 1.0_r8 / (1.0_r8 + (net_a - 1.0_r8) * (0.8_r8 / ens_size)) - 1.0_r8
-   factor = 1.0_r8 / (1.0_r8 + (net_a - 1.0_r8) / (-2.4711 + 1.6386 * ens_size)) - 1.0_r8
+   factor = 1.0_r8 / (1.0_r8 + (net_a - 1.0_r8) / (-2.4711_r8 + 1.6386_r8 * ens_size)) - 1.0_r8
    !!!factor = 1.0_r8 / (1.0_r8 + (net_a**2 - 1.0_r8) * (-0.0111_r8 + .8585_r8 / ens_size)) - 1.0_r8
 
    ! Variance restoration
@@ -1382,6 +1501,15 @@ if(spread_restoration) then
    restoration_inc = factor * (state - state_mean)
    state_inc = state_inc + restoration_inc
 endif
+
+!! NOTE: if requested to be returned, correl_out is set further up in the
+!! code, before the sampling error correction, if enabled, is applied.
+!! this means it's returning a different larger value than the correl 
+!! being returned here.  it's used by the adaptive inflation and so the
+!! inflation will see a slightly different correlation value.  it isn't
+!! clear that this is a bad thing; it means the inflation might be a bit
+!! larger than it would otherwise.  before we move any code this would
+!! need to be studied to see what the real impact would be.
 
 end subroutine update_from_obs_inc
 
@@ -1414,8 +1542,8 @@ if(first_get_correction) then
       write(correction_file_name, 41) 'final_full.', ens_size
    else
       write(errstring,*)'Trying to use ',ens_size,' model states -- too many.'
-      call error_handler(E_MSG,'get_correction_from_file',errstring,source,revision,revdate)
-      call error_handler(E_ERR,'get_correction_from_file','Use less than 10000 ensemble.',source,revision,revdate)
+      call error_handler(E_ERR,'get_correction_from_file','Use less than 10000 ens members.',&
+         source,revision,revdate, text2=errstring)
 
     11   format(a11, i1)
     21   format(a11, i2)
@@ -1440,8 +1568,7 @@ if(first_get_correction) then
    first_get_correction = .false.
 endif
 
-
-! First quick modification of correl to expected true correl for test (should interp)
+! Interpolate to get values of expected correlation and mean_factor
 if(scorrel < -1.0_r8) then
    correl = -1.0_r8
    mean_factor = 1.0_r8
@@ -1449,28 +1576,46 @@ else if(scorrel > 1.0_r8) then
    correl = 1.0_r8
    mean_factor = 1.0_r8
 else if(scorrel <= -0.995_r8) then
-   fract = (scorrel + 1.0_r8) / 0.05_r8
+   fract = (scorrel + 1.0_r8) / 0.005_r8
    correl = (exp_true_correl(1) + 1.0_r8) * fract - 1.0_r8
    mean_factor = (alpha(1) - 1.0_r8) * fract + 1.0_r8
 else if(scorrel >= 0.995_r8) then
-   fract = (scorrel - 0.995_r8) / 0.05_r8
+   fract = (scorrel - 0.995_r8) / 0.005_r8
    correl = (1.0_r8 - exp_true_correl(200)) * fract + exp_true_correl(200)
    mean_factor = (1.0_r8 - alpha(200)) * fract + alpha(200)
 else
+   ! given the ifs above, the floor() computation below for low_indx 
+   ! should always result in a value in the range 1 to 199.  but if this
+   ! code is compiled with r8=r4 (single precision reals) it turns out
+   ! to be possible to get values a few bits below 0 which results in
+   ! a very large negative integer.  the limit tests below ensure the
+   ! index stays in a legal range.
    low_indx = floor((scorrel + 0.995_r8) / 0.01_r8 + 1.0_r8)
-   low_correl = -0.995_r8 + (low_indx - 1) * 0.01
+   if (low_indx <   1) low_indx =   1
+   if (low_indx > 199) low_indx = 199
+   low_correl = -0.995_r8 + (low_indx - 1) * 0.01_r8
    low_exp_correl = exp_true_correl(low_indx)
    low_alpha = alpha(low_indx)
    high_indx = low_indx + 1
-   high_correl = low_correl + 0.01
+   high_correl = low_correl + 0.01_r8
    high_exp_correl = exp_true_correl(high_indx)
-   high_alpha = alpha(low_indx)
+   high_alpha = alpha(high_indx)
    fract = (scorrel - low_correl) / (high_correl - low_correl)
    correl = (high_exp_correl - low_exp_correl) * fract + low_exp_correl
    mean_factor = (high_alpha - low_alpha) * fract + low_alpha
 endif
 
-expected_true_correl = correl
+expected_true_correl = correl 
+
+! Don't want Monte Carlo interpolation problems to put us outside of a
+! ratio between 0 and 1 for expected_true_correl / sample_correl
+! If they have different signs, expected should just be 0
+if(expected_true_correl * scorrel <= 0.0_r8) then
+   expected_true_correl = 0.0_r8
+else if(abs(expected_true_correl) > abs(scorrel)) then
+   ! If same sign, expected should not be bigger in absolute value
+   expected_true_correl = scorrel
+endif 
 
 end subroutine get_correction_from_file
 
@@ -2178,10 +2323,11 @@ end subroutine set_assim_tools_trace
 
 !--------------------------------------------------------------------
 
-function revised_distance(orig_dist, newcount, oldcount, base)
+function revised_distance(orig_dist, newcount, oldcount, base, cutfloor)
  real(r8),            intent(in) :: orig_dist
  integer,             intent(in) :: newcount, oldcount
  type(location_type), intent(in) :: base
+ real(r8),            intent(in) :: cutfloor
 
  real(r8)                        :: revised_distance
  
@@ -2195,6 +2341,10 @@ function revised_distance(orig_dist, newcount, oldcount, base)
 if (only_area_adapt) then
 
    revised_distance = orig_dist * sqrt(real(newcount, r8) / oldcount)
+
+   ! allow user to set a minimum cutoff, so even if there are very dense
+   ! observations the cutoff distance won't go below this floor.
+   if (revised_distance < cutfloor) revised_distance = cutfloor
    return
 
 endif
@@ -2240,6 +2390,10 @@ else
    call error_handler(E_ERR, 'revised_distance', 'unknown locations dimension, not 1, 2 or 3', &
       source, revision, revdate)
 endif
+
+! allow user to set a minimum cutoff, so even if there are very dense
+! observations the cutoff distance won't go below this floor.
+if (revised_distance < cutfloor) revised_distance = cutfloor
 
 end function revised_distance
 

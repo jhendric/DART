@@ -3,24 +3,37 @@
 <HTML>
 <HEAD>
 <TITLE>MADIS Data</TITLE>
-<link rel="stylesheet" type="text/css" href="../../doc/html/doc.css">
+<link rel="stylesheet" type="text/css" href="../../doc/html/doc.css" />
 </HEAD>
 <BODY>
 <A NAME="TOP"></A>
 
-<center>
-<A HREF="#Overview">OVERVIEW</A> /
+<H1>MADIS Data Ingest System</H1>
+
+<table border=0 summary="" cellpadding=5>
+<tr>
+    <td valign=middle>
+    <img src="../../doc/html/Dartboard7.png" alt="DART project logo" height=70 />
+    </td>
+    <td>
+       <P>Jump to <a href="../../index.html">DART Documentation Main Index</a><br />
+          <small><small>version information for this file: <br />
+          <!-- version tag follows, do not edit -->
+          $Id$</small></small>
+       </P></td>
+</tr>
+</table>
+
 <A HREF="#DataSources">DATA SOURCES</A> /
-<A HREF="#Programs">PROGRAMS</A> /
-<A HREF="#KnownBugs">KNOWN BUGS</A> /
+<A HREF="#Programs">PROGRAMS</A> / 
+<A HREF="#Modules">MODULES</A> /
+<A HREF="#Namelist">NAMELIST</A> /
+<A HREF="#Errors">ERRORS</A> /
 <A HREF="#FuturePlans">FUTURE PLANS</A> /
 <A HREF="#Legalese">TERMS OF USE</A>
-</center>
 
-<H1>MADIS Data Ingest System</H1>
-<small><P>
-<!-- version tag follows, do not edit -->$Id$
-</P></small>
+<H2>Overview</H2>
+
 
 <P>
 The <a href="http://madis.noaa.gov/">MADIS</a>
@@ -32,6 +45,7 @@ and integration of data from a variety of sources.
 
 <P>
 The overall flow is:
+</P>
 <ol>
 <li>convert each madis file, by platform type, into an obs_seq file.
     one file in, one file out.  no time changes.  use the 
@@ -50,22 +64,30 @@ The overall flow is:
     match the expected assimilation window when running filter.</li>
 </ol>
 </ol>
-</P>
 
 <!--==================================================================-->
 
 <A NAME="DataSources"></A>
-<HR>
+<HR />
 <H2>DATA SOURCES</H2>
 
 <P>
 <a href="http://madis.noaa.gov/">http://madis.noaa.gov</a>
 </P>
 
+<P>There are two satellite wind convert programs; the one in
+this directory and one in the
+<a href="../SSEC/SSEC.html">SSEC</a> directory.
+The observations distributed here come from
+<a href="http://www.nesdis.noaa.gov">NESDIS</a>.
+The SSEC observations are processed by SSEC itself and
+will differ from the observations converted here.
+</P>
+
 <!--==================================================================-->
 
 <A NAME="Programs"></A>
-<HR>
+<HR />
 <H2>PROGRAMS</H2>
 <P>
 The programs in the <em class=file>DART/observations/MADIS/</em> 
@@ -94,7 +116,7 @@ for outputting various types of moist variables.
 <!--==================================================================-->
 
 <A NAME="KnownBugs"></A>
-<HR>
+<HR />
 <H2>KNOWN BUGS</H2>
 <P>
 none
@@ -105,7 +127,7 @@ none
 <!--==================================================================-->
 
 <A NAME="FuturePlans"></A>
-<HR>
+<HR />
 <H2>FUTURE PLANS</H2>
 <P>
 none
@@ -116,13 +138,13 @@ none
 <!--==================================================================-->
 
 <A NAME="Legalese"></A>
-<HR>
+<HR />
 <H2>Terms of Use</H2>
 
 <P>
-DART software - Copyright &copy; 2004 - 2010 UCAR.<br>
-This open source software is provided by UCAR, "as is",<br>
-without charge, subject to all terms of use at<br>
+DART software - Copyright 2004 - 2011 UCAR.<br />
+This open source software is provided by UCAR, "as is",<br />
+without charge, subject to all terms of use at<br />
 <a href="http://www.image.ucar.edu/DAReS/DART/DART_download">
 http://www.image.ucar.edu/DAReS/DART/DART_download</a>
 </P>

@@ -4,11 +4,27 @@
 <HEAD>
 <TITLE>module obs_sequence</TITLE>
 <link rel="stylesheet" type="text/css" href="../doc/html/doc.css">
+<link href="../doc/html/dart.ico" rel="shortcut icon" />
 </HEAD>
 <BODY>
 <A NAME="TOP"></A>
 
-<center>
+<H1>MODULE obs_sequence_mod</H1>
+
+<table border=0 summary="" cellpadding=5>
+<tr>    
+    <td valign=middle>
+    <img src="../doc/html/Dartboard7.png" alt="DART project logo" height=70 />
+    </td>
+    <td>
+       <P>Jump to <a href="../index.html">DART Documentation Main Index</a><br />          
+          <small><small>version information for this file: <br />          
+          <!-- version tag follows, do not edit --> 
+          $Id$</small></small>
+       </P></td> 
+</tr>
+</table>
+
 <A HREF="#Interface">INTERFACES</A> /
 <A HREF="#Namelist">NAMELIST</A> /
 <A HREF="#FilesUsed">FILES</A> /
@@ -17,10 +33,8 @@
 <A HREF="#FuturePlans">PLANS</A> /
 <A HREF="#PrivateComponents">PRIVATE COMPONENTS</A> /
 <A HREF="#Legalese">TERMS OF USE</A>
-</center>
 
-<H1>MODULE obs_sequence_mod</H1>
-<!-- version tag follows, do not edit --><P>$Id$</P>
+<H2>Overview</H2>
 
 <P>
 Provides interfaces to the observation type and observation sequence
@@ -1992,12 +2006,14 @@ assignment(=).
 <A NAME="get_expected_obs"></A>
 <br>
 <div class=routine>
-<em class=call> call get_expected_obs(seq, keys, state, obs_vals, 
-      istatus, assimilate_this_ob, evaluate_this_ob) </em>
+<em class=call> call get_expected_obs(seq, keys, ens_index, state, 
+      state_time, obs_vals, istatus, assimilate_this_ob, evaluate_this_ob) </em>
 <pre>
 type(obs_sequence_type), intent(in)  :: <em class=code>seq</em>
 integer, dimension(:),   intent(in)  :: <em class=code>keys</em>
+integer,                 intent(in)  :: <em class=code>ens_index</em>
 real(r8), dimension(:),  intent(in)  :: <em class=code>state</em>
+type(time_type),         intent(in)  :: <em class=code>state_time</em>
 real(r8), dimension(:),  intent(out) :: <em class=code>obs_vals</em>
 integer,                 intent(out) :: <em class=code>istatus</em>
 logical,                 intent(out) :: <em class=code>assimilate_this_ob</em>
@@ -2021,8 +2037,12 @@ can also be a list for computational efficiency.
     <TD>An observation sequence</TD></TR>
 <TR><TD valign=top><em class=code>keys&nbsp;&nbsp;</em></TD>
     <TD>List of integer keys that specify observations in seq</TD></TR>
+<TR><TD valign=top><em class=code>ens_index&nbsp;&nbsp;</em></TD>
+    <TD>The ensemble number for this state vector</TD></TR>
 <TR><TD valign=top><em class=code>state&nbsp;&nbsp;</em></TD>
     <TD>Model state vector</TD></TR>
+<TR><TD valign=top><em class=code>state_time&nbsp;&nbsp;</em></TD>
+    <TD>The time of the state data</TD></TR>
 <TR><TD valign=top><em class=code>obs_vals&nbsp;&nbsp;</em></TD>
     <TD>Returned expected values of the observations</TD></TR>
 <TR><TD valign=top><em class=code>istatus&nbsp;&nbsp;</em></TD>
@@ -2247,7 +2267,7 @@ N/A
 <H2>Terms of Use</H2>
 
 <P>
-DART software - Copyright &#169; 2004 - 2010 UCAR.<br>
+DART software - Copyright 2004 - 2011 UCAR.<br>
 This open source software is provided by UCAR, "as is",<br>
 without charge, subject to all terms of use at<br>
 <a href="http://www.image.ucar.edu/DAReS/DART/DART_download">

@@ -1,6 +1,6 @@
 #!/bin/csh
 #
-# DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+# DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
@@ -19,7 +19,7 @@
 \rm -f ../../../obs_def/obs_def_mod.f90
 \rm -f ../../../obs_kind/obs_kind_mod.f90
 
-set MODEL = "gtspp_to_obs"
+set MODEL = "WOD_to_obs"
 
 @ n = 1
 

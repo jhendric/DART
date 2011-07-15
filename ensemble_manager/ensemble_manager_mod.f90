@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -933,7 +933,6 @@ integer               :: num_copies, num_vars, my_num_vars, my_num_copies
 integer               :: max_num_vars, max_num_copies, num_vars_to_receive
 integer               :: sending_pe, recv_pe, k, sv, copy, num_copies_to_send
 integer               :: global_ens_index
-logical :: oldval
 
 ! only output if there is a label
 if (present(label)) then

@@ -1,6 +1,6 @@
 #!/bin/csh
 #
-# DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+# DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
@@ -176,6 +176,27 @@ foreach MODEL ( 9var lorenz_63 lorenz_84 lorenz_96 lorenz_96_2scale \
 end
 endif
 
+echo
+echo
+echo
+echo "=================================================================="
+echo "Testing observation converters at "`date`
+echo "=================================================================="
+echo
+
+echo "Not all observation converters are expected to build; you may"
+echo "not have all the necessary supporting libraries.  So errors here"
+echo "are not fatal."
+
+cd ${DARTHOME}/observations
+./buildall.csh
+
+echo
+echo "=================================================================="
+echo "Observation converter testing complete at "`date`
+echo "=================================================================="
+echo
+
 #----------------------------------------------------------------------
 # Lots of tests for L96, and one for bgrid_solo (for the 3d loc stuff)
 #----------------------------------------------------------------------
@@ -199,13 +220,14 @@ set MatlabExists=$status
 if ( $MatlabExists == 0 ) then
 
    set fname = dart.matlabcheck.$$
+   touch $fname
 
    echo "fname = '"$fname"';"        >! batchscript.m
    echo "addpath ${DARTHOME}/matlab" >> batchscript.m 
    echo "ChecknetCDFuse(fname);"     >> batchscript.m
    echo "quit"                       >> batchscript.m
 
-   matlab -nosplash -nojvm -r batchscript
+   matlab -nosplash -nodesktop -r batchscript
    ${REMOVE} batchscript.m
 
    set MatlabResult = `tail -1 $fname`

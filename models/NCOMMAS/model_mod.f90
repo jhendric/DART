@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -104,7 +104,7 @@ integer            :: assimilation_period_seconds = 60
 real(r8)           :: model_perturbation_amplitude = 0.2
 logical            :: output_state_vector = .true.
 integer            :: debug = 0   ! turn up for more and more debug messages
-character(len=32)  :: calendar
+character(len=32)  :: calendar = 'Gregorian'
 character(len=256) :: ncommas_restart_filename = 'ncommas_restart.nc'
 
 namelist /model_nml/  &

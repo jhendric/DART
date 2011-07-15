@@ -8,7 +8,7 @@ function pinfo = GetBgridInfo(pinfo_in,fname,routine);
 % fname     Name of the DART netcdf file
 % routine   name of subsequent plot routine.
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -37,6 +37,13 @@ VelJ   = nc_varget(fname,'VelJ');    % velocity grid latitude
 
 prognostic_vars  = {'ps','t','u','v'};
 
+% Coordinate between time types and dates
+
+timeunits  = nc_attget(fname,'time','units');
+timebase   = sscanf(timeunits,'%*s%*s%d%*c%d%*c%d'); % YYYY MM DD
+timeorigin = datenum(timebase(1),timebase(2),timebase(3));
+dates      = times + timeorigin;
+
 switch lower(deblank(routine))
 
    case {'plotbins','plotenserrspread','plotensmeantimeseries','plotenstimeseries'}
@@ -48,6 +55,7 @@ switch lower(deblank(routine))
 
       pinfo = setfield(pinfo, 'model', model);
       pinfo = setfield(pinfo, 'fname', fname);
+      pinfo = setfield(pinfo, 'times', dates);
       pinfo = setfield(pinfo, 'var', pgvar);
       pinfo = setfield(pinfo, 'level', level);
       pinfo = setfield(pinfo, 'levelindex', lvlind);
@@ -60,7 +68,7 @@ switch lower(deblank(routine))
 
       disp('Getting information for the ''base'' variable.')
        base_var                = GetVar(prognostic_vars);
-      [base_time, base_tmeind] = GetTime(     base_var,times);
+      [base_time, base_tmeind] = GetTime(     base_var,dates);
       [base_lvl,  base_lvlind] = GetLevel(    base_var,levels);
       [base_lat,  base_latind] = GetLatitude( base_var,TmpJ,VelJ);
       [base_lon,  base_lonind] = GetLongitude(base_var,TmpI,VelI);
@@ -71,6 +79,7 @@ switch lower(deblank(routine))
 
       pinfo = setfield(pinfo, 'model', model);
       pinfo = setfield(pinfo, 'fname', fname);
+      pinfo = setfield(pinfo, 'times', dates);
       pinfo = setfield(pinfo, 'base_var', base_var);
       pinfo = setfield(pinfo, 'comp_var', comp_var);
       pinfo = setfield(pinfo, 'base_time', base_time);
@@ -88,7 +97,7 @@ switch lower(deblank(routine))
 
       disp('Getting information for the ''base'' variable.')
        base_var                = GetVar(prognostic_vars);
-      [base_time, base_tmeind] = GetTime(     base_var,times);
+      [base_time, base_tmeind] = GetTime(     base_var,dates);
       [base_lvl , base_lvlind] = GetLevel(    base_var,levels);
       [base_lat , base_latind] = GetLatitude( base_var,TmpJ,VelJ);
       [base_lon , base_lonind] = GetLongitude(base_var,TmpI,VelI);
@@ -101,6 +110,7 @@ switch lower(deblank(routine))
 
       pinfo = setfield(pinfo, 'model', model);
       pinfo = setfield(pinfo, 'fname', fname);
+      pinfo = setfield(pinfo, 'times', dates);
       pinfo = setfield(pinfo, 'base_var', base_var);
       pinfo = setfield(pinfo, 'comp_var', comp_var);
       pinfo = setfield(pinfo, 'base_time', base_time);
@@ -129,6 +139,7 @@ switch lower(deblank(routine))
       copy            = length(copyindices);
 
       pinfo = setfield(pinfo, 'model'         , model);
+      pinfo = setfield(pinfo, 'times'         , dates);
       pinfo = setfield(pinfo, 'var_names'     , pgvar);
       %pinfo = setfield(pinfo, 'truth_file'    , []);
       %pinfo = setfield(pinfo, 'prior_file'    , pinfo.prior_file);
@@ -162,16 +173,22 @@ switch lower(deblank(routine))
       [var3_lat, var3_latind] = GetLatitude( var3, TmpJ, VelJ, var1_lat);
       [var3_lon, var3_lonind] = GetLongitude(var3, TmpI, VelI, var1_lon);
 
-      % query for ensemble member
-      s1 = input('Input ensemble member metadata STRING. <cr> for ''true state''  ','s');
-      if isempty(s1), ens_mem = 'true state'; else ens_mem = s1; end
+      % query for ensemble member string
+      metadata   = nc_varget(fname,'CopyMetaData');
+      [N,M]      = size(metadata);
+      cell_array = mat2cell(metadata, ones(1,N), M);
+      ens_mem    = strtrim(cell_array{1});
+      str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''   ',ens_mem);
+      s1   = input(str1,'s');
+      if ~ isempty(s1), ens_mem = s1; end
 
       % query for line type
       s1 = input('Input line type string. <cr> for ''k-''  ','s');
       if isempty(s1), ltype = 'k-'; else ltype = s1; end
 
-      pinfo = setfield(pinfo, 'model',model);
-      pinfo = setfield(pinfo, 'fname' ,fname);
+      pinfo = setfield(pinfo, 'model', model);
+      pinfo = setfield(pinfo, 'fname', fname);
+      pinfo = setfield(pinfo, 'times', dates);
       pinfo = setfield(pinfo, 'var1name' ,var1);
       pinfo = setfield(pinfo, 'var2name' ,var2);
       pinfo = setfield(pinfo, 'var3name' ,var3);

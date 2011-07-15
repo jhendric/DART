@@ -8,7 +8,7 @@ function obsstruct = plot_obs_netcdf(fname, ObsTypeString, region, CopyString, .
 %--------------------------------------------------
 % EXAMPLE 1: plotting just one type of observation
 %--------------------------------------------------
-% fname         = 'obs_sequence_001.nc';
+% fname         = 'obs_epoch_001.nc';
 % ObsTypeString = 'RADIOSONDE_U_WIND_COMPONENT';
 % region        = [0 360 -90 90 -Inf Inf];
 % CopyString    = 'NCEP BUFR observation';
@@ -22,7 +22,7 @@ function obsstruct = plot_obs_netcdf(fname, ObsTypeString, region, CopyString, .
 %--------------------------------------------------
 % EXAMPLE 2: plotting all the observation types 
 %--------------------------------------------------
-% fname         = 'obs_sequence_001.nc';
+% fname         = 'obs_epoch_001.nc';
 % ObsTypeString = 'ALL';
 % region        = [0 360 -90 90 -Inf Inf];
 % CopyString    = 'WOD observation';
@@ -33,7 +33,7 @@ function obsstruct = plot_obs_netcdf(fname, ObsTypeString, region, CopyString, .
 %
 % bob = plot_obs_netcdf(fname, ObsTypeString, region, CopyString, QCString, maxgoodQC, verbose, twoup);
 
-%% DART software - Copyright � 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %

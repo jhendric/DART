@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -117,7 +117,8 @@ obsloop: do    ! no end limit - have the loop break when input ends
    !  location: lat, lon, and height in pressure or meters
    !  time: when the observation was taken
    !  type: from the DART list of obs types
-   !  error: very important - the instrument error plus model error
+   !  error: very important - the instrument error plus representativeness error
+   !        (see html file for more info)
 
    ! assume here a line is a type (1/2), location, time, value, obs error
 

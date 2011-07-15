@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
  
@@ -65,8 +65,8 @@ integer           :: ind, dart_ind, my_index, io
 character(len=19) :: timestring
 character(len=2)  :: idom
 
-integer, parameter :: max_dom = 10    ! max nested wrf domains
-integer           :: ncid(max_dom), var_id, id, iunit, dart_unit
+integer, parameter :: max_dom = 50    ! max nested wrf domains
+integer            :: ncid(max_dom), var_id, id, iunit, dart_unit
 
 if (debug) print*, 'DART to WRF'
 

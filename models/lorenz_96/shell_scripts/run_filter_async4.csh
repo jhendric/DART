@@ -1,6 +1,6 @@
 #!/bin/csh
 #
-# DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+# DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
@@ -62,6 +62,62 @@
 #PBS -q dedicated
 #PBS -l nodes=10:ppn=2
 
+# A common strategy for the beginning is to check for the existence of
+# some variables that get set by the different queuing mechanisms.
+# This way, we know which queuing mechanism we are working with,
+# and can set 'queue-independent' variables for use for the remainder
+# of the script.
+
+if ($?LS_SUBCWD) then
+
+    # LSF has a list of processors already in a variable (LSB_HOSTS)
+    echo "LSF - using mpirun.lsf for execution"
+
+    set MPICMD = mpirun.lsf
+
+else if ($?PBS_O_WORKDIR) then
+
+    # PBS has a list of processors in a file whose name is (PBS_NODEFILE)
+    echo "PBS - using mpirun for execution"
+
+   set MPICMD = mpirun
+
+else
+
+    # If you have a linux cluster with no queuing software, use this
+    # section. The list of computational nodes is given to the mpirun
+    # command and it assigns them as they appear in the file. In some
+    # cases it seems to be necessary to wrap the command in a small
+    # script that changes to the current directory before running.
+
+    echo "running with no queueing system"
+
+    # before running this script, do this once. the syntax is
+    # node name : how many tasks you can run on it
+    #setenv MYNODEFILE ~/nodelist
+    #echo "node7:2" >! $MYNODEFILE
+    #echo "node5:2" >> $MYNODEFILE
+    #echo "node3:2" >> $MYNODEFILE
+    #echo "node1:2" >> $MYNODEFILE
+
+#   one possibility
+#    setenv NUM_PROCS `cat nodelist-pgi | wc -l`
+#    set MPIRUN = /opt/mpich/myrinet/pgi/bin/mpirun
+#    set MPICMD = $MPIRUN -np $NUM_PROCS -nolocal -machinefile nodelist-pgi
+
+#   another possibility - note hardwired NP ...
+#    set MPIRUN = /share/apps/openmpi/gfortran/bin/mpirun
+#    set MPICMD = $MPIRUN --hostfile nodelist-gfortran --mca mtl mx --mca pml cm -np 72
+
+    set NUM_PROCS = 4
+    set MPIRUN = mpirun
+    set MPICMD = "$MPIRUN -np $NUM_PROCS"
+
+endif
+
+# At this point MPICMD should be set to start an mpi job.
+echo using MPICMD = ${MPICMD}
+
 # if async=2, e.g. you are going to run './modelxxx', single process
 # (or possibly 'mpirun -np 1 ./modelxxx'), so each processor advances
 # one ensemble independently of the others, leave this as false.
@@ -105,176 +161,13 @@ set NUM_ENS = `echo $ENSEMBLESTRING[3] | sed -e 's#,##'`
 set ADVANCESTRING = `grep -A 42 filter_nml input.nml | grep adv_ens_command`
 set ADV_CMD  = `echo $ADVANCESTRING[3] | sed -e 's#,##' -e 's#"##g' `
 
-# A common strategy for the beginning is to check for the existence of
-# some variables that get set by the different queuing mechanisms.
-# This way, we know which queuing mechanism we are working with,
-# and can set 'queue-independent' variables for use for the remainder
-# of the script.
 
-if ($?LS_SUBCWD) then
+# each filter task advances the ensembles, each running on 1 proc.
+if ( "$parallel_model" == "false" ) then
 
-    # LSF has a list of processors already in a variable (LSB_HOSTS)
-    echo "LSF - using mpirun.lsf for execution"
-
-    # each filter task advances the ensembles, each running on 1 proc.
-    if ( "$parallel_model" == "false" ) then
-
-       mpirun.lsf ./filter
-
-    else
-
-    # filter runs in parallel until time to do a model advance,
-    # and then this script starts up the modelxxx jobs, each one
-    # running in parallel. then it runs wakeup_filter to wake
-    # up filter so it can continue.
-
-      \rm -f model_to_filter.lock filter_to_model.lock
-      mkfifo model_to_filter.lock filter_to_model.lock
-
-      set filterhome = ~/.filter$$
-      if ( ! -e $filterhome) mkdir $filterhome
-
-      # this starts filter but also returns control back to
-      # this script immediately.
-
-      (setenv HOME $filterhome; mpirun.lsf ./filter) &
-
-      while ( -e filter_to_model.lock )
-
-        set todo=`cat < filter_to_model.lock`
-        echo "todo received, value = ${todo}"
-
-        if ( "${todo}" == "finished" ) then
-          echo "main script: filter done."
-          wait
-          break
-
-        else if ( "${todo}" == "advance" ) then
-
-          # the second number below must match the number
-          # of ensembles. Also, in input.nml, the advance model
-          # command must have -np N with N equal to the number
-          # of processors this job is using.
-
-          echo "calling model advance now:"
-          ${ADV_CMD} 0 ${NUM_ENS} filter_control00000 || exit 9
-
-          echo "restarting filter."
-          mpirun.lsf ./wakeup_filter
-
-        else
-
-          echo "main script: unexpected value received."
-          break
-
-        endif
-
-      end
-
-      echo "filter finished, removing pipes."
-      \rm -f model_to_filter.lock filter_to_model.lock
-
-      if ( -d $filterhome) rmdir $filterhome
-    endif
-
-
-else if ($?PBS_O_WORKDIR) then
-
-    # PBS has a list of processors in a file whose name is (PBS_NODEFILE)
-    echo "PBS - using mpirun for execution"
-
-    # each filter task advances the ensembles, each running on 1 proc.
-    if ( "$parallel_model" == "false" ) then
-
-      mpirun ./filter
-
-    else
-
-    # filter runs in parallel until time to do a model advance,
-    # and then this script starts up the modelxxx jobs, each one
-    # running in parallel. then it runs wakeup_filter to wake
-    # up filter so it can continue.
-
-      \rm -f model_to_filter.lock filter_to_model.lock
-      mkfifo model_to_filter.lock filter_to_model.lock
-
-      set filterhome = ~/.filter
-      if ( ! -e $filterhome) mkdir $filterhome
-
-      # this starts filter but also returns control back to
-      # this script immediately.
-
-      (setenv HOME $filterhome; mpirun ./filter) &
-
-      while ( -e filter_to_model.lock )
-
-        set todo=`cat < filter_to_model.lock`
-        echo "todo received, value = ${todo}"
-
-        if ( "${todo}" == "finished" ) then
-          echo "main script: filter done."
-          wait
-          break
-
-        else if ( "${todo}" == "advance" ) then
-
-          # the second number below must match the number
-          # of ensembles. Also, in input.nml, the advance model
-          # command must have -np N with N equal to the number
-          # of processors this job is using.
-
-          echo "calling model advance now:"
-          ${ADV_CMD} 0 ${NUM_ENS} filter_control00000 || exit 9
-
-          echo "restarting filter."
-          mpirun ./wakeup_filter
-
-        else
-
-          echo "main script: unexpected value received."
-          break
-
-        endif
-
-      end
-
-      echo "filter finished, removing pipes."
-      \rm -f model_to_filter.lock filter_to_model.lock
-
-      if ( -d $filterhome) rmdir $filterhome
-    endif
+    ${MPICMD} ./filter
 
 else
-
-    # If you have a linux cluster with no queuing software, use this
-    # section. The list of computational nodes is given to the mpirun
-    # command and it assigns them as they appear in the file. In some
-    # cases it seems to be necessary to wrap the command in a small
-    # script that changes to the current directory before running.
-
-    echo "running with no queueing system"
-
-    # before running this script, do this once. the syntax is
-    # node name : how many tasks you can run on it
-    #setenv MYNODEFILE ~/nodelist
-    #echo "node7:2" >! $MYNODEFILE
-    #echo "node5:2" >> $MYNODEFILE
-    #echo "node3:2" >> $MYNODEFILE
-    #echo "node1:2" >> $MYNODEFILE
-
-#   one possibility
-#    setenv NUM_PROCS `cat nodelist-pgi | wc -l`
-#    set MPIRUN = /opt/mpich/myrinet/pgi/bin/mpirun
-#    set MPICMD = $MPIRUN -np $NUM_PROCS -nolocal -machinefile nodelist-pgi
-
-#   another possibility - note hardwired NP ...
-#    set MPIRUN = /share/apps/openmpi/gfortran/bin/mpirun
-#    set MPICMD = $MPIRUN --hostfile nodelist-gfortran --mca mtl mx --mca pml cm -np 72
-
-    set NUM_PROCS = 2
-    set MPIRUN = mpirun
-    set MPICMD = "$MPIRUN -np $NUM_PROCS"
-    echo MPICMD = ${MPICMD}
 
     # filter runs in parallel until time to do a model advance,
     # and then this script starts up the modelxxx jobs, each one

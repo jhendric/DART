@@ -4,21 +4,36 @@
 <HEAD>
 <TITLE>module DEFAULT_obs_def_kind</TITLE>
 <link rel="stylesheet" type="text/css" href="../doc/html/doc.css">
+<link href="../doc/html/dart.ico" rel="shortcut icon" />
 </HEAD>
 <BODY>
 <A NAME="TOP"></A>
 
-<center>
-<A HREF="#Legalese">TERMS OF USE</A>
-</center>
-
 <H1>MODULE DEFAULT_obs_def_kind</H1>
-<!-- version tag follows, do not edit --><P>$Id$</P>
+
+<table border=0 summary="" cellpadding=5>
+<tr>
+    <td valign=middle>
+    <img src="../doc/html/Dartboard7.png" alt="DART project logo" height=70 />
+    </td>
+    <td>
+       <P>Jump to <a href="../index.html">DART Documentation Main Index</a><br />
+          <small><small>version information for this file: <br />
+          <!-- version tag follows, do not edit -->
+          $Id$</small></small>
+       </P></td>
+</tr>
+</table>
+
+<A HREF="#Legalese">TERMS OF USE</A>
+
+<H2>Overview</H2>
 
 <P>
-Beginning with the I-release of DART, a more flexible, powerful (and
-complicated) mechanism for incorporating new types of observations is part of
-DART. The DEFAULT_obs_kind module being described here is used by the program
+The observation types supported by DART are defined at the
+time the programs are compiled.  Only those observation types
+of interest need to be included.
+This is the input template file which is read by the program
 <em class="unix">preprocess</em>
 to create the 
 <em class="file">obs_kind_mod.f90</em> (documented separately in this
@@ -126,7 +141,7 @@ created by the preprocess program.
 <H2>Terms of Use</H2>
 
 <P>
-DART software - Copyright &#169; 2004 - 2010 UCAR.<br>
+DART software - Copyright 2004 - 2011 UCAR.<br>
 This open source software is provided by UCAR, "as is",<br>
 without charge, subject to all terms of use at<br>
 <a href="http://www.image.ucar.edu/DAReS/DART/DART_download">

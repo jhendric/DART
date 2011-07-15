@@ -1,4 +1,4 @@
-# DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+# DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
@@ -17,6 +17,7 @@ with more details on the specifics of the case.
 The current contents are:
 
 CONUS-V2: WRF Version 2, continental US.
+CONUS-V3: WRF Version 3, continental US.
 Global-V3: WRF Version 3, Global 
 Radar: WRF Version 2, surface radar obs
 

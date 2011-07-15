@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -30,6 +30,7 @@ use  utilities_mod, only : register_module, error_handler, E_ERR, ascii_file_for
                            check_namelist_read, do_output, do_nml_file,              &
                            do_nml_term, is_longitude_between
 use random_seq_mod, only : random_seq_type, init_random_seq, random_uniform
+use   obs_kind_mod, only : get_num_obs_kinds, get_obs_kind_name
 use mpi_utilities_mod, only : my_task_id, task_count
 
 implicit none
@@ -43,9 +44,9 @@ public :: location_type, get_location, set_location, &
           operator(==), operator(/=), get_dist, get_close_obs_destroy, &
           nc_write_location_atts, nc_get_location_varids, nc_write_location, &
           vert_is_height, vert_is_pressure, vert_is_undef, vert_is_level, &
-          vert_is_surface, has_vertical_localization, &
+          vert_is_surface, vert_is_scale_height, has_vertical_localization, &
           VERTISUNDEF, VERTISSURFACE, VERTISLEVEL, VERTISPRESSURE, &
-          VERTISHEIGHT, print_get_close_type, horiz_dist_only
+          VERTISHEIGHT, VERTISSCALEHEIGHT, print_get_close_type, horiz_dist_only
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -56,11 +57,12 @@ character(len=128), parameter :: &
 ! The possible values for the location_type%which_vert component.
 ! These are intended to be PRIVATE to this module. Do not make public.
 
-integer, parameter :: VERTISUNDEF    = -2 ! has no vertical location (undefined)
-integer, parameter :: VERTISSURFACE  = -1 ! surface value
-integer, parameter :: VERTISLEVEL    =  1 ! by level
-integer, parameter :: VERTISPRESSURE =  2 ! by pressure
-integer, parameter :: VERTISHEIGHT   =  3 ! by height
+integer, parameter :: VERTISUNDEF       = -2 ! has no vertical location (undefined)
+integer, parameter :: VERTISSURFACE     = -1 ! surface value
+integer, parameter :: VERTISLEVEL       =  1 ! by level
+integer, parameter :: VERTISPRESSURE    =  2 ! by pressure
+integer, parameter :: VERTISHEIGHT      =  3 ! by height
+integer, parameter :: VERTISSCALEHEIGHT =  4 ! by scale height
 
 type location_type
    private
@@ -71,31 +73,35 @@ end type location_type
 ! Type to facilitate efficient computation of observations close to a given location
 type get_close_type
    private
-   integer  :: num
-   real(r8) :: maxdist
-   integer, pointer :: lon_offset(:, :)     ! (nlat, nlat); 
-   integer, pointer :: obs_box(:)           ! (nobs); List of obs indices in boxes
-   integer, pointer :: count(:, :)          ! (nlon, nlat); # of obs in each box
-   integer, pointer :: start(:, :)          ! (nlon, nlat); Start of list of obs in this box
-   real(r8)         :: bot_lat, top_lat     ! Bottom and top latitudes of latitude boxes
-   real(r8)         :: bot_lon, top_lon     ! Bottom and top longitudes of longitude boxes
-   real(r8)         :: lon_width, lat_width ! Width of boxes in lon and lat
-   logical          :: lon_cyclic           ! Do boxes wraparound in longitude?
+   integer           :: num
+   real(r8)          :: maxdist
+   integer, pointer  :: lon_offset(:, :)     ! (nlat, nlat); 
+   integer, pointer  :: obs_box(:)           ! (nobs); List of obs indices in boxes
+   integer, pointer  :: count(:, :)          ! (nlon, nlat); # of obs in each box
+   integer, pointer  :: start(:, :)          ! (nlon, nlat); Start of list of obs in this box
+   real(r8)          :: bot_lat, top_lat     ! Bottom and top latitudes of latitude boxes
+   real(r8)          :: bot_lon, top_lon     ! Bottom and top longitudes of longitude boxes
+   real(r8)          :: lon_width, lat_width ! Width of boxes in lon and lat
+   logical           :: lon_cyclic           ! Do boxes wraparound in longitude?
+   integer           :: num_types            ! if > 0, cutoffs per type
+   real(r8), pointer :: special_maxdist(:)
+   real(r8)          :: original_maxdist
 end type get_close_type
 
 type(random_seq_type) :: ran_seq
-logical :: ran_seq_init = .false.
-logical, save :: module_initialized = .false.
+logical               :: ran_seq_init = .false.
+logical, save         :: module_initialized = .false.
 
 integer,              parameter :: LocationDims = 3
 character(len = 129), parameter :: LocationName = "loc3Dsphere"
 character(len = 129), parameter :: LocationLName = &
                                    "threed sphere locations: lon, lat, vertical"
 
-character(len = 129) :: errstring
+character(len = 512) :: errstring
 
 ! Global storage for vertical distance normalization factors
-real(r8) :: vert_normalization(3)
+real(r8)              :: vert_normalization(4)
+real(r8), allocatable :: special_vert_norm(:,:)  ! if doing per-type
 
 ! Global storage for fast approximate sin and cosine lookups
 ! PAR For efficiency for small cases might want to fill tables as needed
@@ -105,44 +111,50 @@ real(r8) :: my_sin(-630:630), my_cos(-630:630), my_acos(-1000:1000)
 integer :: last_maxdist = -1.0
 
 ! Option for verification using exhaustive search
-logical :: COMPARE_TO_CORRECT = .false.
+logical :: COMPARE_TO_CORRECT = .false.    ! normally false
 
 !-----------------------------------------------------------------
 ! Namelist with default values
-! horiz_dist_only == .true.  -> Only the great circle horizontal distance is
-!                               computed in get_dist.
-! horiz_dist_only == .false. -> Square root of sum of squared horizontal and
-!                               normalized vertical dist computed in get_dist
-! vert_normalization_pressure   Number pascals that give a distance equivalent
-!                               to one radian in horizontal
-! vert_normalization_height  -> Number meters that give a distance equivalent 
-!                               to one radian in horizontal
-! vert_normalization_level   -> Number levels that give a distance equivalent
-!                               to one radian in horizontal
-! approximate_distance       -> Use a faster table lookup for the trig math.
-!                               Works well for global models and large areas,
-!                               and improves performance.  For smaller regions
-!                               might introduce banding, so leave .false.
-! nlon                       -> Number longitude boxes for get_close_obs 
-!                               nlon MUST BE ODD
-! nlat                       -> Number latitude boxes for get_close_obs
+! horiz_dist_only == .true.       -> Only the great circle horizontal distance is
+!                                    computed in get_dist.
+! horiz_dist_only == .false.      -> Square root of sum of squared horizontal and
+!                                    normalized vertical dist computed in get_dist
+! vert_normalization_pressure     -> Number pascals that give a distance equivalent
+!                                    to one radian in horizontal
+! vert_normalization_height       -> Number meters that give a distance equivalent 
+!                                    to one radian in horizontal
+! vert_normalization_level        -> Number levels that give a distance equivalent
+!                                    to one radian in horizontal
+! vert_normalization_scale_height -> Number scale heights that give a distance 
+!                                    equivalent to one radian in horizontal
+! approximate_distance            -> Use a faster table lookup for the trig math.
+!                                    Works well for global models and large areas,
+!                                    and improves performance.  For smaller regions
+!                                    might introduce banding, so leave .false.
+! nlon                            -> Number longitude boxes for get_close_obs 
+!                                    nlon MUST BE ODD
+! nlat                            -> Number latitude boxes for get_close_obs
 
-logical  :: horiz_dist_only             = .true.
-real(r8) :: vert_normalization_pressure = 100000.0_r8
-real(r8) :: vert_normalization_height   = 10000.0_r8
-real(r8) :: vert_normalization_level    = 20.0_r8 
-logical  :: approximate_distance        = .false.
-integer  :: nlon                        = 71
-integer  :: nlat                        = 36
-logical  :: output_box_info             = .false.
-! should be fixed in the code - but leave this here for now.
-! search for this variable below in the code for more info
-logical  :: num_tasks_insensitive       = .false.
-integer  :: print_box_level             = 0
+logical  :: horiz_dist_only                 = .true.
+real(r8) :: vert_normalization_pressure     = 100000.0_r8
+real(r8) :: vert_normalization_height       = 10000.0_r8
+real(r8) :: vert_normalization_level        = 20.0_r8
+real(r8) :: vert_normalization_scale_height = 5.0_r8
+logical  :: maintain_original_vert          = .false. 
+logical  :: approximate_distance            = .false.
+integer  :: nlon                            = 71
+integer  :: nlat                            = 36
+logical  :: output_box_info                 = .false.
+integer  :: print_box_level                 = 0
+! obsolete now - code fixed.  leave in for backwards compatibility
+! but does nothing now.
+logical  :: num_tasks_insensitive           = .false.
 
-namelist /location_nml/ horiz_dist_only, vert_normalization_pressure,         &
-   vert_normalization_height, vert_normalization_level, approximate_distance, &
-   nlon, nlat, output_box_info, print_box_level, num_tasks_insensitive
+namelist /location_nml/ horiz_dist_only, vert_normalization_pressure, &
+   vert_normalization_height, vert_normalization_level,               &
+   vert_normalization_scale_height, approximate_distance, nlon, nlat, &
+   output_box_info, print_box_level, num_tasks_insensitive,           &
+   maintain_original_vert
 
 !-----------------------------------------------------------------
 
@@ -180,6 +192,12 @@ call check_namelist_read(iunit, io, "location_nml")
 if(do_nml_file()) write(nmlfileunit, nml=location_nml)
 if(do_nml_term()) write(     *     , nml=location_nml)
 
+! deprecated namelist item
+if (num_tasks_insensitive) then
+  call error_handler(E_MSG, 'location_mod:', &
+                    'WARNING: namelist item "num_tasks_insensitive" is deprecated and will be removed in the future')
+endif
+
 ! Make sure that the number of longitudes, nlon, for get_close_obs is odd
 if(nlon / 2 * 2 == nlon) then
    call error_handler(E_ERR, 'initialize_module', 'nlon must be odd', &
@@ -190,6 +208,7 @@ endif
 vert_normalization(1) = vert_normalization_level
 vert_normalization(2) = vert_normalization_pressure
 vert_normalization(3) = vert_normalization_height
+vert_normalization(4) = vert_normalization_scale_height
 
 if (horiz_dist_only) then
    call error_handler(E_MSG,'location_mod:', &
@@ -199,11 +218,13 @@ else
    call error_handler(E_MSG,'location_mod:', &
       'Including vertical separation when computing distances:', &
       source,revision,revdate)
-   write(str1,'(A,f17.5)') '      # pascals ~ 1 horiz radian: ', vert_normalization_pressure
+   write(str1,'(A,f17.5)') '       # pascals ~ 1 horiz radian: ', vert_normalization_pressure
    call error_handler(E_MSG,'location_mod:',str1,source,revision,revdate)
-   write(str1,'(A,f17.5)') '       # meters ~ 1 horiz radian: ', vert_normalization_height
+   write(str1,'(A,f17.5)') '        # meters ~ 1 horiz radian: ', vert_normalization_height
    call error_handler(E_MSG,'location_mod:',str1,source,revision,revdate)
-   write(str1,'(A,f17.5)') ' # model levels ~ 1 horiz radian: ', vert_normalization_level
+   write(str1,'(A,f17.5)') '  # model levels ~ 1 horiz radian: ', vert_normalization_level
+   call error_handler(E_MSG,'location_mod:',str1,source,revision,revdate)
+   write(str1,'(A,f17.5)') ' # scale heights ~ 1 horiz radian: ', vert_normalization_scale_height
    call error_handler(E_MSG,'location_mod:',str1,source,revision,revdate)
 endif
 
@@ -240,12 +261,17 @@ function get_dist(loc1, loc2, kind1, kind2, no_vert)
 ! If set to false, this will always do full 3d distance if possible. If set to
 ! true it will never do the full 3d distance. At present asking to do a vertical
 ! distance computation for incompatible vertical location types results 
-! in a fatal error.
+! in a fatal error unless one of the vertical types is UNDEFINED.
 
-! The kinds are available if a more sophisticated distance computation is required.
-! This generic code does not use the kinds, but several model_mods intercept this
-! call and compute their own distances based on kind, and so the interface needs
-! to match how the higher level call will be made.
+! In spite of the names, the 3rd and 4th argument are actually specific types
+! (e.g. RADIOSONDE_TEMPERATURE, AIRCRAFT_TEMPERATURE).  The types are part of
+! the interface in case user-code wants to do a more sophisticated distance
+! calculation based on the base or target types.  In the usual case this
+! code still doesn't use the types, but there's an undocumented feature that
+! allows you to maintain the original vertical normalization even when
+! changing the cutoff distance in the horizontal.  For that to work we
+! do need to know the type, and we use the type of loc1 to control it.
+! 
 
 type(location_type), intent(in) :: loc1, loc2
 integer, optional,   intent(in) :: kind1, kind2
@@ -292,8 +318,8 @@ else
    endif
 endif
 
-! Now compute a vertical distance if requested, 
-! Highest priority is optional no_vert argument, test it first
+! Now compute a vertical distance if requested.  Highest priority is
+! the optional no_vert argument, so test it first.
 if(present(no_vert)) then
    comp_h_only = no_vert
 ! Namelist horizontal only has second highest priority
@@ -321,7 +347,17 @@ if(.not. comp_h_only) then
 
    ! Compute the difference and divide by the appropriate normalization factor
    ! Normalization factor computes relative distance in vertical compared to one radian
-   vert_dist = abs(loc1%vloc - loc2%vloc) / vert_normalization(loc1%which_vert)
+   ! This is new - if per-type localization distances given, use the kind of loc1
+   ! to determine the vertical mapping distance.  it defaults to the 4 standard ones,
+   ! but can be specified separately if desired.
+
+   ! note that per-type vertical conversion factors are a global here, and were set
+   ! by the last call to gc_init that specified per/type cutoffs.
+   if (allocated(special_vert_norm)) then 
+      vert_dist = abs(loc1%vloc - loc2%vloc) / special_vert_norm(loc1%which_vert, kind1)
+   else
+      vert_dist = abs(loc1%vloc - loc2%vloc) / vert_normalization(loc1%which_vert)
+   endif
 
    ! Spherical distance shape is computed here, other flavors can be computed
    get_dist = sqrt(get_dist**2 + vert_dist**2)
@@ -456,8 +492,8 @@ endif
 set_location_single%lon = lon * DEG2RAD
 set_location_single%lat = lat * DEG2RAD
 
-if(which_vert < VERTISUNDEF .or. which_vert == 0 .or. which_vert > VERTISHEIGHT) then
-   write(errstring,*)'which_vert (',which_vert,') must be one of -2, -1, 1, 2, or 3'
+if(which_vert < VERTISUNDEF .or. which_vert == 0 .or. which_vert > VERTISSCALEHEIGHT) then
+   write(errstring,*)'which_vert (',which_vert,') must be one of -2, -1, 1, 2, 3, or 4'
    call error_handler(E_ERR,'set_location', errstring, source, revision, revdate)
 endif
 
@@ -631,6 +667,8 @@ select case  (loc%which_vert)
       write(charstring, '(A,1X,F12.7,A)') trim(string1), loc%vloc / 100.0_r8, '  hPa'
    case (VERTISHEIGHT)
       write(charstring, '(A,1X,F12.7,A)') trim(string1), loc%vloc / 1000.0_r8, '  km'
+   case (VERTISSCALEHEIGHT)
+      write(charstring, '(A,1X,F12.7,A)') trim(string1), loc%vloc, '  scale ht'
    case default
       write(errstring, *) 'unrecognized key for vertical type: ', loc%which_vert
       call error_handler(E_ERR, 'write_location', errstring, source, revision, revdate)
@@ -662,10 +700,10 @@ if (ascii_file_format(fform)) then
    endif
    ! Now read the location data value
    read(locfile, *)read_location%lon, read_location%lat, &
-                 read_location%vloc, read_location%which_vert
+                   read_location%vloc, read_location%which_vert
 else
    read(locfile)read_location%lon, read_location%lat, &
-              read_location%vloc, read_location%which_vert
+                read_location%vloc, read_location%which_vert
 endif
 
 end function read_location
@@ -701,6 +739,7 @@ write(*, *)VERTISSURFACE,' --> surface'
 write(*, *)VERTISLEVEL,' --> model level'
 write(*, *)VERTISPRESSURE,' --> pressure'
 write(*, *)VERTISHEIGHT,' --> height'
+write(*, *)VERTISSCALEHEIGHT,' --> scale height'
 
 100   read(*, *) location%which_vert
 if(location%which_vert == VERTISLEVEL ) then
@@ -719,6 +758,9 @@ else if(location%which_vert == VERTISSURFACE ) then
    !write(*, *) 'Vertical coordinate surface pressure (in hPa)'
    !location%vloc = 100.0 * location%vloc  ! only applies to pressure
    write(*, *) 'Vertical coordinate height'
+   read(*, *) location%vloc
+else if(location%which_vert == VERTISSCALEHEIGHT ) then
+   write(*, *) 'Vertical coordinate scale height (-ln(p/ps))'
    read(*, *) location%vloc
 else if(location%which_vert == VERTISUNDEF ) then
    ! a valid floating point value, but should be unused.
@@ -851,6 +893,8 @@ call nc_check(nf90_put_att(ncFileID, VarID, 'VERTISPRESSURE', VERTISPRESSURE), &
            'nc_write_location_atts', 'which_vert:VERTISPRESSURE')
 call nc_check(nf90_put_att(ncFileID, VarID, 'VERTISHEIGHT', VERTISHEIGHT), &
            'nc_write_location_atts', 'which_vert:VERTISHEIGHT')
+call nc_check(nf90_put_att(ncFileID, VarID, 'VERTISSCALEHEIGHT', VERTISSCALEHEIGHT), &
+           'nc_write_location_atts', 'which_vert:VERTISSCALEHEIGHT')
 
 ! If we made it to here without error-ing out ... we're good.
 
@@ -1072,15 +1116,27 @@ subroutine get_close_obs_destroy(gc)
 type(get_close_type), intent(inout) :: gc
 
 deallocate(gc%obs_box, gc%lon_offset, gc%count, gc%start)
+if (gc%num_types > 0) deallocate(gc%special_maxdist)
+! since this is a global, keep it around.  it is always allocated
+! the same size and can be reused for any gc.
+!if (allocated(special_vert_norm)) deallocate(special_vert_norm)
 
 end subroutine get_close_obs_destroy
 
 !----------------------------------------------------------------------------
 
-subroutine get_close_maxdist_init(gc, maxdist)
+subroutine get_close_maxdist_init(gc, maxdist, maxdist_list)
 
 type(get_close_type), intent(inout) :: gc
 real(r8),             intent(in)    :: maxdist
+real(r8), intent(in), optional      :: maxdist_list(:)
+
+character(len=129) :: str1
+integer :: i
+! a bit of a hack - it only prints the first time this routine is
+! called.  in filter it's called twice with the same args and this
+! code is counting on that.  
+logical, save :: firsttime = .true.
 
 ! Allocate the storage for the grid dependent boxes
 allocate(gc%lon_offset(nlat, nlat), gc%count(nlon, nlat), gc%start(nlon, nlat))
@@ -1088,8 +1144,64 @@ gc%lon_offset = -1
 gc%count      = -1
 gc%start      = -1
 
-! Set the maximum distance in the structure
+! set the default value.  if there is a list and any distance in the list 
+! is larger, use that instead.  (the boxes need to be calculated based on 
+! the largest possible distance).
 gc%maxdist = maxdist
+gc%original_maxdist = maxdist
+gc%num_types = 0
+
+if (present(maxdist_list)) then
+   gc%num_types = get_num_obs_kinds()
+   if (size(maxdist_list) .ne. gc%num_types) then
+      write(errstring,'(A,I8,A,I8)')'maxdist_list len must equal number of kinds, ', &
+                                    size(maxdist_list), ' /= ', gc%num_types
+      call error_handler(E_ERR, 'get_close_maxdist_init', errstring, source, revision, revdate)
+   endif
+   allocate(gc%special_maxdist(gc%num_types))
+   if (.not.allocated(special_vert_norm)) &
+      allocate(special_vert_norm(4, gc%num_types))  ! fill from namelist here, or assim_tools?
+  
+   gc%special_maxdist(:) = maxdist_list(:)
+   gc%maxdist = maxval(gc%special_maxdist)
+
+   ! by default, the vertical changes along with the horizontal to keep 
+   ! the aspect ratio of the elipsoid constant.
+   special_vert_norm(1, :) = vert_normalization_level
+   special_vert_norm(2, :) = vert_normalization_pressure
+   special_vert_norm(3, :) = vert_normalization_height
+   special_vert_norm(4, :) = vert_normalization_scale_height
+
+   ! keep the original vertical distance constant even as you change
+   ! the horizontal localization distance.
+   if (maintain_original_vert) then
+      special_vert_norm(1, :) = vert_normalization_level        * &
+                                   (gc%original_maxdist / maxdist_list(:))
+      special_vert_norm(2, :) = vert_normalization_pressure     * &
+                                   (gc%original_maxdist / maxdist_list(:))
+      special_vert_norm(3, :) = vert_normalization_height       * & 
+                                   (gc%original_maxdist / maxdist_list(:))
+      special_vert_norm(4, :) = vert_normalization_scale_height * & 
+                                   (gc%original_maxdist / maxdist_list(:))
+      if (firsttime) then
+         do i = 1, gc%num_types
+            if (abs(gc%original_maxdist - maxdist_list(i)) < 1.0e-14_r8) cycle 
+    
+            write(str1,'(2A)') 'Altering vertical normalization for type ', get_obs_kind_name(i)
+            call error_handler(E_MSG,'location_mod:',str1,source,revision,revdate)
+            write(str1,'(A,f17.5)') '       # pascals ~ 1 horiz radian: ', special_vert_norm(2, i)
+            call error_handler(E_MSG,'location_mod:',str1,source,revision,revdate)
+            write(str1,'(A,f17.5)') '        # meters ~ 1 horiz radian: ', special_vert_norm(3, i)
+            call error_handler(E_MSG,'location_mod:',str1,source,revision,revdate)
+            write(str1,'(A,f17.5)') '  # model levels ~ 1 horiz radian: ', special_vert_norm(1, i)
+            call error_handler(E_MSG,'location_mod:',str1,source,revision,revdate)
+            write(str1,'(A,f17.5)') ' # scale heights ~ 1 horiz radian: ', special_vert_norm(4, i)
+            call error_handler(E_MSG,'location_mod:',str1,source,revision,revdate)
+         enddo
+         firsttime = .false.
+      endif
+   endif
+endif
 
 end subroutine get_close_maxdist_init
 
@@ -1098,12 +1210,8 @@ end subroutine get_close_maxdist_init
 subroutine get_close_obs(gc, base_obs_loc, base_obs_kind, obs, obs_kind, &
    num_close, close_ind, dist)
 
-! FIXME: is this comment still an issue?  there is caching done at the
-! place this routine is called in the assimilation loop, which might be
-! good enough.
-!!!ADD IN SOMETHING TO USE EFFICIENTLY IF IT"S AT SAME LOCATION AS PREVIOUS OB!!!
-
-! The kinds are available to do more sophisticated distance computations if needed
+! In spite of the names, the specific types are available to do a more
+! sophisticated distance computation if needed.
 
 type(get_close_type), intent(in)  :: gc
 type(location_type),  intent(in)  :: base_obs_loc, obs(:)
@@ -1115,7 +1223,7 @@ real(r8), optional,   intent(out) :: dist(:)
 ! but don't compute any distances
 
 integer :: lon_box, lat_box, i, j, k, n_lon, lon_ind, n_in_box, st, t_ind
-real(r8) :: this_dist
+real(r8) :: this_dist, this_maxdist
 
 ! Variables needed for comparing against correct case
 integer :: cnum_close, cclose_ind(size(obs))
@@ -1140,6 +1248,14 @@ endif
 if (gc%num == 0) return
 
 
+! set a local variable for what the maxdist is in this particular case.
+! if per-type distances are set, use those.  otherwise, use the global val.
+if (gc%num_types > 0) then
+   this_maxdist = gc%special_maxdist(base_obs_kind)
+else
+   this_maxdist = gc%maxdist
+endif
+
 !--------------------------------------------------------------
 ! For validation, it is useful to be able to compare against exact
 ! exhaustive search
@@ -1147,7 +1263,7 @@ if(COMPARE_TO_CORRECT) then
    cnum_close = 0
    do i = 1, gc%num 
    this_dist = get_dist(base_obs_loc, obs(i), base_obs_kind, obs_kind(i))
-      if(this_dist <= gc%maxdist) then
+      if(this_dist <= this_maxdist) then
          ! Add this obs to correct list
          cnum_close = cnum_close + 1
          cclose_ind(cnum_close) = i
@@ -1206,7 +1322,7 @@ do j = 1, nlat
             endif
 
             ! If dist is present and this obs' distance is less than cutoff, add it in list
-            if(present(dist) .and. this_dist <= gc%maxdist) then
+            if(present(dist) .and. this_dist <= this_maxdist) then
                num_close = num_close + 1
                close_ind(num_close) = t_ind
                dist(num_close) = this_dist
@@ -1219,9 +1335,16 @@ end do
 !------------------------ Verify by comparing to exhaustive search --------------
 if(COMPARE_TO_CORRECT) then
    ! Do comparisons against full search
-   if(num_close /= cnum_close) then
-      write(*, *) 'ERROR: num_close, cnum_close', num_close, cnum_close
-      stop
+   if((num_close /= cnum_close) .and. present(dist)) then
+      write(errstring, *) 'get_close (', num_close, ') should equal exhaustive search (', cnum_close, ')'
+      call error_handler(E_ERR, 'get_close_obs', errstring, source, revision, revdate, &
+                         text2='optional arg "dist" is present; we are computing exact distances', &
+                         text3='the exhaustive search should find an identical number of locations')
+   else if (num_close < cnum_close) then
+      write(errstring, *) 'get_close (', num_close, ') should not be smaller than exhaustive search (', cnum_close, ')'
+      call error_handler(E_ERR, 'get_close_obs', errstring, source, revision, revdate, &
+                         text2='optional arg "dist" not present; we are returning a superset of close locations', &
+                         text3='the exhaustive search should find an equal or lesser number of locations')
    endif
 endif
 !--------------------End of verify by comparing to exhaustive search --------------
@@ -1241,109 +1364,108 @@ integer,              intent(in)    :: num
 type(location_type),  intent(in)    :: obs(num)
 
 real(r8) :: min_lat, max_lat, beg_box_lon, end_box_lon, first_obs_lon, last_obs_lon
-real(r8) :: longitude_range, degrees
+real(r8) :: longitude_range, degrees, lon_dist
 integer  :: i, indx, gap_start, gap_end, gap_length
-logical  :: lon_box_full(360)
+logical  :: lon_box_full(360), old_out
 
-! Initialize boxes used to see where observations are
+! Initialize boxes used to see where observations are.
+! Assume regional until we prove that we have to use the
+! entire 360 in longitude.
 lon_box_full = .false.
+gc%lon_cyclic = .false.
 
 ! Figure out domain over which an additional obs MIGHT be close to one in this set
+! If any points within maxdist of the poles, our boxes have to cover all 360 of
+! longitude - no point in trying to restrict boxes to a region of the globe.
 min_lat = minval(obs(:)%lat) - gc%maxdist
 max_lat = maxval(obs(:)%lat) + gc%maxdist
-if(min_lat < -PI / 2.0_r8) min_lat = -PI / 2.0_r8
-if(max_lat > PI / 2.0_r8) max_lat = PI / 2.0_r8
+if(min_lat <= -PI / 2.0_r8) then
+   min_lat = -PI / 2.0_r8
+   gc%lon_cyclic = .true.
+endif 
+if(max_lat >= PI / 2.0_r8) then
+   max_lat = PI / 2.0_r8
+   gc%lon_cyclic = .true.
+endif
 
 ! Put this into storage for this get_close_type
 gc%bot_lat = min_lat
-gc%top_lat  = max_lat
+gc%top_lat = max_lat
 gc%lat_width = (max_lat - min_lat) / nlat
-if(COMPARE_TO_CORRECT) write(*, *) 'min and max lat and width', gc%bot_lat, gc%top_lat, gc%lat_width
+! don't have to do all this work if we already know it has to be cyclic
+if (.not. gc%lon_cyclic) then
 
-! Finding the longitude range is tricky because of cyclic nature
-! Want to find minimum range spanned by obs even if they wrap-around Greenwich
-! Would like to do this without sorting if possible at low-cost
-! First, partition into 360 1-degree boxes and find the biggest gap
-do i = 1, num
-   degrees = obs(i)%lon * 180.0_r8 / PI
-   ! If the value of the longitude is very close to an integer number of degrees
-   ! a roundoff can occur that leads to an assignment in the wrong box.  We avoid this
-   ! by first testing to see if this is possible and then setting both boxes to full.
-   ! If this is not the case, then we fill the box the observation is in.
-   if (abs(degrees - nint(degrees)) < 0.00001_r8) then
-      indx = nint(degrees)
-      if(indx <   1) indx = 360
-      lon_box_full(indx) = .true.
-
-      indx = nint(degrees) + 1
-      if(indx > 360) indx = 1
-      lon_box_full(indx) = .true.
-   else
-      indx = floor(degrees) + 1
-      lon_box_full(indx) = .true.
-   endif
-end do
-
-! Find the longest sequence of empty boxes
-call find_longest_gap(lon_box_full, 360, gap_start, gap_end, gap_length)
-
-! FIXME:  if this block is skipped, the code works exactly the same on any number 
-! of mpi processes, but it is a performance hit, especially for a regional model,
-! or for a group of observations which only cover a small area of the globe.  
-!
-! the default is to go ahead and use this code, but if you're trying to get bit-wise 
-! reproducibility as you change the number of mpi tasks for a job, set 
-! 'num_tasks_insensitive' to .true. in the nml.  (this is intentionally not
-! documented because we need to just fix the bug at some point soon.)
-!
-! The 'find_longest_gap()' call above detects if all the locations are located 
-! in less than a hemisphere of the globe, and if so it shrinks the total area 
-! covered by the boxes to that area.  That will be faster because each box will
-! have fewer locations in it, and it will be easy to exclude locations outside
-! the total region.
-!
-! However, in higher latitudes it might not cover all possible locations that 
-! are within 2*maxdist of the edges of the box.  i can't reconstruct the exact
-! problem but i'm sure it has something to do with distances in meters vs
-! distances in radians, as you go to higher and higher latitudes.
-! Anyway, the outcome is that an observation very close to the edge of the boxes
-! and within 2*maxdist might actually be ignored as 'too far away', and that
-! translates into an observation that doesn't impact the right number of grid 
-! points.  the actual impact is tiny, but in chaotic models any difference 
-! persists and grows.  the rest of the system is bit-wise reproducible over 
-! any number of mpi tasks, except for this bug.
-
-if (.not. num_tasks_insensitive .and. gap_length > 0) then
-   ! There is a gap; figure out obs that are closest to ends of non-gap
-   beg_box_lon = (gap_end / 180.0_r8) * PI
-   end_box_lon = ((gap_start -1) / 180.0_r8) * PI
-   first_obs_lon = find_closest_to_start(beg_box_lon, obs, num)
-   last_obs_lon  = find_closest_to_end  (end_box_lon, obs, num)
-   ! Determine the final longitude range
-   longitude_range = last_obs_lon - first_obs_lon
-   if(longitude_range <= 0.0_r8) longitude_range = longitude_range + 2.0_r8 * PI
+   ! Finding the longitude range is tricky because of cyclic nature
+   ! Want to find minimum range spanned by obs even if they wrap-around Greenwich
+   ! Would like to do this without sorting if possible at low-cost
+   ! First, partition into 360 1-degree boxes and find the biggest gap
+   do i = 1, num
+      degrees = obs(i)%lon * 180.0_r8 / PI
+      ! If the value of the longitude is very close to an integer number of degrees
+      ! a roundoff can occur that leads to an assignment in the wrong box.  We avoid this
+      ! by first testing to see if this is possible and then setting both boxes to full.
+      ! If this is not the case, then we fill the box the observation is in.
+      if (abs(degrees - nint(degrees)) < 0.00001_r8) then
+         indx = nint(degrees)
+         if(indx <   1) indx = 360
+         lon_box_full(indx) = .true.
    
-   ! Add on the extra distance needed for the boxes
+         indx = nint(degrees) + 1
+         if(indx > 360) indx = 1
+         lon_box_full(indx) = .true.
+      else
+         indx = floor(degrees) + 1
+         lon_box_full(indx) = .true.
+      endif
+   end do
+   
+   ! Find the longest sequence of empty boxes
+   call find_longest_gap(lon_box_full, 360, gap_start, gap_end, gap_length)
+   
+   if (gap_length > 0) then
 
-   ! To avoid any hard thinking about wraparound with sub-domain boxes
-   ! Must span less than 180 degrees to get smaller boxes
-   ! If addition of halos for close obs fills more than half of space things go 0 to 2PI
-   if(longitude_range + 2.0_r8 * gc%maxdist > PI) then
-      first_obs_lon = 0.0_r8
-      last_obs_lon  = 2.0_r8 * PI
-      gc%lon_cyclic = .true.
+      ! There is a gap; figure out obs that are closest to ends of non-gap
+      beg_box_lon = (gap_end / 180.0_r8) * PI
+      end_box_lon = ((gap_start -1) / 180.0_r8) * PI
+      first_obs_lon = find_closest_to_start(beg_box_lon, obs, num)
+      last_obs_lon  = find_closest_to_end  (end_box_lon, obs, num)
+      ! Determine the final longitude range
+      longitude_range = last_obs_lon - first_obs_lon
+      if(longitude_range <= 0.0_r8) longitude_range = longitude_range + 2.0_r8 * PI
+      
+      ! Add on the extra distance needed for the boxes
+      ! To avoid any hard thinking about wraparound with sub-domain boxes
+      ! Must span less than 180 degrees to get smaller boxes
+      ! If addition of halos for close obs fills more than half of space 
+      ! things go 0 to 2PI
+
+      ! other places we are computing in radians.  here we are computing in
+      ! lat/lon, and you can't just add maxdist to the edges - that doesn't
+      ! take into account the great-circle distance.  the separation in longitude
+      ! varies with latitude.  compute the delta longitude based on the most
+      ! poleward latitude and add that onto the edges of both boxes.  that
+      ! overestimates for points closer to the equator, but that's better
+      ! than underestimating and excluding points that are within maxdist.
+      lon_dist = find_del_lon(minval(obs(:)%lat), maxval(obs(:)%lat), gc%maxdist)
+
+      if(longitude_range + 2.0_r8 * lon_dist > PI) then
+         gc%lon_cyclic = .true.
+      else
+         first_obs_lon = first_obs_lon - lon_dist
+         if(first_obs_lon < 0.0_r8    ) first_obs_lon = first_obs_lon + 2.0_r8 * PI
+         last_obs_lon  = last_obs_lon + lon_dist
+         if(last_obs_lon > 2.0_r8 * PI) last_obs_lon  = last_obs_lon  - 2.0_r8 * PI
+         gc%lon_cyclic = .false.
+      endif
    else
-      first_obs_lon = first_obs_lon - gc%maxdist 
-      if(first_obs_lon < 0.0_r8) first_obs_lon = first_obs_lon + 2.0_r8 * PI
-      last_obs_lon   = last_obs_lon + gc%maxdist 
-      if(last_obs_lon > 2.0_r8 * PI) last_obs_lon = last_obs_lon - 2.0_r8 * PI
-      gc%lon_cyclic = .false.
+      ! No gap was found: all 360 boxes had an observation in them
+      gc%lon_cyclic = .true.
    endif
-else
-   ! No gap was found: all 360 boxes had an observation in them
+endif
+
+if (gc%lon_cyclic) then
    first_obs_lon = 0.0_r8
    last_obs_lon  = 2.0_r8 * PI
-   gc%lon_cyclic = .true.
 endif
 
 ! Put in storage for structure
@@ -1352,7 +1474,16 @@ gc%top_lon = last_obs_lon
 longitude_range = last_obs_lon - first_obs_lon
 if(longitude_range <= 0.0_r8) longitude_range = longitude_range + 2.0_r8 * PI
 gc%lon_width = longitude_range / nlon
-if(COMPARE_TO_CORRECT) write(*, *) 'lon bot, top, width ', gc%bot_lon, gc%top_lon, gc%lon_width
+
+if(COMPARE_TO_CORRECT) then
+   old_out = do_output()
+   call set_output(.true.)
+   write(errstring, *) 'lat bot, top, width ', gc%bot_lat, gc%top_lat, gc%lat_width
+   call error_handler(E_MSG, 'find_box_ranges', errstring)
+   write(errstring, *) 'lon bot, top, width ', gc%bot_lon, gc%top_lon, gc%lon_width
+   call error_handler(E_MSG, 'find_box_ranges', errstring)
+   call set_output(old_out)
+endif
 
 end subroutine find_box_ranges
 
@@ -1571,6 +1702,45 @@ end function get_lon_box
 
 !----------------------------------------------------------------------------
 
+function find_del_lon(minlat, maxlat, maxdist)
+ 
+! for the given latitudes, find the furthest longitude that is still
+! within maxdist away.  this will be at a different latitude at any
+! location other than the equator.  all values specified in radians.
+! distance returned in radians.  if either lat is closer to the pole
+! than maxdist, it returns 2*PI.
+
+real(r8), intent(in) :: minlat, maxlat, maxdist
+real(r8)             :: find_del_lon
+
+real(r8) :: a, b, c
+real(r8) :: latval, poleward_lat
+
+! find the most poleward of the two latitudes
+poleward_lat = max(abs(minlat), abs(maxlat))
+
+! if either latitude is within maxdist of either pole, return 2 PI
+! because you are now covering all possible longitudes.
+if (poleward_lat + maxdist > (PI / 2.0_r8)) then
+   find_del_lon = 2.0_r8 * PI
+   return
+endif
+
+! compute some values we will reuse a couple times
+a = cos(maxdist)
+b = sin(poleward_lat)
+c = cos(poleward_lat)
+
+! lat at which max offset is found
+latval = asin(b/a)
+
+! distance to furthest lon, at latval
+find_del_lon = acos((a - (b*sin(latval))) / (c*cos(latval)))
+
+end function find_del_lon
+
+!----------------------------------------------------------------------------
+
 subroutine print_get_close_type(gc, amount)
  
 ! print out debugging statistics, or optionally print out a full
@@ -1604,7 +1774,7 @@ been_called = been_called + 1
 ! short version.  (this value prints about 5-6 lines of data.)
 ! to get a full dump, change print_box_level to 2 or more in the namelist.
 howmuch = 0
-sample = 30
+sample = 10
 mytask = my_task_id() 
 alltasks = task_count()
 iam0 = (mytask == 0)
@@ -1617,23 +1787,42 @@ if (howmuch == -8) then
    if (.not. write_now) howmuch = 0
 endif
 
+!! SPECIAL - debugging
+! if you enable debugging, maybe you want to turn it off for really
+! large counts?  often it's easy to construct a case that has a lot of
+! locations from the state vector in one set of boxes, but just a few
+! locations from the observations in another.  this lets you turn off
+! the debugging level for the large set and leave it on for the small.
+!if (gc%num > 100) howmuch = 0
+
 ! print the get_close_type derived type values
 
 if (howmuch /= 0 .and. iam0) then
-   write(errstring,*) 'get_close_type values for PE0 are:'
-   call error_handler(E_MSG, 'locations_mod', errstring)
+   write(errstring,*) 'get_close_type values:'
+   call error_handler(E_MSG, 'loc', errstring)
+
    write(errstring,*) ' num = ', gc%num
-   call error_handler(E_MSG, 'locations_mod', errstring)
-   write(errstring,*) ' maxdist = ', gc%maxdist
-   call error_handler(E_MSG, 'locations_mod', errstring)
-   write(errstring,*) ' bot_lat, top_lat = ', gc%bot_lat, gc%top_lat
-   call error_handler(E_MSG, 'locations_mod', errstring)
-   write(errstring,*) ' bot_lon, top_lon = ', gc%bot_lon, gc%top_lon
-   call error_handler(E_MSG, 'locations_mod', errstring)
-   write(errstring,*) ' lon_width, lat_width = ', gc%lon_width, gc%lat_width
-   call error_handler(E_MSG, 'locations_mod', errstring)
+   call error_handler(E_MSG, 'loc', errstring)
+
+   write(errstring,*) ' nlon, nlat = ', nlon, nlat
+   call error_handler(E_MSG, 'loc', errstring)
+
+   write(errstring,"(A,F12.6)") ' maxdist = ', gc%maxdist
+   call error_handler(E_MSG, 'loc', errstring)
+   write(errstring, "(A,3(F12.6))") ' latbox: bot, top, width = ', gc%bot_lat, gc%top_lat, gc%lat_width
+   call error_handler(E_MSG, 'loc', errstring)
+   write(errstring, "(A,3(F12.6))") ' lonbox: bot, top, width = ', gc%bot_lon, gc%top_lon, gc%lon_width
+   call error_handler(E_MSG, 'loc', errstring)
+
+   write(errstring,"(A,F12.6)") ' maxdist = ', RAD2DEG*gc%maxdist
+   call error_handler(E_MSG, 'loc', errstring)
+   write(errstring, "(A,3(F12.6))") ' latbox: bot, top, width = ', RAD2DEG*gc%bot_lat, RAD2DEG*gc%top_lat, RAD2DEG*gc%lat_width
+   call error_handler(E_MSG, 'loc', errstring)
+   write(errstring, "(A,3(F12.6))") ' lonbox: bot, top, width = ', RAD2DEG*gc%bot_lon, RAD2DEG*gc%top_lon, RAD2DEG*gc%lon_width
+   call error_handler(E_MSG, 'loc', errstring)
+
    write(errstring,*) ' lon_cyclic = ', gc%lon_cyclic
-   call error_handler(E_MSG, 'locations_mod', errstring)
+   call error_handler(E_MSG, 'loc', errstring)
 endif
 
 ! this one can be very large.   print only the first nth unless
@@ -1646,10 +1835,12 @@ if (associated(gc%obs_box)) then
       call error_handler(E_MSG, 'locations_mod', errstring)
    endif
    if (howmuch > 1) then
-      write(errstring,*) ' obs_box(',i,') =', gc%obs_box    ! (nobs)
+      ! DEBUG
+      write(errstring,"(A,I8,A,36(I8,1X))") ' obs_box(',i,') =', gc%obs_box(1:min(i,36))  ! (nobs)
+      !write(errstring,*) ' obs_box(',i,') =', gc%obs_box    ! (nobs)
       call error_handler(E_MSG, 'locations_mod', errstring)
    else if(howmuch > 0) then
-      write(errstring,*) ' obs_box(',i,') =', gc%obs_box(1:min(i,sample+1))    ! (nobs)
+      write(errstring,*) ' obs_box(',i,') =', gc%obs_box(1:min(i,sample+1))
       call error_handler(E_MSG, 'locations_mod', errstring)
       write(errstring,*) '  <rest of obs_box omitted>'
       call error_handler(E_MSG, 'locations_mod', errstring)
@@ -1671,10 +1862,14 @@ if (associated(gc%start)) then
       call error_handler(E_MSG, 'locations_mod', errstring)
    endif
    if (howmuch > 1) then
-      write(errstring,*) ' start(',i,j,') =', gc%start    ! (nlon, nlat)
+      write(errstring,*) ' start(',i,j,') ='              ! (nlon, nlat)
       call error_handler(E_MSG, 'locations_mod', errstring)
+      do k=1, j
+         write(errstring,"(36(I8,1X))") gc%start(1:min(i,36), k)
+         call error_handler(E_MSG, 'locations_mod', errstring)
+      enddo
    else if (howmuch > 0) then
-      write(errstring,*) ' start(',i,j,') =', gc%start(1:min(i,sample), 1)    ! (nlon, nlat)
+      write(errstring,*) ' start(',i,j,') =', gc%start(1:min(i,sample), 1)
       call error_handler(E_MSG, 'locations_mod', errstring)
       write(errstring,*) '  <rest of start omitted>'
       call error_handler(E_MSG, 'locations_mod', errstring)
@@ -1695,10 +1890,14 @@ if (associated(gc%lon_offset)) then
       call error_handler(E_MSG, 'locations_mod', errstring)
    endif
    if (howmuch > 1) then
-      write(errstring,*) ' lon_offset(',i,j,') =', gc%lon_offset    ! (nlon, nlat)
+      write(errstring,*) ' lon_offset(',i,j,') ='                   ! (nlat, nlat)
       call error_handler(E_MSG, 'locations_mod', errstring)
+      do k=1, j
+         write(errstring,"(36(I8,1X))") gc%lon_offset(1:min(i,36), k) 
+         call error_handler(E_MSG, 'locations_mod', errstring)
+      enddo
    else if (howmuch > 0) then
-      write(errstring,*) ' lon_offset(',i,j,') =', gc%lon_offset(1:min(i,sample), 1)    ! (nlon, nlat)
+      write(errstring,*) ' lon_offset(',i,j,') =', gc%lon_offset(1:min(i,sample), 1)
       call error_handler(E_MSG, 'locations_mod', errstring)
       write(errstring,*) '  <rest of lon_offset omitted>'
       call error_handler(E_MSG, 'locations_mod', errstring)
@@ -1720,10 +1919,14 @@ if (associated(gc%count)) then
       call error_handler(E_MSG, 'locations_mod', errstring)
    endif
    if (howmuch > 1) then
-      write(errstring,*) ' count(',i,j,') =', gc%count    ! (nlon, nlat)
+      write(errstring,*) ' count(',i,j,') ='              ! (nlon, nlat)
       call error_handler(E_MSG, 'locations_mod', errstring)
+      do k=1, j
+         write(errstring,"(36(I8,1X))") gc%count(1:min(i,36), k) 
+         call error_handler(E_MSG, 'locations_mod', errstring)
+      enddo
    else if (howmuch > 0) then
-      write(errstring,*) ' count(',i,j,') =', gc%count(1:min(i,sample), 1)    ! (nlon, nlat)
+      write(errstring,*) ' count(',i,j,') =', gc%count(1:min(i,sample), 1)
       call error_handler(E_MSG, 'locations_mod', errstring)
       write(errstring,*) '  <rest of count omitted>'
       call error_handler(E_MSG, 'locations_mod', errstring)
@@ -1999,6 +2202,25 @@ else
 endif
 
 end function vert_is_level
+
+!---------------------------------------------------------------------------
+
+function vert_is_scale_height(loc)
+
+! Given a location, return true if vertical coordinate is scale height, else false
+
+logical                          :: vert_is_scale_height
+type(location_type), intent(in)  :: loc
+
+if ( .not. module_initialized ) call initialize_module
+
+if(loc%which_vert == VERTISSCALEHEIGHT ) then
+   vert_is_scale_height = .true.
+else
+   vert_is_scale_height = .false.
+endif
+
+end function vert_is_scale_height
 
 !---------------------------------------------------------------------------
 

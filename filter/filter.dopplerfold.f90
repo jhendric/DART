@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -21,7 +21,7 @@ use obs_sequence_mod,     only : read_obs_seq, obs_type, obs_sequence_type,     
                                  set_qc_meta_data, get_expected_obs, get_first_obs,          &
                                  get_obs_time_range, delete_obs_from_seq, delete_seq_head,   &
                                  delete_seq_tail, replace_obs_values, replace_qc,            &
-                                 destroy_obs_sequence
+                                 destroy_obs_sequence, get_qc_meta_data
 use obs_def_mod,          only : obs_def_type, get_obs_def_error_variance, get_obs_def_time
 use time_manager_mod,     only : time_type, get_time, set_time, operator(/=), operator(>),   &
                                  operator(-), print_time
@@ -78,8 +78,9 @@ integer, parameter :: PRIOR_DIAG = 0, POSTERIOR_DIAG = 2
 ! Namelist input with default values
 !
 integer  :: async = 0, ens_size = 20
-logical  :: start_from_restart = .false.
-logical  :: output_restart     = .false.
+logical  :: start_from_restart  = .false.
+logical  :: output_restart      = .false.
+logical  :: output_restart_mean = .false.
 integer  :: tasks_per_model_advance = 1
 ! if init_time_days and seconds are negative initial time is 0, 0
 ! for no restart or comes from restart if restart exists
@@ -137,7 +138,7 @@ namelist /filter_nml/ async, adv_ens_command, ens_size, tasks_per_model_advance,
    restart_in_file_name, restart_out_file_name, init_time_days, init_time_seconds,  &
    first_obs_days, first_obs_seconds, last_obs_days, last_obs_seconds,              &
    obs_window_days, obs_window_seconds,                                             &
-   num_output_state_members, num_output_obs_members,                                &
+   num_output_state_members, num_output_obs_members, output_restart_mean,           &
    output_interval, num_groups, outlier_threshold, trace_execution,                 &
    input_qc_threshold, output_forward_op_errors, output_timestamps,                 &
    inf_flavor, inf_initial_from_restart, inf_sd_initial_from_restart,               &
@@ -180,8 +181,8 @@ integer                 :: prior_obs_spread_index, posterior_obs_spread_index
 integer                 :: ENS_MEAN_COPY, ENS_SD_COPY, PRIOR_INF_COPY, PRIOR_INF_SD_COPY
 integer                 :: POST_INF_COPY, POST_INF_SD_COPY
 integer                 :: OBS_VAL_COPY, OBS_ERR_VAR_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY
-integer                 :: OBS_PRIOR_MEAN_START, OBS_PRIOR_MEAN_END
-integer                 :: OBS_PRIOR_VAR_START, OBS_PRIOR_VAR_END, TOTAL_OBS_COPIES
+integer                 :: OBS_MEAN_START, OBS_MEAN_END
+integer                 :: OBS_VAR_START, OBS_VAR_END, TOTAL_OBS_COPIES
 integer                 :: input_qc_index, DART_qc_index
 integer                 :: mean_owner, mean_owners_index
 
@@ -244,10 +245,10 @@ OBS_ERR_VAR_COPY     = ens_size + 1
 OBS_VAL_COPY         = ens_size + 2
 OBS_KEY_COPY         = ens_size + 3
 OBS_GLOBAL_QC_COPY   = ens_size + 4
-OBS_PRIOR_MEAN_START = ens_size + 5
-OBS_PRIOR_MEAN_END   = OBS_PRIOR_MEAN_START + num_groups - 1
-OBS_PRIOR_VAR_START  = OBS_PRIOR_MEAN_START + num_groups
-OBS_PRIOR_VAR_END    = OBS_PRIOR_VAR_START + num_groups - 1
+OBS_MEAN_START       = ens_size + 5
+OBS_MEAN_END         = OBS_MEAN_START + num_groups - 1
+OBS_VAR_START        = OBS_MEAN_START + num_groups
+OBS_VAR_END          = OBS_VAR_START + num_groups - 1
 
 ! Can't output more ensemble members than exist
 if(num_output_state_members > ens_size) num_output_state_members = ens_size
@@ -542,11 +543,11 @@ AdvanceTime : do
   
    call trace_message('Before observation space diagnostics')
    ! Do prior observation space diagnostics and associated quality control
-   call obs_space_diagnostics(obs_ens_handle, forward_op_ens_handle, ens_size, seq, keys, &
-      PRIOR_DIAG, num_output_obs_members, in_obs_copy + 1, &
+   call obs_space_diagnostics(obs_ens_handle, forward_op_ens_handle, ens_size, &
+      seq, keys, PRIOR_DIAG, num_output_obs_members, in_obs_copy+1, &
       obs_val_index, OBS_KEY_COPY, &                                 ! new
       prior_obs_mean_index, prior_obs_spread_index, num_obs_in_set, &
-      OBS_PRIOR_MEAN_START, OBS_PRIOR_VAR_START, OBS_GLOBAL_QC_COPY, &
+      OBS_MEAN_START, OBS_VAR_START, OBS_GLOBAL_QC_COPY, &
       OBS_VAL_COPY, OBS_ERR_VAR_COPY, DART_qc_index)
    call trace_message('After  observation space diagnostics')
   
@@ -563,8 +564,8 @@ AdvanceTime : do
       ens_size, num_groups, obs_val_index, prior_inflate, &
       ENS_MEAN_COPY, ENS_SD_COPY, &
       PRIOR_INF_COPY, PRIOR_INF_SD_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY, &
-      OBS_PRIOR_MEAN_START, OBS_PRIOR_MEAN_END, OBS_PRIOR_VAR_START, &
-      OBS_PRIOR_VAR_END, inflate_only = .false.)
+      OBS_MEAN_START, OBS_MEAN_END, OBS_VAR_START, &
+      OBS_VAR_END, inflate_only = .false.)
 
    call timestamp_message('After  observation assimilation')
    call     trace_message('After  observation assimilation')
@@ -581,8 +582,8 @@ AdvanceTime : do
       call smoother_assim(obs_ens_handle, seq, keys, ens_size, num_groups, &
          obs_val_index, ENS_MEAN_COPY, ENS_SD_COPY, &
          PRIOR_INF_COPY, PRIOR_INF_SD_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY, &
-         OBS_PRIOR_MEAN_START, OBS_PRIOR_MEAN_END, OBS_PRIOR_VAR_START, &
-         OBS_PRIOR_VAR_END)
+         OBS_MEAN_START, OBS_MEAN_END, OBS_VAR_START, &
+         OBS_VAR_END)
       call timestamp_message('After  smoother assimilation')
       call     trace_message('After  smoother assimilation')
    endif
@@ -651,11 +652,11 @@ AdvanceTime : do
    call trace_message('Before posterior obs space diagnostics')
 
    ! Do posterior observation space diagnostics
-   call obs_space_diagnostics(obs_ens_handle, forward_op_ens_handle, ens_size, seq, keys, &
-      POSTERIOR_DIAG, num_output_obs_members, in_obs_copy + 2, &
+   call obs_space_diagnostics(obs_ens_handle, forward_op_ens_handle, ens_size, &
+      seq, keys, POSTERIOR_DIAG, num_output_obs_members, in_obs_copy+2, &
       obs_val_index, OBS_KEY_COPY, &                             ! new
       posterior_obs_mean_index, posterior_obs_spread_index, num_obs_in_set, &
-      OBS_PRIOR_MEAN_START, OBS_PRIOR_VAR_START, OBS_GLOBAL_QC_COPY, &
+      OBS_MEAN_START, OBS_VAR_START, OBS_GLOBAL_QC_COPY, &
       OBS_VAL_COPY, OBS_ERR_VAR_COPY, DART_qc_index)
    
    call trace_message('After  posterior obs space diagnostics')
@@ -691,8 +692,8 @@ AdvanceTime : do
          call filter_assim(ens_handle, obs_ens_handle, seq, keys, ens_size, num_groups, &
             obs_val_index, post_inflate, ENS_MEAN_COPY, ENS_SD_COPY, &
             POST_INF_COPY, POST_INF_SD_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY, &
-            OBS_PRIOR_MEAN_START, OBS_PRIOR_MEAN_END, OBS_PRIOR_VAR_START, &
-            OBS_PRIOR_VAR_END, inflate_only = .true.)
+            OBS_MEAN_START, OBS_MEAN_END, OBS_VAR_START, &
+            OBS_VAR_END, inflate_only = .true.)
 
          call all_copies_to_all_vars(ens_handle)
 
@@ -747,6 +748,10 @@ call trace_message('After  writing inflation restart files if required')
 call trace_message('Before writing state restart files if requested')
 if(output_restart) &
    call write_ensemble_restart(ens_handle, restart_out_file_name, 1, ens_size)
+if(output_restart_mean) &
+   call write_ensemble_restart(ens_handle, trim(restart_out_file_name)//'.mean', &
+                               ENS_MEAN_COPY, ENS_MEAN_COPY, .true.)
+
 if(ds) call smoother_write_restart(1, ens_size)
 call trace_message('After  writing state restart files if requested')
 
@@ -938,6 +943,7 @@ num_obs_copies = 2 * num_output_obs_members + 4
 ! The one that exists would be the NCEP and perfect_model_obs generated values in general
 call read_obs_seq_header(obs_sequence_in_name, tnum_copies, tnum_qc, tnum_obs, tmax_num_obs, &
    obs_seq_file_id, obs_seq_read_format, pre_I_format, close_the_file = .true.)
+
 if(tnum_qc == 0) then
    input_qc_index = 1
    DART_qc_index = 2
@@ -1000,6 +1006,79 @@ call error_handler(E_ERR,'get_obs_copy_index', &
       source, revision, revdate)
 
 end function get_obs_copy_index
+
+!-------------------------------------------------------------------------
+
+function get_obs_prior_index(seq)
+
+type(obs_sequence_type), intent(in) :: seq
+integer                             :: get_obs_prior_index
+
+integer :: i
+
+! Determine which copy in sequence has prior mean, if any.
+!--------
+do i = 1, get_num_copies(seq)
+   get_obs_prior_index = i
+   ! Need to look for 'prior mean'
+   if(index(get_copy_meta_data(seq, i), 'prior ensemble mean') > 0) return
+end do
+! Falling of end means 'prior mean' not found; not fatal!
+
+get_obs_prior_index = -1
+
+end function get_obs_prior_index
+
+!-------------------------------------------------------------------------
+
+function get_obs_qc_index(seq)
+
+type(obs_sequence_type), intent(in) :: seq
+integer                             :: get_obs_qc_index
+
+integer :: i
+
+! Determine which qc, if any, has the incoming obs qc
+! this is tricky because we have never specified what string
+! the metadata has to have.  look for 'qc' or 'QC' and the
+! first metadata that matches (much like 'observation' above)
+! is the winner.
+!--------
+do i = 1, get_num_qc(seq)
+   get_obs_qc_index = i
+   ! Need to look for 'QC' or 'qc'
+   if(index(get_qc_meta_data(seq, i), 'QC') > 0) return
+   if(index(get_qc_meta_data(seq, i), 'qc') > 0) return
+   if(index(get_qc_meta_data(seq, i), 'Quality Control') > 0) return
+   if(index(get_qc_meta_data(seq, i), 'QUALITY CONTROL') > 0) return
+end do
+! Falling off end means 'QC' string not found; not fatal!
+
+get_obs_qc_index = -1
+
+end function get_obs_qc_index
+
+!-------------------------------------------------------------------------
+
+function get_obs_dartqc_index(seq)
+
+type(obs_sequence_type), intent(in) :: seq
+integer                             :: get_obs_dartqc_index
+
+integer :: i
+
+! Determine which qc, if any, has the DART qc
+!--------
+do i = 1, get_num_qc(seq)
+   get_obs_dartqc_index = i
+   ! Need to look for 'DART quality control'
+   if(index(get_qc_meta_data(seq, i), 'DART quality control') > 0) return
+end do
+! Falling off end means 'DART quality control' not found; not fatal!
+
+get_obs_dartqc_index = -1
+
+end function get_obs_dartqc_index
 
 !-------------------------------------------------------------------------
 
@@ -1191,7 +1270,8 @@ ALL_OBSERVATIONS: do j = 1, num_obs_in_set
          !       obs_ens_handle%vars(j:j, k), istatus, assimilate_this_ob, evaluate_this_ob)
          ! and keys is intent in only, vars intent out only.
          thiskey(1) = keys(j)
-         call get_expected_obs(seq, thiskey, ens_handle%vars(:, k), &
+         call get_expected_obs(seq, thiskey, &
+            global_ens_index, ens_handle%vars(:, k), ens_handle%time(1), &
             thisvar, istatus, assimilate_this_ob, evaluate_this_ob)
          obs_ens_handle%vars(j, k) = thisvar(1)
          ! If istatus is 0 (successful) then put 0 for assimilate, -1 for evaluate only
@@ -1235,7 +1315,7 @@ subroutine obs_space_diagnostics(obs_ens_handle, forward_op_ens_handle, ens_size
    seq, keys, prior_post, num_output_members, members_index, &
    obs_val_index, OBS_KEY_COPY, &
    ens_mean_index, ens_spread_index, num_obs_in_set, &
-   OBS_PRIOR_MEAN_START, OBS_PRIOR_VAR_START, OBS_GLOBAL_QC_COPY, OBS_VAL_COPY, &
+   OBS_MEAN_START, OBS_VAR_START, OBS_GLOBAL_QC_COPY, OBS_VAL_COPY, &
    OBS_ERR_VAR_COPY, DART_qc_index)
 
 ! Do prior observation space diagnostics on the set of obs corresponding to keys
@@ -1249,15 +1329,17 @@ integer,                 intent(in)    :: obs_val_index
 integer,                 intent(in)    :: OBS_KEY_COPY
 integer,                 intent(in)    :: ens_mean_index, ens_spread_index
 type(obs_sequence_type), intent(inout) :: seq
-integer,                 intent(in)    :: OBS_PRIOR_MEAN_START, OBS_PRIOR_VAR_START
+integer,                 intent(in)    :: OBS_MEAN_START, OBS_VAR_START
 integer,                 intent(in)    :: OBS_GLOBAL_QC_COPY, OBS_VAL_COPY
 integer,                 intent(in)    :: OBS_ERR_VAR_COPY, DART_qc_index
 
-integer               :: j, k, ens_offset, forward_min, forward_max, forward_unit, ivalue
-real(r8)              :: error, diff_sd, ratio, obs_temp(num_obs_in_set)
+integer               :: j, k, ens_offset, forward_min, forward_max
+integer               :: forward_unit, ivalue, low_qc_limit, high_qc_limit
+real(r8)              :: error, diff_sd, ratio
+real(r8), allocatable :: obs_temp(:), forward_temp(:)
 real(r8)              :: obs_prior_mean, obs_prior_var, obs_val, obs_err_var
-real(r8)              :: forward_temp(num_obs_in_set), rvalue(1)
-logical               :: do_outlier
+real(r8)              :: rvalue(1)
+logical               :: do_outlier, good_forward_op
 
 
 ! Assume that mean and spread have been computed if needed???
@@ -1283,6 +1365,8 @@ if(output_forward_op_errors) then
          forward_unit = open_file('post_forward_op_errors', 'formatted', 'append')
       endif
    endif
+ 
+   allocate(forward_temp(num_obs_in_set))
 
    do k = 1, ens_size
       ! Get this copy to PE 0
@@ -1296,6 +1380,9 @@ if(output_forward_op_errors) then
          end do
       endif
    end do
+
+   deallocate(forward_temp)
+
    ! PE 0 does the output for each copy in turn
    if(my_task_id() == 0) then
       call close_file(forward_unit)
@@ -1308,7 +1395,7 @@ call all_vars_to_all_copies(forward_op_ens_handle)
 
 ! Compute mean and spread
 call compute_copy_mean_var(obs_ens_handle, &
-      1, ens_size, OBS_PRIOR_MEAN_START, OBS_PRIOR_VAR_START)
+      1, ens_size, OBS_MEAN_START, OBS_VAR_START)
 
 
 ! Give the observation code a chance to alter the actual observation
@@ -1317,15 +1404,21 @@ call compute_copy_mean_var(obs_ens_handle, &
 if (observations_updateable) then
   call update_observations_radar(obs_ens_handle, ens_size, seq, keys, prior_post, &
     obs_val_index, OBS_KEY_COPY, ens_mean_index, ens_spread_index, num_obs_in_set, &
-    OBS_PRIOR_MEAN_START, OBS_PRIOR_VAR_START, OBS_GLOBAL_QC_COPY, OBS_VAL_COPY, &
+    OBS_MEAN_START, OBS_VAR_START, OBS_GLOBAL_QC_COPY, OBS_VAL_COPY, &
     OBS_ERR_VAR_COPY, DART_qc_index, PRIOR_DIAG)
 endif
 
 
 ! At this point can compute outlier test and consolidate forward operator qc
 do j = 1, obs_ens_handle%my_num_vars
+   good_forward_op = .false.
+
+   ! find the min and max istatus values across all ensemble members.  these are
+   ! either set by dart code, or returned by the model-specific model_interpolate() 
+   ! routine, or by forward operator code in obs_def_xxx_mod files.
    forward_max = nint(maxval(forward_op_ens_handle%copies(1:ens_size, j)))
    forward_min = nint(minval(forward_op_ens_handle%copies(1:ens_size, j)))
+
    ! Now do a case statement to figure out what the qc result should be
    ! For prior, have to test for a bunch of stuff
    ! FIXME: note that this case statement doesn't cover every possibility;
@@ -1341,8 +1434,10 @@ do j = 1, obs_ens_handle%my_num_vars
          obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) = 4
       else if(forward_min == -1) then          ! Observation to be evaluated only
          obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) = 1
+         good_forward_op = .true.
       else if(forward_min == 0) then           ! All clear, assimilate this ob
          obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) = 0
+         good_forward_op = .true.
       ! FIXME: proposed enhancement - catchall for cases that we have not caught
       !else   ! 'should not happen'
       !   obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) = 9  ! inconsistent istatus codes
@@ -1356,8 +1451,8 @@ do j = 1, obs_ens_handle%my_num_vars
       ! only if it is still successful (assim or eval, 0 or 1), then check
       ! for failing outlier test.
       if(do_outlier .and. (obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) < 2)) then
-         obs_prior_mean = obs_ens_handle%copies(OBS_PRIOR_MEAN_START, j)
-         obs_prior_var = obs_ens_handle%copies(OBS_PRIOR_VAR_START, j)
+         obs_prior_mean = obs_ens_handle%copies(OBS_MEAN_START, j)
+         obs_prior_var = obs_ens_handle%copies(OBS_VAR_START, j)
          obs_val = obs_ens_handle%copies(OBS_VAL_COPY, j)
          obs_err_var = obs_ens_handle%copies(OBS_ERR_VAR_COPY, j)
          error = obs_prior_mean - obs_val
@@ -1387,7 +1482,26 @@ do j = 1, obs_ens_handle%my_num_vars
             obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) = 3
          endif
       endif
+      ! and for consistency, go through all the same tests as the prior, but
+      ! only use the results to set the good/bad forward op flag.
+      if ((forward_min == -99) .or. &       ! Failed prior qc in get_obs_ens
+          (forward_min == -2)  .or. &       ! Observation not used via namelist
+          (forward_max > 0)) then           ! At least one forward operator failed
+            continue; 
+      else if(forward_min == -1) then       ! Observation to be evaluated only
+         good_forward_op = .true.
+      else if(forward_min == 0) then        ! All clear, assimilate this ob
+         good_forward_op = .true.
+      endif
    endif
+
+   ! for either prior or posterior, if the forward operator failed,
+   ! reset the mean/var to missing_r8, regardless of the DART QC status
+   if (.not. good_forward_op) then
+      obs_ens_handle%copies(OBS_MEAN_START, j) = missing_r8
+      obs_ens_handle%copies(OBS_VAR_START,  j) = missing_r8
+   endif
+
 enddo
 
 ! PAR: NEED TO BE ABLE TO OUTPUT DETAILS OF FAILED FORWARD OBSEVATION OPERATORS
@@ -1397,36 +1511,42 @@ enddo
 ! Is this next call really needed, or does it already exist on input???
 call all_copies_to_all_vars(obs_ens_handle)
 
-! Output the ensemble mean
+! allocate temp space for sending data
+allocate(obs_temp(num_obs_in_set))
+
+! Update the ensemble mean
 ! Get this copy to process 0
-call get_copy(0, obs_ens_handle, OBS_PRIOR_MEAN_START, obs_temp)
+call get_copy(0, obs_ens_handle, OBS_MEAN_START, obs_temp)
 ! Only pe 0 gets to write the sequence
 if(my_task_id() == 0) then
      ! Loop through the observations for this time
      do j = 1, obs_ens_handle%num_vars
-      ! update the mean in each obs
       rvalue(1) = obs_temp(j)
       call replace_obs_values(seq, keys(j), rvalue, ens_mean_index)
      end do
   endif
 
-! If requested, output the ensemble spread
+! Update the ensemble spread
 ! Get this copy to process 0
-call get_copy(0, obs_ens_handle, OBS_PRIOR_VAR_START, obs_temp)
+call get_copy(0, obs_ens_handle, OBS_VAR_START, obs_temp)
 ! Only pe 0 gets to write the sequence
 if(my_task_id() == 0) then
    ! Loop through the observations for this time
    do j = 1, obs_ens_handle%num_vars
       ! update the spread in each obs
-      rvalue(1) = sqrt(obs_temp(j))
+      if (obs_temp(j) /= missing_r8) then
+         rvalue(1) = sqrt(obs_temp(j))
+      else
+         rvalue(1) = obs_temp(j)
+      endif
       call replace_obs_values(seq, keys(j), rvalue, ens_spread_index)
    end do
 endif
 
 ! May be possible to only do this after the posterior call...
-! Output any requested ensemble members
+! Update any requested ensemble members
 ens_offset = members_index + 4
-! Output all of these ensembles that are required to sequence file
+! Update all of these ensembles that are required to sequence file
 do k = 1, num_output_members
    ! Get this copy on pe 0
    call get_copy(0, obs_ens_handle, k, obs_temp)
@@ -1442,8 +1562,7 @@ do k = 1, num_output_members
    endif
 end do
 
-! Output the qc global value
-! First get this copy on pe 0
+! Update the qc global value
 call get_copy(0, obs_ens_handle, OBS_GLOBAL_QC_COPY, obs_temp)
 ! Only pe 0 gets to write the observations for this time
 if(my_task_id() == 0) then
@@ -1453,6 +1572,9 @@ if(my_task_id() == 0) then
       call replace_qc(seq, keys(j), rvalue, DART_qc_index)
    end do
 endif
+
+! clean up.
+deallocate(obs_temp)
 
 end subroutine obs_space_diagnostics
 
@@ -1652,7 +1774,7 @@ end subroutine print_obs_time
 
 subroutine update_observations_radar(obs_ens_handle, ens_size, seq, keys, prior_post, &
       obs_val_index, OBS_KEY_COPY, ens_mean_index, ens_spread_index, num_obs_in_set, &
-      OBS_PRIOR_MEAN_START, OBS_PRIOR_VAR_START, OBS_GLOBAL_QC_COPY, OBS_VAL_COPY, &
+      OBS_MEAN_START, OBS_VAR_START, OBS_GLOBAL_QC_COPY, OBS_VAL_COPY, &
       OBS_ERR_VAR_COPY, DART_qc_index, PRIOR_DIAG)
 
 
@@ -1674,7 +1796,7 @@ integer,                 intent(in)    :: num_obs_in_set
 integer,                 intent(in)    :: keys(num_obs_in_set), prior_post
 integer,                 intent(in)    :: ens_mean_index, ens_spread_index
 type(obs_sequence_type), intent(inout) :: seq
-integer,                 intent(in)    :: OBS_PRIOR_MEAN_START, OBS_PRIOR_VAR_START
+integer,                 intent(in)    :: OBS_MEAN_START, OBS_VAR_START
 integer,                 intent(in)    :: OBS_GLOBAL_QC_COPY, OBS_VAL_COPY
 integer,                 intent(in)    :: OBS_ERR_VAR_COPY, DART_qc_index, PRIOR_DIAG
 
@@ -1717,7 +1839,7 @@ do j = 1, obs_ens_handle%my_num_vars
    call get_obs_def(observation, obs_def)
    obs_kind_ind = get_obs_kind(obs_def)
    if (obs_kind_ind == DOPPLER_RADIAL_VELOCITY) then
-      obs_prior_mean = obs_ens_handle%copies(OBS_PRIOR_MEAN_START, j)
+      obs_prior_mean = obs_ens_handle%copies(OBS_MEAN_START, j)
       obs_val = obs_ens_handle%copies(OBS_VAL_COPY, j)
       velkey = get_obs_def_key(obs_def)
       call get_obs_def_radial_vel(velkey, radarloc, beamdir, velnyquist)

@@ -15,7 +15,7 @@
 %
 % All the heavy lifting is done by PlotSawtooth.
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -75,18 +75,18 @@ switch lower(pstruct.model)
    case 'fms_bgrid'
 
       pstruct = GetBgridInfo(pstruct, prior_file, 'PlotSawtooth');
-      pstruct.prior_file     = prior_file;
-      pstruct.posterior_file = posterior_file;
 
    case 'pe2lyr'
 
       pstruct = GetPe2lyrInfo(pstruct, prior_file, 'PlotSawtooth');
-      pstruct.prior_file     = prior_file;
-      pstruct.posterior_file = posterior_file;
+
+   case 'wrf'
+
+      pstruct = GetWRFInfo(pstruct, prior_file, 'PlotSawtooth');
 
    case 'cam'
 
-      pstruct = GetCamInfo(pstruct,'PlotSawtooth');
+      pstruct = GetCamInfo(pstruct, prior_file, 'PlotSawtooth');
       pstruct.copyindices = SetCopyID2(pstruct.prior_file);
       pstruct.copies      = length(pstruct.copyindices);
 

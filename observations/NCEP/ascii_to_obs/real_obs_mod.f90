@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -204,6 +204,7 @@ rewind (obs_unit)
 
 obs_num = 0
 iskip(:) = 0
+first_obs = .true.
 
 !  loop over all observations within the file
 !------------------------------------------------------------------------------
@@ -468,6 +469,9 @@ obsloop:  do
       endif
 
    end if
+
+   ! fill the time_obs variable to pass into add routine
+   time_obs = set_time(seconds, days)
 
    !   create the obs_def for this observation, add to sequence
    !------------------------------------------------------------------------------

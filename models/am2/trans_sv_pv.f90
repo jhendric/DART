@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
  
@@ -43,7 +43,12 @@ character(len=128), parameter :: &
    revision = "$Revision$", &
    revdate  = "$Date$"
 
-integer, external :: iargc
+interface
+  integer function iargc()
+  end function iargc
+end interface
+
+!integer, external :: iargc
 
 type(assim_model_type) :: x
 type(model_type)       :: var

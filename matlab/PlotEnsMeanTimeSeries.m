@@ -36,7 +36,7 @@ function PlotEnsMeanTimeSeries( pinfo )
 % pinfo.longitude  = 45.67;
 % PlotEnsMeanTimeSeries( pinfo )
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -131,8 +131,8 @@ switch lower(pinfo.model)
                legend('Ensemble Mean','True State',0);
             end
 
-            title(sprintf('%s Variable %d of %s',pinfo.model,ivar,pinfo.diagn_file), ...
-                     'interpreter','none','fontweight','bold')
+            s1 = sprintf('%s Variable %d',pinfo.model,ivar);
+            title({s1,pinfo.diagn_file},'interpreter','none','fontweight','bold')
             xlabel(sprintf('model time (%d timesteps)',num_times))
             legend boxoff
       end
@@ -178,13 +178,13 @@ switch lower(pinfo.model)
                hold on; plot(times,truth,'b'); hold off;
                legend('Ensemble Mean','True State',0)
             end
-            title(sprintf('%s Variable %d of %s',pinfo.model,ivar,pinfo.diagn_file), ...
-                     'interpreter','none','fontweight','bold')
+            s1 = sprintf('%s Variable %d',pinfo.model,ivar);
+            title({s1,pinfo.diagn_file},'interpreter','none','fontweight','bold')
             xlabel(sprintf('model time (%d timesteps)',num_times))
             legend boxoff
       end
 
-   case {'fms_bgrid','pe2lyr','mitgcm_ocean'}
+   case {'fms_bgrid','pe2lyr','mitgcm_ocean','wrf','cam'}
 
       clf;
 
@@ -205,7 +205,7 @@ switch lower(pinfo.model)
                             pinfo.model, pinfo.var, pinfo.diagn_file);
          s2 = sprintf('level %d lat %.2f lon %.2f', ...
                     pinfo.level, pinfo.latitude, pinfo.longitude);
-         title({s1,s2},'interpreter','none','fontweight','bold')
+         title({s1,s2,pinfo.diagn_file},'interpreter','none','fontweight','bold')
 
          if (have_truth)
             truth = GetCopy(pinfo.truth_file, truth_index,      pinfo , ...
@@ -218,53 +218,6 @@ switch lower(pinfo.model)
          xlabel(sprintf('time (%s) %d timesteps',timeunits, num_times))
          ylabel(varunits)
 
-   case 'cam'
-
-      clf;
-
-      var_names = strread(pinfo.var_names,'%s','delimiter',' ');
-      nfigs = length(var_names);  % each variable gets its own figure
-      iplot = 0;
-
-      for ivar = 1:nfigs
-
-         iplot = iplot + 1;
-         figure(iplot); clf;
-
-         pinfo.var  = var_names{ivar};
-
-         timeunits = nc_attget(pinfo.diagn_file, 'time',    'units');
-         varunits  = nc_attget(pinfo.diagn_file, pinfo.var, 'units');
-
-         subplot(2,1,1)
-            PlotLocator(pinfo);
-
-         ens_mean = GetCopy(pinfo.diagn_file, ens_mean_index, pinfo, ...
-                            pinfo.diagn_time(1), pinfo.diagn_time(2)) ;
-         subplot(2,1,2)
-            plot(times,ens_mean,'r','LineWidth',2);
-            legend('Ensemble Mean', 0)
-            s1 = sprintf('%s model ''%s'' %s Ensemble Mean ', ...
-                 pinfo.model, pinfo.var, pinfo.diagn_file);
-            s2 = sprintf('level index %d lat %.2f lon %.2f', ...
-                       pinfo.levelindex, pinfo.latitude, pinfo.longitude);
-
-            if ( have_truth )
-               truth    = GetCopy(pinfo.truth_file, truth_index, pinfo, ...
-                                  pinfo.truth_time(1), pinfo.truth_time(2)) ;
-               hold on; plot(times,truth,'b','LineWidth',2); hold off;
-               legend('Ensemble Mean','True State',0);
-               s1 = sprintf('%s model ''%s'' %s Truth and Ensemble Mean ', ...
-                               pinfo.model, pinfo.var, pinfo.diagn_file);
-            end
-
-            %plot(times,ens_mean,'r','LineWidth',2); %      again - on top
-
-            title({s1,s2},'interpreter','none','fontweight','bold')
-            xlabel(sprintf('time (%s) %d timesteps',timeunits, num_times))
-            ylabel(varunits)
-            legend boxoff
-      end
 
    otherwise
       error('model %s unknown.',pinfo.model)
@@ -303,9 +256,14 @@ var = nc_varget(fname, pinfo.var, start, count);
 
 function PlotLocator(pinfo)
    plot(pinfo.longitude,pinfo.latitude,'pb','MarkerSize',12,'MarkerFaceColor','b');
-   axis([0 360 -90 90])
-   worldmap;
-   axis image
+   axlims = axis;
+   axlims = axlims + [-20 20 -20 20];
    grid on
-
+   axis image
+   axis(axlims)
+   if (axlims(2) < 0)
+       worldmap('hollow','dateline');
+   else
+       worldmap('hollow','greenwich');
+   end
 

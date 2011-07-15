@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -433,7 +433,7 @@ contains
     ! Make sure ncFileID refers to an open netCDF file, and then put into define mode.
     !    More dimensions, variables and attributes will be added in this routine.
     !
-    write(errstring,'(I4)') ncFileID
+    write(errstring,*) 'ncFileID is', ncFileID
     call nc_check(nf90_Inquire(ncFileID, unlimitedDimID = unlimitedDimID), &
                   'nc_write_model_atts', 'Inquire '// trim(errstring))
     call nc_check(nf90_Redef(ncFileID), 'nc_write_model_atts', 'Redef '// trim(errstring))

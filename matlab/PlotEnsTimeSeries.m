@@ -35,7 +35,7 @@ function PlotEnsTimeSeries( pinfo )
 % pinfo.longitude   = 45.67;
 % PlotEnsTimeSeries( pinfo )
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -98,7 +98,7 @@ switch lower(pinfo.model)
 
             plot(times,   ens_mean,'r','LineWidth',2.0); hold on;
             plot(times,ens_members,'g');
-            if (exist('legendstr')) 
+            if (exist('legendstr','var')) 
                 legend(legendstr, 'Ensemble Mean', sprintf('Ensemble Members (%d)',nmembers), 0);
                plot(pinfo.truth_times, truth,'b','LineWidth',2); % again, to put 'on top'
             else
@@ -138,7 +138,7 @@ switch lower(pinfo.model)
 
             plot(times,   ens_mean,'r','LineWidth',2.0); hold on;
             plot(times,ens_members,'g');
-            if (exist('legendstr'))
+            if (exist('legendstr','var'))
                legend(legendstr, 'Ensemble Mean', sprintf('Ensemble Members (%d)',nmembers), 0);
                plot(pinfo.truth_times,   truth,'b','LineWidth',2); % again, to put 'on top'
             else
@@ -168,7 +168,7 @@ switch lower(pinfo.model)
       title(sprintf('%s Attractors for %s', pinfo.model, pinfo.diagn_file), ...    
                  'interpreter','none','fontweight','bold');
 
-      if (exist('legendstr'))
+      if (exist('legendstr','var'))
          legend(legendstr,'Ensemble Mean',0);
       else
          legend(          'Ensemble Mean',0);
@@ -203,7 +203,7 @@ switch lower(pinfo.model)
             plot(times,   ens_mean,'r','LineWidth',2); hold on;
             plot(times,ens_members,'g');
 
-            if (exist('legendstr'))
+            if (exist('legendstr','var'))
                legend(legendstr, 'Ensemble Mean', sprintf('Ensemble Members (%d)',nmembers), 0);
                plot(pinfo.truth_times,   truth,'b','LineWidth',2); % again, to put 'on top'
             else
@@ -218,7 +218,7 @@ switch lower(pinfo.model)
             legend boxoff
       end
 
-   case {'fms_bgrid','pe2lyr'}
+   case {'fms_bgrid','pe2lyr','mitgcm_ocean','wrf','cam'}
 
       clf;
 
@@ -245,7 +245,7 @@ switch lower(pinfo.model)
          plot(times,   ens_mean,'r','LineWidth',2); hold on;
          plot(times,ens_members,'g');
 
-         if (exist('legendstr'))
+         if (exist('legendstr','var'))
             legend(legendstr, 'Ensemble Mean', sprintf('Ensemble Members (%d)',nmembers), 0);
             plot(pinfo.truth_times,   truth,'b','LineWidth',2); % again, to put 'on top'
          else
@@ -262,60 +262,6 @@ switch lower(pinfo.model)
          ylabel(varunits);
          legend boxoff
 
-   case 'cam'
-
-      clf;
-
-      var_names = strread(pinfo.var_names,'%s','delimiter',' ');
-      nfigs = length(var_names);  % each variable gets its own figure
-      iplot = 0;
-
-      for ivar = 1:nfigs
-
-         iplot = iplot + 1;
-         figure(iplot); clf;
-
-         pinfo.var  = var_names{ivar};
-
-         timeunits = nc_attget(pinfo.diagn_file, 'time',    'units');
-         varunits  = nc_attget(pinfo.diagn_file, pinfo.var, 'units');
-
-         subplot(2,1,1)
-            PlotLocator(pinfo);
-
-         subplot(2,1,2)
-
-            if ( have_truth )
-               truth     = GetCopy(pinfo.truth_file, truth_index,   pinfo );
-               plot(pinfo.truth_times, truth,'b','LineWidth',2); hold on;
-               legendstr = 'True State';
-            end
-
-            ens_mean    = GetCopy(pinfo.diagn_file, ens_mean_index, pinfo );
-            ens_members = GetEns( pinfo.diagn_file,                 pinfo );
-            nmembers    = size(ens_members,2);
-
-            plot(times,   ens_mean,'r','LineWidth',2); hold on;
-            plot(times,ens_members,'g'); 
-
-            if (exist('legendstr'))
-               legend(legendstr, 'Ensemble Mean', sprintf('Ensemble Members (%d)',nmembers), 0);
-               plot(pinfo.truth_times,   truth,'b','LineWidth',2); % again, to put 'on top'
-            else
-               legend(           'Ensemble Mean', sprintf('Ensemble Members (%d)',nmembers), 0);
-            end
-
-            s1 = sprintf('%s model ''%s'' %s Ensemble Members ', ...
-                               pinfo.model, pinfo.var, pinfo.diagn_file);
-            s2 = sprintf('level index %d lat %.2f lon %.2f', ...
-                       pinfo.levelindex, pinfo.latitude, pinfo.longitude);
-            title({s1,s2},'interpreter','none','fontweight','bold');
-            xlabel(sprintf('time (%s) %d timesteps',timeunits,num_times));
-            ylabel(varunits);
-            legend boxoff
-            hold off;
-      end
-
    otherwise
 
       error('model %s unknown.',pinfo.model)
@@ -326,8 +272,6 @@ end
 %======================================================================
 % Subfunctions
 %======================================================================
-
-
 
 function x = dim_length(fname,dimname)
 y = nc_isvar(fname,dimname);
@@ -354,9 +298,6 @@ var = nc_varget(fname, pinfo.var, start, count);
 
 
 
-
-
-
 function var = GetEns(fname, pinfo)
 % Gets a time-series of all copies of a prognostic variable 
 % at a particular 3D location (level, lat, lon).
@@ -372,7 +313,7 @@ if ( isempty(copyindices) )
    disp('To be a valid ensemble member, the CopyMetaData for the member')
    disp('must start with the character string ''ensemble member''')
    disp('None of them in do in your file.')
-   fprintf('%s claims to have %d copies\n',fname, num_copies)
+   fprintf('%s claims to have 0 copies\n',fname)
    error('netcdf file has no ensemble members.')
 end
 ens_num     = length(copyindices);
@@ -390,10 +331,14 @@ var = bob(:,copyindices);
 
 function PlotLocator(pinfo)
    plot(pinfo.longitude,pinfo.latitude,'pb','MarkerSize',12,'MarkerFaceColor','b');
-   axis([0 360 -90 90])
-   worldmap;
-   axis image
+   axlims = axis;
+   axlims = axlims + [-20 20 -20 20];
    grid on
-
-
+   axis image
+   axis(axlims)
+   if (axlims(2) < 0)
+       worldmap('hollow','dateline');
+   else
+       worldmap('hollow','greenwich');
+   end
 

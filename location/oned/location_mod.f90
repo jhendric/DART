@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -513,10 +513,16 @@ end subroutine get_close_obs_destroy
 
 !----------------------------------------------------------------------------
 
-subroutine get_close_maxdist_init(gc, maxdist)
+subroutine get_close_maxdist_init(gc, maxdist, maxdist_list)
 
 type(get_close_type), intent(inout) :: gc
 real(r8),             intent(in)    :: maxdist
+real(r8), optional,   intent(in)    :: maxdist_list(:)
+
+if (present(maxdist_list)) then
+   write(errstring,*)'oned locations does not support different cutoff distances by type'
+   call error_handler(E_ERR, 'get_close_maxdist_init', errstring, source, revision, revdate)
+endif
 
 ! Set the maximum distance in the structure
 gc%maxdist = maxdist

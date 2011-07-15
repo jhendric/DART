@@ -3,7 +3,7 @@ function obsstruct = read_obs_netcdf(fname, ObsTypeString, region, CopyString, .
 %% read_obs_netcdf reads in the netcdf flavor observation sequence file
 %                  and returns a subsetted structure.
 %
-% fname         = 'obs_sequence_001.nc';
+% fname         = 'obs_epoch_001.nc';
 % ObsTypeString = 'RADIOSONDE_U_WIND_COMPONENT';   % or 'ALL' ...
 % region        = [0 360 -90 90 -Inf Inf];
 % CopyString    = 'NCEP BUFR observation';
@@ -14,7 +14,7 @@ function obsstruct = read_obs_netcdf(fname, ObsTypeString, region, CopyString, .
 %
 % The return variable 'obs' is a structure. As an example ...
 %
-%           fname: 'obs_sequence_001.nc'
+%           fname: 'obs_epoch_001.nc'
 %   ObsTypeString: 'RADIOSONDE_U_WIND_COMPONENT'
 %          region: [0 360 -90 90 -Inf Inf]
 %      CopyString: 'NCEP BUFR observation'
@@ -30,7 +30,7 @@ function obsstruct = read_obs_netcdf(fname, ObsTypeString, region, CopyString, .
 %            time: [2343x1 double]
 %              qc: [2343x1 int32]
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %

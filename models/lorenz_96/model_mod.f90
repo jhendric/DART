@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -529,7 +529,7 @@ enddo
 call nc_check(nf90_sync(ncFileID), &
               'nc_write_model_atts', 'sync, '//trim(filename))
 
-write (*,*)'Model attributes written, netCDF file synched ...'
+! write (*,*)'Model attributes written, netCDF file synched ...'
 
 end function nc_write_model_atts
 
