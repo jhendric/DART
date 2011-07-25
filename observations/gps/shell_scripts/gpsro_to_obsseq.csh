@@ -1,4 +1,4 @@
-#!/bin/csh
+#!/bin/csh 
 #
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -8,33 +8,59 @@
 #
 ########################################################################
 #
-#   cosmic_to_obsseq.csh - script that downloads COSMIC observations 
-#               and converts them to a DART observation sequence file.
+#   gpsro_to_obsseq.csh - script that downloads GPS radio occultation
+#               observation profiles and converts them into a series of
+#               DART observations and outputs a daily DART obs_seq file.
 #
-# requires 5 args:
+# can be used standalone but intended to be called by the do_convert.csh
+# script in this same directory.
+#
+# requires 6 args:
 #    $1 - analysis date (yyyymmdd format)
 #    $2 - base directory where files will be processed
-#    $3 - yes to download raw COSMIC data 
-#    $4 - yes to convert COSMIC data to an obs_seq file
-#    $5 - yes to delete raw COSMIC data when finished
+#    $3 - yes to download RO data profiles.  no if already downloaded.
+#    $4 - yes to convert RO data to an obs_seq file.  no to skip convert.
+#    $5 - yes to delete RO data when finished.  no to keep original files.
+#    $6 - file containing the names of the satellites to get data from
 #
 # update DART_DIR in this script to match your system, and if
-# downloading, set your COSMIC web page user name and password.
+# downloading, set your CDAAC web page user name and password.
 #
 # edit the input.nml in the work directory to select any options;
 # it will be copied to the various places it is needed.
 #
 # the processing directory name is relative to the 'work' directory.
 #
+# the options for satellite names, and available data times are:
+#
+#    cosmic:    all 6 COSMIC : 2006.194 - now*
+#    cosmicrt:  COSMIC : realtime
+#    champ:     CHAMP : 2001.139 - 2008.274
+#    grace:     Grace-A : 2007.059 - now*
+#    tsx:       German TerraSAR-X : 2008.041 - now*
+#    metopa:    Metop-A/GRAS : 2008.061 - now*
+#    sacc:      Argentinan SAC-C : 2006.068 - now*
+#    saccrt:    SAC-C : realtime
+#    ncofs:     new Air Force C/NOFS : 2010.335 - now*
+#    ncofsrt:   C/NOFS : realtime
+#
+#  - dates are YYYY.DDD where DDD is day number in year
+#  - now* means current date minus 3-4 months.  reprocessed data
+#    lags that much behind.  realtime means up to today's date,
+#    with less quality control.
+#  - only select one of reprocessed or realtime for a satellite 
+#    or you will get duplicated observations.
+#
 #
 #     created June 2008, Ryan Torn NCAR/MMM
 #     updated Nov  2008, nancy collins ncar/cisl
 #     updated Aug  2009, nancy collins ncar/cisl
 #     updated Oct  2010, Ryan and nancy
+#     updated Jul  2011, nancy (added support for other satellites)
 # 
 #
 # ------- 
-# from the cosmic web site about the use of 'wget' to download
+# From the CDAAC web site about the use of 'wget' to download
 # the many files needed to do this process:
 #
 #   Hints for using wget for fetching CDAAC files from CDAAC:
@@ -44,6 +70,8 @@
 #   wget -nd -np -r -l 10 -w 2 --http-user=xxxx --http-passwd=xxxx \
 #         http://cosmic-io.cosmic.ucar.edu/cdaac/login/cosmicrt/level2/atmPrf/2009.007/
 #   
+# (note - now http://cdaac-www.cosmic.ucar.edu/...)
+#
 #   The option -np (no parents) is important. Without it, all manner of 
 #   files from throughout the site will be loaded, I think due to the 
 #   links back to the main page which are everywhere.
@@ -63,7 +91,7 @@
 # ------- 
 # 
 # note: there are between 1000 and 3000 files per day.  without the -w
-# flag, i was getting about 5 files per second (each individual file is
+# flag i was getting about 5 files per second (each individual file is
 # relatively small).  but with -w 1 obviously we get slightly less than
 # a file a second, -w 2 is half that again.  this script uses -w 1 by
 # default, but if you are trying to download a lot of days i'd recommend
@@ -77,12 +105,15 @@
 # web site user name and password for access.  expects to use the 'wget'
 # utility to download files from the web page.  
 
-# top level directory (where observations dir is found)
-setenv DART_DIR    /home/user/dart
-set cosmic_user    = xxx
-set cosmic_pw      = yyy
+# top level directory (root where observations/gps dir is found)
+setenv DART_DIR    /home/user/DART
+set cdaac_user    = username
+set cdaac_pw      = password
 
-set gps_repository_path = 'http://cosmic-io.cosmic.ucar.edu/cdaac/login'
+# old site, still seems to work:
+#set gps_repository_path = 'http://cosmic-io.cosmic.ucar.edu/cdaac/login'
+# new site:
+set gps_repository_path = 'http://cdaac-www.cosmic.ucar.edu/cdaac/login'
 
 setenv DART_WORK_DIR  ${DART_DIR}/observations/gps/work
 setenv CONV_PROG      convert_cosmic_gps_cdf
@@ -94,16 +125,25 @@ set wget_cmd            = 'wget -q -nd -np -r -l 10 -w 1'
 
 set chatty=yes
 
+if ($# != 6) then
+   echo usage: $0 date workdir downld convert cleanup satlist
+   exit -1
+endif
+
 set datea   = ${1}     # target date, YYYYMMDD
 set datadir = ${2}     # under what directory to process the files
 set downld  = ${3}     # download?  'yes' or 'no'
 set convert = ${4}     # convert?   'yes' or 'no'
-set cleanup = ${5}     # delete COSMIC files at end? 'yes' or 'no'
+set cleanup = ${5}     # delete downloaded files at end? 'yes' or 'no'
+set satlist = ${6}     # file with list of satellites to use
 
 
 if ( $chatty == 'yes' ) then
-   echo 'starting gps script run at ' `date`
+   echo 'starting gpsro script run at ' `date`
 endif
+
+# record where we started running
+set origindir = `pwd`
 
 # i've done this wrong enough times and wasted a lot of download 
 # time, so do a bunch of bullet-proofing here before going on.
@@ -114,6 +154,21 @@ endif
 if ( ! -d ${DART_WORK_DIR} ) then
   echo 'work directory not found: ' ${DART_WORK_DIR}
   exit 1
+endif
+
+# copy satlist to workdir
+if ( ! -e ${DART_WORK_DIR}/${satlist} ) then
+  cp -f $satlist $DART_WORK_DIR
+else
+  diff -q $satlist ${DART_WORK_DIR}/${satlist}
+  if ( $status == 1 ) then
+     echo "the satellite list file ${satlist} in the work directory is different"
+     echo "than the one in the $origindir directory.  "
+     echo "update them to be consistent, or remove the one in the"
+     echo "work directory and a new one will be copied"
+     echo "over from the $origindir directory."
+     exit -1
+  endif
 endif
 
 echo 'current dir is ' `pwd`
@@ -144,6 +199,24 @@ else
   endif
 endif
 
+# copy satlist to datadir
+if ( ! -e ${datadir}/${satlist} ) then
+  echo 'data processing directory does not contain a satellite list file'
+  echo 'copying from work dir to data proc dir'
+  echo `pwd`/${satlist}'->' ${datadir}/${satlist}
+  cp -f ${satlist} ${datadir}/
+else
+  diff -q ${satlist} ${datadir}/${satlist}
+  if ( $status == 1 ) then
+     echo "the satellite list file ${satlist} in the work directory is different"
+     echo "than the one in the ${datadir} directory.  "
+     echo "update them to be consistent, or remove the one in the"
+     echo "${datadir} directory and a new one will be copied"
+     echo "over from the ${DART_WORK_DIR} directory."
+     exit -1
+  endif
+endif
+
 # copy over the date program and the converter from
 # the work dir to the data processing directory.
 cp -f ./${DATE_PROG} ./${CONV_PROG} ${datadir}
@@ -153,9 +226,9 @@ if ( $downld == 'yes' ) then
    cd ${datadir}
    echo 'current dir now ' `pwd`
 
-   if ( ! $?cosmic_user || ! $?cosmic_pw ) then
-      echo "You must set cosmic_user to your username for the cosmic web site"
-      echo "and set cosmic_pw to your password, then rerun this script. "
+   if ( ! $?cdaac_user || ! $?cdaac_pw ) then
+      echo "You must set cdaac_user to your username for the cdaac web site"
+      echo "and set cdaac_pw to your password, then rerun this script. "
       exit -1
    endif
 
@@ -163,7 +236,7 @@ if ( $downld == 'yes' ) then
       echo 'starting raw file download at' `date`
    endif
    
-   set get = "${wget_cmd} --http-user=${cosmic_user} --http-passwd=${cosmic_pw}" 
+   set get = "${wget_cmd} --http-user=${cdaac_user} --http-passwd=${cdaac_pw}" 
    set yyyy   = `echo $datea | cut -b1-4`
    
    if ( ! -d ${datea} ) then
@@ -183,10 +256,15 @@ if ( $downld == 'yes' ) then
    @ mday = $jyyyydd[2] + 1000  ;  set mday = `echo $mday | cut -b2-4`
    echo 'downloading obs for date: ' $datea ', which is julian day: ' $jyyyydd
 
-   ${get} ${gps_repository_path}/cosmic/level2/atmPrf/${yyyy}.${mday}/
-   rm -f *.html *.txt
-   ${get} ${gps_repository_path}/champ/level2/atmPrf/${yyyy}.${mday}/
-   rm -f *.html *.txt input.nml
+   ## here is where you select which satellites to download
+   foreach sat ( `cat ../$satlist` )
+      if ( $chatty == 'yes' ) then
+         echo 'copying data files from satellite: ' ${sat}
+      endif
+      ${get} ${gps_repository_path}/${sat}/level2/atmPrf/${yyyy}.${mday}/
+      rm -f *.html *.txt
+   end
+   rm input.nml
    
    if ( $chatty == 'yes' ) then
       echo `/bin/ls . | grep _nc | wc -l` 'raw files downloaded at ' `date`
@@ -203,7 +281,7 @@ if ( $convert == 'yes') then
    echo 'current dir now ' `pwd`
    
    if ( $chatty == 'yes' ) then
-      echo 'starting gps conversion at ' `date`
+      echo 'starting gpsro conversion at ' `date`
    endif
    
    rm -f flist
@@ -221,7 +299,8 @@ if ( $convert == 'yes') then
    
    ./${CONV_PROG} >>! convert_output_log
 
-   rm -rf cosmic_gps_input.nc flist
+   rm -rf flist
+   #rm -rf cosmic_gps_input.nc flist
    if ( -e obs_seq.gpsro ) then
        mv obs_seq.gpsro obs_seq.gpsro_${datea}
    
@@ -248,7 +327,7 @@ if ( $cleanup == 'yes' ) then
       echo 'cleaning up files at ' `date`
    endif
 
-   echo 'removing original cosmic data files for date: ' $datea
+   echo 'removing original gpsro data files for date: ' $datea
 
    # just remove the whole subdir here.  trying to list individual
    # files can cause problems with long command line lengths.
@@ -256,7 +335,7 @@ if ( $cleanup == 'yes' ) then
 
    cd ${DART_WORK_DIR}
 else
-   echo 'not removing original cosmic data files'
+   echo 'not removing original gpsro data files'
 endif
 
 if ( $chatty == 'yes' ) then
