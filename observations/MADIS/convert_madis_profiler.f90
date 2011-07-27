@@ -126,7 +126,7 @@ endif
 ! adding on the station elevation.  add it in here so when we use levs
 ! below it is the actual height above MSL.
 do n = 1, nsta
-   levs(n,:) = levs(n,:) + elev(:)
+   levs(:,n) = levs(:,n) + elev(n)
 enddo
 
 !  either read existing obs_seq or create a new one
