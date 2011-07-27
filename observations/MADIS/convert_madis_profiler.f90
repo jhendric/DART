@@ -106,13 +106,13 @@ allocate(qc_uwnd(nlev,nsta)) ;  allocate(qc_vwnd(nlev,nsta))
 allocate(levs(nlev,nsta))  
 
 ! read in the data arrays
-call getvar_real(ncid, "staLat",      lat            ) ! station latitude
-call getvar_real(ncid, "staLon",      lon            ) ! station longitude
-call getvar_real(ncid, "staElev",     elev           ) ! station elevation
+call    getvar_real(ncid, "staLat",      lat            ) ! station latitude
+call    getvar_real(ncid, "staLon",      lon            ) ! station longitude
+call    getvar_real(ncid, "staElev",     elev           ) ! station elevation
 call getvar_real_2d(ncid, "levels",      levs           ) ! height above station in meters
 call getvar_real_2d(ncid, "uComponent",  uwnd, uwnd_miss) ! e-w component
 call getvar_real_2d(ncid, "vComponent",  vwnd, uwnd_miss) ! n-s component
-call getvar_real(ncid, "timeObs",     tobs           ) ! observation time
+call    getvar_real(ncid, "timeObs",     tobs           ) ! observation time
 
 ! if user says to use them, read in QCs if present
 if (use_input_qc) then
@@ -121,6 +121,13 @@ if (use_input_qc) then
 else
    qc_uwnd = 0 ;  qc_vwnd = 0
 endif
+
+! levels is height above station.  we want actual elevation which means
+! adding on the station elevation.  add it in here so when we use levs
+! below it is the actual height above MSL.
+do n = 1, nsta
+   levs(n,:) = levs(n,:) + elev(:)
+enddo
 
 !  either read existing obs_seq or create a new one
 call static_init_obs_sequence()
@@ -168,10 +175,10 @@ staloop: do n = 1, nsta
 levloop: do k = 1, nlev
     ! Check for duplicate observations
     do i = 1, nused
-      if ( lon(n) == lonu(i) .and. &
-           lat(n) == latu(i) .and. &
+      if ( lon(n)    == lonu(i) .and. &
+           lat(n)    == latu(i) .and. &
            levs(k,n) == levu(i) .and. &
-           tobs(n) == tobu(i) ) cycle staloop ! or levloop?
+           tobs(n)   == tobu(i) ) cycle levloop
     end do
 
 
@@ -180,6 +187,7 @@ levloop: do k = 1, nlev
        vwnd(k,n) /= vwnd_miss .and. qc_vwnd(k,n) == 0 ) then
 
      ! FIXME: we do not have pressure in these files, only height
+     ! need pres(n) = convert_std_atm(height(n))
      !oerr = prof_wind_error(pres(n))  ! pressure based table
      oerr = 2.000_r8  ! this works mostly for surface to 100mb
 
@@ -199,8 +207,8 @@ levloop: do k = 1, nlev
   endif
 
   nused = nused + 1
-  latu(nused) =  lat(n)
-  lonu(nused) =  lon(n)
+  latu(nused) = lat(n)
+  lonu(nused) = lon(n)
   levu(nused) = levs(k,n)
   tobu(nused) = tobs(n)
 
