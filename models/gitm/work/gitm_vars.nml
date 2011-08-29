@@ -1,0 +1,14 @@
+
+# The definitions for the DART kinds are in DART/obs_def/obs_def*f90
+
+&gitm_vars_nml
+   gitm_state_variables = 'Temperature',      'KIND_TEMPERATURE',
+                          'eTemperature',     'KIND_TEMPERATURE',
+                          'ITemperature',     'KIND_TEMPERATURE',
+                          'NDensityS',        'KIND_DENSITY',
+                          'IDensityS',        'KIND_DENSITY',
+                          'Velocity',         'KIND_VELOCITY',
+                          'IVelocity',        'KIND_VELOCITY',
+                          'VerticalVelocity', 'KIND_VELOCITY',
+   /
+
