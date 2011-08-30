@@ -5,9 +5,25 @@
 ! This module supports the observation types from the AIRS instruments.
 ! http://winds.jpl.nasa.gov/missions/quikscat/index.cfm
 
+! "BOB" is simply a placeholder for any kind of observation platform ...
+! "SAT" would be more professional ...
+
 ! BEGIN DART PREPROCESS KIND LIST
 ! CHAMP_DENSITY,             KIND_DENSITY
-! GPS_PROFILE,               KIND_ELECTRON_DENSITY,  COMMON_CODE
+! GPS_PROFILE,               KIND_ELECTRON_DENSITY,       COMMON_CODE
+! BOB_ETEMP,                 KIND_ELECTRON_TEMPERATURE,   COMMON_CODE
+! BOB_ITEMP,                 KIND_ION_TEMPERATURE,        COMMON_CODE
+! BOB_UVEL,                  KIND_U_VELOCITY,             COMMON_CODE
+! BOB_VVEL,                  KIND_V_VELOCITY,             COMMON_CODE
+! BOB_WVEL,                  KIND_W_VELOCITY,             COMMON_CODE
+! BOB_U_IVEL,                KIND_ION_U_VELOCITY,         COMMON_CODE
+! BOB_V_IVEL,                KIND_ION_V_VELOCITY,         COMMON_CODE
+! BOB_W_IVEL,                KIND_ION_W_VELOCITY,         COMMON_CODE
+! BOB_NDENS,                 KIND_NEUTRAL_DENSITY,        COMMON_CODE
+! BOB_IDENS,                 KIND_ION_DENSITY,            COMMON_CODE
+! BOB_c3pO,                  KIND_iO_3P_VERTICALVELOCITY, COMMON_CODE
+! BOB_ino,                   KIND_iNO_VERTICALVELOCITY,   COMMON_CODE
+! SAT_TEMPERATURE,           KIND_TEMPERATURE,            COMMON_CODE
 ! END DART PREPROCESS KIND LIST
 
 ! BEGIN DART PREPROCESS USE OF SPECIAL OBS_DEF MODULE
