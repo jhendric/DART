@@ -5,6 +5,7 @@
    gitm_state_variables = 'Temperature',      'KIND_TEMPERATURE',
                           'eTemperature',     'KIND_TEMPERATURE',
                           'ITemperature',     'KIND_TEMPERATURE',
+/
                           'NDensityS',        'KIND_DENSITY',
                           'IDensityS',        'KIND_DENSITY',
                           'Velocity',         'KIND_VELOCITY',

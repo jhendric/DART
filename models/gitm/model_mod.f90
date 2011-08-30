@@ -2242,9 +2242,18 @@ allocate(temp1d(1-nGhost:max(nLons,nLats,nAlts)+nGhost))
 ! temp array large enough to hold 1 species, velocity vect, etc
 allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
 
-var = 1   ! fixme:  string to var number
-print *, 'size of vardata = ', size(vardata)
+if (varname == 'Temperature') then
+   var = 1   ! fixme:  string to var number
+else if (varname == 'ITemperature') then
+   var = 2   ! fixme:  string to var number
+else if (varname == 'ITemperature') then
+   var = 3   ! fixme:  string to var number
+else 
+  var = 4
+endif
 
+
+print *, 'size of vardata = ', size(vardata)
 
 ! get the dirname, construct the filenames inside 
 
@@ -2272,6 +2281,7 @@ print *, 'blockoffset = ', blockoffset
 
       offset = ((k-1) * nLats * nLons) + ((j-1) * nLons) + i
       vardata(blockoffset + offset) = temp3d(i, j, k)
+print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
 
    enddo
    enddo
@@ -2330,12 +2340,15 @@ do i=1, nIons
 enddo
 
 ! fixme
-return  ! next thing to be read is temp
+if (var == 1) return  ! next thing to be read is temp
 
 ! temperature, ITemp, eTemp
 read(iunit) temp3d
+if (var == 2) return  ! next thing to be read is Itemp
 read(iunit) temp3d
+if (var == 3) return  ! next thing to be read is etemp
 read(iunit) temp3d
+return 
 
 ! Velocity
 read(iunit) temp3d

@@ -46,8 +46,11 @@ character(len=128), parameter :: &
 !-----------------------------------------------------------------------
 
 character(len=128) :: gitm_to_dart_output_file  = 'dart.ud'
+character(len=256) :: gitm_restart_dirname = 'gitm_restartdir'
 
-namelist /gitm_to_dart_nml/ gitm_to_dart_output_file
+namelist /gitm_to_dart_nml/    &
+     gitm_to_dart_output_file, &
+     gitm_restart_dirname
 
 !----------------------------------------------------------------------
 ! global storage
@@ -57,7 +60,6 @@ logical               :: verbose = .TRUE.
 integer               :: io, iunit, x_size
 type(time_type)       :: model_time
 real(r8), allocatable :: statevector(:)
-character(len=256)    :: gitm_restart_dirname
 
 !======================================================================
 
@@ -72,9 +74,9 @@ read(iunit, nml = gitm_to_dart_nml, iostat = io)
 call check_namelist_read(iunit, io, "gitm_to_dart_nml") ! closes, too.
 
 write(*,*)
-write(*,'(''gitm_to_dart:converting gitm restart file '',A, &
-      &'' to DART file '',A)') &
-       trim(gitm_restart_dirname), trim(gitm_to_dart_output_file)
+write(*,*) 'gitm_to_dart:converting gitm restart files in directory ', &
+           "'"//trim(gitm_restart_dirname)//"'" 
+write(*,*) ' to DART file ', "'"//trim(gitm_to_dart_output_file)//"'"
 
 !----------------------------------------------------------------------
 ! get to work
