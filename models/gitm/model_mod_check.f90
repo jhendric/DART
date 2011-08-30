@@ -96,9 +96,6 @@ x_size = get_model_size()
 write(*,'(''state vector has length'',i10)') x_size
 allocate(statevector(x_size))
 
-write(*,*)'Manually Stopping'
-stop
-
 !----------------------------------------------------------------------
 ! Write a supremely simple restart file. Most of the time, I just use
 ! this as a starting point for a Matlab function that replaces the 
@@ -141,6 +138,9 @@ call print_time( model_time,'model_mod_check:model time')
 ! aoutput_diagnostics()
 ! finalize_diag_output()
 !----------------------------------------------------------------------
+
+write(*,*)'Manually Stopping'
+stop
 
 write(*,*)
 write(*,*)'Exercising the netCDF routines.'

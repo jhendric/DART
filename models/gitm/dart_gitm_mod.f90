@@ -83,8 +83,8 @@ integer function get_nSpeciesAll()
 end function get_nSpeciesAll
 
 
-subroutine decode_gitm_indices( state_variables, gitm_varname, gitm_dim, gitm_index, &
-               long_name, units, varname, kind_string, dart_kind)
+subroutine decode_gitm_indices( varname, gitm_varname, gitm_dim, gitm_index, &
+                                long_name, units)
 ! The rosetta stone relating the user input 'strings' to integer indices. 
 !
 ! progvar%varname      = varname
@@ -94,29 +94,13 @@ subroutine decode_gitm_indices( state_variables, gitm_varname, gitm_dim, gitm_in
 ! progvar%gitm_dim     = gitm_dim
 ! progvar%gitm_index   = gitm_index
 
-character(len=*), dimension(:),   intent(in)  :: state_variables
-character(len=*),                 intent(out) :: gitm_varname
-integer,                          intent(out) :: gitm_dim, gitm_index
-character(len=NF90_MAX_NAME),     intent(out) :: long_name
-character(len=NF90_MAX_NAME),     intent(out) :: units
-character(len=NF90_MAX_NAME),     intent(out) :: varname, kind_string
-integer,                          intent(out) :: dart_kind
-
-integer :: ngood, nrows, i, varid
+character(len=*),              intent(in)  :: varname
+character(len=*),              intent(out) :: gitm_varname
+integer,                       intent(out) :: gitm_dim, gitm_index
+character(len=NF90_MAX_NAME),  intent(out) :: long_name
+character(len=NF90_MAX_NAME),  intent(out) :: units
 
 
-ngood = 0
-MyLoop : do i = 1, nrows
-
-   varname = trim(state_variables(2*i -1))
-   kind_string = trim(state_variables(2*i   ))
-
-   if ( varname == ' ' .and. kind_string == ' ' ) exit MyLoop ! Found end of list.
-
-   if ( varname == ' ' .or. kind_string == ' ' ) then
-      string1 = 'gitm_vars_nml:gitm state_variables not fully specified'
-      call error_handler(E_ERR,'decode_gitm_indices',string1,source,revision,revdate)
-   endif
 
    long_name    = 'something real'
    units        = 'furlongs/fortnight'
@@ -317,29 +301,6 @@ MyLoop : do i = 1, nrows
 
    end select
 
-   ! Make sure DART kind is valid
-
-!  dart_kind = get_raw_obs_kind_index(kind_string)
-!  if( dart_kind < 0 ) then
-!     write(string1,'(''there is no obs_kind <'',a,''> in obs_kind_mod.f90'')') trim(kind_string)
-!     call error_handler(E_ERR,'decode_gitm_indices',string1,source,revision,revdate)
-!  endif
-
-   ! Record the contents of the DART state vector 
-
-!  if ( debug > 0 ) then
- !    write(logfileunit,*)'variable ',i,' is ',trim(table(i,1)), ' ', trim(table(i,2))
- !    write(     *     ,*)'variable ',i,' is ',trim(table(i,1)), ' ', trim(table(i,2))
-!  endif
-
-   ngood = ngood + 1
-enddo MyLoop
-
-if (ngood == nrows) then
-   string1 = 'WARNING: There is a possibility you need to increase ''max_state_variables'''
-   write(string2,'(''WARNING: you have specified at least '',i4,'' perhaps more.'')')ngood
-   call error_handler(E_MSG,'decode_gitm_indices',string1,source,revision,revdate,text2=string2)
-endif
 
 end subroutine decode_gitm_indices
 

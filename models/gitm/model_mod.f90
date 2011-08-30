@@ -495,26 +495,9 @@ do ivar = 1, nfields
    progvar(ivar)%dart_kind   = get_raw_obs_kind_index( progvar(ivar)%kind_string ) 
    progvar(ivar)%dimlens     = 0
 
-!%!    string2 = trim(gitm_restart_dirname)//' '//trim(varname)
-!%! 
-!%!    call nc_check(nf90_inq_varid(ncid, trim(varname), VarID), &
-!%!             'static_init_model', 'inq_varid '//trim(string2))
-!%! 
-!%!    call nc_check( nf90_get_att(ncid, VarId, 'type' , progvar(ivar)%storder), &
-!%!             'static_init_model', 'get_att type '//trim(string2))
-!%! 
-!%!    call nc_check( nf90_get_att(ncid, VarId, 'long_name' , progvar(ivar)%long_name), &
-!%!             'static_init_model', 'get_att long_name '//trim(string2))
-!%! 
-!%!    call nc_check( nf90_get_att(ncid, VarId, 'posdef' , progvar(ivar)%posdef), &
-!%!             'static_init_model', 'get_att posdef '//trim(string2))
-!%! 
-!%!    call nc_check( nf90_get_att(ncid, VarId, 'units' , progvar(ivar)%units), &
-!%!             'static_init_model', 'get_att units '//trim(string2))
-!%! 
-!%!    call nc_check(nf90_inquire_variable(ncid, VarId, dimids=dimIDs, ndims=numdims), &
-!%!             'static_init_model', 'inquire '//trim(string2))
-!%!    progvar(ivar)%originalnumdims = numdims
+   call decode_gitm_indices( varname, progvar(ivar)%gitm_varname, progvar(ivar)%gitm_dim, &
+                             progvar(ivar)%gitm_index, progvar(ivar)%long_name, &
+                             progvar(ivar)%units)
 
    varsize = NgridLon * NgridLat * NgridAlt
 
@@ -1443,7 +1426,7 @@ do ivar=1, nfields
 
 print *, 'in restart_file_to_sv, ivar = ', ivar
 print *, 'calling get_data'
-   call get_data(dirname, varname, nBlocksLon, nBlocksLat,             &
+   call get_data(dirname, ivar, nBlocksLon, nBlocksLat,                &
                  nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies,  &
                  state_vector(progvar(ivar)%index1:progvar(ivar)%indexN))
 enddo
@@ -2241,12 +2224,13 @@ end function open_block_file
 
 
 
-subroutine get_data(dirname, varname, nBlocksLon, nBlocksLat, &
+subroutine get_data(dirname, ivar, nBlocksLon, nBlocksLat, &
                     nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, vardata)
 !------------------------------------------------------------------
 ! open all restart files and read in the requested data item
 !
-character(len=*), intent(in) :: dirname, varname
+character(len=*), intent(in) :: dirname
+integer, intent(in) :: ivar       ! index into progvar struct
 integer, intent(in) :: nBlocksLon ! Number of Longitude blocks
 integer, intent(in) :: nBlocksLat ! Number of Latitude  blocks
 integer, intent(in) :: NLons      ! Number of Longitude centers per block
@@ -2259,7 +2243,7 @@ integer, intent(in) :: NSpecies   ! Number of neutral species
 real(r8), dimension( : ), intent(inout) :: vardata
 
 integer :: ib, jb, nb, offset, iunit, nboff, var
-integer :: i, j, k, blockoffset, pointoffset
+integer :: i, j, k, blockoffset, pointoffset, blocksize
 character(len=128) :: filename
 real(r8), allocatable :: temp1d(:), temp3d(:,:,:)
 
@@ -2269,18 +2253,9 @@ allocate(temp1d(1-nGhost:max(nLons,nLats,nAlts)+nGhost))
 ! temp array large enough to hold 1 species, velocity vect, etc
 allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
 
-if (varname == 'Temperature') then
-   var = 1   ! fixme:  string to var number
-else if (varname == 'ITemperature') then
-   var = 2   ! fixme:  string to var number
-else if (varname == 'ITemperature') then
-   var = 3   ! fixme:  string to var number
-else 
-  var = 4
-endif
-
-
 print *, 'size of vardata = ', size(vardata)
+
+blocksize = nLons * nLats * nAlts
 
 ! get the dirname, construct the filenames inside 
 
@@ -2293,12 +2268,12 @@ print *, 'ib, jb = ', ib, jb
 print *, 'opening restart file, nb = ', nb
    iunit = open_block_file(dirname, nb)
 
-   call discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, var)
+   call discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, ivar)
    read(iunit) temp3d
-print *, 'data is ', temp3d
+print *, 'first 4 data are ', temp3d(1:4,1,1)
 
-   blockoffset = nAlts * nBlocksLon * (jb-1) + &
-                 nAlts * (ib-1)
+   blockoffset = blocksize * nBlocksLon * (jb-1) + &
+                 blocksize * (ib-1)
 
 print *, 'blockoffset = ', blockoffset
 
@@ -2306,7 +2281,9 @@ print *, 'blockoffset = ', blockoffset
    do j=1,nLats
    do i=1,nLons
 
-      offset = ((k-1) * nLats * nLons) + ((j-1) * nLons) + i
+      offset = ((k-1) * ngridLat * ngridLon) +  &
+               ((j-1) * ngridLon) +             &
+               i
       vardata(blockoffset + offset) = temp3d(i, j, k)
 print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
 
@@ -2331,7 +2308,7 @@ endif
 end subroutine get_data
 
 
-subroutine discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, var)
+subroutine discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, ivar)
 !------------------------------------------------------------------
 ! open all restart files and read in the requested data item
 !
@@ -2342,10 +2319,11 @@ integer, intent(in) :: NAlts      ! Number of Vertical grid centers
 integer, intent(in) :: NSpeciesTotal   ! Number of total species
 integer, intent(in) :: NIons      ! Number of charged species
 integer, intent(in) :: NSpecies   ! Number of neutral species
-integer, intent(in) :: var        ! variable number
+integer, intent(in) :: ivar       ! index into progvar array
 
 real(r8), allocatable :: temp1d(:), temp3d(:,:,:)
-integer :: i
+integer :: i, num_to_dump
+logical :: done
 
 ! a temp array large enough to hold any of the 
 ! Lon,Lat or Alt array from a block plus ghost cells
@@ -2359,36 +2337,84 @@ read(iunit) temp1d(1-nGhost:nLons+nGhost)
 read(iunit) temp1d(1-nGhost:nLats+nGhost)
 read(iunit) temp1d(1-nGhost:nAlts+nGhost)
 
-do i=1, nSpeciesTotal
-   read(iunit) temp3d
-enddo
-do i=1, nIons
-   read(iunit) temp3d
-enddo
+num_to_dump = 0
+done = .false.
 
-! fixme
-if (var == 1) return  ! next thing to be read is temp
+if (progvar(ivar)%gitm_varname == 'NDensityS') then
+   num_to_dump = num_to_dump + progvar(ivar)%gitm_index - 1
+   done = .true.
+else
+   num_to_dump = num_to_dump + nSpeciesTotal
+endif
 
-! temperature, ITemp, eTemp
-read(iunit) temp3d
-if (var == 2) return  ! next thing to be read is Itemp
-read(iunit) temp3d
-if (var == 3) return  ! next thing to be read is etemp
-read(iunit) temp3d
-return 
+if (.not. done) then
+   if (progvar(ivar)%gitm_varname == 'IDensityS') then
+      num_to_dump = num_to_dump + progvar(ivar)%gitm_index - 1
+      done = .true.
+   else
+      num_to_dump = num_to_dump + nIons
+   endif
+endif
 
-! Velocity
-read(iunit) temp3d
-read(iunit) temp3d
-read(iunit) temp3d
+if (.not. done) then
+   if (progvar(ivar)%gitm_varname == 'Temperature') then
+      done = .true.
+   else
+      num_to_dump = num_to_dump + 1
+   endif
+endif
 
-! iVelocity
-read(iunit) temp3d
-read(iunit) temp3d
-read(iunit) temp3d
+if (.not. done) then
+   if (progvar(ivar)%gitm_varname == 'ITemperature') then
+      done = .true.
+   else
+      num_to_dump = num_to_dump + 1
+   endif
+endif
 
-! vert velocity
-do i=1, nSpecies
+if (.not. done) then
+   if (progvar(ivar)%gitm_varname == 'eTemperature') then
+      done = .true.
+   else
+      num_to_dump = num_to_dump + 1
+   endif
+endif
+
+if (.not. done) then
+   if (progvar(ivar)%gitm_varname == 'Velocity') then
+      num_to_dump = num_to_dump + progvar(ivar)%gitm_index - 1
+      done = .true.
+   else
+      num_to_dump = num_to_dump + 3
+   endif
+endif
+
+if (.not. done) then
+   if (progvar(ivar)%gitm_varname == 'IVelocity') then
+      num_to_dump = num_to_dump + progvar(ivar)%gitm_index - 1
+      done = .true.
+   else
+      num_to_dump = num_to_dump + 3
+   endif
+endif
+
+if (.not. done) then
+   if (progvar(ivar)%gitm_varname == 'VerticalVelocity') then
+      num_to_dump = num_to_dump + progvar(ivar)%gitm_index - 1
+      done = .true.
+   else
+      call error_handler(E_ERR, 'discard_data', &
+           'got to end of data without finding '//trim(progvar(ivar)%gitm_varname), &
+           source,revision,revdate)
+      !num_to_dump = num_to_dump + nSpecies
+   endif
+endif
+
+if (debug > 4 .and. do_output()) then
+   write(*,*) 'skipping past ', num_to_dump, '3d arrays'
+endif
+
+do i = 1, num_to_dump
    read(iunit) temp3d
 enddo
 
