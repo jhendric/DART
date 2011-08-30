@@ -18,7 +18,7 @@ program gitm_to_dart
 !         Write out state vector in "proprietary" format for DART.
 !         The output is a "DART restart file" format.
 ! 
-! USAGE:  The gitm filename is read from the gitm_in namelist
+! USAGE:  The gitm dirname is read from the gitm_in namelist
 !         <edit gitm_to_dart_output_file in input.nml:gitm_to_dart_nml>
 !         gitm_to_dart
 !
@@ -29,7 +29,7 @@ use        types_mod, only : r8
 use    utilities_mod, only : initialize_utilities, timestamp, &
                              find_namelist_in_file, check_namelist_read
 use        model_mod, only : get_model_size, restart_file_to_sv, &
-                             get_gitm_restart_filename
+                             get_gitm_restart_dirname
 use  assim_model_mod, only : awrite_state_restart, open_restart_write, close_restart
 use time_manager_mod, only : time_type, print_time, print_date
 
@@ -57,14 +57,14 @@ logical               :: verbose = .TRUE.
 integer               :: io, iunit, x_size
 type(time_type)       :: model_time
 real(r8), allocatable :: statevector(:)
-character(len=256)    :: gitm_restart_filename
+character(len=256)    :: gitm_restart_dirname
 
 !======================================================================
 
 call initialize_utilities(progname='gitm_to_dart', output_flag=verbose)
 
 !----------------------------------------------------------------------
-! Read the namelist to get the output filename.
+! Read the namelist to get the output dirname.
 !----------------------------------------------------------------------
 
 call find_namelist_in_file("input.nml", "gitm_to_dart_nml", iunit)
@@ -74,7 +74,7 @@ call check_namelist_read(iunit, io, "gitm_to_dart_nml") ! closes, too.
 write(*,*)
 write(*,'(''gitm_to_dart:converting gitm restart file '',A, &
       &'' to DART file '',A)') &
-       trim(gitm_restart_filename), trim(gitm_to_dart_output_file)
+       trim(gitm_restart_dirname), trim(gitm_to_dart_output_file)
 
 !----------------------------------------------------------------------
 ! get to work
@@ -83,9 +83,9 @@ write(*,'(''gitm_to_dart:converting gitm restart file '',A, &
 x_size = get_model_size()
 allocate(statevector(x_size))
 
-call get_gitm_restart_filename( gitm_restart_filename )
+call get_gitm_restart_dirname( gitm_restart_dirname )
 
-call restart_file_to_sv(gitm_restart_filename, statevector, model_time) 
+call restart_file_to_sv(gitm_restart_dirname, statevector, model_time) 
 
 iunit = open_restart_write(gitm_to_dart_output_file)
 

@@ -33,7 +33,7 @@ use    utilities_mod, only : initialize_utilities, timestamp, &
 use  assim_model_mod, only : open_restart_read, aread_state_restart, close_restart
 use time_manager_mod, only : time_type, print_time, print_date, operator(-), get_time
 use        model_mod, only : static_init_model, sv_to_restart_file, &
-                             get_model_size, get_base_time, get_gitm_restart_filename
+                             get_model_size, get_base_time, get_gitm_restart_dirname
 
 implicit none
 
@@ -55,7 +55,7 @@ namelist /dart_to_gitm_nml/ dart_to_gitm_input_file, &
 
 !----------------------------------------------------------------------
 
-character(len=256)    :: gitm_restart_filename
+character(len=256)    :: gitm_restart_dirname
 integer               :: iunit, io, x_size, diff1, diff2
 type(time_type)       :: model_time, adv_to_time, base_time
 real(r8), allocatable :: statevector(:)
@@ -75,18 +75,18 @@ call static_init_model()
 x_size = get_model_size()
 allocate(statevector(x_size))
 
-! Read the namelist to get the input filename. 
+! Read the namelist to get the input dirname. 
 
 call find_namelist_in_file("input.nml", "dart_to_gitm_nml", iunit)
 read(iunit, nml = dart_to_gitm_nml, iostat = io)
 call check_namelist_read(iunit, io, "dart_to_gitm_nml")
 
-call get_gitm_restart_filename( gitm_restart_filename )
+call get_gitm_restart_dirname( gitm_restart_dirname )
 
 write(*,*)
 write(*,'(''dart_to_gitm:converting DART file '',A, &
       &'' to gitm restart file '',A)') &
-     trim(dart_to_gitm_input_file), trim(gitm_restart_filename)
+     trim(dart_to_gitm_input_file), trim(gitm_restart_dirname)
 
 !----------------------------------------------------------------------
 ! Reads the valid time, the state, and the target time.
@@ -107,10 +107,10 @@ call close_restart(iunit)
 ! time_manager_nml: stop_option, stop_count increments
 !----------------------------------------------------------------------
 
-call sv_to_restart_file(statevector, gitm_restart_filename, model_time)
+call sv_to_restart_file(statevector, gitm_restart_dirname, model_time)
 
 if ( advance_time_present ) then
-   base_time = get_base_time(gitm_restart_filename)
+   base_time = get_base_time(gitm_restart_dirname)
    call get_time((model_time  - base_time), diff1)
    call get_time((adv_to_time - base_time), diff2)
    iunit = open_file('times', action='write')
