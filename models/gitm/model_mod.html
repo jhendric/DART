@@ -69,11 +69,11 @@
 
    <table width="100%" cellpadding="10">
    <tr><td valign="top">real(r8) :: LON(:)</td>
-       <td>longitude array</td></tr>
+       <td>longitude array [0, 360) </td></tr>
    <tr><td valign="top">real(r8) :: LAT(:)</td>
-       <td>latitude array</td></tr>
+       <td>latitude array (-90,90) </td></tr>
    <tr><td valign="top">real(r8) :: ALT(:)</td>
-       <td>altitude array</td></tr>
+       <td>altitude array (0,~inf) </td></tr>
    <tr><td valign="top">integer :: NgridLon </td>
        <td>the length of the longitude array</td></tr>
    <tr><td valign="top">integer :: NgridLat </td>
