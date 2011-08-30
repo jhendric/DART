@@ -1379,29 +1379,13 @@ character(len=*), intent(in)    :: dirname
 real(r8),         intent(inout) :: state_vector(:)
 type(time_type),  intent(out)   :: model_time
 
-! temp space to hold data while we are reading it
-! grid info comes in 1d arrays, data comes in 3d arrays.
-! for the single column model we might be able to still assume
-! a 3d array with index values of (1,1,N)
-integer :: i, j, k, l, ni, nj, nk, nl, ivar, indx, nb, nblockstotal, iunit
-real(r8) :: LatStart, LatEnd, LonStart
+integer :: ivar
 character(len=NF90_MAX_NAME) :: varname
 character(len=128) :: myerrorstring
 
 if ( .not. module_initialized ) call static_init_model
 
 state_vector = MISSING_R8
-
-! FIXME:  we don't have to do this because all these values are
-! now global in this file and were initialized in static_init_model
-!call get_grid_info(NgridLon, NgridLat, NgridAlt, nBlocksLon, nBlocksLat, &
-!                   LatStart, LatEnd, LonStart)
-
-! FIXME:
-!   need to know nSpeciesTotal, nIons, nSpecies
-nSpeciesTotal = 11
-nIons = 10
-nSpecies = 5
 
 ! this is going to have to loop over all the blocks, both to get
 ! the data values and to get the full grid spacings.
@@ -1436,183 +1420,47 @@ end subroutine restart_file_to_sv
 
 
 
-subroutine sv_to_restart_file(state_vector, filename, statedate)
+subroutine sv_to_restart_file(state_vector, dirname, statedate)
 !------------------------------------------------------------------
 ! Writes the current time and state variables from a dart state
 ! vector (1d array) into a gitm netcdf restart file.
 !
 real(r8),         intent(in) :: state_vector(:)
-character(len=*), intent(in) :: filename 
+character(len=*), intent(in) :: dirname 
 type(time_type),  intent(in) :: statedate
 
-! temp space to hold data while we are writing it
-integer :: i, ni, nj, nk, nl, ivar
-real(r8), allocatable, dimension(:)         :: data_1d_array
-real(r8), allocatable, dimension(:,:)       :: data_2d_array
-real(r8), allocatable, dimension(:,:,:)     :: data_3d_array
-real(r8), allocatable, dimension(:,:,:,:)   :: data_4d_array
 
-integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, mystart, mycount
-character(len=NF90_MAX_NAME) :: varname 
-integer :: VarID, ncNdims, dimlen
-integer :: ncFileID, TimeDimID, TimeDimLength
+integer :: ivar 
+character(len=NF90_MAX_NAME) :: varname
+character(len=128) :: myerrorstring
 
 if ( .not. module_initialized ) call static_init_model
 
-! Check that the output file exists ... 
-
-if ( .not. file_exist(filename) ) then
-   write(string1,*) 'cannot open file ', trim(filename),' for writing.'
-   call error_handler(E_ERR,'sv_to_restart_file',string1,source,revision,revdate)
-endif
-
-call nc_check(nf90_open(trim(filename), NF90_WRITE, ncFileID), &
-             'sv_to_restart_file','open '//trim(filename))
-
-! make sure the time in the file is the same as the time on the data
-! we are trying to insert.  we are only updating part of the contents
-! of the gitm restart file, and state vector contents from a different
-! time won't be consistent with the rest of the file.
-
-model_time = get_state_time(ncFileID, filename)
-
-if ( model_time /= statedate ) then
-   call print_time( statedate,'DART current time',logfileunit) 
-   call print_time(model_time,'gitm  current time',logfileunit) 
-   call print_time( statedate,'DART current time') 
-   call print_time(model_time,'gitm  current time') 
-   write(string1,*)trim(filename),' current time /= model time. FATAL error.'
-   call error_handler(E_ERR,'sv_to_restart_file',string1,source,revision,revdate) 
-endif
-
-if (do_output()) &
-    call print_time(statedate,'time of restart file '//trim(filename))
-if (do_output()) &
-    call print_date(statedate,'date of restart file '//trim(filename))
-
-! The DART prognostic variables are only defined for a single time.
-! We already checked the assumption that variables are xy2d or xyz3d ...
-! IF the netCDF variable has a TIME dimension, it must be the last dimension,
-! and we need to read the LAST timestep and effectively squeeze out the
-! singleton dimension when we stuff it into the DART state vector. 
-
-TimeDimID = FindTimeDimension( ncFileID )
-
-if ( TimeDimID > 0 ) then
-   call nc_check(nf90_inquire_dimension(ncFileID, TimeDimID, len=TimeDimLength), &
-            'sv_to_restart_file', 'inquire timedimlength '//trim(filename))
-else
-   TimeDimLength = 0
-endif
+! Start counting and filling the state vector one item at a time,
+! repacking the Nd arrays into a single 1d list of numbers.
 
 do ivar=1, nfields
 
    varname = trim(progvar(ivar)%varname)
-   string2 = trim(filename)//' '//trim(varname)
+   myerrorstring = trim(dirname)//' '//trim(varname)
 
-   ! Ensure netCDF variable is conformable with progvar quantity.
-   ! The TIME and Copy dimensions are intentionally not queried
-   ! by looping over the dimensions stored in the progvar type.
-
-   call nc_check(nf90_inq_varid(ncFileID, varname, VarID), &
-            'sv_to_restart_file', 'inq_varid '//trim(string2))
-
-   call nc_check(nf90_inquire_variable(ncFileID,VarId,dimids=dimIDs,ndims=ncNdims), &
-            'sv_to_restart_file', 'inquire '//trim(string2))
-
-   mystart = 1   ! These are arrays, actually.
-   mycount = 1
-   DimCheck : do i = 1,progvar(ivar)%numdims
-
-      write(string1,'(''inquire dimension'',i2,A)') i,trim(string2)
-      call nc_check(nf90_inquire_dimension(ncFileID, dimIDs(i), len=dimlen), &
-            'sv_to_restart_file', string1)
-
-      if ( dimlen /= progvar(ivar)%dimlens(i) ) then
-         write(string1,*) trim(string2),' dim/dimlen ',i,dimlen,' not ',progvar(ivar)%dimlens(i)
-         write(string2,*)' but it should be.'
-         call error_handler(E_ERR, 'sv_to_restart_file', string1, &
-                         source, revision, revdate, text2=string2)
-      endif
-
-      mycount(i) = dimlen
-
-   enddo DimCheck
-
-   where(dimIDs == TimeDimID) mystart = TimeDimLength
-   where(dimIDs == TimeDimID) mycount = 1   ! only the latest one
-
-   if ( debug > 1 ) then
-      write(*,*)'sv_to_restart_file '//trim(varname)//' start is ',mystart(1:ncNdims)
-      write(*,*)'sv_to_restart_file '//trim(varname)//' count is ',mycount(1:ncNdims)
-   endif
-
-   if (progvar(ivar)%numdims == 1) then
-      ni = mycount(1)
-      allocate(data_1d_array(ni))
-      call vector_to_prog_var(state_vector, progvar(ivar), data_1d_array)
-      call nc_check(nf90_put_var(ncFileID, VarID, data_1d_array, &
-            start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
-            'sv_to_restart_file', 'put_var '//trim(varname))
-      deallocate(data_1d_array)
-
-   elseif (progvar(ivar)%numdims == 2) then
-
-      ni = mycount(1)
-      nj = mycount(2)
-      allocate(data_2d_array(ni, nj))
-      call vector_to_prog_var(state_vector, progvar(ivar), data_2d_array)
-      
-      if ( progvar(ivar)%posdef == 1 ) then
-        where ( data_2d_array < 0 ) data_2d_array = 0
-      endif
-
-      call nc_check(nf90_put_var(ncFileID, VarID, data_2d_array, &
-        start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
-            'sv_to_restart_file', 'put_var '//trim(varname))
-      deallocate(data_2d_array)
-
-   elseif (progvar(ivar)%numdims == 3) then
-
-      ni = mycount(1)
-      nj = mycount(2)
-      nk = mycount(3)
-      allocate(data_3d_array(ni, nj, nk))
-      call vector_to_prog_var(state_vector, progvar(ivar), data_3d_array)
-
-      if ( progvar(ivar)%posdef == 1 ) then
-        where ( data_3d_array < 0 ) data_3d_array = 0
-      endif
-
-      call nc_check(nf90_put_var(ncFileID, VarID, data_3d_array, &
-        start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
-            'sv_to_restart_file', 'put_var '//trim(varname))
-      deallocate(data_3d_array)
-
-   elseif (progvar(ivar)%numdims == 4) then
-
-      ni = mycount(1)
-      nj = mycount(2)
-      nk = mycount(3)
-      nl = mycount(4)
-      allocate(data_4d_array(ni, nj, nk, nl))
-      call vector_to_prog_var(state_vector, progvar(ivar), data_4d_array)
-
-      call nc_check(nf90_put_var(ncFileID, VarID, data_4d_array, &
-        start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
-            'sv_to_restart_file', 'put_var '//trim(varname))
-      deallocate(data_4d_array)
-
-   else
-      write(string1, *) 'no support for data array of dimension ', ncNdims
-      call error_handler(E_ERR,'sv_to_restart_file', string1, &
-                        source,revision,revdate)
-   endif
-
+print *, 'in restart_file_to_sv, ivar = ', ivar
+print *, 'calling get_data'
+   call put_data(dirname, ivar, nBlocksLon, nBlocksLat,                &
+                 nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies,  &
+                 state_vector(progvar(ivar)%index1:progvar(ivar)%indexN))
 enddo
 
-call nc_check(nf90_close(ncFileID), &
-             'sv_to_restart_file','close '//trim(filename))
+! FIXME:
+! write out model_time to a text file?
+   call print_time(model_time)
+!%! 
+!%! if (do_output()) &
+!%!     call print_time(model_time,'time in restart file '//trim(filename))
+!%! if (do_output()) &
+!%!     call print_date(model_time,'date in restart file '//trim(filename))
+!%! 
+
 
 end subroutine sv_to_restart_file
 
@@ -2134,7 +1982,7 @@ allocate(temp(1-nGhost:max(nLons,nLats,nAlts)+nGhost))
 ! go across the south-most block row picking up all longitudes
 do nb = 1, nBlocksLon
 
-   iunit = open_block_file(dirname, nb)
+   iunit = open_block_file(dirname, nb, 'read')
 
    read(iunit) temp(1-nGhost:nLons+nGhost)
 
@@ -2148,7 +1996,7 @@ enddo
 do nb = 1, nBlocksLat
 
    nboff = ((nb - 1) * nBlocksLon) + 1
-   iunit = open_block_file(dirname, nboff)
+   iunit = open_block_file(dirname, nboff, 'read')
 
    ! get past lon array and read in lats
    read(iunit) temp(1-nGhost:nLons+nGhost)
@@ -2165,7 +2013,7 @@ enddo
 ! the same altitude array, so we can read it from the first block.  
 ! if this is not the case, this code has to change.
 
-iunit = open_block_file(dirname, 1)
+iunit = open_block_file(dirname, 1, 'read')
 
 ! get past lon and lat arrays and read in alt array
 read(iunit) temp(1-nGhost:nLons+nGhost)
@@ -2200,7 +2048,7 @@ end subroutine get_grid
 !------------------------------------------------------------------
 
 
-function open_block_file(dirname, blocknum)
+function open_block_file(dirname, blocknum, rw)
 !------------------------------------------------------------------
 ! open the requested block number restart file and return the
 ! open file unit
@@ -2208,6 +2056,7 @@ function open_block_file(dirname, blocknum)
 integer                      :: open_block_file
 character(len=*), intent(in) :: dirname
 integer,          intent(in) :: blocknum
+character(len=*), intent(in) :: rw   ! 'read' or 'readwrite'
 
 character(len=128) :: filename
 
@@ -2218,7 +2067,7 @@ if ( .not. file_exist(filename) ) then
    call error_handler(E_ERR,'restart_file_to_sv',string1,source,revision,revdate)
 endif
 
-open_block_file = open_file(filename, 'unformatted', 'read')
+open_block_file = open_file(filename, 'unformatted', rw)
 
 end function open_block_file
 
@@ -2244,12 +2093,8 @@ real(r8), dimension( : ), intent(inout) :: vardata
 
 integer :: ib, jb, nb, offset, iunit, nboff, var
 integer :: i, j, k, blockoffset, pointoffset, blocksize
-character(len=128) :: filename
-real(r8), allocatable :: temp1d(:), temp3d(:,:,:)
+real(r8), allocatable :: temp3d(:,:,:)
 
-! a temp array large enough to hold any of the 
-! Lon,Lat or Alt array from a block plus ghost cells
-allocate(temp1d(1-nGhost:max(nLons,nLats,nAlts)+nGhost))
 ! temp array large enough to hold 1 species, velocity vect, etc
 allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
 
@@ -2257,7 +2102,7 @@ print *, 'size of vardata = ', size(vardata)
 
 blocksize = nLons * nLats * nAlts
 
-! get the dirname, construct the filenames inside 
+! get the dirname, construct the filenames inside open_block_file
 
 do jb = 1, nBlocksLat
  do ib = 1, nBlocksLon
@@ -2266,14 +2111,15 @@ print *, 'ib, jb = ', ib, jb
    nb = (jb-1) * nBlocksLon + ib
 
 print *, 'opening restart file, nb = ', nb
-   iunit = open_block_file(dirname, nb)
+   iunit = open_block_file(dirname, nb, 'read')
 
    call discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, ivar)
    read(iunit) temp3d
 print *, 'first 4 data are ', temp3d(1:4,1,1)
 
-   blockoffset = blocksize * nBlocksLon * (jb-1) + &
-                 blocksize * (ib-1)
+   !blockoffset = blocksize * nBlocksLon * (jb-1) + &
+   !              blocksize * (ib-1)
+   blockoffset = (ib-1) * nLons
 
 print *, 'blockoffset = ', blockoffset
 
@@ -2284,8 +2130,12 @@ print *, 'blockoffset = ', blockoffset
       offset = ((k-1) * ngridLat * ngridLon) +  &
                ((j-1) * ngridLon) +             &
                i
-      vardata(blockoffset + offset) = temp3d(i, j, k)
-print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
+      if (blockoffset+offset > size(vardata)) then
+         print *, 'b+o would have indexed beyond end of array'
+      else
+         vardata(blockoffset + offset) = temp3d(i, j, k)
+      endif
+   !print *, 'i,j,k,varoffset = ', i,j,k, blockoffset + offset
 
    enddo
    enddo
@@ -2295,7 +2145,7 @@ print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
  enddo
 enddo
 
-deallocate(temp1d, temp3d)
+deallocate(temp3d)
 
 !#if (debug > 4) then
 !#   print *, 'All data ', vardata
@@ -2419,6 +2269,88 @@ do i = 1, num_to_dump
 enddo
 
 end subroutine discard_data
+
+
+
+subroutine put_data(dirname, ivar, nBlocksLon, nBlocksLat, &
+                    nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, vardata)
+!------------------------------------------------------------------
+! open all restart files and write out the requested data item
+!
+character(len=*), intent(in) :: dirname
+integer, intent(in) :: ivar       ! index into progvar struct
+integer, intent(in) :: nBlocksLon ! Number of Longitude blocks
+integer, intent(in) :: nBlocksLat ! Number of Latitude  blocks
+integer, intent(in) :: NLons      ! Number of Longitude centers per block
+integer, intent(in) :: NLats      ! Number of Latitude  centers per block
+integer, intent(in) :: NAlts      ! Number of Vertical grid centers
+integer, intent(in) :: NSpeciesTotal   ! Number of total species
+integer, intent(in) :: NIons      ! Number of charged species
+integer, intent(in) :: NSpecies   ! Number of neutral species
+
+real(r8), dimension( : ), intent(in) :: vardata
+
+integer :: ib, jb, nb, offset, iunit, nboff, var
+integer :: i, j, k, blockoffset, pointoffset, blocksize
+character(len=128) :: filename
+real(r8), allocatable :: temp3d(:,:,:)
+
+! temp array large enough to hold 1 species, velocity vect, etc
+allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
+
+print *, 'size of vardata = ', size(vardata)
+
+blocksize = nLons * nLats * nAlts
+
+! get the dirname, construct the filenames inside 
+
+do jb = 1, nBlocksLat
+ do ib = 1, nBlocksLon
+   
+print *, 'ib, jb = ', ib, jb
+   nb = (jb-1) * nBlocksLon + ib
+
+print *, 'opening restart file, nb = ', nb
+   iunit = open_block_file(dirname, nb, 'readwrite')
+
+   call discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, ivar)
+
+   blockoffset = blocksize * nBlocksLon * (jb-1) + &
+                 blocksize * (ib-1)
+
+print *, 'blockoffset = ', blockoffset
+
+   do k=1,nAlts
+   do j=1,nLats
+   do i=1,nLons
+
+      offset = ((k-1) * ngridLat * ngridLon) +  &
+               ((j-1) * ngridLon) +             &
+               i
+      temp3d(i, j, k) = vardata(blockoffset + offset)
+print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
+
+   enddo
+   enddo
+   enddo
+
+   write(iunit) temp3d
+
+   call close_file(iunit)
+ enddo
+enddo
+
+deallocate(temp3d)
+
+!#if (debug > 4) then
+!#   print *, 'All data ', vardata
+!#endif
+
+if ( debug > 1 ) then ! A little sanity check
+   write(*,*)'data range ',minval(vardata),maxval(vardata)
+endif
+
+end subroutine put_data
 
 
 function get_base_time_ncid( ncid )

@@ -74,7 +74,7 @@ read(iunit, nml = gitm_to_dart_nml, iostat = io)
 call check_namelist_read(iunit, io, "gitm_to_dart_nml") ! closes, too.
 
 write(*,*)
-write(*,*) 'gitm_to_dart:converting gitm restart files in directory ', &
+write(*,*) 'gitm_to_dart: converting gitm restart files in directory ', &
            "'"//trim(gitm_restart_dirname)//"'" 
 write(*,*) ' to DART file ', "'"//trim(gitm_to_dart_output_file)//"'"
 

@@ -156,12 +156,14 @@
 
 &gitm_to_dart_nml
    gitm_to_dart_output_file = 'dart.ud'
+   gitm_restart_dirname     = '../testdata1'
   /
 
 
 &dart_to_gitm_nml
    dart_to_gitm_input_file  = 'dart.ic',
-   advance_time_present     = .false.
+   advance_time_present     = .true.
+   gitm_restart_dirname     = '../testdata2'
   /
 
 
@@ -276,7 +278,7 @@
    advance_time_present = .FALSE.,
    verbose              = .TRUE.,
    x_ind                = 720,
-   kind_of_interest     = 'frac_sno',
-   loc_of_interest      = 287.5, 82.48, 0.35,
+   kind_of_interest     = 'temperature',
+   loc_of_interest      = 287.5, 82.48, 35000.,
    /
 

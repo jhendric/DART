@@ -48,14 +48,15 @@ character(len=128), parameter :: &
 !------------------------------------------------------------------
 
 character (len = 128) :: dart_to_gitm_input_file = 'dart.ic'
-logical               :: advance_time_present       = .false.
+logical               :: advance_time_present    = .false.
+character(len=256)    :: gitm_restart_dirname    = 'gitm_restartdir'
 
 namelist /dart_to_gitm_nml/ dart_to_gitm_input_file, &
-                           advance_time_present
+                            advance_time_present,    &
+                            gitm_restart_dirname
 
 !----------------------------------------------------------------------
 
-character(len=256)    :: gitm_restart_dirname
 integer               :: iunit, io, x_size, diff1, diff2
 type(time_type)       :: model_time, adv_to_time, base_time
 real(r8), allocatable :: statevector(:)
@@ -81,12 +82,9 @@ call find_namelist_in_file("input.nml", "dart_to_gitm_nml", iunit)
 read(iunit, nml = dart_to_gitm_nml, iostat = io)
 call check_namelist_read(iunit, io, "dart_to_gitm_nml")
 
-call get_gitm_restart_dirname( gitm_restart_dirname )
-
 write(*,*)
-write(*,'(''dart_to_gitm:converting DART file '',A, &
-      &'' to gitm restart file '',A)') &
-     trim(dart_to_gitm_input_file), trim(gitm_restart_dirname)
+write(*,*) 'dart_to_gitm: converting DART file ', "'"//trim(dart_to_gitm_input_file)//"'"
+write(*,*) 'to gitm restart files in directory ', "'"//trim(gitm_restart_dirname)//"'" 
 
 !----------------------------------------------------------------------
 ! Reads the valid time, the state, and the target time.
