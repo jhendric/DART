@@ -188,7 +188,9 @@ real(digits12), parameter :: rearth=1000.0_digits12 * 6367.0_digits12 ! radius o
 ! since the latitudes/longitudes are at cell centers, 
 ! while the edges are at the boundaries." -- Aaron Ridley
 
-integer :: NgridLon=-1, NgridLat=-1, NgridAlt=-1    ! scalar grid positions
+integer :: NgridLon=-1, NgridLat=-1, NgridAlt=-1    ! scalar grid counts
+integer :: nBlocksLon=-1, nBlocksLat=-1             ! number of blocks along each dim
+real(r8) :: LatStart=MISSING_R8, LatEnd=MISSING_R8, LonStart=MISSING_R8
 
 ! scalar grid positions
 
@@ -207,7 +209,7 @@ real(r8), allocatable :: ens_mean(:)     ! may be needed for forward ops
 logical :: print_timestamps = .false.
 integer :: print_every_Nth  = 10000
 
-integer, parameter :: Nghost = 2   ! number of ghost cells on all edges
+integer, parameter :: nGhost = 2   ! number of ghost cells on all edges
 
 !------------------------------------------------------------------
 ! The gitm restart manager namelist variables
@@ -371,9 +373,6 @@ integer :: ss, dd
 integer :: nDimensions, nVariables, nAttributes, unlimitedDimID, TimeDimID
 logical :: shapeok
 
-integer  :: nBlocksLon, nBlocksLat
-real(r8) :: LatStart, LatEnd, LonStart
-character(len=128) :: dirname
 
 if ( module_initialized ) return ! only need to do this once.
 
@@ -428,9 +427,8 @@ endif
 allocate( LON( NgridLon ))
 allocate( LAT( NgridLat ))
 allocate( ALT( NgridAlt ))
-call get_gitm_restart_dirname( dirname )
 
-call get_grid(dirname, nBlocksLon, nBlocksLat, &
+call get_grid(gitm_restart_dirname, nBlocksLon, nBlocksLat, &
               nLons, nLats, nAlts, LON, LAT, ALT )
               
 !---------------------------------------------------------------
@@ -445,26 +443,18 @@ call get_grid(dirname, nBlocksLon, nBlocksLat, &
 !
 ! Record the extent of the data type in the state vector.
 
-call nc_check( nf90_open(trim(gitm_restart_dirname), NF90_NOWRITE, ncid), &
-                  'static_init_model', 'open '//trim(gitm_restart_dirname))
-
 call verify_state_variables( gitm_state_variables, ncid, gitm_restart_dirname, &
                              nfields, variable_table )
 
-TimeDimID = FindTimeDimension( ncid )
+!%! TimeDimID = FindTimeDimension( ncid )
 
-if (TimeDimID < 0 ) then
-   write(string1,*)'unable to find a dimension named TIME Time or time.'
-   call error_handler(E_MSG,'static_init_model', string1, source, revision, revdate)
-endif
+!%! call nc_check(nf90_Inquire(ncid,nDimensions,nVariables,nAttributes,unlimitedDimID), &
+!%!                     'static_init_model', 'inquire '//trim(gitm_restart_dirname))
 
-call nc_check(nf90_Inquire(ncid,nDimensions,nVariables,nAttributes,unlimitedDimID), &
-                    'static_init_model', 'inquire '//trim(gitm_restart_dirname))
-
-if ( (TimeDimID > 0) .and. (unlimitedDimID > 0) .and. (TimeDimID /= unlimitedDimID)) then
-   write(string1,*)'IF TIME is not the unlimited dimension, I am lost.'
-   call error_handler(E_MSG,'static_init_model', string1, source, revision, revdate)
-endif
+!%! if ( (TimeDimID > 0) .and. (unlimitedDimID > 0) .and. (TimeDimID /= unlimitedDimID)) then
+!%!    write(string1,*)'IF TIME is not the unlimited dimension, I am lost.'
+!%!    call error_handler(E_MSG,'static_init_model', string1, source, revision, revdate)
+!%! endif
 
 index1  = 1;
 indexN  = 0;
@@ -477,63 +467,28 @@ do ivar = 1, nfields
    progvar(ivar)%dart_kind   = get_raw_obs_kind_index( progvar(ivar)%kind_string ) 
    progvar(ivar)%dimlens     = 0
 
-   string2 = trim(gitm_restart_dirname)//' '//trim(varname)
+!%!    string2 = trim(gitm_restart_dirname)//' '//trim(varname)
+!%! 
+!%!    call nc_check(nf90_inq_varid(ncid, trim(varname), VarID), &
+!%!             'static_init_model', 'inq_varid '//trim(string2))
+!%! 
+!%!    call nc_check( nf90_get_att(ncid, VarId, 'type' , progvar(ivar)%storder), &
+!%!             'static_init_model', 'get_att type '//trim(string2))
+!%! 
+!%!    call nc_check( nf90_get_att(ncid, VarId, 'long_name' , progvar(ivar)%long_name), &
+!%!             'static_init_model', 'get_att long_name '//trim(string2))
+!%! 
+!%!    call nc_check( nf90_get_att(ncid, VarId, 'posdef' , progvar(ivar)%posdef), &
+!%!             'static_init_model', 'get_att posdef '//trim(string2))
+!%! 
+!%!    call nc_check( nf90_get_att(ncid, VarId, 'units' , progvar(ivar)%units), &
+!%!             'static_init_model', 'get_att units '//trim(string2))
+!%! 
+!%!    call nc_check(nf90_inquire_variable(ncid, VarId, dimids=dimIDs, ndims=numdims), &
+!%!             'static_init_model', 'inquire '//trim(string2))
+!%!    progvar(ivar)%originalnumdims = numdims
 
-   call nc_check(nf90_inq_varid(ncid, trim(varname), VarID), &
-            'static_init_model', 'inq_varid '//trim(string2))
-
-   call nc_check( nf90_get_att(ncid, VarId, 'type' , progvar(ivar)%storder), &
-            'static_init_model', 'get_att type '//trim(string2))
-
-   call nc_check( nf90_get_att(ncid, VarId, 'long_name' , progvar(ivar)%long_name), &
-            'static_init_model', 'get_att long_name '//trim(string2))
-
-   call nc_check( nf90_get_att(ncid, VarId, 'posdef' , progvar(ivar)%posdef), &
-            'static_init_model', 'get_att posdef '//trim(string2))
-
-   call nc_check( nf90_get_att(ncid, VarId, 'units' , progvar(ivar)%units), &
-            'static_init_model', 'get_att units '//trim(string2))
-
-   call nc_check(nf90_inquire_variable(ncid, VarId, dimids=dimIDs, ndims=numdims), &
-            'static_init_model', 'inquire '//trim(string2))
-   progvar(ivar)%originalnumdims = numdims
-
-   ! TIME is the unlimited dimension, and in Fortran, this is always the
-   ! LAST dimension in this loop. Since we are not concerned with it, we
-   ! need to skip it. 
-   varsize = 1
-   dimlen  = 1
-   progvar(ivar)%numdims = 0
-   DimensionLoop : do i = 1,numdims
-
-      if (dimIDs(i) == TimeDimID) cycle DimensionLoop
-      
-      write(string1,'(''inquire dimension'',i2,A)') i,trim(string2)
-      call nc_check(nf90_inquire_dimension(ncid, dimIDs(i), len=dimlen), &
-                                          'static_init_model', string1)
-
-      progvar(ivar)%numdims = progvar(ivar)%numdims + 1 
-      progvar(ivar)%dimlens(i) = dimlen
-      varsize = varsize * dimlen
-
-   enddo DimensionLoop
-
-   ! Make sure the storage order is as we expect.
-   shapeok = .false.
-   if (progvar(ivar)%numdims == 1) then
-      if (trim(progvar(ivar)%storder) ==   'x1d') shapeok = .true.
-      if (trim(progvar(ivar)%storder) ==   'y1d') shapeok = .true.
-      if (trim(progvar(ivar)%storder) ==   'z1d') shapeok = .true.
-   elseif (progvar(ivar)%numdims == 2) then
-      if (trim(progvar(ivar)%storder) ==  'xy2d') shapeok = .true.
-   elseif (progvar(ivar)%numdims == 3) then
-      if (trim(progvar(ivar)%storder) == 'xyz3d') shapeok = .true.
-   endif
-   if ( .not. shapeok ) then
-      write(string1,*)'unable to handle storage order of '//trim(progvar(ivar)%storder)//' numdims = ',progvar(ivar)%numdims
-      call error_handler(E_ERR,'static_init_model', string1, source, revision, revdate, &
-                                              text2=string2)
-   endif
+   varsize = NgridLon * NgridLat * NgridAlt
 
    progvar(ivar)%varsize     = varsize
    progvar(ivar)%index1      = index1
@@ -571,9 +526,6 @@ do ivar = 1, nfields
    endif
 
 enddo
-
-call nc_check( nf90_close(ncid), &
-                  'static_init_model', 'close '//trim(gitm_restart_dirname))
 
 model_size = progvar(nfields)%indexN
 
@@ -1394,7 +1346,7 @@ end subroutine get_gridsize
 !  4. the number of lon/lats in a single grid block  (nLons, nLats, nAlts)
 !
 !  5. the number of neutral species (and probably a mapping between
-!  the species number and the variable name)  (nSpecies)
+!  the species number and the variable name)  (nSpeciesTotal, nSpecies)
 !
 !  6. the number of ion species (ditto - numbers <-> names) (nIons)
 !
@@ -1421,27 +1373,33 @@ type(time_type),  intent(out)   :: model_time
 ! grid info comes in 1d arrays, data comes in 3d arrays.
 ! for the single column model we might be able to still assume
 ! a 3d array with index values of (1,1,N)
-integer  :: i, j, k, l, ni, nj, nk, nl, ivar, indx, nb, nblockstotal, iunit
-real(r8), allocatable, dimension(:)         :: data_1d_array
-real(r8), allocatable, dimension(:,:,:)     :: data_3d_array
+integer :: i, j, k, l, ni, nj, nk, nl, ivar, indx, nb, nblockstotal, iunit
+integer :: NgridLon, NgridLat, NgridAlt, nBlocksLon, nBlocksLat
+integer :: nSpeciesTotal, nSpecies, nIons
+real(r8) :: LatStart, LatEnd, LonStart
+character(len=NF90_MAX_NAME) :: varname
+character(len=128) :: myerrorstring
 
 if ( .not. module_initialized ) call static_init_model
 
 state_vector = MISSING_R8
 
+! FIXME:  we don't have to do this because all these values are
+! now global in this file and were initialized in static_init_model
+!call get_grid_info(NgridLon, NgridLat, NgridAlt, nBlocksLon, nBlocksLat, &
+!                   LatStart, LatEnd, LonStart)
+
+! FIXME:
+!   need to know nSpeciesTotal, nIons, nSpecies
+nSpeciesTotal = 11
+nIons = 10
+nSpecies = 5
+
 ! this is going to have to loop over all the blocks, both to get
 ! the data values and to get the full grid spacings.
 
-! get the dirname, construct the filenames inside 
-! a loop from 1 to nBlocksTotal.
-
-do nb = 1, nBlocksTotal
-
-   iunit = open_block_file(dirname, nb)
-
-   call close_file(iunit)
-enddo
-
+! FIXME:
+model_time = set_time(0, 0)
 !%! model_time = get_state_time(ncid, filename)
 !%! 
 !%! if (do_output()) &
@@ -1449,156 +1407,20 @@ enddo
 !%! if (do_output()) &
 !%!     call print_date(model_time,'date in restart file '//trim(filename))
 !%! 
-!%! ! Start counting and filling the state vector one item at a time,
-!%! ! repacking the Nd arrays into a single 1d list of numbers.
-!%! 
-!%! ! The DART prognostic variables are only defined for a single time.
-!%! ! We already checked the assumption that variables are xy2d or xyz3d ...
-!%! ! IF the netCDF variable has a TIME dimension, it must be the last dimension,
-!%! ! and we need to read the LAST timestep and effectively squeeze out the
-!%! ! singleton dimension when we stuff it into the DART state vector. 
-!%! 
-!%! TimeDimID = FindTimeDimension( ncid )
-!%! 
-!%! if ( TimeDimID > 0 ) then
-!%!    call nc_check(nf90_inquire_dimension(ncid, TimeDimID, len=TimeDimLength), &
-!%!             'restart_file_to_sv', 'inquire timedimlength '//trim(filename))
-!%! else
-!%!    TimeDimLength = 0
-!%! endif
-!%! 
-!%! do ivar=1, nfields
-!%! 
-!%!    varname = trim(progvar(ivar)%varname)
-!%!    myerrorstring = trim(filename)//' '//trim(varname)
-!%! 
-!%! 
-!%!    ! determine the shape of the netCDF variable 
-!%! 
-!%!    call nc_check(nf90_inq_varid(ncid,   varname, VarID), &
-!%!             'restart_file_to_sv', 'inq_varid '//trim(myerrorstring))
-!%! 
-!%!    call nc_check(nf90_inquire_variable(ncid,VarId,dimids=dimIDs,ndims=ncNdims), &
-!%!             'restart_file_to_sv', 'inquire '//trim(myerrorstring))
-!%! 
-!%!    mystart = 1   ! These are arrays, actually.
-!%!    mycount = 1
-!%!    ! Only checking the shape of the variable - sans TIME
-!%!    DimCheck : do i = 1,progvar(ivar)%numdims
-!%! 
-!%!       write(string1,'(''inquire dimension'',i2,A)') i,trim(myerrorstring)
-!%!       call nc_check(nf90_inquire_dimension(ncid, dimIDs(i), len=dimlen), &
-!%!             'restart_file_to_sv', string1)
-!%! 
-!%!       if ( dimlen /= progvar(ivar)%dimlens(i) ) then
-!%!          write(string1,*) trim(myerrorstring),' dim/dimlen ',i,dimlen,' not ',progvar(ivar)%dimlens(i)
-!%!          call error_handler(E_ERR,'restart_file_to_sv',string1,source,revision,revdate)
-!%!       endif
-!%! 
-!%!       mycount(i) = dimlen
-!%! 
-!%!    enddo DimCheck
-!%! 
-!%!    where(dimIDs == TimeDimID) mystart = TimeDimLength
-!%!    where(dimIDs == TimeDimID) mycount = 1   ! only the latest one
-!%! 
-!%!    if ( debug > 1 ) then
-!%!       write(*,*)'restart_file_to_sv '//trim(varname)//' start = ',mystart(1:ncNdims)
-!%!       write(*,*)'restart_file_to_sv '//trim(varname)//' count = ',mycount(1:ncNdims)
-!%!    endif
-!%! 
-!%!    indx = progvar(ivar)%index1
-!%! 
-!%!    if (ncNdims == 1) then
-!%! 
-!%!       ! If the single dimension is TIME, we only need a scalar.
-!%!       ! Pretty sure this cant happen given the test for x1d,y1d,z1d. 
-!%!       ni = mycount(1)
-!%!       allocate(data_1d_array(ni))
-!%!       call nc_check(nf90_get_var(ncid, VarID, data_1d_array, &
-!%!         start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
-!%!             'restart_file_to_sv', 'get_var '//trim(varname))
-!%!       do i = 1, ni
-!%!          state_vector(indx) = data_1d_array(i)
-!%!          indx = indx + 1
-!%!       enddo
-!%!       deallocate(data_1d_array)
-!%! 
-!%!    elseif (ncNdims == 2) then
-!%! 
-!%!       ni = mycount(1)
-!%!       nj = mycount(2)
-!%!       allocate(data_2d_array(ni, nj))
-!%!       call nc_check(nf90_get_var(ncid, VarID, data_2d_array, &
-!%!         start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
-!%!             'restart_file_to_sv', 'get_var '//trim(varname))
-!%!       do j = 1, nj
-!%!       do i = 1, ni
-!%!          state_vector(indx) = data_2d_array(i, j)
-!%!          indx = indx + 1
-!%!       enddo
-!%!       enddo
-!%!       deallocate(data_2d_array)
-!%! 
-!%!    elseif (ncNdims == 3) then
-!%! 
-!%!       ni = mycount(1)
-!%!       nj = mycount(2)
-!%!       nk = mycount(3)
-!%!       allocate(data_3d_array(ni, nj, nk))
-!%!       call nc_check(nf90_get_var(ncid, VarID, data_3d_array, &
-!%!         start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
-!%!             'restart_file_to_sv', 'get_var '//trim(varname))
-!%!       do k = 1, nk
-!%!       do j = 1, nj
-!%!       do i = 1, ni
-!%!          state_vector(indx) = data_3d_array(i, j, k)
-!%!          indx = indx + 1
-!%!       enddo
-!%!       enddo
-!%!       enddo
-!%!       deallocate(data_3d_array)
-!%! 
-!%!    elseif (ncNdims == 4) then
-!%! 
-!%!       ni = mycount(1)
-!%!       nj = mycount(2)
-!%!       nk = mycount(3)
-!%!       nl = mycount(4)
-!%!       allocate(data_4d_array(ni, nj, nk, nl))
-!%!       call nc_check(nf90_get_var(ncid, VarID, data_4d_array, &
-!%!         start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
-!%!             'restart_file_to_sv', 'get_var '//trim(varname))
-!%!       do l = 1, nl
-!%!       do k = 1, nk
-!%!       do j = 1, nj
-!%!       do i = 1, ni
-!%!          state_vector(indx) = data_4d_array(i, j, k, l)
-!%!          indx = indx + 1
-!%!       enddo
-!%!       enddo
-!%!       enddo
-!%!       enddo
-!%!       deallocate(data_4d_array)
-!%! 
-!%!    else
-!%!       write(string1, *) 'no support for data array of dimension ', ncNdims
-!%!       call error_handler(E_ERR,'restart_file_to_sv', string1, &
-!%!                         source,revision,revdate)
-!%!    endif
-!%! 
-!%!    indx = indx - 1
-!%!    if ( indx /= progvar(ivar)%indexN ) then
-!%!       write(string1, *)'Variable '//trim(varname)//' filled wrong.'
-!%!       write(string2, *)'Should have ended at ',progvar(ivar)%indexN,' actually ended at ',indx
-!%!       call error_handler(E_ERR,'restart_file_to_sv', string1, &
-!%!                         source,revision,revdate,text2=string2)
-!%!    endif
-!%! 
-!%! enddo
-!%! 
-!%! call nc_check(nf90_close(ncid), &
-!%!              'restart_file_to_sv','close '//trim(filename))
+
+! Start counting and filling the state vector one item at a time,
+! repacking the Nd arrays into a single 1d list of numbers.
+
+do ivar=1, nfields
+
+   varname = trim(progvar(ivar)%varname)
+   myerrorstring = trim(dirname)//' '//trim(varname)
+
+   call get_data(dirname, varname, nBlocksLon, nBlocksLat,             &
+                 nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies,  &
+                 state_vector(progvar(ivar)%index1:progvar(ivar)%indexN))
+enddo
+
 
 end subroutine restart_file_to_sv
 
@@ -2182,7 +2004,7 @@ real(r8), allocatable :: temp(:)
 
 ! a temp array large enough to hold any of the 
 ! Lon,Lat or Alt array from a block plus ghost cells
-allocate(temp(1-Nghost:max(nLons,nLats,nAlts)+Nghost))
+allocate(temp(1-nGhost:max(nLons,nLats,nAlts)+nGhost))
 
 ! get the dirname, construct the filenames inside 
 
@@ -2191,7 +2013,7 @@ do nb = 1, nBlocksLon
 
    iunit = open_block_file(dirname, nb)
 
-   read(iunit) temp(1-Nghost:nLons+Nghost)
+   read(iunit) temp(1-nGhost:nLons+nGhost)
 
    offset = (nLons * (nb - 1)) 
    LON(offset+1:offset+nLons) = temp(1:nLons)
@@ -2206,9 +2028,9 @@ do nb = 1, nBlocksLat
    iunit = open_block_file(dirname, nboff)
 
    ! get past lon array and read in lats
-   read(iunit) temp(1-Nghost:nLons+Nghost)
+   read(iunit) temp(1-nGhost:nLons+nGhost)
 
-   read(iunit) temp(1-Nghost:nLats+Nghost)
+   read(iunit) temp(1-nGhost:nLats+nGhost)
 
    offset = (nLats * (nb - 1)) 
    LAT(offset+1:offset+nLats) = temp(1:nLats)
@@ -2223,9 +2045,9 @@ enddo
 iunit = open_block_file(dirname, 1)
 
 ! get past lon and lat arrays and read in alt array
-read(iunit) temp(1-Nghost:nLons+Nghost)
-read(iunit) temp(1-Nghost:nLats+Nghost)
-read(iunit) temp(1-Nghost:nAlts+Nghost)
+read(iunit) temp(1-nGhost:nLons+nGhost)
+read(iunit) temp(1-nGhost:nLats+nGhost)
+read(iunit) temp(1-nGhost:nAlts+nGhost)
 
 ALT(1:nAlts) = temp(1:nAlts)
 
@@ -2278,6 +2100,129 @@ open_block_file = open_file(filename, 'unformatted', 'read')
 end function open_block_file
 
 
+
+subroutine get_data(dirname, varname, nBlocksLon, nBlocksLat, &
+                    nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, vardata)
+!------------------------------------------------------------------
+! open all restart files and read in the requested data item
+!
+character(len=*), intent(in) :: dirname, varname
+integer, intent(in) :: nBlocksLon ! Number of Longitude blocks
+integer, intent(in) :: nBlocksLat ! Number of Latitude  blocks
+integer, intent(in) :: NLons      ! Number of Longitude centers per block
+integer, intent(in) :: NLats      ! Number of Latitude  centers per block
+integer, intent(in) :: NAlts      ! Number of Vertical grid centers
+integer, intent(in) :: NSpeciesTotal   ! Number of total species
+integer, intent(in) :: NIons      ! Number of charged species
+integer, intent(in) :: NSpecies   ! Number of neutral species
+
+real(r8), dimension( : ), intent(inout) :: vardata
+
+integer :: nb, offset, iunit, nboff, nBlocksTotal, var
+integer :: i, j, k
+character(len=128) :: filename
+real(r8), allocatable :: temp1d(:), temp3d(:,:,:)
+
+! a temp array large enough to hold any of the 
+! Lon,Lat or Alt array from a block plus ghost cells
+allocate(temp1d(1-nGhost:max(nLons,nLats,nAlts)+nGhost))
+! temp array large enough to hold 1 species, velocity vect, etc
+allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
+
+var = 1   ! fixme:  string to var number
+
+nBlocksTotal = nBlocksLon * nBlocksLat
+
+! get the dirname, construct the filenames inside 
+
+do nb = 1, nBlocksTotal
+   
+   iunit = open_block_file(dirname, nb)
+
+   call discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, var)
+   read(iunit) temp3d
+
+print *, 'got to field, reading block ', nb
+print *, 'data is ', temp3d
+
+   offset = (nLons * (nb - 1)) 
+   !vardata(offset+1:offset+nLons) = temp3d(1:nLons) ! , 1:nLats, 1:nAlts))
+
+   call close_file(iunit)
+enddo
+
+deallocate(temp1d, temp3d)
+
+if (debug > 4) then
+   print *, 'All data ', vardata
+endif
+
+if ( debug > 1 ) then ! A little sanity check
+   write(*,*)'data range ',minval(vardata),maxval(vardata)
+endif
+
+end subroutine get_data
+
+
+subroutine discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, var)
+!------------------------------------------------------------------
+! open all restart files and read in the requested data item
+!
+integer, intent(in) :: iunit      ! open file unit
+integer, intent(in) :: NLons      ! Number of Longitude centers per block
+integer, intent(in) :: NLats      ! Number of Latitude  centers per block
+integer, intent(in) :: NAlts      ! Number of Vertical grid centers
+integer, intent(in) :: NSpeciesTotal   ! Number of total species
+integer, intent(in) :: NIons      ! Number of charged species
+integer, intent(in) :: NSpecies   ! Number of neutral species
+integer, intent(in) :: var        ! variable number
+
+real(r8), allocatable :: temp1d(:), temp3d(:,:,:)
+integer :: i
+
+! a temp array large enough to hold any of the 
+! Lon,Lat or Alt array from a block plus ghost cells
+allocate(temp1d(1-nGhost:max(nLons,nLats,nAlts)+nGhost))
+
+! temp array large enough to hold 1 species, velocity vect, etc
+allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
+
+! get past lon and lat arrays and read in alt array
+read(iunit) temp1d(1-nGhost:nLons+nGhost)
+read(iunit) temp1d(1-nGhost:nLats+nGhost)
+read(iunit) temp1d(1-nGhost:nAlts+nGhost)
+
+do i=1, nSpeciesTotal
+   read(iunit) temp3d
+enddo
+do i=1, nIons
+   read(iunit) temp3d
+enddo
+
+! fixme
+return  ! next thing to be read is temp
+
+! temperature, ITemp, eTemp
+read(iunit) temp3d
+read(iunit) temp3d
+read(iunit) temp3d
+
+! Velocity
+read(iunit) temp3d
+read(iunit) temp3d
+read(iunit) temp3d
+
+! iVelocity
+read(iunit) temp3d
+read(iunit) temp3d
+read(iunit) temp3d
+
+! vert velocity
+do i=1, nSpecies
+   read(iunit) temp3d
+enddo
+
+end subroutine discard_data
 
 
 function get_base_time_ncid( ncid )
@@ -2595,11 +2540,11 @@ MyLoop : do i = 1, nrows
       call error_handler(E_ERR,'verify_state_variables',string1,source,revision,revdate)
    endif
 
-   ! Make sure variable exists in netCDF file
+   ! Make sure variable exists in GITM restart variable list
 
-   write(string1,'(''there is no variable '',a,'' in '',a)') trim(varname), trim(filename)
-   call nc_check(NF90_inq_varid(ncid, trim(varname), varid), &
-                 'verify_state_variables', trim(string1))
+!%!   write(string1,'(''there is no variable '',a,'' in '',a)') trim(varname), trim(filename)
+!%!   call nc_check(NF90_inq_varid(ncid, trim(varname), varid), &
+!%!                 'verify_state_variables', trim(string1))
 
    ! Make sure DART kind is valid
 
