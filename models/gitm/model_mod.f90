@@ -1629,6 +1629,10 @@ end subroutine sv_to_restart_file
 !     to that location for the filter from the gitm state vectors
 !
 !############################################################################
+!     Modified from NCOMMAS model_mod.f90 by Tim Hoar and Jeff Anderson
+!     Revision Date: August 2011
+!
+!     Original routine information
 !
 !     Author:  Tim Hoar, Ted Mansell, Lou Wicker
 !
@@ -1636,22 +1640,17 @@ end subroutine sv_to_restart_file
 !     
 !     Variables needed to be stored in the MODEL_MODULE data structure
 !
-!       XE, LON   = 1D arrays storing the local grid edge and center coords (meters)
-!       YE, LAT   = 1D arrays storing the local grid edge and center coords (meters)
-!       ZE, ALT   = 1D arrays storing the local grid edge and center coords (meters)
+!       LON   = 1D array storing the local grid center coords (degrees)
+!       LAT   = 1D array storing the local grid center coords (degrees)
+!       ALT   = 1D array storing the local grid center coords (meters)
 !
 !       ERROR codes:
 !
 !       ISTATUS = 99:  general error in case something terrible goes wrong...
 !       ISTATUS = 15:  dont know what to do with vertical coord supplied
-!       ISTATUS = 16:  Obs_type is not found
-!       ISTATUS = 11:  index from from xi is outside domain WRT XE
-!       ISTATUS = 12:  index from from xi is outside domain WRT LON
-!       ISTATUS = 21:  index from from yi is outside domain WRT YE
-!       ISTATUS = 22:  index from from yi is outside domain WRT LAT
-!       ISTATUS = 31:  index from from zi is outside domain WRT ZE
-!       ISTATUS = 32:  index from from zi is outside domain WRT ALT
-!       ISTATUS = 33:  index from location(3) is not bounded by 1 --> nz-1
+!       ISTATUS = 16:  longitude illegal
+!       ISTATUS = 17:  latitude illegal
+!       ISTATUS = 18:  altitude illegal
 !       
 !
 !############################################################################
@@ -1669,12 +1668,9 @@ subroutine model_interpolate(x, location, obs_type, interp_val, istatus)
 
 ! Local storage
 
-  real(r8)         :: loc_array(3), llon, llat
-  real(r8)         :: lheight
-  integer          :: base_offset
-  integer          :: nf, i, n0, n1
-  integer          :: iloc, jloc, kloc, nxp, nyp, nzp
-  real(r8)         :: xi, yi, xf, yf, zf, q1, q2, vt, vb
+  real(r8)         :: loc_array(3), llon, llat, lheight, lon_fract, lat_fract, alt_fract
+  integer          :: base_offset, end_offset, blon(2), blat(2), balt(2), i, j, k, ier
+  real(r8)         :: cube(2, 2, 2), square(2, 2), line(2)
 
   IF ( .not. module_initialized ) call static_init_model
 
@@ -1696,73 +1692,190 @@ subroutine model_interpolate(x, location, obs_type, interp_val, istatus)
 
   IF (debug > 2) print *, 'requesting interpolation at ', llon, llat, lheight
 
-  IF( vert_is_height(location) ) THEN        ! Nothing to do 
-  
-  ELSEIF ( vert_is_surface(location) ) THEN  ! Nothing to do
- 
-  ELSEIF (vert_is_level(location)) THEN      ! convert the level index to an actual height
-                                             ! This code is wrong (I think) if variable == "W"
-     kloc = nint(loc_array(3))
-     IF( (kloc < 1) .or. (kloc > size(ALT)) ) THEN 
-        istatus = 33
-        return
-     ELSE
-        lheight = ALT(kloc)
-     ENDIF
-  ELSE   ! if we don't know what to do
+! Only height for vertical location type is supported at this point
+  IF(.not. vert_is_height(location) ) THEN 
      istatus = 15
      return
   ENDIF
 
-! Find what field this is....
+! Find the start and end offsets for this field in the state vector x(:)
 
-  nf = -1
-  DO i = 1,nfields
-     IF (progvar(i)%dart_kind == obs_type) THEN
-       nf = i
-       exit
-     ENDIF
-  ENDDO
-
-! Not a legal type for interpolation, return istatus error
-
-  IF (nf < 0) then
-     istatus = 16
-     return
-  ENDIF
-
-  base_offset = progvar(nf)%index1
+  call get_index_range(obs_type, base_offset, end_offset)
 
   IF (debug > 2) print *, 'base offset now ', base_offset
 
-! Not implemented...
+! Need to find bounding center indices and fractional offsets for lat, lon, alt
+call find_lon_bounds(llon, blon(1), blon(2), lon_fract, ier)
+if(ier /= 0) then
+   istatus = 16
+   return
+endif
 
-  IF( vert_is_surface(location) ) THEN
-     istatus = 15
-     return
-  ENDIF
-  
-! Using nf, get the true dimensions of the variable
+call find_lat_or_alt_bounds(llat, NgridLat, LAT, blat(1), blat(2), lat_fract, ier)
+if(ier /= 0) then
+   istatus = 17
+   return
+endif
 
-   nxp = progvar(nf)%dimlens(1)
-   nyp = progvar(nf)%dimlens(2)
-   nzp = progvar(nf)%dimlens(3)   
+call find_lat_or_alt_bounds(lheight, NgridAlt, ALT, balt(1), balt(2), alt_fract, ier)
+if(ier /= 0) then
+   istatus = 18
+   return
+endif
 
-   ! ...
-   ! TJH Hacked out this bit
-   ! TJH Hacked out this bit
-   ! TJH Hacked out this bit
-   ! TJH Hacked out this bit
-   ! TJH Hacked out this bit
-   ! TJH Hacked out this bit
-   ! ...
-   
+! Get the grid values for the first 
+do i = 1, 2
+   do j = 1, 2
+      do k = 1, 2
+         cube(i, j, k) = get_grid_value(base_offset, blon(i), blat(j), balt(k), x)
+      end do
+   end do
+end do
+
+! Interpolate to the given altitude
+do i = 1, 2
+   do j = 1, 2
+      square(i, j) = (1 - alt_fract) * cube(i, j, 1) + alt_fract * cube(i, j, 2)
+   end do
+end do
+
+! Interpolate to the given latitude
+do i = 1, 2
+   line(i) = (1 - lat_fract) * square(i, 1) + lat_fract * square(i, 2)
+end do
+
+! Interpolate to the given longitude
+interp_val = (1 - lon_fract) * line(1) + lon_fract * line(2)
+
 ! All good.
   istatus = 0
 
 return
 end subroutine model_interpolate
 
+
+!------------------------------------------------------------------
+
+function get_grid_value(base_offset, ilon, ilat, ialt, x)
+
+real(r8)             :: get_grid_value
+integer, intent(in)  :: base_offset, ilon, ilat, ialt
+real(r8), intent(in) :: x(:)
+
+! Returns the value for the given lon,lat,alt point in the field that 
+! starts at offset base_offset
+
+integer :: offset
+
+offset = (ilon - 1) + (ilat - 1) * NgridLon + (ialt - 1) * (NgridLon * NgridLat)
+get_grid_value = x(base_offset + offset)
+
+end function get_grid_value
+
+!------------------------------------------------------------------
+
+
+subroutine find_lon_bounds(llon, lower, upper, fract, ier)
+
+! Finds position of a given longitude in an array of longitude grid points and returns
+! the index of the lower and upper bounds and the fractional offset. Assumes that the
+! first longitude in the list is the smallest and that the largest is less than
+! 360 degrees.  ier returns 0 unless there is an error.
+
+real(r8), intent(in)  :: llon
+integer,  intent(out) :: lower, upper
+real(r8), intent(out) :: fract
+integer,  intent(out) :: ier
+
+! For now, assume that the spacing on longitudes is arbitrary.
+! Do a silly linear search. Probably not worth any fancier searching unless
+! models get to be huge.
+
+integer  :: i
+real(r8) :: width
+
+if(llon < 0.0_r8 .or. llon > 360.0_r8) then
+   ier = 2
+   return
+endif
+
+! Look for case where longitude is less than smallest in list
+if(llon < LON(1)) then
+   lower = NgridLon
+   upper = 1
+   width = 360.0_r8 - LON(NgridLon) + LON(1)
+   fract = (llon + 360.0_r8 - LON(NgridLon)) / width
+   ier = 0
+   return
+endif
+
+! Look for case where longitude is greater than largest in list
+if(llon > LON(NgridLon)) then
+  lower = NgridLon
+  upper = 1
+  width = 360.0 - LON(NgridLon) + LON(1)
+  fract = (llon - LON(NgridLon)) / width
+  ier = 0
+  return
+endif
+
+! Otherwise in the interior
+do i = 2, NgridLon
+   if(llon < LON(i)) then
+      lower = i - 1
+      upper = i
+      fract = (llon - LON(i-1)) / (LON(i) - LON(i - 1))
+      ier = 0
+      return
+   endif
+end do
+
+! Shouldn't ever fall off end of loop
+ier = 2
+
+end subroutine find_lon_bounds
+
+!------------------------------------------------------------------
+
+subroutine find_lat_or_alt_bounds(llat, nbounds, bounds, lower, upper, fract, ier)
+
+! Finds position of a given latitude in an array of latitude grid points and returns
+! the index of the lower and upper bounds and the fractional offset. Used for both
+! latitude and altitude which have similar linear arrays. ier returns 0 unless there
+! is an error.
+
+real(r8), intent(in)  :: llat
+integer,  intent(in)  :: nbounds
+real(r8), intent(in)  :: bounds(nbounds)
+integer,  intent(out) :: lower, upper
+real(r8), intent(out) :: fract
+integer,  intent(out) :: ier
+
+! For now, assume that the spacing on latitudes or altitudes is arbitrary
+! Do a silly linear search. Probably not worth any fancier searching unless
+! models get to be huge.
+
+integer :: i
+
+if(llat < bounds(1) .or. llat > bounds(nbounds)) then
+   ier = 2
+   return
+endif
+
+do i = 2, nbounds
+   if(llat < bounds(i)) then
+      lower = i - 1
+      upper = i
+      fract = (llat - bounds(i-1)) / (bounds(i) - bounds(i - 1))
+      ier = 0
+      return
+   endif
+end do
+
+! Shouldn't ever fall off end of loop
+ier = 2
+
+end subroutine find_lat_or_alt_bounds
 
 !------------------------------------------------------------------
 
