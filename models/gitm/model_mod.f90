@@ -49,15 +49,12 @@ use mpi_utilities_mod, only: my_task_id
 
 use    random_seq_mod, only: random_seq_type, init_random_seq, random_gaussian
 
+use     dart_gitm_mod, only: get_gitm_nLons, get_gitm_nLats, get_gitm_nAlts, &
+                             get_nSpecies, get_nSpeciesTotal, get_nIons,     &
+                             get_nSpeciesAll, decode_gitm_indices
+
 use typesizes
 use netcdf 
-
-! These are statically defined in ModSize.f90 ...
-! nAlts  is the one and only number of altitudes ... no block-dependence
-! nLons, nLats are the number of lons/lats PER block
-! the number of blocks comes from UAM.in 
-
-use       ModSizeGitm, only: nLons, nLats, nAlts
 
 implicit none
 private
@@ -160,11 +157,14 @@ integer :: nfields
 
 type progvartype
    private
-   character(len=NF90_MAX_NAME) :: varname
+   character(len=NF90_MAX_NAME) :: varname       ! crazy species name
    character(len=NF90_MAX_NAME) :: long_name
    character(len=NF90_MAX_NAME) :: units
    character(len=NF90_MAX_NAME) :: storder
-   integer, dimension(NF90_MAX_VAR_DIMS) :: dimlens
+   character(len=NF90_MAX_NAME) :: gitm_varname  ! NDensityS, IDensityS, ...
+   integer :: gitm_dim                           ! dimension defining species
+   integer :: gitm_index                         ! 'iSpecies' or u,v,w ...
+   integer, dimension(NF90_MAX_VAR_DIMS) :: dimlens ! nlons, nlats, nalts [, nspecies]
    integer :: originalnumdims
    integer :: posdef
    integer :: numdims
@@ -181,6 +181,13 @@ type(progvartype), dimension(max_state_variables) :: progvar
 
 real(digits12), parameter :: rearth=1000.0_digits12 * 6367.0_digits12 ! radius of earth (m)
 
+! These are statically defined in ModSize.f90 ...
+! nAlts  is the one and only number of altitudes ... no block-dependence
+! nLons, nLats are the number of lons/lats PER block
+! the number of blocks comes from UAM.in 
+
+integer :: nLons, nLats, nAlts
+
 ! Grid parameters - the values will be inferred from header.rst 
 ! "... keep in mind that if the model resolution is 5 deg latitude,
 !  the model will actually go from -87.5 to 87.5 latitude
@@ -191,7 +198,7 @@ real(digits12), parameter :: rearth=1000.0_digits12 * 6367.0_digits12 ! radius o
 integer :: NgridLon=-1, NgridLat=-1, NgridAlt=-1    ! scalar grid counts
 integer :: nBlocksLon=-1, nBlocksLat=-1             ! number of blocks along each dim
 real(r8) :: LatStart=MISSING_R8, LatEnd=MISSING_R8, LonStart=MISSING_R8
-integer :: nSpeciesTotal=-1, nSpecies=-1, nIons=-1
+integer :: nSpeciesTotal=-1, nSpecies=-1, nIons=-1, nSpeciesAll=-1
 
 ! scalar grid positions
 
@@ -374,7 +381,6 @@ integer :: ss, dd
 integer :: nDimensions, nVariables, nAttributes, unlimitedDimID, TimeDimID
 logical :: shapeok
 
-
 if ( module_initialized ) return ! only need to do this once.
 
 ! Print module information to log file and stdout.
@@ -393,6 +399,27 @@ call check_namelist_read(iunit, io, 'model_nml')
 call error_handler(E_MSG,'static_init_model','model_nml values are',' ',' ',' ')
 if (do_output()) write(logfileunit, nml=model_nml)
 if (do_output()) write(     *     , nml=model_nml)
+
+! Get the GITM variables in a restricted scope setting.
+
+nLons         = get_gitm_nLons()
+nLats         = get_gitm_nLats()
+nAlts         = get_gitm_nAlts()
+nSpecies      = get_nSpecies()
+nSpeciesTotal = get_nSpeciesTotal()
+nIons         = get_nIons()
+nSpeciesAll   = get_nSpeciesAll()
+
+if ((debug > 0) .and.  do_output() ) then
+   write(*,*)
+   write(*,*)'nLons         is ',nLons
+   write(*,*)'nLats         is ',nLats
+   write(*,*)'nAlts         is ',nAlts
+   write(*,*)'nSpecies      is ',nSpecies
+   write(*,*)'nSpeciesTotal is ',nSpeciesTotal
+   write(*,*)'nIons         is ',nIons
+   write(*,*)'nSpeciesAll   is ',nSpeciesAll
+endif
 
 ! Read the gitm variable list to populate DART state vector
 ! Once parsed, the values will be recorded for posterity
