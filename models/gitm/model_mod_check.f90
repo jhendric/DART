@@ -117,19 +117,19 @@ call close_restart(iunit)
 ! Reads the valid time, the state, and (possibly) a target time.
 !----------------------------------------------------------------------
 
-write(*,*)
-write(*,*)'Reading '//trim(input_file)
+! write(*,*)
+! write(*,*)'Reading '//trim(input_file)
 
-iunit = open_restart_read(input_file)
-if ( advance_time_present ) then
-   call aread_state_restart(model_time, statevector, iunit, adv_to_time)
-else
-   call aread_state_restart(model_time, statevector, iunit)
-endif
+! iunit = open_restart_read(input_file)
+! if ( advance_time_present ) then
+!    call aread_state_restart(model_time, statevector, iunit, adv_to_time)
+! else
+!    call aread_state_restart(model_time, statevector, iunit)
+! endif
 
-call close_restart(iunit)
-call print_date( model_time,'model_mod_check:model date')
-call print_time( model_time,'model_mod_check:model time')
+! call close_restart(iunit)
+! call print_date( model_time,'model_mod_check:model date')
+! call print_time( model_time,'model_mod_check:model time')
 
 !----------------------------------------------------------------------
 ! Output the state vector to a netCDF file ...
@@ -138,9 +138,6 @@ call print_time( model_time,'model_mod_check:model time')
 ! aoutput_diagnostics()
 ! finalize_diag_output()
 !----------------------------------------------------------------------
-
-write(*,*)'Manually Stopping'
-stop
 
 write(*,*)
 write(*,*)'Exercising the netCDF routines.'
@@ -152,6 +149,9 @@ ncFileID = init_diag_output(trim(output_file),'just testing a restart', 1, state
 call aoutput_diagnostics(ncFileID, model_time, statevector, 1)
 
 call nc_check( finalize_diag_output(ncFileID), 'model_mod_check:main', 'finalize')
+
+write(*,*)'Manually Stopping'
+stop
 
 !----------------------------------------------------------------------
 ! Checking get_state_meta_data (and get_state_indices, get_state_kind)

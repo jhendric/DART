@@ -38,10 +38,7 @@ use    utilities_mod, only : register_module, error_handler,                   &
                              open_file, file_exist, find_textfile_dims,        &
                              file_to_text, close_file
 
-use     obs_kind_mod, only : KIND_TEMPERATURE,        &
-                             KIND_DENSITY,            &
-                             KIND_VELOCITY,           &
-                             paramname_length,        &
+use     obs_kind_mod, only : paramname_length,        &
                              get_raw_obs_kind_index,  &
                              get_obs_kind_name
 
@@ -165,7 +162,6 @@ type progvartype
    integer :: gitm_dim                           ! dimension defining species
    integer :: gitm_index                         ! 'iSpecies' or u,v,w ...
    integer, dimension(NF90_MAX_VAR_DIMS) :: dimlens ! nlons, nlats, nalts [, nspecies]
-   integer :: originalnumdims
    integer :: posdef
    integer :: numdims
    integer :: varsize     ! prod(dimlens(1:numdims))
@@ -474,18 +470,9 @@ call get_grid(gitm_restart_dirname, nBlocksLon, nBlocksLat, &
 call verify_state_variables( gitm_state_variables, ncid, gitm_restart_dirname, &
                              nfields, variable_table )
 
-!%! TimeDimID = FindTimeDimension( ncid )
-
-!%! call nc_check(nf90_Inquire(ncid,nDimensions,nVariables,nAttributes,unlimitedDimID), &
-!%!                     'static_init_model', 'inquire '//trim(gitm_restart_dirname))
-
-!%! if ( (TimeDimID > 0) .and. (unlimitedDimID > 0) .and. (TimeDimID /= unlimitedDimID)) then
-!%!    write(string1,*)'IF TIME is not the unlimited dimension, I am lost.'
-!%!    call error_handler(E_MSG,'static_init_model', string1, source, revision, revdate)
-!%! endif
-
 index1  = 1;
 indexN  = 0;
+
 do ivar = 1, nfields 
 
    varname                   = trim(variable_table(ivar,1))
@@ -495,12 +482,20 @@ do ivar = 1, nfields
    progvar(ivar)%dart_kind   = get_raw_obs_kind_index( progvar(ivar)%kind_string ) 
    progvar(ivar)%dimlens     = 0
 
+   ! I would really like decode_gitm_indices to set the following (on a per-variable basis)
+   ! progvar(ivar)%storder
+   ! progvar(ivar)%numdims
+   ! progvar(ivar)%dimlens
+
    call decode_gitm_indices( varname, progvar(ivar)%gitm_varname, progvar(ivar)%gitm_dim, &
                              progvar(ivar)%gitm_index, progvar(ivar)%long_name, &
                              progvar(ivar)%units)
 
    varsize = NgridLon * NgridLat * NgridAlt
 
+   progvar(ivar)%storder     = 'xyz3d'
+   progvar(ivar)%numdims     = 3
+   progvar(ivar)%dimlens(1:progvar(ivar)%numdims) = (/ NgridLon, NgridLat, NgridAlt /)
    progvar(ivar)%varsize     = varsize
    progvar(ivar)%index1      = index1
    progvar(ivar)%indexN      = index1 + varsize - 1 
@@ -509,31 +504,35 @@ do ivar = 1, nfields
    if ( debug > 0 ) then
       write(logfileunit,*)
       write(logfileunit,*) trim(progvar(ivar)%varname),' variable number ',ivar
-      write(logfileunit,*) '  type        ',trim(progvar(ivar)%storder)
-      write(logfileunit,*) '  long_name   ',trim(progvar(ivar)%long_name)
-      write(logfileunit,*) '  units       ',trim(progvar(ivar)%units)
-      write(logfileunit,*) '  orgnalndims ',progvar(ivar)%originalnumdims
-      write(logfileunit,*) '  numdims     ',progvar(ivar)%numdims
-      write(logfileunit,*) '  dimlens     ',progvar(ivar)%dimlens(1:progvar(ivar)%numdims)
-      write(logfileunit,*) '  varsize     ',progvar(ivar)%varsize
-      write(logfileunit,*) '  index1      ',progvar(ivar)%index1
-      write(logfileunit,*) '  indexN      ',progvar(ivar)%indexN
-      write(logfileunit,*) '  dart_kind   ',progvar(ivar)%dart_kind
-      write(logfileunit,*) '  kind_string ',progvar(ivar)%kind_string
+      write(logfileunit,*) ' storage      ',trim(progvar(ivar)%storder)
+      write(logfileunit,*) ' long_name    ',trim(progvar(ivar)%long_name)
+      write(logfileunit,*) ' units        ',trim(progvar(ivar)%units)
+      write(logfileunit,*) ' numdims      ',progvar(ivar)%numdims
+      write(logfileunit,*) ' dimlens      ',progvar(ivar)%dimlens(1:progvar(ivar)%numdims)
+      write(logfileunit,*) ' varsize      ',progvar(ivar)%varsize
+      write(logfileunit,*) ' index1       ',progvar(ivar)%index1
+      write(logfileunit,*) ' indexN       ',progvar(ivar)%indexN
+      write(logfileunit,*) ' dart_kind    ',progvar(ivar)%dart_kind
+      write(logfileunit,*) ' kind_string  ',trim(progvar(ivar)%kind_string)
+      write(logfileunit,*) ' gitm_varname ',trim(progvar(ivar)%gitm_varname)
+      write(logfileunit,*) ' gitm_dim     ',progvar(ivar)%gitm_dim
+      write(logfileunit,*) ' gitm_index   ',progvar(ivar)%gitm_index
 
       write(     *     ,*)
       write(     *     ,*) trim(progvar(ivar)%varname),' variable number ',ivar
-      write(     *     ,*) '  type        ',trim(progvar(ivar)%storder)
-      write(     *     ,*) '  long_name   ',trim(progvar(ivar)%long_name)
-      write(     *     ,*) '  units       ',trim(progvar(ivar)%units)
-      write(     *     ,*) '  orgnalndims ',progvar(ivar)%originalnumdims
-      write(     *     ,*) '  numdims     ',progvar(ivar)%numdims
-      write(     *     ,*) '  dimlens     ',progvar(ivar)%dimlens(1:progvar(ivar)%numdims)
-      write(     *     ,*) '  varsize     ',progvar(ivar)%varsize
-      write(     *     ,*) '  index1      ',progvar(ivar)%index1
-      write(     *     ,*) '  indexN      ',progvar(ivar)%indexN
-      write(     *     ,*) '  dart_kind   ',progvar(ivar)%dart_kind
-      write(     *     ,*) '  kind_string ',progvar(ivar)%kind_string
+      write(     *     ,*) ' storage      ',trim(progvar(ivar)%storder)
+      write(     *     ,*) ' long_name    ',trim(progvar(ivar)%long_name)
+      write(     *     ,*) ' units        ',trim(progvar(ivar)%units)
+      write(     *     ,*) ' numdims      ',progvar(ivar)%numdims
+      write(     *     ,*) ' dimlens      ',progvar(ivar)%dimlens(1:progvar(ivar)%numdims)
+      write(     *     ,*) ' varsize      ',progvar(ivar)%varsize
+      write(     *     ,*) ' index1       ',progvar(ivar)%index1
+      write(     *     ,*) ' indexN       ',progvar(ivar)%indexN
+      write(     *     ,*) ' dart_kind    ',progvar(ivar)%dart_kind
+      write(     *     ,*) ' kind_string  ',trim(progvar(ivar)%kind_string)
+      write(     *     ,*) ' gitm_varname ',trim(progvar(ivar)%gitm_varname)
+      write(     *     ,*) ' gitm_dim     ',progvar(ivar)%gitm_dim
+      write(     *     ,*) ' gitm_index   ',progvar(ivar)%gitm_index
    endif
 
 enddo
@@ -651,9 +650,9 @@ integer :: StateVarID      ! netCDF pointer to 3D [state,copy,time] array
 !----------------------------------------------------------------------
 
 ! for the dimensions and coordinate variables
-integer :: NLONDimID, LONVarID
-integer :: NLATDimID, LATVarID
-integer :: NALTDimID, ALTVarID
+integer :: NLONDimID
+integer :: NLATDimID
+integer :: NALTDimID
 
 ! for the prognostic variables
 integer :: ivar, VarID
@@ -843,6 +842,8 @@ else
    call nc_check(nf90_def_var(ncFileID,name='LON', xtype=nf90_real, &
                  dimids=NLONDimID, varid=VarID),&
                  'nc_write_model_atts', 'LON def_var '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID, VarID, 'type', 'x1d'),  &
+                 'nc_write_model_atts', 'LON type '//trim(filename))
    call nc_check(nf90_put_att(ncFileID,  VarID, 'long_name', 'grid longitudes'), &
                  'nc_write_model_atts', 'LON long_name '//trim(filename))
    call nc_check(nf90_put_att(ncFileID,  VarID, 'cartesian_axis', 'X'),  &
@@ -856,6 +857,8 @@ else
    call nc_check(nf90_def_var(ncFileID,name='LAT', xtype=nf90_real, &
                  dimids=NLATDimID, varid=VarID),&
                  'nc_write_model_atts', 'LAT def_var '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID, VarID, 'type', 'y1d'),  &
+                 'nc_write_model_atts', 'LAT type '//trim(filename))
    call nc_check(nf90_put_att(ncFileID,  VarID, 'long_name', 'grid latitudes'), &
                  'nc_write_model_atts', 'LAT long_name '//trim(filename))
    call nc_check(nf90_put_att(ncFileID,  VarID, 'cartesian_axis', 'Y'),   &
@@ -923,13 +926,19 @@ else
    ! Fill the coordinate variables
    !----------------------------------------------------------------------------
 
-   call nc_check(nf90_put_var(ncFileID, LONVarID, LON ), &
+   call nc_check(NF90_inq_varid(ncFileID, 'LON', VarID), &
+                 'nc_write_model_atts', 'LON inq_varid '//trim(filename))
+   call nc_check(nf90_put_var(ncFileID, VarID, LON ), &
                 'nc_write_model_atts', 'LON put_var '//trim(filename))
 
-   call nc_check(nf90_put_var(ncFileID, LATVarID, LAT ), &
+   call nc_check(NF90_inq_varid(ncFileID, 'LAT', VarID), &
+                 'nc_write_model_atts', 'LAT inq_varid '//trim(filename))
+   call nc_check(nf90_put_var(ncFileID, VarID, LAT ), &
                 'nc_write_model_atts', 'LAT put_var '//trim(filename))
 
-   call nc_check(nf90_put_var(ncFileID, ALTVarID, ALT ), &
+   call nc_check(NF90_inq_varid(ncFileID, 'ALT', VarID), &
+                 'nc_write_model_atts', 'ALT inq_varid '//trim(filename))
+   call nc_check(nf90_put_var(ncFileID, VarID, ALT ), &
                 'nc_write_model_atts', 'ALT put_var '//trim(filename))
 
 endif
