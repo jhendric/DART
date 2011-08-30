@@ -431,7 +431,7 @@ allocate( ALT( NgridAlt ))
 call get_gitm_restart_dirname( dirname )
 
 call get_grid(dirname, nBlocksLon, nBlocksLat, &
-              NgridLon, NgridLat, NgridAlt, LON, LAT, ALT )
+              nLons, nLats, nAlts, LON, LAT, ALT )
               
 !---------------------------------------------------------------
 ! Compile the list of gitm variables to use in the creation
@@ -2180,9 +2180,9 @@ integer :: nb, offset, iunit, nboff
 character(len=128) :: filename
 real(r8), allocatable :: temp(:)
 
-! a temp array large enough to hold either the 
-! Lat or Lon array from a block plus ghost cells
-allocate(temp(-Nghost:max(nLons,nLats)+Nghost))
+! a temp array large enough to hold any of the 
+! Lon,Lat or Alt array from a block plus ghost cells
+allocate(temp(1-Nghost:max(nLons,nLats,nAlts)+Nghost))
 
 ! get the dirname, construct the filenames inside 
 
@@ -2191,7 +2191,7 @@ do nb = 1, nBlocksLon
 
    iunit = open_block_file(dirname, nb)
 
-   read(iunit) temp(-Nghost:nLons+Nghost)
+   read(iunit) temp(1-Nghost:nLons+Nghost)
 
    offset = (nLons * (nb - 1)) 
    LON(offset+1:offset+nLons) = temp(1:nLons)
@@ -2202,15 +2202,15 @@ enddo
 ! go up west-most block row picking up all latitudes
 do nb = 1, nBlocksLat
 
-   nboff = nb * nBlocksLon
+   nboff = ((nb - 1) * nBlocksLon) + 1
    iunit = open_block_file(dirname, nboff)
 
    ! get past lon array and read in lats
-   read(iunit) temp(-Nghost:nLons+Nghost)
+   read(iunit) temp(1-Nghost:nLons+Nghost)
 
-   read(iunit) temp(-Nghost:nLats+Nghost)
+   read(iunit) temp(1-Nghost:nLats+Nghost)
 
-   offset = (nLats * (nboff - 1)) 
+   offset = (nLats * (nb - 1)) 
    LAT(offset+1:offset+nLats) = temp(1:nLats)
 
    call close_file(iunit)
@@ -2223,15 +2223,25 @@ enddo
 iunit = open_block_file(dirname, 1)
 
 ! get past lon and lat arrays and read in alt array
-read(iunit) temp(-Nghost:nLons+Nghost)
-read(iunit) temp(-Nghost:nLats+Nghost)
-read(iunit) temp(-Nghost:nAlts+Nghost)
+read(iunit) temp(1-Nghost:nLons+Nghost)
+read(iunit) temp(1-Nghost:nLats+Nghost)
+read(iunit) temp(1-Nghost:nAlts+Nghost)
 
 ALT(1:nAlts) = temp(1:nAlts)
 
 call close_file(iunit)
 
 deallocate(temp)
+
+! convert from radians into degrees
+LON = LON * rad2deg
+LAT = LAT * rad2deg
+
+if (debug > 4) then
+   print *, 'All LONs ', LON
+   print *, 'All LATs ', LAT
+   print *, 'All ALTs ', ALT
+endif
 
 if ( debug > 1 ) then ! A little sanity check
    write(*,*)'LON range ',minval(LON),maxval(LON)
