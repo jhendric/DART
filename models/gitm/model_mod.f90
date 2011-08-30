@@ -38,11 +38,12 @@ use    utilities_mod, only : register_module, error_handler,                   &
                              open_file, file_exist, find_textfile_dims,        &
                              file_to_text, close_file
 
-use     obs_kind_mod, only : KIND_TEMPERATURE,   &
-                             KIND_DENSITY,   &
-                             KIND_VELOCITY,  &
+use     obs_kind_mod, only : KIND_TEMPERATURE,        &
+                             KIND_DENSITY,            &
+                             KIND_VELOCITY,           &
                              paramname_length,        &
-                             get_raw_obs_kind_index
+                             get_raw_obs_kind_index,  &
+                             get_obs_kind_name
 
 use mpi_utilities_mod, only: my_task_id
 
@@ -229,6 +230,11 @@ END INTERFACE
 INTERFACE get_state_time
       MODULE PROCEDURE get_state_time_ncid
       MODULE PROCEDURE get_state_time_fname
+END INTERFACE
+
+INTERFACE get_index_range
+      MODULE PROCEDURE get_index_range_string
+      MODULE PROCEDURE get_index_range_int
 END INTERFACE
 
 contains
@@ -2236,6 +2242,7 @@ endif
 end subroutine get_grid
 
 
+!------------------------------------------------------------------
 
 
 function open_block_file(dirname, blocknum)
@@ -2259,6 +2266,8 @@ endif
 open_block_file = open_file(filename, 'unformatted', 'read')
 
 end function open_block_file
+
+
 
 
 function get_base_time_ncid( ncid )
@@ -2441,6 +2450,72 @@ get_state_time_fname = base_time + model_offset
 deallocate(mytimes)
 
 end function get_state_time_fname
+
+
+!------------------------------------------------------------------
+
+
+subroutine get_index_range_string(string,index1,indexN)
+!------------------------------------------------------------------
+! Determine where a particular DART kind (string) exists in the 
+! DART state vector.
+
+character(len=*), intent(in)  :: string
+integer,          intent(out) :: index1,indexN
+
+integer :: i
+
+index1 = 0
+indexN = 0
+
+write(*,*)'FIXME ... actually, just test get_index_range_string ... '
+
+FieldLoop : do i=1,nfields
+   if (progvar(i)%kind_string /= trim(string)) cycle FieldLoop
+   index1 = progvar(i)%index1
+   indexN = progvar(i)%indexN
+   exit FieldLoop
+enddo FieldLoop
+
+if ((index1 == 0) .or. (indexN == 0)) then
+   write(string1,*) 'Problem, cannot find indices for '//trim(string)
+   call error_handler(E_ERR,'get_index_range_string',string1,source,revision,revdate)
+endif
+end subroutine get_index_range_string
+
+
+subroutine get_index_range_int(dartkind,index1,indexN)
+!------------------------------------------------------------------
+! Determine where a particular DART kind (integer) exists in the 
+! DART state vector.
+
+integer, intent(in) :: dartkind
+integer, intent(out) :: index1,indexN
+
+integer :: i
+character(len=paramname_length) :: string
+
+index1 = 0
+indexN = 0
+
+write(*,*)'FIXME ... actually, just test get_index_range_int ... '
+
+FieldLoop : do i=1,nfields
+   if (progvar(i)%dart_kind /= dartkind) cycle FieldLoop
+   index1 = progvar(i)%index1
+   indexN = progvar(i)%indexN
+   exit FieldLoop
+enddo FieldLoop
+
+! FIXME ... question for Nancy, this is the string of interest, correct?
+string = get_obs_kind_name(dartkind)
+
+if ((index1 == 0) .or. (indexN == 0)) then
+   write(string1,*) 'Problem, cannot find indices for kind ',dartkind,trim(string)
+   call error_handler(E_ERR,'get_index_range_int',string1,source,revision,revdate)
+endif
+
+end subroutine get_index_range_int
 
 
 !------------------------------------------------------------------
@@ -2643,232 +2718,6 @@ function find_index(x, xa, n)
 
 return
 end function find_index
-
-
-!###########################################################################
-!
-!     ##################################################################
-!     ######                                                      ######
-!     ######             REAL FUNCTION LINTERP_1D                 ######
-!     ######                                                      ######
-!     ##################################################################
-!
-!     PURPOSE:
-!
-!############################################################################
-!
-!     Author:  Lou Wicker for DART interp
-!
-!############################################################################
-
-function linterp1D(x, x0, x1, y0, y1)
-
-  real(r8)             :: linterp1D
-  real(r8), intent(in) :: x, x0, x1, y0, y1
-  
-  real(r8) :: f
-  
-  f = (x1 - x) / (x1 - x0)
-  
-  IF( f < 0.0_r8 ) THEN
-    write(*,*) "LINTERP ERROR, X outside X0->X1:  x/x0/x1", x, x0, x1
-    linterp1d = -999.0_r8
-    return
-  ENDIF
-  
-  linterp1d = y0*f + (1.0_r8-f)*y1
-  
-return
-end function linterp1D
-
-
-!############################################################################
-!
-!     ##################################################################
-!     ######                                                      ######
-!     ######                   SUBROUTINE LL_TO_XY                ######
-!     ######                                                      ######
-!     ##################################################################
-!
-!
-!     PURPOSE:
-!
-!     This subroutine computes the projected (x, y) coordinates of the
-!     point (lat2, lon2) relative to (lat1, lon1).
-!
-!############################################################################
-!
-!     Author:  David Dowell
-!
-!     Creation Date:  25 February 2005
-!     Modified:  August 2010:  Number of mods to add optional arg to convert 
-!                from and to degrees for input/output, and some a check
-!                to see if the inputs are in degrees (Lou Wicker)
-!
-!                Note, the automatic checks will FAIL with small latitudes
-!                or longitudes - we cannot differntiate between deg and rad
-!                
-!############################################################################
-
-  subroutine ll_to_xy(x, y, map_proj, lat1, lon1, lat2, lon2, degrees)
-
-! Passed variables
-
-    real(r8),     intent(out)     :: x, y           ! distance (m)  RETURNED FIELDS
-    real(r8),     intent(in)      :: lat1, lon1     ! coordinates of first point (in deg or radians)
-    real(r8),     intent(in)      :: lat2, lon2     ! coordinates of second point (in deg or radians)
-    integer ,     intent(in)      :: map_proj       ! map projection:
-                                                    !   0 = flat earth
-                                                    !   1 = oblique azimuthal (not supported)
-                                                    !   2 = Lambert conformal (not supported)
-
-    logical, intent(in), optional :: degrees        ! If lat/lon inputs are in degrees, convert to radians
-
-! Local variables
-
-    real(r8)      :: llat1, llon1     ! local coordinates of first point (in radians)
-    real(r8)      :: llat2, llon2     ! local coordinates of second point (in radians)
-    real(r8)      :: llon1p, llon2p   ! local positive longitudes (in radians)
-
-! In case they are already in radians..
-
-    llat1 = lat1
-    llat2 = lat2 
-    llon1 = lon1 
-    llon2 = lon2 
-
-! If not, check things
-
-    IF( present(degrees) ) THEN
-      IF( degrees ) THEN
-       llat1 = lat1 * deg2rad
-       llat2 = lat2 * deg2rad
-       llon1 = lon1 * deg2rad
-       llon2 = lon2 * deg2rad
-      ENDIF
-     ELSE
-! Try and be smart, in case user is stupid (like me!) - Note, this check will not work with lats ~ equator,
-! nor lons near in western Europe, or mid-Pacific
-
-      IF( abs(llat1) >  2.0_r8*PI ) llat1 = llat1 * deg2rad
-      IF( abs(llat2) >  2.0_r8*PI ) llat2 = llat2 * deg2rad
-      IF( abs(llon1) >  2.0_r8*PI ) llon1 = llon1 * deg2rad
-      IF( abs(llon2) >  2.0_r8*PI ) llon2 = llon2 * deg2rad
-    ENDIF
-
-    if (llon1 < 0.0_r8) then
-      llon1p = llon1+2.0_r8*PI
-    else
-      llon1p = llon1
-    endif
-    if (llon2 < 0.0_r8) then
-      llon2p = llon2+2.0_r8*PI
-    else
-      llon2p = llon2
-    endif
-
-    if (map_proj == 0) then
-      x = rearth * cos(0.5_r8*(llat1+llat2)) * (llon2p-llon1p)
-      y = rearth * (llat2-llat1)
-    else
-       write(string1,*) 'Requested map projection unavailable: ', map_proj
-       call error_handler(E_ERR,'ll_to_xy',string1,source,revision,revdate)
-    endif
-
-  return
-  end subroutine ll_to_xy
-
-
-!############################################################################
-!
-!     ##################################################################
-!     ######                                                                                                                              ######
-!     ######                  SUBROUTINE XY_TO_LL                 ######
-!     ######                                                                                                                              ######
-!     ##################################################################
-!
-!
-!     PURPOSE:
-!
-!     This subroutine computes the projected (lat, lon) coordinates of the
-!     point (x, y) relative to (lat0, lon0).  Various map projections
-!     are possible.
-!
-!############################################################################
-!
-!     Author:  David Dowell
-!
-!     Creation Date:  25 February 2005
-!     Modified:  August 2010:  Number of mods to add optional arg to convert 
-!                from and to degrees for input/output, and some a check
-!                to see if the inputs are in degrees - outputs are then
-!                automatically converted back.  (Lou Wicker)
-!
-!                Note, the automatic checks will FAIL with small latitudes
-!                or longitudes - we cannot differntiate between deg and rad
-!############################################################################
-
-  subroutine xy_to_ll(lat, lon, map_proj, x, y, lat1, lon1, degrees)
-    
-! Passed variables
-  
-    real(r8),     intent(in)     :: x, y         ! distance (in meters) of point
-    real(r8),     intent(out)    :: lat, lon     ! coordinates of first point (in deg or radians)
-    real(r8),     intent(in)     :: lat1, lon1   ! coordinates of second point (in deg or radians)
-    integer ,     intent(in)     :: map_proj     ! map projection:
-                                                 !   0 = flat earth
-                                                 !   1 = oblique azimuthal (not supported)
-                                                 !   2 = Lambert conformal (not supported)
-                                
-    logical, intent(in), optional :: degrees     ! If TRUE and lat/lon inputs are in degrees, return degrees
-
-! Local variables
-
-    real(r8)      :: llat1, llon1     ! local coordinates of reference lat/lon (in radians)
-
-! In case they are already in radians..
-
-    llat1 = lat1
-    llon1 = lon1 
-
-! If not, check things
-
-    IF( present(degrees) ) THEN
-      IF( degrees ) THEN
-       llat1 = lat1 * deg2rad
-       llon1 = lon1 * deg2rad
-      ENDIF
-    ENDIF
-
-! Try and be smart, in case user is stupid (like me!) - Note, this check will not work with lats ~ equator,
-! nor lons near in western Europe, or mid-Pacific
-
-   IF ( .not. present(degrees) ) THEN
-    IF( abs(llat1) .gt. 2.0_r8*PI ) llat1 = llat1 * deg2rad
-    IF( abs(llon1) .gt. 2.0_r8*PI ) llon1 = llon1 * deg2rad
-   ENDIF
-   
-    IF (map_proj.eq.0) THEN
-      lat = llat1 + y / rearth
-      lon = llon1 + x / ( rearth * cos(0.5_r8*(llat1+lat)) )
-    ELSE
-      write(string1,*) 'Requested map projection unavailable: ', map_proj
-      call error_handler(E_ERR,'xy_to_ll',string1,source,revision,revdate)
-    ENDIF
-
-    IF( present(degrees) ) THEN      ! USER said convert them back to degrees
-      IF( degrees ) THEN
-       lat = lat * rad2deg ! / deg2rad
-       lon = lon * rad2deg ! / deg2rad
-      ENDIF
-    ENDIF
-
-   IF ( .not. present(degrees) ) THEN
-    IF( abs(lat1) > 2.0_r8*PI ) lat = lat * rad2deg ! / deg2rad   ! User inputs were in degrees (we think)
-    IF( abs(lon1) > 2.0_r8*PI ) lon = lon * rad2deg ! / deg2rad
-   ENDIF
-  return
-  end subroutine xy_to_ll
 
 
 
