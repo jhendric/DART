@@ -149,7 +149,7 @@
    model_perturbation_amplitude = 0.2,
    output_state_vector          = .false.,
    calendar                     = 'Gregorian',
-   debug                        = 0,
+   debug                        = 9,
   /
 
 # The list of variables to assimilate is contained in a separate file

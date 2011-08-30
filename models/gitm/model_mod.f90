@@ -126,19 +126,19 @@ namelist /model_nml/  &
 !
 !  The DART state vector may consist of things like:  
 !
-!  U    long_name = "X-WIND COMPONENT"      float   U(TIME, ZC, YC, XE) 
-!  V    long_name = "Y-WIND COMPONENT"      float   V(TIME, ZC, YE, XC)
-!  W    long_name = "Z-WIND COMPONENT"      float   W(TIME, ZE, YC, XC)
-!  TH   long_name = "POTENTIAL TEMPERATURE" float  TH(TIME, ZC, YC, XC)
-!  DBZ  long_name = "RADAR REFLECTIVITY"    float DBZ(TIME, ZC, YC, XC)
-!  WZ   long_name = "VERTICAL VORTICITY"    float  WZ(TIME, ZC, YC, XC)
-!  PI   long_name = "PERT. EXNER"	    float  PI(TIME, ZC, YC, XC)
-!  QV   long_name = "VAPOR MIXING RATIO"    float  QV(TIME, ZC, YC, XC)
-!  QC   long_name = "CLOUD MIXING RATIO"    float  QC(TIME, ZC, YC, XC)
-!  QR   long_name = "RAIN MIXING RATIO"     float  QR(TIME, ZC, YC, XC)
-!  QI   long_name = "ICE MIXING RATIO"      float  QI(TIME, ZC, YC, XC)
-!  QS   long_name = "SNOW MIXING RATIO"     float  QS(TIME, ZC, YC, XC)
-!  QH   long_name = "GRAUPEL MIXING RATIO"  float  QH(TIME, ZC, YC, XC)
+!  U    long_name = "X-WIND COMPONENT"      float   U(TIME, ALT, LAT, XE) 
+!  V    long_name = "Y-WIND COMPONENT"      float   V(TIME, ALT, YE, LON)
+!  W    long_name = "Z-WIND COMPONENT"      float   W(TIME, ZE, LAT, LON)
+!  TH   long_name = "POTENTIAL TEMPERATURE" float  TH(TIME, ALT, LAT, LON)
+!  DBZ  long_name = "RADAR REFLECTIVITY"    float DBZ(TIME, ALT, LAT, LON)
+!  WZ   long_name = "VERTICAL VORTICITY"    float  WZ(TIME, ALT, LAT, LON)
+!  PI   long_name = "PERT. EXNER"	    float  PI(TIME, ALT, LAT, LON)
+!  QV   long_name = "VAPOR MIXING RATIO"    float  QV(TIME, ALT, LAT, LON)
+!  QC   long_name = "CLOUD MIXING RATIO"    float  QC(TIME, ALT, LAT, LON)
+!  QR   long_name = "RAIN MIXING RATIO"     float  QR(TIME, ALT, LAT, LON)
+!  QI   long_name = "ICE MIXING RATIO"      float  QI(TIME, ALT, LAT, LON)
+!  QS   long_name = "SNOW MIXING RATIO"     float  QS(TIME, ALT, LAT, LON)
+!  QH   long_name = "GRAUPEL MIXING RATIO"  float  QH(TIME, ALT, LAT, LON)
 !
 !  The variables in the gitm restart file that are used to create the 
 !  DART state vector are specified in the input.nml:gitm_vars_nml namelist.
@@ -186,11 +186,13 @@ real(digits12), parameter :: rearth=1000.0_digits12 * 6367.0_digits12 ! radius o
 ! since the latitudes/longitudes are at cell centers, 
 ! while the edges are at the boundaries." -- Aaron Ridley
 
-integer :: nxc=-1, nyc=-1, nzc=-1    ! scalar grid positions
+integer :: NgridLon=-1, NgridLat=-1, NgridAlt=-1    ! scalar grid positions
 
-real(r8), allocatable :: XC(:)   ! longitude centers
-real(r8), allocatable :: YC(:)   ! latitude  centers
-real(r8), allocatable :: ZC(:)   ! vertical level centers
+! scalar grid positions
+
+real(r8), allocatable :: LON(:)   ! longitude centers
+real(r8), allocatable :: LAT(:)   ! latitude  centers
+real(r8), allocatable :: ALT(:)   ! vertical level centers
 
 integer               :: model_size      ! the state vector length
 type(time_type)       :: model_time      ! valid time of the model state
@@ -314,7 +316,7 @@ lon_index = -1  ! FIXME
 lat_index = -1  ! FIXME
 alt_index = -1  ! FIXME
 
-location = set_location(xc(lon_index), yc(lat_index), zc(alt_index), VERTISHEIGHT)
+location = set_location(LON(lon_index), LAT(lat_index), ALT(alt_index), VERTISHEIGHT)
   
 if (present(var_type)) then
    var_type = progvar(nf)%dart_kind
@@ -360,6 +362,9 @@ integer :: ss, dd
 integer :: nDimensions, nVariables, nAttributes, unlimitedDimID, TimeDimID
 logical :: shapeok
 
+integer  :: nBlocksLon, nBlocksLat
+real(r8) :: LatStart, LatEnd, LonStart
+
 if ( module_initialized ) return ! only need to do this once.
 
 ! Print module information to log file and stdout.
@@ -401,20 +406,19 @@ call error_handler(E_MSG,'static_init_model',string1,source,revision,revdate)
 !---------------------------------------------------------------
 ! 1) get grid dimensions
 ! 2) allocate space for the grids 
-! 3) FIXME ... compute them ... read them from the block restart files
-!    could be stretched ...
+! 3) read them from the block restart files, could be stretched ...
 
-call get_grid_dims(nxc, nyc, nzc )
+call get_grid_info(NgridLon, NgridLat, NgridAlt, nBlocksLon, nBlocksLat, LatStart, LatEnd, LonStart)
 
 if( debug  > 0 ) then
-   write(*,*)'grid dims are ',nxc,nyc,nzc
+   write(*,*)'grid dims are ',NgridLon,NgridLat,NgridAlt
 endif
 
-allocate(  XC( nxc ))
-allocate(  YC( nyc ))
-allocate(  ZC( nzc ))
+allocate( LON( NgridLon ))
+allocate( LAT( NgridLat ))
+allocate( ALT( NgridAlt ))
 
-CALL GET_GRID(nxc, nyc, nzc, XC, YC, ZC )
+CALL GET_GRID(NgridLon, NgridLat, NgridAlt, LON, LAT, ALT )
               
 !---------------------------------------------------------------
 ! Compile the list of gitm variables to use in the creation
@@ -561,8 +565,8 @@ call nc_check( nf90_close(ncid), &
 model_size = progvar(nfields)%indexN
 
 if ( debug > 0 ) then
-  write(logfileunit,'("grid: nxc, nyc, nzc =",3(1x,i5))') nxc, nyc, nzc
-  write(     *     ,'("grid: nxc, nyc, nzc =",3(1x,i5))') nxc, nyc, nzc
+  write(logfileunit,'("grid: NgridLon, NgridLat, NgridAlt =",3(1x,i5))') NgridLon, NgridLat, NgridAlt
+  write(     *     ,'("grid: NgridLon, NgridLat, NgridAlt =",3(1x,i5))') NgridLon, NgridLat, NgridAlt
   write(logfileunit, *)'model_size = ', model_size
   write(     *     , *)'model_size = ', model_size
 endif
@@ -581,7 +585,7 @@ subroutine end_model()
 
 ! if ( .not. module_initialized ) call static_init_model
 
-deallocate(XC, YC, ZC)
+deallocate(LON, LAT, ALT)
 
 end subroutine end_model
 
@@ -671,9 +675,9 @@ integer :: StateVarID      ! netCDF pointer to 3D [state,copy,time] array
 !----------------------------------------------------------------------
 
 ! for the dimensions and coordinate variables
-integer :: NxcDimID, XCVarID
-integer :: NycDimID, YCVarID
-integer :: NzcDimID, ZCVarID
+integer :: NLONDimID, LONVarID
+integer :: NLATDimID, LATVarID
+integer :: NALTDimID, ALTVarID
 
 ! for the prognostic variables
 integer :: ivar, VarID
@@ -846,14 +850,14 @@ else
    ! Define the new dimensions IDs
    !----------------------------------------------------------------------------
    
-   call nc_check(nf90_def_dim(ncid=ncFileID, name='XC', &
-          len = nxc, dimid = NxcDimID),'nc_write_model_atts', 'xc def_dim '//trim(filename))
+   call nc_check(nf90_def_dim(ncid=ncFileID, name='LON', &
+          len = NgridLon, dimid = NLONDimID),'nc_write_model_atts', 'LON def_dim '//trim(filename))
 
-   call nc_check(nf90_def_dim(ncid=ncFileID, name='YC', &
-          len = nyc, dimid = NycDimID),'nc_write_model_atts', 'yc def_dim '//trim(filename))
+   call nc_check(nf90_def_dim(ncid=ncFileID, name='LAT', &
+          len = NgridLat, dimid = NLATDimID),'nc_write_model_atts', 'LAT def_dim '//trim(filename))
 
-   call nc_check(nf90_def_dim(ncid=ncFileID, name='ZC', &
-          len = nzc, dimid = NzcDimID),'nc_write_model_atts', 'zc def_dim '//trim(filename))
+   call nc_check(nf90_def_dim(ncid=ncFileID, name='ALT', &
+          len = NgridAlt, dimid = NALTDimID),'nc_write_model_atts', 'ALT def_dim '//trim(filename))
 
    !----------------------------------------------------------------------------
    ! Create the (empty) Coordinate Variables and the Attributes
@@ -861,7 +865,7 @@ else
 
    ! Grid Longitudes
    call nc_check(nf90_def_var(ncFileID,name='LON', xtype=nf90_real, &
-                 dimids=NxcDimID, varid=VarID),&
+                 dimids=NLONDimID, varid=VarID),&
                  'nc_write_model_atts', 'LON def_var '//trim(filename))
    call nc_check(nf90_put_att(ncFileID,  VarID, 'long_name', 'grid longitudes'), &
                  'nc_write_model_atts', 'LON long_name '//trim(filename))
@@ -874,7 +878,7 @@ else
 
    ! Grid Latitudes
    call nc_check(nf90_def_var(ncFileID,name='LAT', xtype=nf90_real, &
-                 dimids=NycDimID, varid=VarID),&
+                 dimids=NLATDimID, varid=VarID),&
                  'nc_write_model_atts', 'LAT def_var '//trim(filename))
    call nc_check(nf90_put_att(ncFileID,  VarID, 'long_name', 'grid latitudes'), &
                  'nc_write_model_atts', 'LAT long_name '//trim(filename))
@@ -887,7 +891,7 @@ else
 
    ! Grid Altitudes
    call nc_check(nf90_def_var(ncFileID,name='ALT',xtype=nf90_real, &
-                 dimids=NzcDimID,varid=VarID), &
+                 dimids=NALTDimID,varid=VarID), &
                  'nc_write_model_atts', 'ALT def_var '//trim(filename))
    call nc_check(nf90_put_att(ncFileID, VarID, 'type', 'z1d'),  &
                  'nc_write_model_atts', 'ALT type '//trim(filename))
@@ -912,7 +916,7 @@ else
       ! match shape of the variable to the dimension IDs
 
       call define_var_dims(progvar(ivar), myndims, mydimids, MemberDimID, unlimitedDimID, &
-                      NxcDimID, NycDimID, NzcDimID, nxc, nyc, nzc)
+                      NLONDimID, NLATDimID, NALTDimID, NgridLon, NgridLat, NgridAlt)
 
       ! define the variable and set the attributes
 
@@ -943,14 +947,14 @@ else
    ! Fill the coordinate variables
    !----------------------------------------------------------------------------
 
-   call nc_check(nf90_put_var(ncFileID, XCVarID, XC ), &
-                'nc_write_model_atts', 'XC put_var '//trim(filename))
+   call nc_check(nf90_put_var(ncFileID, LONVarID, LON ), &
+                'nc_write_model_atts', 'LON put_var '//trim(filename))
 
-   call nc_check(nf90_put_var(ncFileID, YCVarID, YC ), &
-                'nc_write_model_atts', 'YC put_var '//trim(filename))
+   call nc_check(nf90_put_var(ncFileID, LATVarID, LAT ), &
+                'nc_write_model_atts', 'LAT put_var '//trim(filename))
 
-   call nc_check(nf90_put_var(ncFileID, ZCVarID, ZC ), &
-                'nc_write_model_atts', 'ZC put_var '//trim(filename))
+   call nc_check(nf90_put_var(ncFileID, ALTVarID, ALT ), &
+                'nc_write_model_atts', 'ALT put_var '//trim(filename))
 
 endif
 
@@ -1343,17 +1347,17 @@ end subroutine ens_mean_for_model
 
 
 
-subroutine get_gridsize(num_xc, num_xe, num_yc, num_ye, num_zc, num_ze )
- integer, intent(out) :: num_xc, num_yc, num_zc
+subroutine get_gridsize(num_LON, num_xe, num_LAT, num_ye, num_ALT, num_ze )
+ integer, intent(out) :: num_LON, num_LAT, num_ALT
  integer, intent(out) :: num_xe, num_ye, num_ze
 !------------------------------------------------------------------
 ! public utility routine.
 
 if ( .not. module_initialized ) call static_init_model
 
- num_xc = nxc
- num_yc = nyc
- num_zc = nzc
+ num_LON = NgridLon
+ num_LAT = NgridLat
+ num_ALT = NgridAlt
 
 end subroutine get_gridsize
 
@@ -1766,9 +1770,9 @@ end subroutine sv_to_restart_file
 !     
 !     Variables needed to be stored in the MODEL_MODULE data structure
 !
-!       XE, XC   = 1D arrays storing the local grid edge and center coords (meters)
-!       YE, YC   = 1D arrays storing the local grid edge and center coords (meters)
-!       ZE, ZC   = 1D arrays storing the local grid edge and center coords (meters)
+!       XE, LON   = 1D arrays storing the local grid edge and center coords (meters)
+!       YE, LAT   = 1D arrays storing the local grid edge and center coords (meters)
+!       ZE, ALT   = 1D arrays storing the local grid edge and center coords (meters)
 !
 !       ERROR codes:
 !
@@ -1776,11 +1780,11 @@ end subroutine sv_to_restart_file
 !       ISTATUS = 15:  dont know what to do with vertical coord supplied
 !       ISTATUS = 16:  Obs_type is not found
 !       ISTATUS = 11:  index from from xi is outside domain WRT XE
-!       ISTATUS = 12:  index from from xi is outside domain WRT XC
+!       ISTATUS = 12:  index from from xi is outside domain WRT LON
 !       ISTATUS = 21:  index from from yi is outside domain WRT YE
-!       ISTATUS = 22:  index from from yi is outside domain WRT YC
+!       ISTATUS = 22:  index from from yi is outside domain WRT LAT
 !       ISTATUS = 31:  index from from zi is outside domain WRT ZE
-!       ISTATUS = 32:  index from from zi is outside domain WRT ZC
+!       ISTATUS = 32:  index from from zi is outside domain WRT ALT
 !       ISTATUS = 33:  index from location(3) is not bounded by 1 --> nz-1
 !       
 !
@@ -1833,11 +1837,11 @@ subroutine model_interpolate(x, location, obs_type, interp_val, istatus)
   ELSEIF (vert_is_level(location)) THEN      ! convert the level index to an actual height
                                              ! This code is wrong (I think) if variable == "W"
      kloc = nint(loc_array(3))
-     IF( (kloc < 1) .or. (kloc > size(zc)) ) THEN 
+     IF( (kloc < 1) .or. (kloc > size(ALT)) ) THEN 
         istatus = 33
         return
      ELSE
-        lheight = zc(kloc)
+        lheight = ALT(kloc)
      ENDIF
   ELSE   ! if we don't know what to do
      istatus = 15
@@ -2045,16 +2049,19 @@ end subroutine vector_to_4d_prog_var
 !------------------------------------------------------------------
 
 
-subroutine get_grid_dims(NXC, NYC, NZC)
+subroutine get_grid_info(NgridLon, NgridLat, NgridAlt, &
+                nBlocksLon, nBlocksLat, LatStart, LatEnd, LonStart)
 !------------------------------------------------------------------
 !
 ! Read the grid dimensions from the restart netcdf file.
 !
 ! The file name comes from module storage ... namelist.
 
-integer, intent(out) :: NXC   ! Number of Longitude centers
-integer, intent(out) :: NYC   ! Number of Latitude  centers
-integer, intent(out) :: NZC   ! Number of Vertical grid centers
+integer,  intent(out) :: NgridLon   ! Number of Longitude centers
+integer,  intent(out) :: NgridLat   ! Number of Latitude  centers
+integer,  intent(out) :: NgridAlt   ! Number of Vertical grid centers
+integer,  intent(out) :: nBlocksLon, nBlocksLat
+real(r8), intent(out) :: LatStart, LatEnd, LonStart
 
 integer :: grid_id, dimid
 character(len=paramname_length) :: filename = 'UAM.in'
@@ -2062,8 +2069,6 @@ character(len=paramname_length) :: filename = 'UAM.in'
 character(len=100) :: cLine  ! iCharLen_ == 100
 
 integer :: i, iunit, ios
-integer :: nBlocksLon, nBlocksLat
-real(r8) :: LatStart, LatEnd, LonStart
 
 if ( .not. module_initialized ) call static_init_model
 
@@ -2077,7 +2082,7 @@ LonStart   = 0.0_r8
 
 if ( .not. file_exist(filename) ) then
    write(string1,*) 'cannot open ',trim(filename),' for reading.'
-   call error_handler(E_ERR,'get_grid_dims',string1,source,revision,revdate)
+   call error_handler(E_ERR,'get_grid_info',string1,source,revision,revdate)
 endif
 
 iunit = open_file(filename, action='read')
@@ -2088,7 +2093,7 @@ UAMREAD : do i = 1, 1000000
 
    if (ios /= 0) then
       write(string1,*) 'cannot find #GRID in ',trim(filename)
-      call error_handler(E_ERR,'get_grid_dims',string1,source,revision,revdate)
+      call error_handler(E_ERR,'get_grid_info',string1,source,revision,revdate)
    endif
 
    if (cLine(1:5) .ne. "#GRID") cycle UAMREAD
@@ -2103,40 +2108,37 @@ UAMREAD : do i = 1, 1000000
 
 enddo UAMREAD
 
-NXC = nBlocksLon * nLons
-NYC = nBlocksLat * nLats
-NZC = nAlts
+NgridLon = nBlocksLon * nLons
+NgridLat = nBlocksLat * nLats
+NgridAlt = nAlts
 
-end subroutine get_grid_dims
+end subroutine get_grid_info
 
 
 !------------------------------------------------------------------
 
 
-subroutine get_grid(nxc, nyc, nzc, xc, yc, zc)
+subroutine get_grid(NgridLon, NgridLat, NgridAlt, LON, LAT, ALT)
 !------------------------------------------------------------------
 !
 ! Read the grid dimensions from the restart netcdf file.
 !
 ! The file name comes from module storage ... namelist.
 
-integer, intent(in) :: NXC   ! Number of Longitude centers
-integer, intent(in) :: NYC   ! Number of Latitude  centers
-integer, intent(in) :: NZC   ! Number of Vertical grid centers
+integer, intent(in) :: NgridLon   ! Number of Longitude centers
+integer, intent(in) :: NgridLat   ! Number of Latitude  centers
+integer, intent(in) :: NgridAlt   ! Number of Vertical grid centers
 
-real(r8), dimension( : ), intent(out) :: XC, YC, ZC
+real(r8), dimension( : ), intent(out) :: LON, LAT, ALT
 
 integer  :: i,j
-real(r8) :: x,y,lat,lon
-
 
 ! fixme 
 
-
 if ( debug > 1 ) then ! A little sanity check
-   write(*,*)'xc range ',minval(xc),maxval(xc)
-   write(*,*)'yc range ',minval(yc),maxval(yc)
-   write(*,*)'zc range ',minval(zc),maxval(zc)
+   write(*,*)'LON range ',minval(LON),maxval(LON)
+   write(*,*)'LAT range ',minval(LAT),maxval(LAT)
+   write(*,*)'ALT range ',minval(ALT),maxval(ALT)
 endif
 
 end subroutine get_grid
@@ -2758,23 +2760,23 @@ end function linterp1D
 
 
 subroutine define_var_dims(myprogvar, ndims, dimids, memberdimid, unlimiteddimid, &
-                       nxcdimid, nycdimid, nzcdimid, nxc, nyc, nzc)
+                       nLONdimid, nLATdimid, nALTdimid, NgridLon, NgridLat, NgridAlt)
 
 type(progvartype),     intent(in)  :: myprogvar
 integer,               intent(out) :: ndims
 integer, dimension(:), intent(out) :: dimids
 integer,               intent(in)  :: memberdimid, unlimiteddimid
-integer,               intent(in)  :: nxcdimid, nycdimid, nzcdimid
-integer,               intent(in)  :: nxc, nyc, nzc
+integer,               intent(in)  :: nLONdimid, nLATdimid, nALTdimid
+integer,               intent(in)  :: NgridLon, NgridLat, NgridAlt
 
 select case( myprogvar%storder ) 
 case('xyz3d')
 
       ndims = 5
 
-      dimids(1) = nxcdimid
-      dimids(2) = nycdimid
-      dimids(3) = nzcdimid
+      dimids(1) = nLONdimid
+      dimids(2) = nLATdimid
+      dimids(3) = nALTdimid
       dimids(4) = memberdimid
       dimids(5) = unlimitedDimid
 
@@ -2782,8 +2784,8 @@ case('xy2d')
 
       ndims = 4
 
-      dimids(1) = nxcdimid
-      dimids(2) = nycdimid
+      dimids(1) = nLONdimid
+      dimids(2) = nLATdimid
       dimids(3) = memberdimid
       dimids(4) = unlimitedDimid
 
@@ -2791,7 +2793,7 @@ case('x1d')
 
       ndims = 3
 
-      dimids(1) = nxcdimid
+      dimids(1) = nLONdimid
       dimids(2) = memberdimid
       dimids(3) = unlimitedDimid
 
@@ -2799,7 +2801,7 @@ case('y1d')
 
       ndims = 3
 
-      dimids(1) = nycdimid
+      dimids(1) = nLATdimid
       dimids(2) = memberdimid
       dimids(3) = unlimitedDimid
 
@@ -2807,7 +2809,7 @@ case('z1d')
 
       ndims = 3
 
-      dimids(1) = nzcdimid
+      dimids(1) = nALTdimid
       dimids(2) = memberdimid
       dimids(3) = unlimitedDimid
 
