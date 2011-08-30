@@ -191,6 +191,7 @@ real(digits12), parameter :: rearth=1000.0_digits12 * 6367.0_digits12 ! radius o
 integer :: NgridLon=-1, NgridLat=-1, NgridAlt=-1    ! scalar grid counts
 integer :: nBlocksLon=-1, nBlocksLat=-1             ! number of blocks along each dim
 real(r8) :: LatStart=MISSING_R8, LatEnd=MISSING_R8, LonStart=MISSING_R8
+integer :: nSpeciesTotal=-1, nSpecies=-1, nIons=-1
 
 ! scalar grid positions
 
@@ -1340,8 +1341,7 @@ end subroutine get_gridsize
 !  2. the overall grid size, lon/lat/alt when you've read in all
 !  the blocks.  (nGridLon, nGridLat, nGridAlt, will compute totalVarSize)
 !
-!  3. the number of blocks in Lon and Lat
-!  (nBlocksLon, nBlocksLat, will compute nBlocksTotal)
+!  3. the number of blocks in Lon and Lat (nBlocksLon, nBlocksLat)
 !
 !  4. the number of lon/lats in a single grid block  (nLons, nLats, nAlts)
 !
@@ -1374,8 +1374,6 @@ type(time_type),  intent(out)   :: model_time
 ! for the single column model we might be able to still assume
 ! a 3d array with index values of (1,1,N)
 integer :: i, j, k, l, ni, nj, nk, nl, ivar, indx, nb, nblockstotal, iunit
-integer :: NgridLon, NgridLat, NgridAlt, nBlocksLon, nBlocksLat
-integer :: nSpeciesTotal, nSpecies, nIons
 real(r8) :: LatStart, LatEnd, LonStart
 character(len=NF90_MAX_NAME) :: varname
 character(len=128) :: myerrorstring
@@ -1416,6 +1414,8 @@ do ivar=1, nfields
    varname = trim(progvar(ivar)%varname)
    myerrorstring = trim(dirname)//' '//trim(varname)
 
+print *, 'in restart_file_to_sv, ivar = ', ivar
+print *, 'calling get_data'
    call get_data(dirname, varname, nBlocksLon, nBlocksLat,             &
                  nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies,  &
                  state_vector(progvar(ivar)%index1:progvar(ivar)%indexN))
@@ -2231,8 +2231,8 @@ integer, intent(in) :: NSpecies   ! Number of neutral species
 
 real(r8), dimension( : ), intent(inout) :: vardata
 
-integer :: nb, offset, iunit, nboff, nBlocksTotal, var
-integer :: i, j, k
+integer :: ib, jb, nb, offset, iunit, nboff, var
+integer :: i, j, k, blockoffset, pointoffset
 character(len=128) :: filename
 real(r8), allocatable :: temp1d(:), temp3d(:,:,:)
 
@@ -2243,32 +2243,49 @@ allocate(temp1d(1-nGhost:max(nLons,nLats,nAlts)+nGhost))
 allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
 
 var = 1   ! fixme:  string to var number
+print *, 'size of vardata = ', size(vardata)
 
-nBlocksTotal = nBlocksLon * nBlocksLat
 
 ! get the dirname, construct the filenames inside 
 
-do nb = 1, nBlocksTotal
+do jb = 1, nBlocksLat
+ do ib = 1, nBlocksLon
    
+print *, 'ib, jb = ', ib, jb
+   nb = (jb-1) * nBlocksLon + ib
+
+print *, 'opening restart file, nb = ', nb
    iunit = open_block_file(dirname, nb)
 
    call discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, var)
    read(iunit) temp3d
-
-print *, 'got to field, reading block ', nb
 print *, 'data is ', temp3d
 
-   offset = (nLons * (nb - 1)) 
-   !vardata(offset+1:offset+nLons) = temp3d(1:nLons) ! , 1:nLats, 1:nAlts))
+   blockoffset = nAlts * nBlocksLon * (jb-1) + &
+                 nAlts * (ib-1)
+
+print *, 'blockoffset = ', blockoffset
+
+   do k=1,nAlts
+   do j=1,nLats
+   do i=1,nLons
+
+      offset = ((k-1) * nLats * nLons) + ((j-1) * nLons) + i
+      vardata(blockoffset + offset) = temp3d(i, j, k)
+
+   enddo
+   enddo
+   enddo
 
    call close_file(iunit)
+ enddo
 enddo
 
 deallocate(temp1d, temp3d)
 
-if (debug > 4) then
-   print *, 'All data ', vardata
-endif
+!#if (debug > 4) then
+!#   print *, 'All data ', vardata
+!#endif
 
 if ( debug > 1 ) then ! A little sanity check
    write(*,*)'data range ',minval(vardata),maxval(vardata)
