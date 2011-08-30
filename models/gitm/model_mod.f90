@@ -1433,7 +1433,7 @@ do nb = 1, nBlocksTotal
 
    iunit = open_block_file(dirname, nb)
 
-   call close_unit(iunit)
+   call close_file(iunit)
 enddo
 
 !%! model_time = get_state_time(ncid, filename)
