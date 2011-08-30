@@ -83,11 +83,11 @@ public :: get_model_size,         &
 ! generally useful routines for various support purposes.
 ! the interfaces here can be changed as appropriate.
 
-public :: get_gridsize,                 &
-          restart_file_to_sv,           &
-          sv_to_restart_file,           &
-          get_gitm_restart_filename, &
-          get_base_time,                &
+public :: get_gridsize,              &
+          restart_file_to_sv,        &
+          sv_to_restart_file,        &
+          get_gitm_restart_dirname,  &
+          get_base_time,             &
           get_state_time
 
 ! version controlled file description for error handling, do not edit
@@ -112,9 +112,10 @@ real(r8)           :: model_perturbation_amplitude = 0.2
 logical            :: output_state_vector = .true.
 integer            :: debug = 0   ! turn up for more and more debug messages
 character(len=32)  :: calendar = 'Gregorian'
-character(len=256) :: gitm_restart_filename = 'gitm_restart.bin'
+character(len=256) :: gitm_restart_dirname = 'gitm_restartdir'
 
 namelist /model_nml/  &
+   gitm_restart_dirname,        &
    output_state_vector,         &
    assimilation_period_days,    &  ! for now, this is the timestep
    assimilation_period_seconds, &
@@ -364,6 +365,7 @@ logical :: shapeok
 
 integer  :: nBlocksLon, nBlocksLat
 real(r8) :: LatStart, LatEnd, LonStart
+character(len=128) :: dirname
 
 if ( module_initialized ) return ! only need to do this once.
 
@@ -408,7 +410,8 @@ call error_handler(E_MSG,'static_init_model',string1,source,revision,revdate)
 ! 2) allocate space for the grids 
 ! 3) read them from the block restart files, could be stretched ...
 
-call get_grid_info(NgridLon, NgridLat, NgridAlt, nBlocksLon, nBlocksLat, LatStart, LatEnd, LonStart)
+call get_grid_info(NgridLon, NgridLat, NgridAlt, nBlocksLon, nBlocksLat, &
+                   LatStart, LatEnd, LonStart)
 
 if( debug  > 0 ) then
    write(*,*)'grid dims are ',NgridLon,NgridLat,NgridAlt
@@ -417,8 +420,10 @@ endif
 allocate( LON( NgridLon ))
 allocate( LAT( NgridLat ))
 allocate( ALT( NgridAlt ))
+call get_gitm_restart_dirname( dirname )
 
-CALL GET_GRID(NgridLon, NgridLat, NgridAlt, LON, LAT, ALT )
+call get_grid(dirname, nBlocksLon, nBlocksLat, &
+              NgridLon, NgridLat, NgridAlt, LON, LAT, ALT )
               
 !---------------------------------------------------------------
 ! Compile the list of gitm variables to use in the creation
@@ -432,10 +437,10 @@ CALL GET_GRID(NgridLon, NgridLat, NgridAlt, LON, LAT, ALT )
 !
 ! Record the extent of the data type in the state vector.
 
-call nc_check( nf90_open(trim(gitm_restart_filename), NF90_NOWRITE, ncid), &
-                  'static_init_model', 'open '//trim(gitm_restart_filename))
+call nc_check( nf90_open(trim(gitm_restart_dirname), NF90_NOWRITE, ncid), &
+                  'static_init_model', 'open '//trim(gitm_restart_dirname))
 
-call verify_state_variables( gitm_state_variables, ncid, gitm_restart_filename, &
+call verify_state_variables( gitm_state_variables, ncid, gitm_restart_dirname, &
                              nfields, variable_table )
 
 TimeDimID = FindTimeDimension( ncid )
@@ -446,7 +451,7 @@ if (TimeDimID < 0 ) then
 endif
 
 call nc_check(nf90_Inquire(ncid,nDimensions,nVariables,nAttributes,unlimitedDimID), &
-                    'static_init_model', 'inquire '//trim(gitm_restart_filename))
+                    'static_init_model', 'inquire '//trim(gitm_restart_dirname))
 
 if ( (TimeDimID > 0) .and. (unlimitedDimID > 0) .and. (TimeDimID /= unlimitedDimID)) then
    write(string1,*)'IF TIME is not the unlimited dimension, I am lost.'
@@ -464,7 +469,7 @@ do ivar = 1, nfields
    progvar(ivar)%dart_kind   = get_raw_obs_kind_index( progvar(ivar)%kind_string ) 
    progvar(ivar)%dimlens     = 0
 
-   string2 = trim(gitm_restart_filename)//' '//trim(varname)
+   string2 = trim(gitm_restart_dirname)//' '//trim(varname)
 
    call nc_check(nf90_inq_varid(ncid, trim(varname), VarID), &
             'static_init_model', 'inq_varid '//trim(string2))
@@ -560,7 +565,7 @@ do ivar = 1, nfields
 enddo
 
 call nc_check( nf90_close(ncid), &
-                  'static_init_model', 'close '//trim(gitm_restart_filename))
+                  'static_init_model', 'close '//trim(gitm_restart_dirname))
 
 model_size = progvar(nfields)%indexN
 
@@ -2118,13 +2123,17 @@ end subroutine get_grid_info
 !------------------------------------------------------------------
 
 
-subroutine get_grid(NgridLon, NgridLat, NgridAlt, LON, LAT, ALT)
+subroutine get_grid(dirname, nBlocksLon, nBlocksLat, &
+                  NgridLon, NgridLat, NgridAlt, LON, LAT, ALT )
 !------------------------------------------------------------------
 !
 ! Read the grid dimensions from the restart netcdf file.
 !
 ! The file name comes from module storage ... namelist.
 
+character(len=*), intent(in) :: dirname
+integer, intent(in) :: nBlocksLon ! Number of Longitude blocks
+integer, intent(in) :: nBlocksLat ! Number of Latitude  blocks
 integer, intent(in) :: NgridLon   ! Number of Longitude centers
 integer, intent(in) :: NgridLat   ! Number of Latitude  centers
 integer, intent(in) :: NgridAlt   ! Number of Vertical grid centers
@@ -2350,15 +2359,15 @@ end function set_model_time_step
 !------------------------------------------------------------------
 
 
-subroutine get_gitm_restart_filename( filename )
+subroutine get_gitm_restart_dirname( dirname )
 
-character(len=*), intent(OUT) :: filename
+character(len=*), intent(OUT) :: dirname
 
 if ( .not. module_initialized ) call static_init_model
 
-filename = trim(gitm_restart_filename)
+dirname = trim(gitm_restart_dirname)
 
-end subroutine get_gitm_restart_filename
+end subroutine get_gitm_restart_dirname
 
 
 !------------------------------------------------------------------
