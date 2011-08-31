@@ -150,9 +150,6 @@ call aoutput_diagnostics(ncFileID, model_time, statevector, 1)
 
 call nc_check( finalize_diag_output(ncFileID), 'model_mod_check:main', 'finalize')
 
-write(*,*)'Manually Stopping'
-stop
-
 !----------------------------------------------------------------------
 ! Checking get_state_meta_data (and get_state_indices, get_state_kind)
 ! nx = 144; ny=72; nz=42; produce the expected values :
@@ -164,6 +161,9 @@ stop
 !----------------------------------------------------------------------
 
 if ( x_ind > 0 .and. x_ind <= x_size ) call check_meta_data( x_ind )
+
+write(*,*)'Manually Stopping'
+stop
 
 !----------------------------------------------------------------------
 ! Trying to find the state vector index closest to a particular ...

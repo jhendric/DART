@@ -296,6 +296,7 @@ end subroutine adv_1step
 
 
 subroutine get_state_meta_data(index_in, location, var_type)
+!------------------------------------------------------------------
 
 ! Passed variables
 
@@ -306,12 +307,11 @@ integer, optional, intent(out) :: var_type
 ! Local variables
 
 integer :: lat_index, lon_index, alt_index
-integer :: n, nf, myindx
+integer :: n, nf, myindx, remainder, remainder2
 
 if ( .not. module_initialized ) call static_init_model
- 
-! FIXME ... FIXME FIXME FIXME FIXME FIXME FIXME FIXME 
- 
+
+! Find out which of the 3D fields index_in is part of 
 nf     = -1
   
 FindIndex : do n = 1,nfields
@@ -327,9 +327,11 @@ if( myindx == -1 ) then
    call error_handler(E_ERR,'get_state_meta_data',string1,source,revision,revdate)
 endif
   
-lon_index = -1  ! FIXME
-lat_index = -1  ! FIXME
-alt_index = -1  ! FIXME
+alt_index = 1 + (myindx - 1) / (NgridLon * NgridLat)
+remainder = myindx - (alt_index-1) * NgridLon * NgridLat
+lat_index = 1 + (remainder - 1) / NgridLon
+remainder2 = remainder - (lat_index - 1) * NgridLon
+lon_index = remainder2
 
 location = set_location(LON(lon_index), LAT(lat_index), ALT(alt_index), VERTISHEIGHT)
   
