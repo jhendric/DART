@@ -1665,7 +1665,7 @@ if(llon < 0.0_r8 .or. llon > 360.0_r8) then
 endif
 
 ! Look for case where longitude is less than smallest in list
-if(llon < LON(1)) then
+if(llon <= LON(1)) then
    lower = NgridLon
    upper = 1
    width = 360.0_r8 - LON(NgridLon) + LON(1)
@@ -1675,7 +1675,7 @@ if(llon < LON(1)) then
 endif
 
 ! Look for case where longitude is greater than largest in list
-if(llon > LON(NgridLon)) then
+if(llon >= LON(NgridLon)) then
   lower = NgridLon
   upper = 1
   width = 360.0 - LON(NgridLon) + LON(1)
@@ -1728,7 +1728,7 @@ if(llat < bounds(1) .or. llat > bounds(nbounds)) then
 endif
 
 do i = 2, nbounds
-   if(llat < bounds(i)) then
+   if(llat <= bounds(i)) then
       lower = i - 1
       upper = i
       fract = (llat - bounds(i-1)) / (bounds(i) - bounds(i - 1))
