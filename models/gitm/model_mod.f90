@@ -2126,9 +2126,8 @@ print *, 'opening restart file, nb = ', nb
    read(iunit) temp3d
 print *, 'first 4 data are ', temp3d(1:4,1,1)
 
-   !blockoffset = blocksize * nBlocksLon * (jb-1) + &
-   !              blocksize * (ib-1)
-   blockoffset = (ib-1) * nLons
+   blockoffset = nLats * nBlocksLon * (jb-1) + &
+                 nLons * (ib-1)
 
 print *, 'blockoffset = ', blockoffset
 
@@ -2324,8 +2323,8 @@ print *, 'opening restart file, nb = ', nb
 
    call discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, ivar)
 
-   blockoffset = blocksize * nBlocksLon * (jb-1) + &
-                 blocksize * (ib-1)
+   blockoffset = nLats * nBlocksLon * (jb-1) + &
+                 nLons * (ib-1)
 
 print *, 'blockoffset = ', blockoffset
 
