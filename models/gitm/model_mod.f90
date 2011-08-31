@@ -1390,7 +1390,7 @@ character(len=*), intent(in)    :: dirname
 real(r8),         intent(inout) :: state_vector(:)
 type(time_type),  intent(out)   :: model_time
 
-integer :: ivar
+integer :: ivar, i
 character(len=NF90_MAX_NAME) :: varname
 character(len=128) :: myerrorstring
 
@@ -1416,14 +1416,23 @@ model_time = set_time(0, 0)
 
 do ivar=1, nfields
 
-   varname = trim(progvar(ivar)%varname)
+   varname = progvar(ivar)%varname
    myerrorstring = trim(dirname)//' '//trim(varname)
 
-print *, 'in restart_file_to_sv, ivar = ', ivar
-print *, 'calling get_data'
+if (debug > 4 .and. do_output()) then
+  print *, 'variable name: ', trim(varname)
+  print *, ' state vector index values: ', progvar(ivar)%index1, progvar(ivar)%indexN
+endif
+
    call get_data(dirname, ivar, nBlocksLon, nBlocksLat,                &
                  nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies,  &
                  state_vector(progvar(ivar)%index1:progvar(ivar)%indexN))
+
+if (debug > 4 .and. do_output()) then
+  print *, ' data range = ', minval(state_vector(progvar(ivar)%index1:progvar(ivar)%indexN)), &
+                             maxval(state_vector(progvar(ivar)%index1:progvar(ivar)%indexN))
+endif
+
 enddo
 
 
@@ -2103,35 +2112,45 @@ integer, intent(in) :: NSpecies   ! Number of neutral species
 real(r8), dimension( : ), intent(inout) :: vardata
 
 integer :: ib, jb, nb, offset, iunit, nboff, var
-integer :: i, j, k, blockoffset, pointoffset, blocksize
-real(r8), allocatable :: temp3d(:,:,:)
+integer :: i, j, k, blockoffset, pointoffset, maxcount
+real(r8), allocatable :: temp3d(:,:,:), temp4d(:,:,:,:)
+
+maxcount = max(nSpecies, 3)
 
 ! temp array large enough to hold 1 species, velocity vect, etc
 allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
+allocate(temp4d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost,maxcount))
 
-print *, 'size of vardata = ', size(vardata)
-
-blocksize = nLons * nLats * nAlts
+!print *, 'size of vardata = ', size(vardata)
 
 ! get the dirname, construct the filenames inside open_block_file
 
 do jb = 1, nBlocksLat
  do ib = 1, nBlocksLon
    
-print *, 'ib, jb = ', ib, jb
    nb = (jb-1) * nBlocksLon + ib
 
-print *, 'opening restart file, nb = ', nb
+!print *, 'ib,jb = ', ib, jb, ' opening restart file, nb = ', nb
    iunit = open_block_file(dirname, nb, 'read')
 
    call discard_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, ivar)
-   read(iunit) temp3d
-print *, 'first 4 data are ', temp3d(1:4,1,1)
+   if ((progvar(ivar)%gitm_varname == 'Velocity') .or. &
+       (progvar(ivar)%gitm_varname == 'IVelocity')) then
+      read(iunit) temp4d(:,:,:,1:3)
+      temp3d(:,:,:) = temp4d(:,:,:,progvar(ivar)%gitm_index)
+   else if (progvar(ivar)%gitm_varname == 'VerticalVelocity') then
+      read(iunit) temp4d(:,:,:,1:nSpecies)
+      temp3d(:,:,:) = temp4d(:,:,:,progvar(ivar)%gitm_index)
+   else
+      read(iunit) temp3d
+   endif
 
-   blockoffset = nLats * nBlocksLon * (jb-1) + &
+!print *, 'first 4 data are ', temp3d(1:4,1,1)
+
+   blockoffset = nLats * ngridLon * (jb-1) + &
                  nLons * (ib-1)
 
-print *, 'blockoffset = ', blockoffset
+!print *, 'ib,jb,blockoffset = ', ib,jb,blockoffset
 
    do k=1,nAlts
    do j=1,nLats
@@ -2155,14 +2174,14 @@ print *, 'blockoffset = ', blockoffset
  enddo
 enddo
 
-deallocate(temp3d)
+deallocate(temp3d, temp4d)
 
 !#if (debug > 4) then
 !#   print *, 'All data ', vardata
 !#endif
 
 if ( debug > 1 ) then ! A little sanity check
-   write(*,*)'data range ',minval(vardata),maxval(vardata)
+   !write(*,*)'data range ',minval(vardata),maxval(vardata)
 endif
 
 end subroutine get_data
@@ -2181,7 +2200,7 @@ integer, intent(in) :: NIons      ! Number of charged species
 integer, intent(in) :: NSpecies   ! Number of neutral species
 integer, intent(in) :: ivar       ! index into progvar array
 
-real(r8), allocatable :: temp1d(:), temp3d(:,:,:)
+real(r8), allocatable :: temp1d(:), temp3d(:,:,:), temp4d(:,:,:,:)
 integer :: i, num_to_dump
 logical :: done
 
@@ -2189,8 +2208,11 @@ logical :: done
 ! Lon,Lat or Alt array from a block plus ghost cells
 allocate(temp1d(1-nGhost:max(nLons,nLats,nAlts)+nGhost))
 
-! temp array large enough to hold 1 species, velocity vect, etc
+! temp array large enough to hold 1 species, temperature, etc
 allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
+
+! temp array large enough to hold velocity vect, etc
+allocate(temp4d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost, 3))
 
 ! get past lon and lat arrays and read in alt array
 read(iunit) temp1d(1-nGhost:nLons+nGhost)
@@ -2240,43 +2262,42 @@ if (.not. done) then
    endif
 endif
 
+if (debug > 4 .and. do_output()) then
+   !write(*,*) 'skipping past ', num_to_dump, '3d arrays'
+endif
+
+! have to do this here - the next array is really 4d.
+do i = 1, num_to_dump
+   read(iunit) temp3d
+enddo
+
 if (.not. done) then
    if (progvar(ivar)%gitm_varname == 'Velocity') then
-      num_to_dump = num_to_dump + progvar(ivar)%gitm_index - 1
       done = .true.
    else
-      num_to_dump = num_to_dump + 3
+      read(iunit) temp4d
    endif
 endif
 
 if (.not. done) then
    if (progvar(ivar)%gitm_varname == 'IVelocity') then
-      num_to_dump = num_to_dump + progvar(ivar)%gitm_index - 1
       done = .true.
    else
-      num_to_dump = num_to_dump + 3
+      read(iunit) temp4d
    endif
 endif
 
 if (.not. done) then
    if (progvar(ivar)%gitm_varname == 'VerticalVelocity') then
-      num_to_dump = num_to_dump + progvar(ivar)%gitm_index - 1
       done = .true.
    else
       call error_handler(E_ERR, 'discard_data', &
            'got to end of data without finding '//trim(progvar(ivar)%gitm_varname), &
            source,revision,revdate)
-      !num_to_dump = num_to_dump + nSpecies
    endif
 endif
 
-if (debug > 4 .and. do_output()) then
-   write(*,*) 'skipping past ', num_to_dump, '3d arrays'
-endif
-
-do i = 1, num_to_dump
-   read(iunit) temp3d
-enddo
+deallocate(temp1d, temp3d, temp4d)
 
 end subroutine discard_data
 
@@ -2301,7 +2322,7 @@ integer, intent(in) :: NSpecies   ! Number of neutral species
 real(r8), dimension( : ), intent(in) :: vardata
 
 integer :: ib, jb, nb, offset, iunit, nboff, var
-integer :: i, j, k, blockoffset, pointoffset, blocksize
+integer :: i, j, k, blockoffset, pointoffset
 character(len=128) :: filename
 real(r8), allocatable :: temp3d(:,:,:)
 
@@ -2309,8 +2330,6 @@ real(r8), allocatable :: temp3d(:,:,:)
 allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
 
 print *, 'size of vardata = ', size(vardata)
-
-blocksize = nLons * nLats * nAlts
 
 ! get the dirname, construct the filenames inside 
 
