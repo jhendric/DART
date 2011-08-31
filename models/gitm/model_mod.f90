@@ -40,7 +40,7 @@ use    utilities_mod, only : register_module, error_handler,                   &
 
 use     obs_kind_mod, only : paramname_length,        &
                              get_raw_obs_kind_index,  &
-                             get_obs_kind_name
+                             get_raw_obs_kind_name
 
 use mpi_utilities_mod, only: my_task_id
 
@@ -2620,7 +2620,7 @@ FieldLoop : do i=1,nfields
 enddo FieldLoop
 
 ! FIXME ... question for Nancy, this is the string of interest, correct?
-string = get_obs_kind_name(dartkind)
+string = get_raw_obs_kind_name(dartkind)
 
 if ((index1 == 0) .or. (indexN == 0)) then
    write(string1,*) 'Problem, cannot find indices for kind ',dartkind,trim(string)
