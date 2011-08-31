@@ -98,7 +98,7 @@ call close_restart(iunit)
 ! When called with 'end', timestamp will call finalize_utilities()
 !----------------------------------------------------------------------
 
-call print_date(model_time, str='gitm_to_dart:gitm  model date')
+call print_date(model_time, str='gitm_to_dart:gitm model date')
 call print_time(model_time, str='gitm_to_dart:DART model time')
 call timestamp(string1=source, pos='end')
 
