@@ -173,10 +173,6 @@ end type progvartype
 
 type(progvartype), dimension(max_state_variables) :: progvar
 
-! little stuff here and there..
-
-real(digits12), parameter :: rearth=1000.0_digits12 * 6367.0_digits12 ! radius of earth (m)
-
 ! These are statically defined in ModSize.f90 ...
 ! nAlts  is the one and only number of altitudes ... no block-dependence
 ! nLons, nLats are the number of lons/lats PER block
@@ -184,17 +180,16 @@ real(digits12), parameter :: rearth=1000.0_digits12 * 6367.0_digits12 ! radius o
 
 integer :: nLons, nLats, nAlts
 
-! Grid parameters - the values will be inferred from header.rst 
 ! "... keep in mind that if the model resolution is 5 deg latitude,
 !  the model will actually go from -87.5 to 87.5 latitude
 ! (even though you specify -90 to 90 in the UAM.in file), 
 ! since the latitudes/longitudes are at cell centers, 
 ! while the edges are at the boundaries." -- Aaron Ridley
 
-integer :: NgridLon=-1, NgridLat=-1, NgridAlt=-1    ! scalar grid counts
-integer :: nBlocksLon=-1, nBlocksLat=-1             ! number of blocks along each dim
+integer  :: NgridLon=-1, NgridLat=-1, NgridAlt=-1    ! scalar grid counts
+integer  :: nBlocksLon=-1, nBlocksLat=-1             ! number of blocks along each dim
 real(r8) :: LatStart=MISSING_R8, LatEnd=MISSING_R8, LonStart=MISSING_R8
-integer :: nSpeciesTotal=-1, nSpecies=-1, nIons=-1, nSpeciesAll=-1
+integer  :: nSpeciesTotal=-1, nSpecies=-1, nIons=-1, nSpeciesAll=-1
 
 ! scalar grid positions
 
@@ -231,11 +226,6 @@ END INTERFACE
 INTERFACE get_base_time
       MODULE PROCEDURE get_base_time_ncid
       MODULE PROCEDURE get_base_time_fname
-END INTERFACE
-
-INTERFACE get_state_time
-      MODULE PROCEDURE get_state_time_ncid
-      MODULE PROCEDURE get_state_time_fname
 END INTERFACE
 
 INTERFACE get_index_range
@@ -1401,15 +1391,12 @@ state_vector = MISSING_R8
 ! this is going to have to loop over all the blocks, both to get
 ! the data values and to get the full grid spacings.
 
-! FIXME:
-model_time = set_time(0, 0)
-!%! model_time = get_state_time(ncid, filename)
-!%! 
-!%! if (do_output()) &
-!%!     call print_time(model_time,'time in restart file '//trim(filename))
-!%! if (do_output()) &
-!%!     call print_date(model_time,'date in restart file '//trim(filename))
-!%! 
+model_time = get_state_time(dirname)
+
+if (do_output()) &
+    call print_time(model_time,'time in restart file '//trim(dirname)//'/header.rst')
+if (do_output()) &
+    call print_date(model_time,'date in restart file '//trim(dirname)//'/header.rst')
 
 ! Start counting and filling the state vector one item at a time,
 ! repacking the Nd arrays into a single 1d list of numbers.
@@ -1924,6 +1911,7 @@ integer :: grid_id, dimid
 character(len=paramname_length) :: filename = 'UAM.in'
 
 character(len=100) :: cLine  ! iCharLen_ == 100
+character(len=128) :: fileloc
 
 integer :: i, iunit, ios
 
@@ -1937,12 +1925,9 @@ LatStart   = 0.0_r8
 LatEnd     = 0.0_r8
 LonStart   = 0.0_r8
 
-if ( .not. file_exist(filename) ) then
-   write(string1,*) 'cannot open ',trim(filename),' for reading.'
-   call error_handler(E_ERR,'get_grid_info',string1,source,revision,revdate)
-endif
+write(fileloc,'(a,''/'',a)') trim(gitm_restart_dirname),trim(filename)
 
-iunit = open_file(filename, action='read')
+iunit = open_file(fileloc, action='read')
 
 UAMREAD : do i = 1, 1000000
 
@@ -1964,6 +1949,8 @@ UAMREAD : do i = 1, 1000000
    exit UAMREAD
 
 enddo UAMREAD
+
+call close_file(iunit)
 
 NgridLon = nBlocksLon * nLons
 NgridLat = nBlocksLat * nLats
@@ -2460,108 +2447,94 @@ end function get_base_time_fname
 !------------------------------------------------------------------
 
 
-function get_state_time_ncid( ncid, filename )
+function get_state_time( dirname )
 !------------------------------------------------------------------
 ! the static_init_model ensures that the gitm namelists are read.
 !
-type(time_type)              :: get_state_time_ncid
-integer,          intent(in) :: ncid
-character(len=*), intent(in) :: filename
+type(time_type)              :: get_state_time
+character(len=*), intent(in) :: dirname
 
-integer         :: VarID, numdims, dimlen
 type(time_type) :: model_offset, base_time
 
-integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs
-integer, allocatable, dimension(:)    :: mytimes
+integer  :: iunit, i, ios
+integer  :: istep
+real(r8) :: tsimulation
+integer  :: iyear, imonth, iday, ihour, imin, isec
+integer  :: ndays,nsec
+
+character(len=256) :: filename
+character(len=100) :: cLine
 
 if ( .not. module_initialized ) call static_init_model
 
-base_time = get_base_time(ncid)
+tsimulation = MISSING_R8
+istep       = -1
+iyear       = -1
+imonth      = -1
+iday        = -1
+ihour       = -1
+imin        = -1
+isec        = -1
 
-call nc_check( nf90_inq_varid(ncid, 'TIME', VarID), &
-                  'get_state_time', 'inq_varid TIME '//trim(filename))
+write(filename,'(a,''/header.rst'')') trim(dirname)
 
-call nc_check(nf90_inquire_variable(ncid, VarId, dimids=dimIDs, ndims=numdims), &
-                  'get_state_time', 'inquire TIME '//trim(filename))
+iunit = open_file(trim(filename), action='read')
 
-if ( numdims > 1 ) then
-   write(string1,*) 'TIME is not expected to have ',numdims,' dimensions.'
-   call error_handler(E_ERR,'get_state_time',string1,source,revision,revdate)
+FILEREAD : do i = 1, 100
+
+   read(iunit,'(a)',iostat=ios) cLine
+
+   if (ios < 0) exit FILEREAD  ! end of file
+
+   if (ios /= 0) then
+      write(string1,*) 'cannot read ',trim(filename)
+      call error_handler(E_ERR,'get_grid_info',string1,source,revision,revdate)
+   endif
+
+   select case( cLine(1:6) ) 
+      case('#ISTEP')
+         read(iunit,*)istep
+      case('#TSIMU')
+         read(iunit,*)tsimulation
+      case('#TIMES')
+         read(iunit,*)iyear
+         read(iunit,*)imonth
+         read(iunit,*)iday
+         read(iunit,*)ihour
+         read(iunit,*)imin
+         read(iunit,*)isec
+      case default
+   end select
+
+enddo FILEREAD
+
+call close_file(iunit)
+
+base_time      = set_date(iyear, imonth, iday, ihour, imin, isec)
+ndays          = tsimulation/86400
+nsec           = tsimulation - ndays*86400
+model_offset   = set_time(nsec,ndays)
+get_state_time = base_time + model_offset
+
+if (debug > 8) then
+   write(*,*)'get_state_time : iyear       ',iyear
+   write(*,*)'get_state_time : imonth      ',imonth
+   write(*,*)'get_state_time : iday        ',iday
+   write(*,*)'get_state_time : ihour       ',ihour
+   write(*,*)'get_state_time : imin        ',imin
+   write(*,*)'get_state_time : isec        ',isec
+   write(*,*)'get_state_time : tsimulation ',tsimulation
+   write(*,*)'get_state_time : ndays       ',ndays
+   write(*,*)'get_state_time : nsec        ',nsec
+
+   call print_date(     base_time, 'get_state_time:model base date')
+   call print_time(     base_time, 'get_state_time:model base time')
+   call print_time(  model_offset, 'get_state_time:model offset')
+   call print_date(get_state_time, 'get_state_time:model date')
+   call print_time(get_state_time, 'get_state_time:model time')
 endif
 
-call nc_check(nf90_inquire_dimension(ncid, dimIDs(1), len=dimlen), &
-            'get_state_time', 'inquire time dimension length '//trim(filename))
-
-allocate(mytimes(dimlen))
-
-call nc_check( nf90_get_var(ncid, VarID, mytimes ), &
-                  'get_state_time', 'get_var TIME '//trim(filename))
-
-model_offset = set_time(maxval(mytimes))
-
-get_state_time_ncid = base_time + model_offset
-
-deallocate(mytimes)
-
-end function get_state_time_ncid
-
-
-!------------------------------------------------------------------
-
-
-function get_state_time_fname(filename)
-!------------------------------------------------------------------
-! the static_init_model ensures that the gitm namelists are read.
-!
-type(time_type) :: get_state_time_fname
-character(len=*), intent(in) :: filename
-
-integer         :: ncid, VarID, numdims, dimlen
-type(time_type) :: model_offset, base_time
-
-integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs
-integer, allocatable, dimension(:)    :: mytimes
-
-if ( .not. module_initialized ) call static_init_model
-
-if ( .not. file_exist(filename) ) then
-   write(string1,*) 'cannot open file ', trim(filename),' for reading.'
-   call error_handler(E_ERR,'get_state_time',string1,source,revision,revdate)
-endif
-
-call nc_check( nf90_open(trim(filename), NF90_NOWRITE, ncid), &
-                  'get_base_time', 'open '//trim(filename))
-
-base_time = get_base_time(ncid)
-
-call nc_check( nf90_inq_varid(ncid, 'TIME', VarID), &
-                  'get_state_time', 'inq_varid TIME '//trim(filename))
-
-call nc_check(nf90_inquire_variable(ncid, VarId, dimids=dimIDs, ndims=numdims), &
-                  'get_state_time', 'inquire TIME '//trim(filename))
-
-if ( numdims > 1 ) then
-   write(string1,*) 'TIME is not expected to have ',numdims,' dimensions.'
-   call error_handler(E_ERR,'get_state_time',string1,source,revision,revdate)
-endif
-
-call nc_check(nf90_inquire_dimension(ncid, dimIDs(1), len=dimlen), &
-            'get_state_time', 'inquire time dimension length '//trim(filename))
-
-allocate(mytimes(dimlen))
-
-call nc_check( nf90_get_var(ncid, VarID, mytimes ), &
-                  'get_state_time', 'get_var TIME '//trim(filename))
-call nc_check(nf90_close(ncid), 'get_state_time', 'close '//trim(filename))
-
-write(*,*)' temporal offset is (in seconds) is ',maxval(mytimes)
-model_offset = set_time(maxval(mytimes))
-
-get_state_time_fname = base_time + model_offset
-
-deallocate(mytimes)
-
-end function get_state_time_fname
+end function get_state_time
 
 
 !------------------------------------------------------------------
@@ -2924,7 +2897,7 @@ i=index(cLine,char(9)); if( i > 0 ) cLine(i:len(cLine))=' '
 read(cLine,*,iostat=ios)read_in_real
 
 if(ios /= 0) then
-   write(string1,*)'unable to read '//trim(varname)//'in '//trim(filename)
+   write(string1,*)'unable to read '//trim(varname)//' in '//trim(filename)
    call error_handler(E_ERR,'read_in_real',string1,source,revision,revdate)
 endif
 
@@ -2953,8 +2926,9 @@ i=index(cLine,char(9)); if( i > 0 ) cLine(i:len(cLine))=' '
 read(cLine,*,iostat=ios)read_in_int
 
 if(ios /= 0) then
-   write(string1,*)'unable to read '//trim(varname)//'in '//trim(filename)
-   call error_handler(E_ERR,'read_in_int',string1,source,revision,revdate)
+   write(string1,*)'unable to read '//trim(varname)//' in '//trim(filename)
+   call error_handler(E_ERR,'read_in_int',string1,source,revision,revdate,&
+             text2=cLine)
 endif
 
 end function read_in_int

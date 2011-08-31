@@ -31,7 +31,7 @@ use time_manager_mod, only : time_type, set_calendar_type, GREGORIAN, &
                              print_time, write_time, &
                              operator(-)
 use        model_mod, only : static_init_model, get_model_size, get_state_meta_data, &
-                             model_interpolate
+                             model_interpolate, get_state_time
                !             test_interpolate
 
 implicit none
@@ -113,23 +113,31 @@ call awrite_state_restart(model_time, statevector, iunit)
 call close_restart(iunit)
 
 !----------------------------------------------------------------------
+! Reads the valid time from the header.rst file
+!----------------------------------------------------------------------
+
+model_time = get_state_time('../testdata1')
+call print_date( model_time,'model_mod_check:model date')
+call print_time( model_time,'model_mod_check:model time')
+
+!----------------------------------------------------------------------
 ! Open a test DART initial conditions file.
 ! Reads the valid time, the state, and (possibly) a target time.
 !----------------------------------------------------------------------
 
-! write(*,*)
-! write(*,*)'Reading '//trim(input_file)
+write(*,*)
+write(*,*)'Reading '//trim(input_file)
 
-! iunit = open_restart_read(input_file)
-! if ( advance_time_present ) then
-!    call aread_state_restart(model_time, statevector, iunit, adv_to_time)
-! else
-!    call aread_state_restart(model_time, statevector, iunit)
-! endif
+iunit = open_restart_read(input_file)
+if ( advance_time_present ) then
+   call aread_state_restart(model_time, statevector, iunit, adv_to_time)
+else
+   call aread_state_restart(model_time, statevector, iunit)
+endif
 
-! call close_restart(iunit)
-! call print_date( model_time,'model_mod_check:model date')
-! call print_time( model_time,'model_mod_check:model time')
+call close_restart(iunit)
+call print_date( model_time,'model_mod_check:model date')
+call print_time( model_time,'model_mod_check:model time')
 
 !----------------------------------------------------------------------
 ! Output the state vector to a netCDF file ...
