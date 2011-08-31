@@ -31,7 +31,8 @@ use    utilities_mod, only : initialize_utilities, timestamp, &
                              find_namelist_in_file, check_namelist_read, &
                              logfileunit, open_file, close_file
 use  assim_model_mod, only : open_restart_read, aread_state_restart, close_restart
-use time_manager_mod, only : time_type, print_time, print_date, operator(-), get_time
+use time_manager_mod, only : time_type, print_time, print_date, operator(-), &
+                             get_time, get_date
 use        model_mod, only : static_init_model, sv_to_restart_file, &
                              get_model_size, get_base_time, get_gitm_restart_dirname
 
@@ -108,21 +109,16 @@ call close_restart(iunit)
 call sv_to_restart_file(statevector, gitm_restart_dirname, model_time)
 
 if ( advance_time_present ) then
-   base_time = get_base_time(gitm_restart_dirname)
-   call get_time((model_time  - base_time), diff1)
-   call get_time((adv_to_time - base_time), diff2)
-   iunit = open_file('times', action='write')
-   write(iunit, '(I8, I8)') diff1, diff2
-   call close_file(iunit)
+   call write_gitm_time_control(model_time, adv_to_time)
 endif
 
 !----------------------------------------------------------------------
 ! Log what we think we're doing, and exit.
 !----------------------------------------------------------------------
 
-call print_date( model_time,'dart_to_gitm:gitm  model date')
+call print_date( model_time,'dart_to_gitm:gitm model date')
 call print_time( model_time,'dart_to_gitm:DART model time')
-call print_date( model_time,'dart_to_gitm:gitm  model date',logfileunit)
+call print_date( model_time,'dart_to_gitm:gitm model date',logfileunit)
 call print_time( model_time,'dart_to_gitm:DART model time',logfileunit)
 
 if ( advance_time_present ) then
@@ -134,5 +130,60 @@ endif
 
 ! When called with 'end', timestamp will call finalize_utilities()
 call timestamp(string1=source, pos='end')
+
+!======================================================================
+contains
+!======================================================================
+
+subroutine write_gitm_time_control(model_time, adv_to_time)
+! The idea is to write a text file with the following structure:
+!
+!#TIMESTART
+!2003            year
+!06              month
+!21              day
+!00              hour
+!00              minute
+!00              second
+!
+!#TIMEEND
+!2003            year
+!07              month
+!21              day
+!00              hour
+!00              minute
+!00              second
+!
+
+type(time_type), intent(in) :: model_time, adv_to_time
+integer :: iyear,imonth,iday,ihour,imin,isec
+
+iunit = open_file('DART_GITM_time_control.txt', action='write')
+write(iunit,*)
+
+call get_date(model_time,iyear,imonth,iday,ihour,imin,isec)
+write(iunit,'(''#TIMESTART'')') 
+write(iunit,'(i4.4,10x,''year''  )')iyear
+write(iunit,'(i2.2,12x,''month'' )')imonth
+write(iunit,'(i2.2,12x,''day''   )')iday
+write(iunit,'(i2.2,12x,''hour''  )')ihour
+write(iunit,'(i2.2,12x,''minute'')')imin
+write(iunit,'(i2.2,12x,''second'')')isec
+write(iunit,*)
+
+call get_date(adv_to_time,iyear,imonth,iday,ihour,imin,isec)
+write(iunit,'(''#TIMEEND'')') 
+write(iunit,'(i4.4,10x,''year''  )')iyear
+write(iunit,'(i2.2,12x,''month'' )')imonth
+write(iunit,'(i2.2,12x,''day''   )')iday
+write(iunit,'(i2.2,12x,''hour''  )')ihour
+write(iunit,'(i2.2,12x,''minute'')')imin
+write(iunit,'(i2.2,12x,''second'')')isec
+write(iunit,*)
+
+call close_file(iunit)
+end subroutine write_gitm_time_control
+
+
 
 end program dart_to_gitm
