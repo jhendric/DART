@@ -281,6 +281,9 @@ if (do_output()) then
    call print_time(time,'NULL interface adv_1step (no advance) DART time is',logfileunit)
 endif
 
+! FIXME: put an error handler call here - we cannot advance the model
+! this way and it would be an error if filter called it.
+
 end subroutine adv_1step
 
 
@@ -576,6 +579,9 @@ if ( .not. module_initialized ) call static_init_model
 ! for now, just set to 0
 time = set_time(0,0)
 
+! FIXME: put an error handler call here - we cannot initialize the model
+! this way and it would be an error if filter called it.
+
 end subroutine init_time
 
 
@@ -596,6 +602,9 @@ real(r8), intent(out) :: x(:)
 if ( .not. module_initialized ) call static_init_model
  
 x = 0.0_r8
+
+! FIXME: put an error handler call here - we cannot initialize the model
+! this way and it would be an error if filter called it.
 
 end subroutine init_conditions
 
@@ -1376,13 +1385,12 @@ subroutine restart_file_to_sv(dirname, state_vector, model_time)
 ! Reads the current time and state variables from a gitm restart
 ! file and packs them into a dart state vector.
 
-character(len=*), intent(in)    :: dirname 
-real(r8),         intent(inout) :: state_vector(:)
-type(time_type),  intent(out)   :: model_time
+character(len=*), intent(in)  :: dirname 
+real(r8),         intent(out) :: state_vector(:)
+type(time_type),  intent(out) :: model_time
 
 integer :: ivar, i
 character(len=NF90_MAX_NAME) :: varname
-character(len=128) :: myerrorstring
 
 if ( .not. module_initialized ) call static_init_model
 
@@ -1398,30 +1406,12 @@ if (do_output()) &
 if (do_output()) &
     call print_date(model_time,'date in restart file '//trim(dirname)//'/header.rst')
 
-! Start counting and filling the state vector one item at a time,
-! repacking the Nd arrays into a single 1d list of numbers.
+! sort the required fields into the order they exist in the
+! binary restart files and fill in the state vector as you
+! read each field.  when this routine returns all the data has
+! been read.
 
-do ivar=1, nfields
-
-   varname = progvar(ivar)%varname
-   myerrorstring = trim(dirname)//' '//trim(varname)
-
-if (debug > 4 .and. do_output()) then
-  print *, 'reading variable name: ', trim(varname)
-  print *, ' from restart file to state vector'
-  print *, ' state vector index values: ', progvar(ivar)%index1, progvar(ivar)%indexN
-endif
-
-   call get_data(dirname, ivar, nBlocksLon, nBlocksLat,                &
-                 nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies,  &
-                 state_vector(progvar(ivar)%index1:progvar(ivar)%indexN))
-
-if (debug > 4 .and. do_output()) then
-  print *, ' data range = ', minval(state_vector(progvar(ivar)%index1:progvar(ivar)%indexN)), &
-                             maxval(state_vector(progvar(ivar)%index1:progvar(ivar)%indexN))
-endif
-
-enddo
+call get_data(dirname, state_vector)
 
 
 end subroutine restart_file_to_sv
@@ -1440,42 +1430,29 @@ type(time_type),  intent(in) :: statedate
 
 integer :: ivar 
 character(len=NF90_MAX_NAME) :: varname
-character(len=128) :: myerrorstring
+character(len=128) :: dirnameout
 
 if ( .not. module_initialized ) call static_init_model
 
 print *, 'in sv_to_restart_file, debug, nfields = ', debug, nfields
 
-! Start counting and filling the state vector one item at a time,
-! repacking the Nd arrays into a single 1d list of numbers.
+! sort the required fields into the order they exist in the
+! binary restart files and write out the state vector data
+! field by field.  when this routine returns all the data has
+! been written.
 
-do ivar=1, nfields
-
-   varname = trim(progvar(ivar)%varname)
-   myerrorstring = trim(dirname)//' '//trim(varname)
-
-!if (debug > 4 .and. do_output()) then
-  print *, 'writing variable name: ', trim(varname)
-  print *, ' from state vector to restart file'
-  print *, ' state vector index values: ', progvar(ivar)%index1, progvar(ivar)%indexN
-!endif
-
-   call put_data(dirname, ivar, nBlocksLon, nBlocksLat,                &
-                 nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies,  &
-                 state_vector(progvar(ivar)%index1:progvar(ivar)%indexN))
-print *, ' put_data returned'
-enddo
+dirnameout = trim(dirname) // '.out'
+call put_data(dirname, dirnameout, state_vector)
 
 ! FIXME:
 ! write out model_time to a text file?
    call print_time(model_time)
-!%! 
-!%! if (do_output()) &
-!%!     call print_time(model_time,'time in restart file '//trim(filename))
-!%! if (do_output()) &
-!%!     call print_date(model_time,'date in restart file '//trim(filename))
-!%! 
 
+ 
+if (do_output()) &
+    call print_time(model_time,'time in restart file '//trim(dirname)//'/header.rst')
+if (do_output()) &
+    call print_date(model_time,'date in restart file '//trim(dirname)//'/header.rst')
 
 end subroutine sv_to_restart_file
 
@@ -2088,37 +2065,14 @@ end function open_block_file
 
 
 
-subroutine get_data(dirname, ivar, nBlocksLon, nBlocksLat, &
-                    nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, vardata)
+subroutine get_data(dirname, statevector)
 !------------------------------------------------------------------
 ! open all restart files and read in the requested data item
 !
-character(len=*), intent(in) :: dirname
-integer, intent(in) :: ivar       ! index into progvar struct
-integer, intent(in) :: nBlocksLon ! Number of Longitude blocks
-integer, intent(in) :: nBlocksLat ! Number of Latitude  blocks
-integer, intent(in) :: NLons      ! Number of Longitude centers per block
-integer, intent(in) :: NLats      ! Number of Latitude  centers per block
-integer, intent(in) :: NAlts      ! Number of Vertical grid centers
-integer, intent(in) :: NSpeciesTotal   ! Number of total species
-integer, intent(in) :: NIons      ! Number of charged species
-integer, intent(in) :: NSpecies   ! Number of neutral species
+ character(len=*), intent(in)  :: dirname
+ real(r8),         intent(out) :: statevector(:)
 
-real(r8), dimension( : ), intent(inout) :: vardata
-
-integer :: ib, jb, nb, offset, iunit, nboff, var
-integer :: i, j, k, blockoffset, pointoffset, maxcount
-real(r8), allocatable :: temp3d(:,:,:), temp4d(:,:,:,:)
-
-! largest possible 4th index in the 4d arrays - share to save
-! allocating two different shapes of the 4d temp array.
-maxcount = max(nSpecies, 3)
-
-! temp array large enough to hold 1 species, velocity vect, etc
-allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
-allocate(temp4d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost,maxcount))
-
-!print *, 'size of vardata = ', size(vardata)
+integer :: ib, jb, nb, iunit, blockoffset
 
 ! get the dirname, construct the filenames inside open_block_file
 
@@ -2127,149 +2081,127 @@ do jb = 1, nBlocksLat
    
    nb = (jb-1) * nBlocksLon + ib
 
-!print *, 'ib,jb = ', ib, jb, ' opening restart file, nb = ', nb
-   iunit = open_block_file(dirname, nb, 'read')
-
-   call read_data(iunit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, ivar, temp3d)
-
-!print *, 'first 4 data are ', temp3d(1:4,1,1)
-
    blockoffset = nLats * ngridLon * (jb-1) + &
                  nLons * (ib-1)
 
-!print *, 'ib,jb,blockoffset = ', ib,jb,blockoffset
+!print *, 'ib,jb = ', ib, jb
+!print *, 'blockoffset, nb = ', blockoffset, nb
 
-   do k=1,nAlts
-   do j=1,nLats
-   do i=1,nLons
+   iunit = open_block_file(dirname, nb, 'read')
 
-      offset = ((k-1) * ngridLat * ngridLon) +  &
-               ((j-1) * ngridLon) +             &
-               i
-      if (blockoffset+offset > size(vardata)) then
-         print *, 'b+o would have indexed beyond end of array'
-      else
-         vardata(blockoffset + offset) = temp3d(i, j, k)
-      endif
-   !print *, 'i,j,k,varoffset = ', i,j,k, blockoffset + offset
-
-   enddo
-   enddo
-   enddo
+   call read_data(iunit, blockoffset, statevector)
 
    call close_file(iunit)
  enddo
 enddo
 
-deallocate(temp3d, temp4d)
-
-!#if (debug > 4) then
-!#   print *, 'All data ', vardata
-!#endif
-
-if ( debug > 1 ) then ! A little sanity check
-   !write(*,*)'data range ',minval(vardata),maxval(vardata)
-endif
-
 end subroutine get_data
 
-
-subroutine put_data(dirname, ivar, nBlocksLon, nBlocksLat, &
-                    nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, vardata)
+subroutine put_data(dirname, dirnameout, statevector)
 !------------------------------------------------------------------
 ! open all restart files and write out the requested data item
 !
-character(len=*), intent(in) :: dirname
-integer, intent(in) :: ivar       ! index into progvar struct
-integer, intent(in) :: nBlocksLon ! Number of Longitude blocks
-integer, intent(in) :: nBlocksLat ! Number of Latitude  blocks
-integer, intent(in) :: NLons      ! Number of Longitude centers per block
-integer, intent(in) :: NLats      ! Number of Latitude  centers per block
-integer, intent(in) :: NAlts      ! Number of Vertical grid centers
-integer, intent(in) :: NSpeciesTotal   ! Number of total species
-integer, intent(in) :: NIons      ! Number of charged species
-integer, intent(in) :: NSpecies   ! Number of neutral species
+ character(len=*), intent(in) :: dirname, dirnameout
+ real(r8),         intent(in) :: statevector(:)
 
-real(r8), dimension( : ), intent(in) :: vardata
+integer :: ib, jb, nb, iunit, ounit
+integer :: i, j, k, blockoffset
 
-integer :: ib, jb, nb, offset, iunit, ounit,  nboff, var
-integer :: i, j, k, blockoffset, pointoffset
-character(len=128) :: filename
-real(r8), allocatable :: temp3d(:,:,:)
-
-! temp array large enough to hold 1 species, velocity vect, etc
-allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
-
-!print *, 'size of vardata = ', size(vardata)
-
-! get the dirname, construct the filenames inside 
+! get the dirname, construct the filenames inside open_block_file
 
 do jb = 1, nBlocksLat
  do ib = 1, nBlocksLon
    
-!print *, 'ib, jb = ', ib, jb
    nb = (jb-1) * nBlocksLon + ib
 
    blockoffset = nLats * ngridLon * (jb-1) + &
                  nLons * (ib-1)
 
-print *, 'ib,jb,blockoffset = ', ib, jb, blockoffset
+!print *, 'ib,jb = ', ib, jb
+!print *, 'blockoffset, nb = ', blockoffset, nb
 
-   do k=1,nAlts
-   do j=1,nLats
-   do i=1,nLons
+   iunit = open_block_file(dirname,    nb, 'read' )
+   ounit = open_block_file(dirnameout, nb, 'write')
 
-      offset = ((k-1) * ngridLat * ngridLon) +  &
-               ((j-1) * ngridLon) +             &
-               i
-      temp3d(i, j, k) = vardata(blockoffset + offset)
-      !print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
-
-   enddo
-   enddo
-   enddo
-
-print *, 'opening restart file, nb = ', nb
-   iunit = open_block_file(dirname, nb, 'read')
-   ounit = open_block_file(trim(dirname)//'out', nb, 'write')
-
-   call write_data(iunit, ounit, nLons, nLats, nAlts, nSpeciesTotal, nIons, nSpecies, ivar, temp3d)
+   call write_data(iunit, ounit, blockoffset, statevector)
 
    call close_file(iunit)
-   call close_file(ounit)
  enddo
 enddo
-
-deallocate(temp3d)
-
-!#if (debug > 4) then
-!#   print *, 'All data ', vardata
-!#endif
-
-if ( debug > 1 ) then ! A little sanity check
-   write(*,*)'data range ',minval(vardata),maxval(vardata)
-endif
 
 end subroutine put_data
 
 
-subroutine read_data(iunit, nLons, nLats, nAlts, &
-                        nSpeciesTotal, nIons, nSpecies, ivar, data3d)
+subroutine unpack_data(data3d, ivar, blockoffset, statevector)
 !------------------------------------------------------------------
-! open all restart files and read in the requested data item
+! put the requested data into the state vector
 !
-integer, intent(in) :: iunit      ! open file unit
-integer, intent(in) :: NLons      ! Number of Longitude centers per block
-integer, intent(in) :: NLats      ! Number of Latitude  centers per block
-integer, intent(in) :: NAlts      ! Number of Vertical grid centers
-integer, intent(in) :: NSpeciesTotal   ! Number of total species
-integer, intent(in) :: NIons      ! Number of charged species
-integer, intent(in) :: NSpecies   ! Number of neutral species
-integer, intent(in) :: ivar       ! index into progvar array
-real(r8), intent(out) :: data3d(:,:,:)
+real(r8), intent(in)    :: data3d(:,:,:)
+integer,  intent(in)    :: ivar         ! index into progvar struct
+integer,  intent(in)    :: blockoffset
+real(r8), intent(inout) :: statevector(:)
+
+integer :: i, j, k, offset, base
+
+base = progvar(ivar)%index1 - 1   ! FIXME: -1?
+
+do k=1,nAlts
+ do j=1,nLats
+  do i=1,nLons
+
+      offset = ((k-1) * ngridLat * ngridLon) +  &
+               ((j-1) * ngridLon) +             &
+               i
+      statevector(base + blockoffset + offset) = data3d(i, j, k)
+      !print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
+
+  enddo
+ enddo
+enddo
+
+end subroutine unpack_data
+
+
+subroutine pack_data(statevector, ivar, blockoffset, data3d)
+!------------------------------------------------------------------
+! put the state vector data into a 3d array
+!
+real(r8), intent(in)    :: statevector(:)
+integer,  intent(in)    :: ivar         ! index into progvar struct
+integer,  intent(in)    :: blockoffset
+real(r8), intent(inout) :: data3d(:,:,:)
+
+integer :: i, j, k, offset, base
+
+base = progvar(ivar)%index1 - 1  ! FIXME: -1?
+
+do k=1,nAlts
+ do j=1,nLats
+  do i=1,nLons
+
+      offset = ((k-1) * ngridLat * ngridLon) +  &
+               ((j-1) * ngridLon) +             &
+               i
+      data3d(i,j,k) = statevector(base + blockoffset + offset) 
+      !print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
+
+  enddo
+ enddo
+enddo
+
+end subroutine pack_data
+
+
+subroutine read_data(iunit, blockoffset, statevector)
+!------------------------------------------------------------------
+! open all restart files and read in the requested data items
+!
+integer,  intent(in)    :: iunit
+integer,  intent(in)    :: blockoffset
+real(r8), intent(inout) :: statevector(:)
 
 real(r8), allocatable :: temp1d(:), temp3d(:,:,:), temp4d(:,:,:,:)
-integer :: i, num_to_skip, maxsize
+integer :: i, j, count, maxsize, ivals(NSpeciesTotal)
 logical :: done
 
 ! a temp array large enough to hold any of the 
@@ -2288,110 +2220,128 @@ read(iunit) temp1d(1-nGhost:nLons+nGhost)
 read(iunit) temp1d(1-nGhost:nLats+nGhost)
 read(iunit) temp1d(1-nGhost:nAlts+nGhost)
 
-num_to_skip = 0
-done = .false.
 
-if (progvar(ivar)%gitm_varname == 'NDensityS') then
-   num_to_skip = num_to_skip + progvar(ivar)%gitm_index 
-   done = .true.
+call get_index_from_gitm_varname('NDensityS', count, ivals)
+if (count > 0) then
+   ! if i equals ival, use the data from the state vect
+   ! otherwise read/write what's in the input file
+   j = 1
+   do i = 1, nSpeciesTotal
+      read(iunit)  temp3d
+      if (i == ivals(j)) then
+         call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+         j = j + 1
+      endif
+   enddo
 else
-   num_to_skip = num_to_skip + nSpeciesTotal
+   ! nothing at all from this variable in the state vector.
+   ! copy all data over from the input file to output file
+   do i = 1, nSpeciesTotal
+      read(iunit)  temp3d
+   enddo
 endif
 
-if (.not. done) then
-   if (progvar(ivar)%gitm_varname == 'IDensityS') then
-      num_to_skip = num_to_skip + progvar(ivar)%gitm_index 
-      done = .true.
-   else
-      num_to_skip = num_to_skip + nIons
-   endif
+call get_index_from_gitm_varname('IDensityS', count, ivals)
+if (count > 0) then
+   ! one or more items in the state vector need to replace the 
+   ! data in the output file.  loop over the index list in order.
+   j = 1
+   do i = 1, nIons
+      read(iunit)  temp3d
+      if (i == ivals(j)) then
+         ! read from input but write from state vector
+         call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+         j = j + 1
+      endif
+   enddo
+else
+   ! nothing at all from this variable in the state vector.
+   ! read past this variable
+   do i = 1, nIons
+      read(iunit)  temp3d
+   enddo
 endif
 
-if (.not. done) then
-   num_to_skip = num_to_skip + 1
-   if (progvar(ivar)%gitm_varname == 'Temperature') then
-      done = .true.
-   endif
+read(iunit)  temp3d
+call get_index_from_gitm_varname('Temperature', count, ivals)
+if (count > 0) then
+   call unpack_data(temp3d, ivals(j), blockoffset, statevector)
 endif
 
-if (.not. done) then
-   num_to_skip = num_to_skip + 1
-   if (progvar(ivar)%gitm_varname == 'ITemperature') then
-      done = .true.
-   endif
+read(iunit) temp3d
+call get_index_from_gitm_varname('ITemperature', count, ivals)
+if (count > 0) then
+   call unpack_data(temp3d, ivals(j), blockoffset, statevector)
 endif
 
-if (.not. done) then
-   num_to_skip = num_to_skip + 1
-   if (progvar(ivar)%gitm_varname == 'eTemperature') then
-      done = .true.
-   endif
+read(iunit) temp3d
+call get_index_from_gitm_varname('eTemperature', count, ivals)
+if (count > 0) then
+   call unpack_data(temp3d, ivals(j), blockoffset, statevector)
 endif
 
-if (debug > 4 .and. do_output()) then
-   !write(*,*) 'reading in ', num_to_skip, '3d arrays'
+print *, 'reading in temp4d for vel'
+read(iunit) temp4d(:,:,:,1:3)
+call get_index_from_gitm_varname('Velocity', count, ivals)
+if (count > 0) then
+   ! copy out any requested bits into state vector
+   j = 1
+   do i = 1, 3
+      if (i == ivals(j)) then
+         temp3d = temp4d(:,:,:,i)
+         call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+         j = j + 1
+      endif
+   enddo
 endif
 
-! if we've already found the field of interest, the last
-! read here fills the right data in the temp3d array
-do i = 1, num_to_skip
-   read(iunit) temp3d
-enddo
-
-if (.not. done) then
-   read(iunit) temp4d(:,:,:,1:3)
-   if (progvar(ivar)%gitm_varname == 'Velocity') then
-      temp3d(:,:,:) = temp4d(:,:,:,progvar(ivar)%gitm_index)
-      done = .true.
-   endif
+print *, 'reading in temp4d for ivel'
+read(iunit) temp4d(:,:,:,1:3)
+call get_index_from_gitm_varname('IVelocity', count, ivals)
+if (count > 0) then
+   ! copy out any requested bits into state vector
+   j = 1
+   do i = 1, 3
+      if (i == ivals(j)) then
+         ! read from input but write from state vector
+         temp3d = temp4d(:,:,:,i)
+         call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+         j = j + 1
+      endif
+   enddo
 endif
 
-if (.not. done) then
-   read(iunit) temp4d(:,:,:,1:3)
-   if (progvar(ivar)%gitm_varname == 'IVelocity') then
-      temp3d(:,:,:) = temp4d(:,:,:,progvar(ivar)%gitm_index)
-      done = .true.
-   endif
+print *, 'reading in temp4d for vvel'
+read(iunit) temp4d(:,:,:,1:nSpecies)
+call get_index_from_gitm_varname('VerticalVelocity', count, ivals)
+if (count > 0) then
+   ! copy out any requested bits into state vector
+   j = 1
+   do i = 1, nSpecies
+      if (i == ivals(j)) then
+         temp3d = temp4d(:,:,:,i)
+         call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+         j = j + 1
+      endif
+   enddo
 endif
 
-if (.not. done) then
-   read(iunit) temp4d(:,:,:,1:nSpecies)
-   if (progvar(ivar)%gitm_varname == 'VerticalVelocity') then
-      temp3d(:,:,:) = temp4d(:,:,:,progvar(ivar)%gitm_index)
-      done = .true.
-   else
-      call error_handler(E_ERR, 'read_data', &
-           'got to end of data without finding '//trim(progvar(ivar)%gitm_varname), &
-           source,revision,revdate)
-   endif
-endif
-
-! put it in the variable to return to the caller
-data3d = temp3d
-
+print *, 'calling dealloc'
 deallocate(temp1d, temp3d, temp4d)
 
 end subroutine read_data
 
 
-subroutine write_data(iunit, ounit, nLons, nLats, nAlts, &
-                        nSpeciesTotal, nIons, nSpecies, ivar, data3d)
+subroutine write_data(iunit, ounit, blockoffset, statevector)
 !------------------------------------------------------------------
 ! open all restart files and write out the requested data item
 !
-integer, intent(in) :: iunit      ! open file unit for input
-integer, intent(in) :: ounit      ! open file unit for output
-integer, intent(in) :: NLons      ! Number of Longitude centers per block
-integer, intent(in) :: NLats      ! Number of Latitude  centers per block
-integer, intent(in) :: NAlts      ! Number of Vertical grid centers
-integer, intent(in) :: NSpeciesTotal   ! Number of total species
-integer, intent(in) :: NIons      ! Number of charged species
-integer, intent(in) :: NSpecies   ! Number of neutral species
-integer, intent(in) :: ivar       ! index into progvar array
-real(r8), intent(in) :: data3d(:,:,:)
+integer,  intent(in) :: iunit, ounit
+integer,  intent(in) :: blockoffset
+real(r8), intent(in) :: statevector(:)
 
-real(r8), allocatable :: temp1d(:), temp3d(:,:,:), temp4d(:,:,:,:)
-integer :: i, num_to_skip, maxsize, total3d
+real(r8), allocatable :: temp1d(:), temp3d(:,:,:), temp4d(:,:,:,:), data3d(:,:,:)
+integer :: i, j, count, maxsize, ivals(NSpeciesTotal)
 logical :: done
 
 ! a temp array large enough to hold any of the 
@@ -2400,6 +2350,7 @@ allocate(temp1d(1-nGhost:max(nLons,nLats,nAlts)+nGhost))
 
 ! temp array large enough to hold 1 species, temperature, etc
 allocate(temp3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
+allocate(data3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost))
 
 ! temp array large enough to hold velocity vect, etc
 maxsize = max(3, nSpecies)
@@ -2410,47 +2361,52 @@ read(iunit) temp1d(1-nGhost:nLons+nGhost)
 read(iunit) temp1d(1-nGhost:nLats+nGhost)
 read(iunit) temp1d(1-nGhost:nAlts+nGhost)
 
-done = .false.
 
-! FIXME: this whole set of code has to be inverted.  first we need to
-! get a list of the fields in the state vector, in the same order as
-! how they occur in the restart files, and then read and write in that
-! order, one pass.   i guess read should be the same way as well both
-! to be consistent and also to be more efficient.
-!subroutine get_index_from_gitm_varname(gitm_varname, count, ivals)
-
-if (progvar(ivar)%gitm_varname == 'NDensityS') then
-   do i = 1, progvar(ivar)%gitm_index - 1
+call get_index_from_gitm_varname('NDensityS', count, ivals)
+if (count > 0) then
+   ! if i equals ival, use the data from the state vect
+   ! otherwise read/write what's in the input file
+   j = 1
+   do i = 1, nSpeciesTotal
       read(iunit)  temp3d
-      write(ounit) temp3d
-   enddo
-   read(iunit)  temp3d
-   write(iunit) data3d
-   done = .true.
-   do i = progvar(ivar)%gitm_index + 1, nSpeciesTotal
-      read(iunit)  temp3d
-      write(ounit) temp3d
+      if (i == ivals(j)) then
+         call pack_data(statevector, ivals(j), blockoffset, data3d)
+         write(ounit) data3d
+         j = j + 1
+      else
+         ! this one not in state vector, copy over from input
+         write(ounit) temp3d
+      endif
    enddo
 else
+   ! nothing at all from this variable in the state vector.
+   ! copy all data over from the input file to output file
    do i = 1, nSpeciesTotal
       read(iunit)  temp3d
       write(ounit) temp3d
    enddo
 endif
 
-if (progvar(ivar)%gitm_varname == 'IDensityS') then
-   do i = 1, progvar(ivar)%gitm_index - 1
+call get_index_from_gitm_varname('IDensityS', count, ivals)
+if (count > 0) then
+   ! one or more items in the state vector need to replace the 
+   ! data in the output file.  loop over the index list in order.
+   j = 1
+   do i = 1, nIons
       read(iunit)  temp3d
-      write(ounit) temp3d
-   enddo
-   read(iunit)  temp3d
-   write(iunit) data3d
-   done = .true.
-   do i = progvar(ivar)%gitm_index + 1, nIons
-      read(iunit)  temp3d
-      write(ounit) temp3d
+      if (i == ivals(j)) then
+         ! read from input but write from state vector
+         call pack_data(statevector, ivals(j), blockoffset, data3d)
+         write(ounit) data3d
+         j = j + 1
+      else
+         ! this one not in state vector, copy over from input
+         write(ounit) temp3d
+      endif
    enddo
 else
+   ! nothing at all from this variable in the state vector.
+   ! copy all data over from the input file to output file
    do i = 1, nIons
       read(iunit)  temp3d
       write(ounit) temp3d
@@ -2458,69 +2414,91 @@ else
 endif
 
 read(iunit)  temp3d
-if (progvar(ivar)%gitm_varname == 'Temperature') then
+call get_index_from_gitm_varname('Temperature', count, ivals)
+if (count > 0) then
+   call pack_data(statevector, ivals(1), blockoffset, data3d)
    write(ounit) data3d
-   done = .true.
 else
    write(ounit) temp3d
 endif
 
 
 read(iunit) temp3d
-if (progvar(ivar)%gitm_varname == 'ITemperature') then
+call get_index_from_gitm_varname('ITemperature', count, ivals)
+if (count > 0) then
+   call pack_data(statevector, ivals(1), blockoffset, data3d)
    write(ounit) data3d
-   done = .true.
 else
    write(ounit) temp3d
 endif
 
 read(iunit) temp3d
-if (progvar(ivar)%gitm_varname == 'eTemperature') then
+call get_index_from_gitm_varname('eTemperature', count, ivals)
+if (count > 0) then
+   call pack_data(statevector, ivals(1), blockoffset, data3d)
    write(ounit) data3d
-   done = .true.
 else
    write(ounit) temp3d
 endif
 
 print *, 'reading in temp4d for vel'
 read(iunit) temp4d(:,:,:,1:3)
-if (progvar(ivar)%gitm_varname == 'Velocity') then
-   temp4d(:,:,:,progvar(ivar)%gitm_index) = temp3d(:,:,:)
-   done = .true.
+call get_index_from_gitm_varname('Velocity', count, ivals)
+if (count > 0) then
+   ! one or more items in the state vector need to replace the 
+   ! data in the output file.  loop over the index list in order.
+   j = 1
+   do i = 1, 3
+      if (i == ivals(j)) then
+         ! read from input but write from state vector
+         call pack_data(statevector, ivals(j), blockoffset, data3d)
+         temp4d(:,:,:,i) = data3d
+         j = j + 1
+      endif
+   enddo
 endif
-print *, 'calling write'
 write(ounit) temp4d(:,:,:,1:3)
 
 print *, 'reading in temp4d for ivel'
 read(iunit) temp4d(:,:,:,1:3)
-if (progvar(ivar)%gitm_varname == 'IVelocity') then
-   temp4d(:,:,:,progvar(ivar)%gitm_index) = temp3d(:,:,:)
-   done = .true.
+call get_index_from_gitm_varname('IVelocity', count, ivals)
+if (count > 0) then
+   ! one or more items in the state vector need to replace the 
+   ! data in the output file.  loop over the index list in order.
+   j = 1
+   do i = 1, 3
+      if (i == ivals(j)) then
+         ! read from input but write from state vector
+         call pack_data(statevector, ivals(j), blockoffset, data3d)
+         temp4d(:,:,:,i) = data3d
+         j = j + 1
+      endif
+   enddo
 endif
-print *, 'calling write'
 write(ounit) temp4d(:,:,:,1:3)
 
-print *, 'reading in temp4d for vertvel'
+print *, 'reading in temp4d for vvel'
 read(iunit) temp4d(:,:,:,1:nSpecies)
-if (progvar(ivar)%gitm_varname == 'VerticalVelocity') then
-   temp4d(:,:,:,progvar(ivar)%gitm_index) = temp3d(:,:,:)
-   done = .true.
+call get_index_from_gitm_varname('VerticalVelocity', count, ivals)
+if (count > 0) then
+   ! one or more items in the state vector need to replace the 
+   ! data in the output file.  loop over the index list in order.
+   j = 1
+   do i = 1, nSpecies
+      if (i == ivals(j)) then
+         ! read from input but write from state vector
+         call pack_data(statevector, ivals(j), blockoffset, data3d)
+         temp4d(:,:,:,i) = data3d
+         j = j + 1
+      endif
+   enddo
 endif
-print *, 'calling write'
 write(ounit) temp4d(:,:,:,1:nSpecies)
 
-if (.not. done) then
-   call error_handler(E_ERR, 'write_data', &
-        'got to end of data without finding '//trim(progvar(ivar)%gitm_varname), &
-        source,revision,revdate)
-endif
-
 print *, 'calling dealloc'
-deallocate(temp1d, temp3d, temp4d)
+deallocate(temp1d, temp3d, temp4d, data3d)
 
 end subroutine write_data
-
-
 
 
 function get_base_time_ncid( ncid )
@@ -2778,6 +2756,9 @@ FieldLoop : do i=1,nfields
    endif
    ivals(count) = i
 enddo FieldLoop
+
+! return the vals in sorted order if more than 1
+if (count > 1) call sortlist(ivals, count)
 
 end subroutine get_index_from_gitm_varname
 
@@ -3111,6 +3092,30 @@ if(ios /= 0) then
 endif
 
 end function read_in_int
+
+
+subroutine sortlist(x, count)
+! sorts a (short) integer array in place
+! will be slow for a long list
+
+integer, intent(inout) :: x(:)
+integer, intent(in)    :: count
+
+integer :: tmp
+integer :: j, k
+
+!  DO A N^2 SORT - only use for short lists
+do j = 1, count - 1
+   do k = j + 1, count
+!  EXCHANGE TWO ELEMENTS IF THEY'RE IN THE WRONG ORDER
+      if(x(j) .gt. x(k)) then
+         tmp = x(k)
+         x(k) = x(j)
+         x(j) = tmp
+      end if
+   end do
+end do
+end subroutine sortlist
 
 !===================================================================
 ! End of model_mod
