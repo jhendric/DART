@@ -28,7 +28,7 @@ program gitm_to_dart
 use        types_mod, only : r8
 use    utilities_mod, only : initialize_utilities, timestamp, &
                              find_namelist_in_file, check_namelist_read
-use        model_mod, only : get_model_size, restart_file_to_sv, &
+use        model_mod, only : get_model_size, restart_file_to_statevector, &
                              get_gitm_restart_dirname
 use  assim_model_mod, only : awrite_state_restart, open_restart_write, close_restart
 use time_manager_mod, only : time_type, print_time, print_date
@@ -87,7 +87,7 @@ allocate(statevector(x_size))
 
 call get_gitm_restart_dirname( gitm_restart_dirname )
 
-call restart_file_to_sv(gitm_restart_dirname, statevector, model_time) 
+call restart_file_to_statevector(gitm_restart_dirname, statevector, model_time) 
 
 iunit = open_restart_write(gitm_to_dart_output_file)
 

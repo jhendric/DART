@@ -17,7 +17,7 @@ program model_mod_check
 use        types_mod, only : r8, digits12, metadatalength
 use    utilities_mod, only : initialize_utilities, timestamp, nc_check, &
                              open_file, close_file, find_namelist_in_file, &
-                             check_namelist_read
+                             check_namelist_read, finalize_utilities
 use     location_mod, only : location_type, set_location, write_location, get_dist, &
                              query_location, LocationDims, get_location, VERTISHEIGHT
 use     obs_kind_mod, only : get_raw_obs_kind_name, get_raw_obs_kind_index
@@ -29,9 +29,10 @@ use time_manager_mod, only : time_type, set_calendar_type, GREGORIAN, &
                              read_time, get_time, set_time,  &
                              print_date, get_date, &
                              print_time, write_time, &
-                             operator(-)
+                             operator(-), operator(==), operator(/=)
 use        model_mod, only : static_init_model, get_model_size, get_state_meta_data, &
-                             model_interpolate, get_state_time
+                             model_interpolate, get_state_time, statevector_to_restart_file, &
+                             restart_file_to_statevector, get_gitm_restart_dirname
                !             test_interpolate
 
 implicit none
@@ -62,13 +63,14 @@ namelist /model_mod_check_nml/ input_file, output_file, &
 ! integer :: numlons, numlats, numlevs
 
 integer :: in_unit, out_unit, ios_out, iunit, io, offset
-integer :: x_size
+integer :: x_size, i
 integer :: year, month, day, hour, minute, second
 integer :: secs, days
 
-type(time_type)       :: model_time, adv_to_time
-real(r8), allocatable :: statevector(:)
+type(time_type)       :: model_time, adv_to_time, model_time2
+real(r8), allocatable :: statevector(:), statevector2(:)
 
+character(len=128) :: gitm_restart_dirname 
 character(len=metadatalength) :: state_meta(1)
 type(netcdf_file_type) :: ncFileID
 type(location_type) :: loc
@@ -94,7 +96,7 @@ call static_init_model()
 
 x_size = get_model_size()
 write(*,'(''state vector has length'',i10)') x_size
-allocate(statevector(x_size))
+allocate(statevector(x_size), statevector2(x_size))
 
 !----------------------------------------------------------------------
 ! Write a supremely simple restart file. Most of the time, I just use
@@ -170,9 +172,6 @@ call nc_check( finalize_diag_output(ncFileID), 'model_mod_check:main', 'finalize
 
 if ( x_ind > 0 .and. x_ind <= x_size ) call check_meta_data( x_ind )
 
-write(*,*)'Manually Stopping'
-stop
-
 !----------------------------------------------------------------------
 ! Trying to find the state vector index closest to a particular ...
 ! Checking for valid input is tricky ... we don't know much. 
@@ -199,10 +198,33 @@ else
 endif
 
 !----------------------------------------------------------------------
-! When called with 'end', timestamp will call finalize_utilities()
-! This must be the last few lines of the main program.
+! Check the converters to and from the native model file format.
 !----------------------------------------------------------------------
-call timestamp(string1=source, pos='end')
+
+call get_gitm_restart_dirname( gitm_restart_dirname )
+
+call statevector_to_restart_file(statevector, gitm_restart_dirname, model_time)
+
+call restart_file_to_statevector(gitm_restart_dirname, statevector2, model_time2) 
+
+do i=1, x_size
+   if (statevector(i) /= statevector2(i)) then
+      write(*,*) 'error: data was not preserved going to restart file and back'
+      write(*,*) 'data item ', i, ' old, new = ', statevector(i), statevector2(i)
+   endif
+enddo
+
+if (model_time /= model_time2) then
+   write(*,*) 'error: time was not preserved going to restart file and back'
+   call print_time( model_time, 'model_mod_check:time written')
+   call print_time( model_time2,'model_mod_check:time read   ')
+endif
+
+!----------------------------------------------------------------------
+! This must be the last line of the main program.
+!----------------------------------------------------------------------
+call finalize_utilities()
+
 
 contains
 
@@ -251,7 +273,7 @@ endif
 
 write(*,*)
 write(*,'(''Checking for the indices into the state vector that are at'')')
-write(*,'(''lon/lat/lev'',3(1x,f10.5))')loc_of_interest(1:LocationDims)
+write(*,'(''lon/lat/lev'',3(1x,f15.5))')loc_of_interest(1:LocationDims)
 
 allocate( thisdist(get_model_size()) )
 thisdist  = 9999999999.9_r8         ! really far away 

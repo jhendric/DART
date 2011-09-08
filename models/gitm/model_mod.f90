@@ -78,11 +78,11 @@ public :: get_model_size,         &
 ! generally useful routines for various support purposes.
 ! the interfaces here can be changed as appropriate.
 
-public :: get_gridsize,              &
-          restart_file_to_sv,        &
-          sv_to_restart_file,        &
-          get_gitm_restart_dirname,  &
-          get_base_time,             &
+public :: get_gridsize,                &
+          restart_file_to_statevector, &
+          statevector_to_restart_file, &
+          get_gitm_restart_dirname,    &
+          get_base_time,               &
           get_state_time
 
 ! version controlled file description for error handling, do not edit
@@ -416,7 +416,7 @@ endif
 
 ! Read the gitm variable list to populate DART state vector
 ! Once parsed, the values will be recorded for posterity
-call find_namelist_in_file('gitm_vars.nml', 'gitm_vars_nml', iunit)
+call find_namelist_in_file('input.nml', 'gitm_vars_nml', iunit)
 read(iunit, nml = gitm_vars_nml, iostat = io)
 call check_namelist_read(iunit, io, 'gitm_vars_nml')
 
@@ -1040,7 +1040,7 @@ else
    ! We need to process the prognostic variables.
    !----------------------------------------------------------------------------
 
-   do ivar = 1,nfields  ! Very similar to loop in sv_to_restart_file
+   do ivar = 1,nfields  
 
       varname = trim(progvar(ivar)%varname)
       string2 = trim(filename)//' '//trim(varname)
@@ -1380,7 +1380,7 @@ end subroutine get_gridsize
 !  any or all of the three dimensions.
 !
 
-subroutine restart_file_to_sv(dirname, state_vector, model_time)
+subroutine restart_file_to_statevector(dirname, state_vector, model_time)
 !------------------------------------------------------------------
 ! Reads the current time and state variables from a gitm restart
 ! file and packs them into a dart state vector.
@@ -1414,11 +1414,11 @@ if (do_output()) &
 call get_data(dirname, state_vector)
 
 
-end subroutine restart_file_to_sv
+end subroutine restart_file_to_statevector
 
 
 
-subroutine sv_to_restart_file(state_vector, dirname, statedate)
+subroutine statevector_to_restart_file(state_vector, dirname, statedate)
 !------------------------------------------------------------------
 ! Writes the current time and state variables from a dart state
 ! vector (1d array) into a gitm netcdf restart file.
@@ -1434,7 +1434,7 @@ character(len=128) :: dirnameout
 
 if ( .not. module_initialized ) call static_init_model
 
-print *, 'in sv_to_restart_file, debug, nfields = ', debug, nfields
+print *, 'in statevector_to_restart_file, debug, nfields = ', debug, nfields
 
 ! sort the required fields into the order they exist in the
 ! binary restart files and write out the state vector data
@@ -1454,7 +1454,7 @@ if (do_output()) &
 if (do_output()) &
     call print_date(model_time,'date in restart file '//trim(dirname)//'/header.rst')
 
-end subroutine sv_to_restart_file
+end subroutine statevector_to_restart_file
 
 
 
@@ -2143,7 +2143,9 @@ real(r8), intent(inout) :: statevector(:)
 
 integer :: i, j, k, offset, base
 
+!print *, 'ivar = ', ivar
 base = progvar(ivar)%index1 - 1   ! FIXME: -1?
+!print *, 'blockoffset, base = ', blockoffset, base
 
 do k=1,nAlts
  do j=1,nLats
@@ -2152,8 +2154,13 @@ do k=1,nAlts
       offset = ((k-1) * ngridLat * ngridLon) +  &
                ((j-1) * ngridLon) +             &
                i
+    if (base+blockoffset+offset < 1 .or. &
+        base+blockoffset+offset > model_size) then
+      print *, 'i,j,k, index: ', i, j, k, base+blockoffset+offset
+    else
       statevector(base + blockoffset + offset) = data3d(i, j, k)
       !print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
+    endif
 
   enddo
  enddo
@@ -2265,22 +2272,22 @@ endif
 read(iunit)  temp3d
 call get_index_from_gitm_varname('Temperature', count, ivals)
 if (count > 0) then
-   call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+   call unpack_data(temp3d, ivals(1), blockoffset, statevector)
 endif
 
 read(iunit) temp3d
 call get_index_from_gitm_varname('ITemperature', count, ivals)
 if (count > 0) then
-   call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+   call unpack_data(temp3d, ivals(1), blockoffset, statevector)
 endif
 
 read(iunit) temp3d
 call get_index_from_gitm_varname('eTemperature', count, ivals)
 if (count > 0) then
-   call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+   call unpack_data(temp3d, ivals(1), blockoffset, statevector)
 endif
 
-print *, 'reading in temp4d for vel'
+!print *, 'reading in temp4d for vel'
 read(iunit) temp4d(:,:,:,1:3)
 call get_index_from_gitm_varname('Velocity', count, ivals)
 if (count > 0) then
@@ -2295,7 +2302,7 @@ if (count > 0) then
    enddo
 endif
 
-print *, 'reading in temp4d for ivel'
+!print *, 'reading in temp4d for ivel'
 read(iunit) temp4d(:,:,:,1:3)
 call get_index_from_gitm_varname('IVelocity', count, ivals)
 if (count > 0) then
@@ -2311,7 +2318,7 @@ if (count > 0) then
    enddo
 endif
 
-print *, 'reading in temp4d for vvel'
+!print *, 'reading in temp4d for vvel'
 read(iunit) temp4d(:,:,:,1:nSpecies)
 call get_index_from_gitm_varname('VerticalVelocity', count, ivals)
 if (count > 0) then
@@ -2326,7 +2333,7 @@ if (count > 0) then
    enddo
 endif
 
-print *, 'calling dealloc'
+!print *, 'calling dealloc'
 deallocate(temp1d, temp3d, temp4d)
 
 end subroutine read_data
@@ -2441,7 +2448,7 @@ else
    write(ounit) temp3d
 endif
 
-print *, 'reading in temp4d for vel'
+!print *, 'reading in temp4d for vel'
 read(iunit) temp4d(:,:,:,1:3)
 call get_index_from_gitm_varname('Velocity', count, ivals)
 if (count > 0) then
@@ -2459,7 +2466,7 @@ if (count > 0) then
 endif
 write(ounit) temp4d(:,:,:,1:3)
 
-print *, 'reading in temp4d for ivel'
+!print *, 'reading in temp4d for ivel'
 read(iunit) temp4d(:,:,:,1:3)
 call get_index_from_gitm_varname('IVelocity', count, ivals)
 if (count > 0) then
@@ -2477,7 +2484,7 @@ if (count > 0) then
 endif
 write(ounit) temp4d(:,:,:,1:3)
 
-print *, 'reading in temp4d for vvel'
+!print *, 'reading in temp4d for vvel'
 read(iunit) temp4d(:,:,:,1:nSpecies)
 call get_index_from_gitm_varname('VerticalVelocity', count, ivals)
 if (count > 0) then
@@ -2495,7 +2502,6 @@ if (count > 0) then
 endif
 write(ounit) temp4d(:,:,:,1:nSpecies)
 
-print *, 'calling dealloc'
 deallocate(temp1d, temp3d, temp4d, data3d)
 
 end subroutine write_data
@@ -2759,6 +2765,7 @@ enddo FieldLoop
 
 ! return the vals in sorted order if more than 1
 if (count > 1) call sortlist(ivals, count)
+
 
 end subroutine get_index_from_gitm_varname
 

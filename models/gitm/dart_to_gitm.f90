@@ -33,7 +33,7 @@ use    utilities_mod, only : initialize_utilities, timestamp, &
 use  assim_model_mod, only : open_restart_read, aread_state_restart, close_restart
 use time_manager_mod, only : time_type, print_time, print_date, operator(-), &
                              get_time, get_date
-use        model_mod, only : static_init_model, sv_to_restart_file, &
+use        model_mod, only : static_init_model, statevector_to_restart_file, &
                              get_model_size, get_base_time, get_gitm_restart_dirname
 
 implicit none
@@ -100,13 +100,15 @@ else
 endif
 call close_restart(iunit)
 
+print *, 'read state vector'
 !----------------------------------------------------------------------
 ! update the current gitm state vector
 ! Convey the amount of time to integrate the model ...
 ! time_manager_nml: stop_option, stop_count increments
 !----------------------------------------------------------------------
 
-call sv_to_restart_file(statevector, gitm_restart_dirname, model_time)
+print *, 'calling sv to restart file'
+call statevector_to_restart_file(statevector, gitm_restart_dirname, model_time)
 
 if ( advance_time_present ) then
    call write_gitm_time_control(model_time, adv_to_time)

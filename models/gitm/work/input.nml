@@ -135,7 +135,7 @@
 
 
 &assim_model_nml
-   write_binary_restart_files = .true.,
+   write_binary_restart_files = .false.,
    netCDF_large_file_support  = .true.
   /
 
@@ -150,20 +150,36 @@
    debug                        = 9,
   /
 
-# The list of variables to assimilate is contained in a separate file
-# and namelist. The file is called "gitm_vars.nml", the namelist is
-# called "gitm_vars_nml".
+# The list of variables to put into the state vector is here:
+# The definitions for the DART kinds are in DART/obs_def/obs_def*f90
+
+&gitm_vars_nml
+   gitm_state_variables = 'Temperature',            'KIND_TEMPERATURE',
+                          'ITemperature',           'KIND_ION_TEMPERATURE',
+                          'eTemperature',           'KIND_ELECTRON_TEMPERATURE',
+                          'iN2_NDensityS',          'KIND_DENSITY',
+                          'iO_2DP_IDensityS',       'KIND_ION_DENSITY',
+                          'iNO_VerticalVelocity',   'KIND_iNO_VERTICALVELOCITY',
+                          'iO_3P_VerticalVelocity', 'KIND_iO_3P_VERTICALVELOCITY',
+                          'U_Velocity_component',   'KIND_U_VELOCITY',
+                          'V_Velocity_component',   'KIND_V_VELOCITY',
+                          'W_Velocity_component',   'KIND_W_VELOCITY',
+                          'U_IVelocity_component',  'KIND_ION_U_VELOCITY',
+                          'V_IVelocity_component',  'KIND_ION_V_VELOCITY',
+                          'W_IVelocity_component',  'KIND_ION_W_VELOCITY',
+   /
+
 
 &gitm_to_dart_nml
-   gitm_to_dart_output_file = 'dart.ud'
-   gitm_restart_dirname     = '../testdata1'
+   gitm_to_dart_output_file = 'dart.ud',
+   gitm_restart_dirname     = '../testdata1',
   /
 
 
 &dart_to_gitm_nml
    dart_to_gitm_input_file  = 'dart.ic',
-   advance_time_present     = .true.
-   gitm_restart_dirname     = '../testdata2'
+   advance_time_present     = .true.,
+   gitm_restart_dirname     = '../testdata1',
   /
 
 
