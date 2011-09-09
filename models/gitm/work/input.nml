@@ -153,20 +153,24 @@
 # The list of variables to put into the state vector is here:
 # The definitions for the DART kinds are in DART/obs_def/obs_def*f90
 
+# these are intentionally jumbled just for testing.  for real use
+# presumably you'd want them in some kind of logical order.
+
 &gitm_vars_nml
-   gitm_state_variables = 'Temperature',            'KIND_TEMPERATURE',
-                          'ITemperature',           'KIND_ION_TEMPERATURE',
-                          'eTemperature',           'KIND_ELECTRON_TEMPERATURE',
+   gitm_state_variables = 
+                          'Temperature',            'KIND_TEMPERATURE',
                           'iN2_NDensityS',          'KIND_DENSITY',
-                          'iO_2DP_IDensityS',       'KIND_ION_DENSITY',
                           'iNO_VerticalVelocity',   'KIND_iNO_VERTICALVELOCITY',
-                          'iO_3P_VerticalVelocity', 'KIND_iO_3P_VERTICALVELOCITY',
-                          'U_Velocity_component',   'KIND_U_VELOCITY',
-                          'V_Velocity_component',   'KIND_V_VELOCITY',
-                          'W_Velocity_component',   'KIND_W_VELOCITY',
                           'U_IVelocity_component',  'KIND_ION_U_VELOCITY',
+                          'ITemperature',           'KIND_ION_TEMPERATURE',
                           'V_IVelocity_component',  'KIND_ION_V_VELOCITY',
                           'W_IVelocity_component',  'KIND_ION_W_VELOCITY',
+                          'eTemperature',           'KIND_ELECTRON_TEMPERATURE',
+                          'W_Velocity_component',   'KIND_W_VELOCITY',
+                          'iO_2DP_IDensityS',       'KIND_ION_DENSITY',
+                          'V_Velocity_component',   'KIND_V_VELOCITY',
+                          'iO_3P_VerticalVelocity', 'KIND_iO_3P_VERTICALVELOCITY',
+                          'U_Velocity_component',   'KIND_U_VELOCITY',
    /
 
 

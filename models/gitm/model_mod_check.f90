@@ -123,6 +123,26 @@ call print_date( model_time,'model_mod_check:model date')
 call print_time( model_time,'model_mod_check:model time')
 
 !----------------------------------------------------------------------
+! convert model data into a dart state vector and write it into a
+! initial conditions file.  writes the valid time and the state.
+!----------------------------------------------------------------------
+
+call get_gitm_restart_dirname( gitm_restart_dirname )
+
+write(*,*)
+write(*,*)'Reading restart files from dir '//trim(gitm_restart_dirname)
+
+call restart_file_to_statevector(gitm_restart_dirname, statevector, model_time) 
+
+write(*,*)
+write(*,*)'Writing data into '//trim(input_file)
+
+iunit = open_restart_write(input_file)
+call awrite_state_restart(model_time, statevector, iunit)
+call close_restart(iunit)
+
+
+!----------------------------------------------------------------------
 ! Open a test DART initial conditions file.
 ! Reads the valid time, the state, and (possibly) a target time.
 !----------------------------------------------------------------------
@@ -205,12 +225,18 @@ call get_gitm_restart_dirname( gitm_restart_dirname )
 
 call statevector_to_restart_file(statevector, gitm_restart_dirname, model_time)
 
-call restart_file_to_statevector(gitm_restart_dirname, statevector2, model_time2) 
+! only for debug in case you think the values aren't being written to
+! the right location
+!do i=1, x_size
+!   statevector(i) = i
+!enddo
+
+call restart_file_to_statevector(trim(gitm_restart_dirname)//'.out', statevector2, model_time2) 
 
 do i=1, x_size
-   if (statevector(i) /= statevector2(i)) then
+   if (abs(statevector(i) - statevector2(i)) > 1.0e-6_r8) then
       write(*,*) 'error: data was not preserved going to restart file and back'
-      write(*,*) 'data item ', i, ' old, new = ', statevector(i), statevector2(i)
+      write(*,*) i, statevector(i), statevector2(i)
    endif
 enddo
 

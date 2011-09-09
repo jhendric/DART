@@ -2059,7 +2059,11 @@ if ( rw == 'read' .and. .not. file_exist(filename) ) then
    call error_handler(E_ERR,'open_block_file',string1,source,revision,revdate)
 endif
 
+print *, 'opening file ', trim(filename), ' for ', trim(rw)
+
 open_block_file = open_file(filename, 'unformatted', rw)
+ 
+!print *, 'returned file descriptor is ', open_block_file
 
 end function open_block_file
 
@@ -2072,7 +2076,7 @@ subroutine get_data(dirname, statevector)
  character(len=*), intent(in)  :: dirname
  real(r8),         intent(out) :: statevector(:)
 
-integer :: ib, jb, nb, iunit, blockoffset
+integer :: ib, jb, nb, iunit, blockoffset, i
 
 ! get the dirname, construct the filenames inside open_block_file
 
@@ -2095,6 +2099,15 @@ do jb = 1, nBlocksLat
  enddo
 enddo
 
+if ( debug > 4 ) then ! A little sanity check
+   write (*,*) 'variable data after read: '
+   do i = 1, nfields
+      write(*,*) trim(progvar(i)%varname), ' range ', &
+                 minval(statevector(progvar(i)%index1:progvar(i)%indexN)), &
+                 maxval(statevector(progvar(i)%index1:progvar(i)%indexN))
+   enddo
+endif
+
 end subroutine get_data
 
 subroutine put_data(dirname, dirnameout, statevector)
@@ -2108,6 +2121,15 @@ integer :: ib, jb, nb, iunit, ounit
 integer :: i, j, k, blockoffset
 
 ! get the dirname, construct the filenames inside open_block_file
+
+if ( debug > 4 ) then ! A little sanity check
+   write (*,*) 'variable data to be written: '
+   do i = 1, nfields
+      write(*,*) trim(progvar(i)%varname), 'range ', &
+                 minval(statevector(progvar(i)%index1:progvar(i)%indexN)), &
+                 maxval(statevector(progvar(i)%index1:progvar(i)%indexN))
+   enddo
+endif
 
 do jb = 1, nBlocksLat
  do ib = 1, nBlocksLon
@@ -2126,6 +2148,7 @@ do jb = 1, nBlocksLat
    call write_data(iunit, ounit, blockoffset, statevector)
 
    call close_file(iunit)
+   call close_file(ounit)
  enddo
 enddo
 
@@ -2223,6 +2246,7 @@ maxsize = max(3, nSpecies)
 allocate(temp4d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost, maxsize))
 
 ! get past lon and lat arrays and read in alt array
+print *, 'iunit in read_data = ', iunit
 read(iunit) temp1d(1-nGhost:nLons+nGhost)
 read(iunit) temp1d(1-nGhost:nLats+nGhost)
 read(iunit) temp1d(1-nGhost:nAlts+nGhost)
@@ -2235,9 +2259,11 @@ if (count > 0) then
    j = 1
    do i = 1, nSpeciesTotal
       read(iunit)  temp3d
-      if (i == ivals(j)) then
-         call unpack_data(temp3d, ivals(j), blockoffset, statevector)
-         j = j + 1
+      if (j <= count) then
+         if (i == progvar(ivals(j))%gitm_index) then
+            call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+            j = j + 1
+         endif
       endif
    enddo
 else
@@ -2255,10 +2281,12 @@ if (count > 0) then
    j = 1
    do i = 1, nIons
       read(iunit)  temp3d
-      if (i == ivals(j)) then
-         ! read from input but write from state vector
-         call unpack_data(temp3d, ivals(j), blockoffset, statevector)
-         j = j + 1
+      if (j <= count) then
+         if (i == progvar(ivals(j))%gitm_index) then
+            ! read from input but write from state vector
+            call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+            j = j + 1
+         endif
       endif
    enddo
 else
@@ -2294,10 +2322,12 @@ if (count > 0) then
    ! copy out any requested bits into state vector
    j = 1
    do i = 1, 3
-      if (i == ivals(j)) then
-         temp3d = temp4d(:,:,:,i)
-         call unpack_data(temp3d, ivals(j), blockoffset, statevector)
-         j = j + 1
+      if (j <= count) then
+         if (i == progvar(ivals(j))%gitm_index) then
+            temp3d = temp4d(:,:,:,i)
+            call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+            j = j + 1
+         endif
       endif
    enddo
 endif
@@ -2309,11 +2339,13 @@ if (count > 0) then
    ! copy out any requested bits into state vector
    j = 1
    do i = 1, 3
-      if (i == ivals(j)) then
-         ! read from input but write from state vector
-         temp3d = temp4d(:,:,:,i)
-         call unpack_data(temp3d, ivals(j), blockoffset, statevector)
-         j = j + 1
+      if (j <= count) then
+         if (i == progvar(ivals(j))%gitm_index) then
+            ! read from input but write from state vector
+            temp3d = temp4d(:,:,:,i)
+            call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+            j = j + 1
+         endif
       endif
    enddo
 endif
@@ -2325,10 +2357,12 @@ if (count > 0) then
    ! copy out any requested bits into state vector
    j = 1
    do i = 1, nSpecies
-      if (i == ivals(j)) then
-         temp3d = temp4d(:,:,:,i)
-         call unpack_data(temp3d, ivals(j), blockoffset, statevector)
-         j = j + 1
+      if (j <= count) then
+         if (i == progvar(ivals(j))%gitm_index) then
+            temp3d = temp4d(:,:,:,i)
+            call unpack_data(temp3d, ivals(j), blockoffset, statevector)
+            j = j + 1
+         endif
       endif
    enddo
 endif
@@ -2363,10 +2397,13 @@ allocate(data3d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGh
 maxsize = max(3, nSpecies)
 allocate(temp4d(1-nGhost:nLons+nGhost, 1-nGhost:nLats+nGhost, 1-nGhost:nAlts+nGhost, maxsize))
 
-! get past lon and lat arrays and read in alt array
-read(iunit) temp1d(1-nGhost:nLons+nGhost)
-read(iunit) temp1d(1-nGhost:nLats+nGhost)
-read(iunit) temp1d(1-nGhost:nAlts+nGhost)
+! copy over lat, lon, alt arrays verbatim
+ read(iunit) temp1d(1-nGhost:nLons+nGhost)
+write(ounit) temp1d(1-nGhost:nLons+nGhost)
+ read(iunit) temp1d(1-nGhost:nLats+nGhost)
+write(ounit) temp1d(1-nGhost:nLats+nGhost)
+ read(iunit) temp1d(1-nGhost:nAlts+nGhost)
+write(ounit) temp1d(1-nGhost:nAlts+nGhost)
 
 
 call get_index_from_gitm_varname('NDensityS', count, ivals)
@@ -2376,10 +2413,14 @@ if (count > 0) then
    j = 1
    do i = 1, nSpeciesTotal
       read(iunit)  temp3d
-      if (i == ivals(j)) then
-         call pack_data(statevector, ivals(j), blockoffset, data3d)
-         write(ounit) data3d
-         j = j + 1
+      if (j <= count) then
+         if (i == progvar(ivals(j))%gitm_index) then
+            call pack_data(statevector, ivals(j), blockoffset, data3d)
+            write(ounit) data3d
+            j = j + 1
+         else
+            write(ounit) temp3d
+         endif
       else
          ! this one not in state vector, copy over from input
          write(ounit) temp3d
@@ -2401,11 +2442,15 @@ if (count > 0) then
    j = 1
    do i = 1, nIons
       read(iunit)  temp3d
-      if (i == ivals(j)) then
-         ! read from input but write from state vector
-         call pack_data(statevector, ivals(j), blockoffset, data3d)
-         write(ounit) data3d
-         j = j + 1
+      if (j <= count) then
+         if (i == progvar(ivals(j))%gitm_index) then
+            ! read from input but write from state vector
+            call pack_data(statevector, ivals(j), blockoffset, data3d)
+            write(ounit) data3d
+            j = j + 1
+         else
+            write(ounit) temp3d
+         endif
       else
          ! this one not in state vector, copy over from input
          write(ounit) temp3d
@@ -2456,11 +2501,13 @@ if (count > 0) then
    ! data in the output file.  loop over the index list in order.
    j = 1
    do i = 1, 3
-      if (i == ivals(j)) then
-         ! read from input but write from state vector
-         call pack_data(statevector, ivals(j), blockoffset, data3d)
-         temp4d(:,:,:,i) = data3d
-         j = j + 1
+      if (j <= count) then
+         if (i == progvar(ivals(j))%gitm_index) then
+            ! read from input but write from state vector
+            call pack_data(statevector, ivals(j), blockoffset, data3d)
+            temp4d(:,:,:,i) = data3d
+            j = j + 1
+         endif
       endif
    enddo
 endif
@@ -2474,11 +2521,13 @@ if (count > 0) then
    ! data in the output file.  loop over the index list in order.
    j = 1
    do i = 1, 3
-      if (i == ivals(j)) then
-         ! read from input but write from state vector
-         call pack_data(statevector, ivals(j), blockoffset, data3d)
-         temp4d(:,:,:,i) = data3d
-         j = j + 1
+      if (j <= count) then
+         if (i == progvar(ivals(j))%gitm_index) then
+            ! read from input but write from state vector
+            call pack_data(statevector, ivals(j), blockoffset, data3d)
+            temp4d(:,:,:,i) = data3d
+            j = j + 1
+         endif
       endif
    enddo
 endif
@@ -2492,11 +2541,13 @@ if (count > 0) then
    ! data in the output file.  loop over the index list in order.
    j = 1
    do i = 1, nSpecies
-      if (i == ivals(j)) then
-         ! read from input but write from state vector
-         call pack_data(statevector, ivals(j), blockoffset, data3d)
-         temp4d(:,:,:,i) = data3d
-         j = j + 1
+      if (j <= count) then
+         if (i == progvar(ivals(j))%gitm_index) then
+            ! read from input but write from state vector
+            call pack_data(statevector, ivals(j), blockoffset, data3d)
+            temp4d(:,:,:,i) = data3d
+            j = j + 1
+         endif
       endif
    enddo
 endif
@@ -2748,6 +2799,7 @@ subroutine get_index_from_gitm_varname(gitm_varname, count, ivals)
 character(len=*), intent(in) :: gitm_varname
 integer, intent(out) :: count, ivals(:)
 
+integer :: gindex(nfields)
 integer :: i, limit
 
 count = 0
@@ -2760,11 +2812,26 @@ FieldLoop : do i=1,nfields
       write(string1,*) 'found too many matches, ivals needs to be larger than ', limit
       call error_handler(E_ERR,'get_index_from_gitm_varname',string1,source,revision,revdate)
    endif
+   ! i is index into progvar array - the order of the fields in the sv
+   ! gitm_index is index into the specific variable in the gitm restarts
    ivals(count) = i
+   gindex(count) = progvar(i)%gitm_index
 enddo FieldLoop
 
-! return the vals in sorted order if more than 1
-if (count > 1) call sortlist(ivals, count)
+!if (count > 0) then
+!   print *, 'before sort, count: ', count
+!   print *, 'before sort, gindex: ', gindex(1:count)
+!   print *, 'before sort, ivals: ', ivals(1:count)
+!endif
+
+! return the vals sorted by gitm_index order if more than 1
+if (count > 1) call sortindexlist(gindex, ivals, count)
+
+!if (count > 0) then
+!   print *, 'after  sort, count: ', count
+!   print *, 'after  sort, gindex: ', gindex(1:count)
+!   print *, 'after  sort, ivals: ', ivals(1:count)
+!endif
 
 
 end subroutine get_index_from_gitm_varname
@@ -3101,10 +3168,11 @@ endif
 end function read_in_int
 
 
-subroutine sortlist(x, count)
-! sorts a (short) integer array in place
-! will be slow for a long list
+subroutine sortindexlist(list, x, count)
+! sort list x into order based on values in list.
+! should only be called on short ( < hundreds) of values or will be slow
 
+integer, intent(inout) :: list(:)
 integer, intent(inout) :: x(:)
 integer, intent(in)    :: count
 
@@ -3114,15 +3182,19 @@ integer :: j, k
 !  DO A N^2 SORT - only use for short lists
 do j = 1, count - 1
    do k = j + 1, count
-!  EXCHANGE TWO ELEMENTS IF THEY'RE IN THE WRONG ORDER
-      if(x(j) .gt. x(k)) then
+      ! if list() is in wrong order, exchange both list items and 
+      ! items in x array.
+      if(list(j) .gt. list(k)) then
+         tmp = list(k)
+         list(k) = list(j)
+         list(j) = tmp
          tmp = x(k)
          x(k) = x(j)
          x(j) = tmp
       end if
    end do
 end do
-end subroutine sortlist
+end subroutine sortindexlist
 
 !===================================================================
 ! End of model_mod

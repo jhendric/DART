@@ -163,8 +163,10 @@ integer :: iyear,imonth,iday,ihour,imin,isec
 iunit = open_file('DART_GITM_time_control.txt', action='write')
 write(iunit,*)
 
-call get_date(model_time,iyear,imonth,iday,ihour,imin,isec)
-write(iunit,'(''#TIMESTART'')') 
+# the end time comes first.
+
+call get_date(adv_to_time,iyear,imonth,iday,ihour,imin,isec)
+write(iunit,'(''#TIMEEND'')') 
 write(iunit,'(i4.4,10x,''year''  )')iyear
 write(iunit,'(i2.2,12x,''month'' )')imonth
 write(iunit,'(i2.2,12x,''day''   )')iday
@@ -173,8 +175,8 @@ write(iunit,'(i2.2,12x,''minute'')')imin
 write(iunit,'(i2.2,12x,''second'')')isec
 write(iunit,*)
 
-call get_date(adv_to_time,iyear,imonth,iday,ihour,imin,isec)
-write(iunit,'(''#TIMEEND'')') 
+call get_date(model_time,iyear,imonth,iday,ihour,imin,isec)
+write(iunit,'(''#TIMESTART'')') 
 write(iunit,'(i4.4,10x,''year''  )')iyear
 write(iunit,'(i2.2,12x,''month'' )')imonth
 write(iunit,'(i2.2,12x,''day''   )')iday
