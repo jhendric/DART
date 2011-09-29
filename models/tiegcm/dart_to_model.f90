@@ -1,4 +1,4 @@
-! DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+! DART software - Copyright 2004 - 2011 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
@@ -155,6 +155,20 @@ write(file_unit, *, iostat = io )  target_doy,',',target_hour,',',target_minute
 if (io /= 0 )then
    call error_handler(E_ERR,'dart_to_model:','cannot write target_time mtime (day/hour/minute) to STDOUT', &
          source,revision,revdate)
+endif
+!F107
+if (size(var%vars_1d) > 0) then
+  write(file_unit, *, iostat = io )  var%vars_1d(1)
+  if (io /= 0 )then
+    call error_handler(E_ERR,'dart_to_model:','cannot write f107 (var%vars_1d) to STDOUT', &
+         source,revision,revdate)
+  endif
+else
+  write(file_unit, *, iostat = io ) 'NA'
+  if (io /= 0 )then
+    call error_handler(E_ERR,'dart_to_model:','cannot write f107 (var%vars_1d) to STDOUT', &
+         source,revision,revdate)
+  endif
 endif
 
 close(file_unit)
