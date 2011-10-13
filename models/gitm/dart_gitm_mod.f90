@@ -15,8 +15,8 @@ module dart_gitm_mod
 ! unrestricted GITM modules are confined to this module.
 
 use ModConstants
-use ModKind 
-use ModTime 
+!use ModKind ! commented out since ModKind isn't in GITM2/src/ dir - it is in GITM2/share/Library/src/ dir
+!use ModTime 
 use ModSizeGitm
 use ModPlanet 
 
@@ -110,64 +110,84 @@ character(len=NF90_MAX_NAME),  intent(out) :: units
    ! The first hunk of these all come from the NDensityS variable, defined to be:
    ! do iSpecies=1,nSpeciesTotal
    !    write(iRestartUnit_) NDensityS(:,:,:,iSpecies,iBlock)
-   ! endd
+   ! enddo
 
    case ('iO_3P_NDensityS') 
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index   = iO_3P_
-      long_name    = 'something surreal'
-      units        = 'furlongs/fortnight'
+      long_name    = 'density of O3P molecules'
+      units        = 'mol/m3'
 
    case ('iO2_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index = iO2_
+      long_name    = 'density of O2 molecules'
+      units        = 'mol/m3'
 
    case ('iN2_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index = iN2_
+      long_name    = 'density of N2 molecules'
+      units        = 'mol/m3'
 
    case ('iN_4S_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index = iN_4S_
+      long_name    = 'density of N4S molecules'
+      units        = 'mol/m3'
 
    case ('iNO_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index = iNO_
+      long_name    = 'density of NO molecules'
+      units        = 'mol/m3'
 
    case ('iN_2D_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index = iN_2D_
+      long_name    = 'density of N2D molecules'
+      units        = 'mol/m3'
 
    case ('iN_2P_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index = iN_2P_
+      long_name    = 'density of N2P molecules'
+      units        = 'mol/m3'
 
    case ('iH_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index = iH_
+      long_name    = 'density of H molecules'
+      units        = 'mol/m3'
 
    case ('iHe_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index = iHe_
+      long_name    = 'density of He molecules'
+      units        = 'mol/m3'
 
    case ('iAr_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index = iAr_
+      long_name    = 'density of Ar molecules'
+      units        = 'mol/m3'
 
    case ('iO_1D_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
       gitm_index = iO_1D_
+      long_name    = 'density of O1D molecules'
+      units        = 'mol/m3'
 
    ! The next hunk of these all pertain to the IDensityS variable:
    ! do iSpecies=1,nIons
@@ -178,121 +198,169 @@ character(len=NF90_MAX_NAME),  intent(out) :: units
       gitm_varname = 'IDensityS'
       gitm_dim     = 4
       gitm_index   = iO_4SP_
+      long_name    = 'density of O4SP ions'
+      units        = 'mol/m3'
 
    case ('iO2P_IDensityS')
       gitm_varname = 'IDensityS'
       gitm_dim     = 4
       gitm_index   = iO2P_
+      long_name    = 'density of O2P ions'
+      units        = 'mol/m3'
 
    case ('iN2P_IDensityS')
       gitm_varname = 'IDensityS'
       gitm_dim     = 4
       gitm_index   = iN2P_
+      long_name    = 'density of N2P ions'
+      units        = 'mol/m3'
 
    case ('iNP_IDensityS')
       gitm_varname = 'IDensityS'
       gitm_dim     = 4
       gitm_index   = iNP_
+      long_name    = 'density of NP ions'
+      units        = 'mol/m3'
 
    case ('iNOP_IDensityS')
       gitm_varname = 'IDensityS'
       gitm_dim     = 4
       gitm_index   = iNOP_
+      long_name    = 'density of NOP ions'
+      units        = 'mol/m3'
 
    case ('iO_2DP_IDensityS')
       gitm_varname = 'IDensityS'
       gitm_dim     = 4
       gitm_index   = iO_2DP_
+      long_name    = 'density of O2DP ions'
+      units        = 'mol/m3'
 
    case ('iO_2PP_IDensityS')
       gitm_varname = 'IDensityS'
       gitm_dim     = 4
       gitm_index   = iO_2PP_
+      long_name    = 'density of O2PP ions'
+      units        = 'mol/m3'
 
    case ('iHP_IDensityS')
       gitm_varname = 'IDensityS'
       gitm_dim     = 4
       gitm_index   = iHP_
+      long_name    = 'density of HP ions'
+      units        = 'mol/m3'
 
    case ('iHeP_IDensityS')
       gitm_varname = 'IDensityS'
       gitm_dim     = 4
       gitm_index   = iHeP_
+      long_name    = 'density of HeP ions'
+      units        = 'mol/m3'
 
    case ('ie_IDensityS')
       gitm_varname = 'IDensityS'
       gitm_dim     = 4
       gitm_index   = ie_
+      long_name    = 'density of the electrons'
+      units        = 'mol/m3'
 
    case ('Temperature') ! write(iRestartUnit_)  Temperature(:,:,:,iBlock)
       gitm_varname = 'Temperature'
       gitm_dim     = -1
       gitm_index   = -1
+      long_name    = 'temperature (quantity tied to the square of velocity of the particles)'
+      units        = 'scaled Kelvin'
 
    case ('ITemperature') ! write(iRestartUnit_) ITemperature(:,:,:,iBlock)
       gitm_varname = 'ITemperature'
       gitm_dim     = -1
       gitm_index   = -1
+      long_name    = 'ion temperature (quantity tied to the square of velocity of the ions)'
+      units        = 'Kelvin'
 
    case ('eTemperature') ! write(iRestartUnit_) eTemperature(:,:,:,iBlock)
       gitm_varname = 'eTemperature'
       gitm_dim     = -1
       gitm_index   = -1
+      long_name    = 'electron temperature (quantity tied to the square of velocity of the electrons)'
+      units        = 'Kelvin'
 
    case ('U_Velocity_component') ! write(iRestartUnit_) Velocity(:,:,:,iBlock)
       gitm_varname = 'Velocity'
       gitm_dim     = 4
       gitm_index   = 1
+      long_name    = 'the U-component of the velocity of the particles' 
+      units        = 'm/s'
 
    case ('V_Velocity_component') ! write(iRestartUnit_) Velocity(:,:,:,iBlock)
       gitm_varname = 'Velocity'
       gitm_dim     = 4
       gitm_index   = 2
+      long_name    = 'the V-component of the velocity of the particles' 
+      units        = 'm/s'
 
    case ('W_Velocity_component') ! write(iRestartUnit_) Velocity(:,:,:,iBlock)
       gitm_varname = 'Velocity'
       gitm_dim     = 4
       gitm_index   = 3
+      long_name    = 'the W-component of the velocity of the particles' 
+      units        = 'm/s'
 
    case ('U_IVelocity_component') ! write(iRestartUnit_) Velocity(:,:,:,iBlock)
       gitm_varname = 'IVelocity'
       gitm_dim     = 4
       gitm_index   = 1
+      long_name    = 'the U-component of the velocity of the ions' 
+      units        = 'm/s'
 
    case ('V_IVelocity_component') ! write(iRestartUnit_) Velocity(:,:,:,iBlock)
       gitm_varname = 'IVelocity'
       gitm_dim     = 4
       gitm_index   = 2
+      long_name    = 'the V-component of the velocity of the ions' 
+      units        = 'm/s'
 
    case ('W_IVelocity_component') ! write(iRestartUnit_) IVelocity(:,:,:,iBlock)
       gitm_varname = 'IVelocity'
       gitm_dim     = 4
       gitm_index   = 3
+      long_name    = 'the W-component of the velocity of the ions' 
+      units        = 'm/s'
 
    case ('iO_3P_VerticalVelocity')
       gitm_varname = 'VerticalVelocity'
       gitm_dim     = 4
       gitm_index   = iO_3P_
+      long_name    = 'the vertical velocity of the O3P molecule' 
+      units        = 'm/s'
 
    case ('iO2_VerticalVelocity')
       gitm_varname = 'VerticalVelocity'
       gitm_dim     = 4
       gitm_index   = iO2_
+      long_name    = 'the vertical velocity of the O2 molecule' 
+      units        = 'm/s'
 
    case ('iN2_VerticalVelocity')
       gitm_varname = 'VerticalVelocity'
       gitm_dim     = 4
       gitm_index   = iN2_
+      long_name    = 'the vertical velocity of the N2 molecule' 
+      units        = 'm/s'
 
    case ('iN_4S_VerticalVelocity')
       gitm_varname = 'VerticalVelocity'
       gitm_dim     = 4
       gitm_index   = iN_4S_
+      long_name    = 'the vertical velocity of the N4S molecule' 
+      units        = 'm/s'
 
    case ('iNO_VerticalVelocity')
       gitm_varname = 'VerticalVelocity'
       gitm_dim     = 4
       gitm_index   = iNO_
+      long_name    = 'the vertical velocity of the NO molecule' 
+      units        = 'm/s'
 
    case default
 

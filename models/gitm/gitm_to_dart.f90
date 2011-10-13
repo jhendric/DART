@@ -26,7 +26,7 @@ program gitm_to_dart
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8
-use    utilities_mod, only : initialize_utilities, timestamp, &
+use    utilities_mod, only : initialize_utilities, finalize_utilities, &
                              find_namelist_in_file, check_namelist_read
 use        model_mod, only : get_model_size, restart_file_to_statevector, &
                              get_gitm_restart_dirname
@@ -56,14 +56,15 @@ namelist /gitm_to_dart_nml/    &
 ! global storage
 !----------------------------------------------------------------------
 
-logical               :: verbose = .TRUE.
+logical               :: verbose = .FALSE.
 integer               :: io, iunit, x_size
 type(time_type)       :: model_time
 real(r8), allocatable :: statevector(:)
 
 !======================================================================
 
-call initialize_utilities(progname='gitm_to_dart', output_flag=verbose)
+!call initialize_utilities(progname='gitm_to_dart', output_flag=verbose)
+call initialize_utilities(progname='gitm_to_dart')
 
 !----------------------------------------------------------------------
 ! Read the namelist to get the output dirname.
@@ -95,12 +96,14 @@ call awrite_state_restart(model_time, statevector, iunit)
 call close_restart(iunit)
 
 !----------------------------------------------------------------------
-! When called with 'end', timestamp will call finalize_utilities()
+! finish up
 !----------------------------------------------------------------------
 
 call print_date(model_time, str='gitm_to_dart:gitm model date')
 call print_time(model_time, str='gitm_to_dart:DART model time')
-call timestamp(string1=source, pos='end')
+
+! end - close the log, etc
+call finalize_utilities()
 
 end program gitm_to_dart
 

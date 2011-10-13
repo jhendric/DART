@@ -15,12 +15,13 @@ program model_mod_check
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8, digits12, metadatalength
-use    utilities_mod, only : initialize_utilities, timestamp, nc_check, &
+use    utilities_mod, only : initialize_utilities, nc_check, &
                              open_file, close_file, find_namelist_in_file, &
                              check_namelist_read, finalize_utilities
 use     location_mod, only : location_type, set_location, write_location, get_dist, &
                              query_location, LocationDims, get_location, VERTISHEIGHT
-use     obs_kind_mod, only : get_raw_obs_kind_name, get_raw_obs_kind_index
+use     obs_kind_mod, only : get_raw_obs_kind_name, get_raw_obs_kind_index, &
+                             KIND_TEMPERATURE
 use  assim_model_mod, only : open_restart_read, open_restart_write, close_restart, &
                              aread_state_restart, awrite_state_restart, &
                              netcdf_file_type, aoutput_diagnostics, &
@@ -207,9 +208,9 @@ if ( loc_of_interest(1) > 0.0_r8 ) call find_closest_gridpoint( loc_of_interest 
 write(*,*)
 write(*,*)'Testing model_interpolate ...'
 
-!     KIND_SNOWCOVER_FRAC              = 90, &   comes from the obs_kind_mod.f90
 
-call model_interpolate(statevector, loc, 90 , interp_val, ios_out)
+loc = set_location(loc_of_interest(1), loc_of_interest(2), loc_of_interest(3), VERTISHEIGHT)
+call model_interpolate(statevector, loc, KIND_TEMPERATURE, interp_val, ios_out)
 
 if ( ios_out == 0 ) then 
    write(*,*)'model_interpolate SUCCESS: The interpolated value is ',interp_val

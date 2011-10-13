@@ -281,8 +281,8 @@ if (do_output()) then
    call print_time(time,'NULL interface adv_1step (no advance) DART time is',logfileunit)
 endif
 
-! FIXME: put an error handler call here - we cannot advance the model
-! this way and it would be an error if filter called it.
+write(string1,*) 'cannot run this model with async=0'
+call error_handler(E_ERR,'adv_1step',string1,source,revision,revdate)
 
 end subroutine adv_1step
 
@@ -579,8 +579,8 @@ if ( .not. module_initialized ) call static_init_model
 ! for now, just set to 0
 time = set_time(0,0)
 
-! FIXME: put an error handler call here - we cannot initialize the model
-! this way and it would be an error if filter called it.
+write(string1,*) 'cannot run this model with start_from_restart .false.'
+call error_handler(E_ERR,'init_time',string1,source,revision,revdate)
 
 end subroutine init_time
 
@@ -603,8 +603,8 @@ if ( .not. module_initialized ) call static_init_model
  
 x = 0.0_r8
 
-! FIXME: put an error handler call here - we cannot initialize the model
-! this way and it would be an error if filter called it.
+write(string1,*) 'cannot run this model with start_from_restart .false.'
+call error_handler(E_ERR,'init_conditions',string1,source,revision,revdate)
 
 end subroutine init_conditions
 
@@ -1159,7 +1159,8 @@ else
 
       else
 
-         ! FIXME put an error message here
+         write(string1,*) 'cannot handle arrays larger than 4D'
+         call error_handler(E_ERR,'nc_write_model_vars',string1,source,revision,revdate)
 
       endif
 
@@ -1519,7 +1520,7 @@ subroutine model_interpolate(x, location, obs_type, interp_val, istatus)
 ! Local storage
 
   real(r8)         :: loc_array(3), llon, llat, lheight, lon_fract, lat_fract, alt_fract
-  integer          :: base_offset, end_offset, blon(2), blat(2), balt(2), i, j, k, ier
+  integer          :: base_offset, end_offset, blon(2), blat(2), balt(2), i, j, k, ier, nhgt
   real(r8)         :: cube(2, 2, 2), square(2, 2), line(2)
 
   IF ( .not. module_initialized ) call static_init_model
@@ -1542,14 +1543,18 @@ subroutine model_interpolate(x, location, obs_type, interp_val, istatus)
 
   IF (debug > 2) print *, 'requesting interpolation at ', llon, llat, lheight
 
-! Only height for vertical location type is supported at this point
-  IF(.not. vert_is_height(location) ) THEN 
+! Only height and level for vertical location type is supported at this point
+  IF(.not. vert_is_height(location) .and. .not. vert_is_level(location)) THEN 
      istatus = 15
      return
   ENDIF
 
 ! Find the start and end offsets for this field in the state vector x(:)
 
+  ! FIXME: this fails if you ask for a kind that doesn't exist in the state vector.
+  ! in many cases you just want to set a bad istatus and return without stopping
+  ! the entire assimilation.  in that case, return -1 for base_offset from the two
+  ! routines that this calls, and if base_offset < 0 then return.
   call get_index_range(obs_type, base_offset, end_offset)
 
   IF (debug > 2) print *, 'base offset now ', base_offset
@@ -1567,7 +1572,37 @@ if(ier /= 0) then
    return
 endif
 
-call find_lat_or_alt_bounds(lheight, NgridAlt, ALT, balt(1), balt(2), alt_fract, ier)
+! if VERTISLEVEL we don't have to do a search. set the levels and fraction by hand.
+! otherwise call the height interpolation routine.
+if (vert_is_height(location)) then
+   call find_lat_or_alt_bounds(lheight, NgridAlt, ALT, balt(1), balt(2), alt_fract, ier)
+else if (vert_is_level(location)) then
+   ! FIXME: this only handles integer levels.  if we wanted to support
+   ! fractional levels all we would need to do is set alt_fract below
+   ! where it is 0.0 now to (lheight - nint(lheight)).
+   nhgt = nint(lheight)
+   if (nhgt < 1 .or. nhgt > NgridAlt) then
+      istatus = 18
+      return 
+   endif
+   ! if we are below the top level, set the lower bound to the requested level and set
+   ! the fraction between it and the next level up to 0.  if we are asking for the top
+   ! level, set the upper bound to the requested level and set the fraction to 1.
+   if (nhgt < NGridAlt) then
+      balt(1) = nhgt
+      balt(2) = nhgt + 1
+      alt_fract = 0.0_r8
+   else
+      balt(1) = nhgt - 1
+      balt(2) = nhgt 
+      alt_fract = 1.0_r8
+   endif
+   ier = 0
+else
+   ! shouldn't happen
+   istatus = 99
+   return
+endif
 if(ier /= 0) then
    istatus = 18
    return
@@ -2167,7 +2202,7 @@ real(r8), intent(inout) :: statevector(:)
 integer :: i, j, k, offset, base
 
 !print *, 'ivar = ', ivar
-base = progvar(ivar)%index1 - 1   ! FIXME: -1?
+base = progvar(ivar)%index1 - 1  
 !print *, 'blockoffset, base = ', blockoffset, base
 
 do k=1,nAlts
@@ -2181,7 +2216,7 @@ do k=1,nAlts
         base+blockoffset+offset > model_size) then
       print *, 'i,j,k, index: ', i, j, k, base+blockoffset+offset
     else
-      statevector(base + blockoffset + offset) = data3d(i, j, k)
+      statevector(base + blockoffset + offset) = data3d(nGhost+i, nGhost+j, nGhost+k)
       !print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
     endif
 
@@ -2203,7 +2238,7 @@ real(r8), intent(inout) :: data3d(:,:,:)
 
 integer :: i, j, k, offset, base
 
-base = progvar(ivar)%index1 - 1  ! FIXME: -1?
+base = progvar(ivar)%index1 - 1 
 
 do k=1,nAlts
  do j=1,nLats
@@ -2212,7 +2247,7 @@ do k=1,nAlts
       offset = ((k-1) * ngridLat * ngridLon) +  &
                ((j-1) * ngridLon) +             &
                i
-      data3d(i,j,k) = statevector(base + blockoffset + offset) 
+      data3d(nGhost+i, nGhost+j, nGhost+k) = statevector(base + blockoffset + offset) 
       !print *, 'i,j,k,varoffset = ', i,j,k,blockoffset + offset
 
   enddo
@@ -2415,7 +2450,25 @@ if (count > 0) then
       read(iunit)  temp3d
       if (j <= count) then
          if (i == progvar(ivals(j))%gitm_index) then
+
+            ! FIXME: if the program restart is really resetting the ghost zones
+            ! correctly, then we shouldn't need to initialize the array with the
+            ! temp3d data (which has pre-assimilation values in it).  but alexey
+            ! says this causes problems, which is suspicious and should be looked
+            ! at more.  this line might make it run, but the ghost zones were not
+            ! updated by the assimilation.
+            data3d = temp3d
+
             call pack_data(statevector, ivals(j), blockoffset, data3d)
+
+            ! FIXME: also needs fixing.  if we have made some value negative
+            ! where the model doesn't support it, and it can't be 0 either, then
+            ! this should be the smallest positive value that the model will accept.
+            ! the original data divided by 2 is going to change the distribution of
+            ! values and is certainly not right.  leave it here for now to get the
+            ! assimilation running, but this needs looking at and changing soon.
+            where (data3d < 0.0_r8) data3d = temp3d/2
+
             write(ounit) data3d
             j = j + 1
          else
@@ -2445,7 +2498,9 @@ if (count > 0) then
       if (j <= count) then
          if (i == progvar(ivals(j))%gitm_index) then
             ! read from input but write from state vector
+            data3d = temp3d
             call pack_data(statevector, ivals(j), blockoffset, data3d)
+            where (data3d < 0.0_r8) data3d = temp3d/2
             write(ounit) data3d
             j = j + 1
          else
@@ -2466,6 +2521,7 @@ else
 endif
 
 read(iunit)  temp3d
+data3d = temp3d
 call get_index_from_gitm_varname('Temperature', count, ivals)
 if (count > 0) then
    call pack_data(statevector, ivals(1), blockoffset, data3d)
@@ -2476,6 +2532,7 @@ endif
 
 
 read(iunit) temp3d
+data3d = temp3d
 call get_index_from_gitm_varname('ITemperature', count, ivals)
 if (count > 0) then
    call pack_data(statevector, ivals(1), blockoffset, data3d)
@@ -2485,6 +2542,7 @@ else
 endif
 
 read(iunit) temp3d
+data3d = temp3d
 call get_index_from_gitm_varname('eTemperature', count, ivals)
 if (count > 0) then
    call pack_data(statevector, ivals(1), blockoffset, data3d)
@@ -2504,6 +2562,7 @@ if (count > 0) then
       if (j <= count) then
          if (i == progvar(ivals(j))%gitm_index) then
             ! read from input but write from state vector
+            data3d = temp4d(:,:,:,i)
             call pack_data(statevector, ivals(j), blockoffset, data3d)
             temp4d(:,:,:,i) = data3d
             j = j + 1
@@ -2524,6 +2583,7 @@ if (count > 0) then
       if (j <= count) then
          if (i == progvar(ivals(j))%gitm_index) then
             ! read from input but write from state vector
+            data3d = temp4d(:,:,:,i)
             call pack_data(statevector, ivals(j), blockoffset, data3d)
             temp4d(:,:,:,i) = data3d
             j = j + 1
@@ -2544,6 +2604,7 @@ if (count > 0) then
       if (j <= count) then
          if (i == progvar(ivals(j))%gitm_index) then
             ! read from input but write from state vector
+            data3d = temp4d(:,:,:,i)
             call pack_data(statevector, ivals(j), blockoffset, data3d)
             temp4d(:,:,:,i) = data3d
             j = j + 1
@@ -2742,8 +2803,6 @@ integer :: i
 index1 = 0
 indexN = 0
 
-write(*,*)'FIXME ... actually, just test get_index_range_string ... '
-
 FieldLoop : do i=1,nfields
    if (progvar(i)%kind_string /= trim(string)) cycle FieldLoop
    index1 = progvar(i)%index1
@@ -2771,8 +2830,6 @@ character(len=paramname_length) :: string
 
 index1 = 0
 indexN = 0
-
-write(*,*)'FIXME ... actually, just test get_index_range_int ... '
 
 FieldLoop : do i=1,nfields
    if (progvar(i)%dart_kind /= dartkind) cycle FieldLoop
@@ -2850,7 +2907,7 @@ if ( .not. module_initialized ) call static_init_model
 
 ! FIXME - determine when we can stop the model
 
-   set_model_time_step = set_time(0, 1) ! (seconds, days)
+   set_model_time_step = set_time(1800, 0) ! (seconds, days)
 
 end function set_model_time_step
 

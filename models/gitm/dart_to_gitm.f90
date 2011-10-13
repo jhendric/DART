@@ -27,7 +27,7 @@ program dart_to_gitm
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8
-use    utilities_mod, only : initialize_utilities, timestamp, &
+use    utilities_mod, only : initialize_utilities, finalize_utilities, &
                              find_namelist_in_file, check_namelist_read, &
                              logfileunit, open_file, close_file
 use  assim_model_mod, only : open_restart_read, aread_state_restart, close_restart
@@ -65,7 +65,7 @@ logical               :: verbose              = .FALSE.
 
 !----------------------------------------------------------------------
 
-call initialize_utilities(progname='dart_to_gitm', output_flag=verbose)
+call initialize_utilities(progname='dart_to_gitm')
 
 !----------------------------------------------------------------------
 ! Call model_mod:static_init_model() which reads the gitm namelists
@@ -130,8 +130,8 @@ call print_time(adv_to_time,'dart_to_gitm:advance_to time',logfileunit)
 call print_date(adv_to_time,'dart_to_gitm:advance_to date',logfileunit)
 endif
 
-! When called with 'end', timestamp will call finalize_utilities()
-call timestamp(string1=source, pos='end')
+! end - close the log, etc
+call finalize_utilities()
 
 !======================================================================
 contains
@@ -163,7 +163,7 @@ integer :: iyear,imonth,iday,ihour,imin,isec
 iunit = open_file('DART_GITM_time_control.txt', action='write')
 write(iunit,*)
 
-# the end time comes first.
+! the end time comes first.
 
 call get_date(adv_to_time,iyear,imonth,iday,ihour,imin,isec)
 write(iunit,'(''#TIMEEND'')') 
