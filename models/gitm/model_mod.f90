@@ -2905,9 +2905,8 @@ type(time_type) :: set_model_time_step
 
 if ( .not. module_initialized ) call static_init_model
 
-! FIXME - determine when we can stop the model
-
-   set_model_time_step = set_time(1800, 0) ! (seconds, days)
+   set_model_time_step = set_time(assimilation_period_seconds, &
+                           assimilation_period_days) ! (seconds, days)
 
 end function set_model_time_step
 
