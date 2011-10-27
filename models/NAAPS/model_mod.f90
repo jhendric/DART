@@ -62,7 +62,8 @@ public :: analysis_file_to_statevector, &
           get_naaps_metadata,           &
           get_naaps_nens,               &
           get_naaps_dtg,                &
-          get_naaps_ensemble_member
+          get_naaps_ensemble_member,    &
+          dtg_to_time
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -121,6 +122,12 @@ INTERFACE vector_to_prog_var
       MODULE PROCEDURE vector_to_2d_prog_var
       MODULE PROCEDURE vector_to_3d_prog_var
 END INTERFACE
+
+INTERFACE dtg_to_time
+      MODULE PROCEDURE dtg_integer_to_time
+      MODULE PROCEDURE dtg_string_to_time
+END INTERFACE
+
 
 contains
 
@@ -325,23 +332,24 @@ end function get_model_size
 
 subroutine init_time(time)
 !------------------------------------------------------------------
-!
 ! Companion interface to init_conditions. Returns a time that is somehow 
 ! appropriate for starting up a long integration of the model.
 ! At present, this is only used if the namelist parameter 
 ! start_from_restart is set to .false. in the program perfect_model_obs.
-! If this option is not to be used in perfect_model_obs, or if no 
-! synthetic data experiments using perfect_model_obs are planned, 
-! this can be a NULL INTERFACE.
+! If it is not possible to use some default initial conditions, this
+! can be a NULL INTERFACE that should issue a horrible warning and DIE.
 
 type(time_type), intent(out) :: time
 
 if ( .not. module_initialized ) call static_init_model
 
-! FIXME
+write(string1,*) 'Cannot initialize NAAPS with a default state.'
+write(string2,*) 'perfect_model_obs_nml:start_from_restart cannot be .FALSE.'
+call error_handler(E_ERR,'init_time',string1,source,revision,revdate,&
+                                     text2=string2)
 
-! for now, just set to 0
-time = set_time(0,0)
+! it might be reasonable to set it to the dtg in the model_nml
+time = dtg_to_time(dtg)
 
 end subroutine init_time
 
@@ -394,12 +402,20 @@ integer,            intent(out) :: istatus
 
   IF ( llon .LT. 180.0_r8 ) llon = llon + 360.0_r8 
 
- ! IF( vert_is_height(location) ) THEN        ! Nothing to do 
+! TJH 27.Oct.2011 This model_interpolate routine only works for '2D' observations.
+!                 There is no vertical interpolation capability.
+!                 The 'interpolation' is trivial - the assumption is that 
+!                 the observations have been preoprocessd to be coincident with
+!                 the NAAPS state vector.
+
+  IF( vert_is_undef(location) ) THEN  ! Nothing to do 
+  ELSE   ! if we don't know what to do, error out
+      istatus = 15
+      return
+  ENDIF
 
 !  ELSEIF ( vert_is_surface(location) ) THEN  ! Nothing to do
-
 !  ELSEIF (vert_is_level(location)) THEN      ! convert the level index to an actual height
-                                             ! This code is wrong (I think) if variable == "W"
 !     kloc = nint(loc_array(3))
 !     IF( (kloc < 1) .or. (kloc > size(zc)) ) THEN
 !        istatus = 33
@@ -407,10 +423,7 @@ integer,            intent(out) :: istatus
 !     ELSE
 !        lheight = zc(kloc)
 !     ENDIF
-!  ELSE   ! if we don't know what to do
-!     istatus = 15
-!     return
-!  ENDIF
+
   kloc = 1
   jloc = NINT((llat - xlat(1)) / dlat) + 1
   iloc = NINT((llon - xlon(1)) / dlon) + 1
@@ -466,7 +479,7 @@ integer,             intent(in)            :: index_in
 type(location_type), intent(out)           :: location
 integer,             intent(out), optional :: var_type
 
-integer :: nxp, nyp, nzp, iloc, jloc, kloc, nf, n
+integer :: nxp, nyp, iloc, jloc, kloc, nf, n
 integer :: myindx
 
 if (.not. module_initialized ) call static_init_model
@@ -1000,16 +1013,19 @@ end subroutine ens_mean_for_model
 subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
 !------------------------------------------------------------------
 ! Smooshes ensemble files into a single state vector
-       character(len=*), intent(in)    :: path 
-       REAL(r8),         INTENT(inout) :: state_vector(:)
-       INTEGER,          INTENT(in)    :: ens_num 
-       type(time_type),  intent(out)   :: model_time
+
+character(len=*), intent(in)    :: path 
+real(r8),         intent(inout) :: state_vector(:)
+integer,          intent(in)    :: ens_num 
+type(time_type),  intent(out)   :: model_time
+
        integer                         :: x, y, s, z, lun, rel_offset, base_offset
        INTEGER                         :: i !_state vector index
        CHARACTER(len=5)                :: member_dir
        CHARACTER(len=256)              :: file_aod, file_conc
        REAL(r8)                        :: f_aod(nspecies+2)
        REAL(r4)                        :: f_conc(nx,ny,nz,nspecies)
+       integer             :: icdtg,fhr
 
        if ( .not. module_initialized ) call static_init_model
 
@@ -1052,7 +1068,7 @@ subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
 
        !_Read in CONC data
        lun = OPEN_FILE(file_conc, form='unformatted', action='read')
-       read(lun)            ! icdtg, fhr
+       read(lun) icdtg, fhr
        read(lun)            ! nx, ny, nz, ns 
        read(lun)            ! lats 
        read(lun)            ! lons 
@@ -1068,7 +1084,8 @@ subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
        call CLOSE_FILE(lun)
 
        ! FIXME : do something with model_time ... either compare against
-       ! the module storage one or ...
+       ! the module storage one or ... the one we just read?
+       model_time = dtg_to_time(icdtg)
       
        DO s = nspecies+1, nvars
           base_offset = progvar(s)%index1
@@ -1143,6 +1160,8 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
        call CLOSE_FILE(lun)
 
        ! FIXME : sanity check ... set the model_time to the icdtg + fhr question
+       ! make sure we are stuffing the statevector at the right time into
+       ! the file with the right time ...
 
        !_rehape concentration portion of sv (i,j,k,s)
        DO n = nspecies + 1, nvars
@@ -1218,7 +1237,6 @@ subroutine get_naaps_metadata(path, dtg, model_time )
        TYPE(time_type),   INTENT(out) :: model_time
        CHARACTER(len=256)             :: filename 
        INTEGER                        :: dum, lun, icdtg
-       INTEGER                        :: mn, ss, hh, dd, yyyy, mm
        REAL(r4), ALLOCATABLE          :: asig(:), bsig(:)
        
        if ( .not. module_initialized ) call static_init_model
@@ -1246,12 +1264,11 @@ subroutine get_naaps_metadata(path, dtg, model_time )
        dlon = ABS(xlon(2) - xlon(1)) !/ (nx - 1)
        if (debug) write(*,*) dlat, dlon, 'DLATLON'
 
-       !_Calculate model_time
-       read(dtg,'(i4,i2,i2,i2)') yyyy, mm, dd, hh
-       mn = 0
-       ss = 0
-       model_time = set_date(yyyy,mm,dd,hh,mn,ss)
+       ! FIXME : do we want to compare dtg and icdtg ???
+       ! FIXME : may not be needed ...
+       model_time = dtg_to_time(dtg)
        call print_date(model_time,str='get_naaps_metadata: model time')
+
        deallocate(asig,bsig)
        ! DO NOT deallocate xlat, xlon ... they are to remain 
 
@@ -1360,6 +1377,52 @@ if ( ii /= progvar(ivar)%indexN ) then
 endif
 
 end subroutine vector_to_3d_prog_var
+
+
+function dtg_integer_to_time(mydtg)
+integer, intent(in) :: mydtg
+type(time_type)     :: dtg_integer_to_time
+
+integer :: dummy,yyyy,mm,dd,hh,mn,ss
+
+yyyy  =        mydtg/1000000  ! integer arithmetic truncates
+dummy = mydtg - yyyy*1000000
+mm    =        dummy/10000
+dummy = dummy -   mm/10000
+dd    =        dummy/100
+hh    = dummy -   dd/100
+mn    = 0
+ss    = 0
+dtg_integer_to_time = set_date(yyyy,mm,dd,hh,mn,ss)
+
+if (debug) then
+   call print_time(dtg_integer_to_time, str='dtg_integer_to_time')
+   call print_date(dtg_integer_to_time, str='dtg_integer_to_time')
+endif
+
+end function dtg_integer_to_time
+
+
+
+function dtg_string_to_time(mydtg)
+character(len=*), intent(in) :: mydtg
+type(time_type)              :: dtg_string_to_time
+
+character(len=20) :: lj_dtg
+integer           :: yyyy,mm,dd,hh,mn,ss
+
+lj_dtg = adjustl(mydtg)
+read(lj_dtg,'(i4,i2,i2,i2)') yyyy, mm, dd, hh
+mn = 0
+ss = 0
+dtg_string_to_time = set_date(yyyy,mm,dd,hh,mn,ss)
+
+if (debug) then
+   call print_time(dtg_string_to_time, str='dtg_string_to_time')
+   call print_date(dtg_string_to_time, str='dtg_string_to_time')
+endif
+
+end function dtg_string_to_time
 
 !===================================================================
 ! End of model_mod
