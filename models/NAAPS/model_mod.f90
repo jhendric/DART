@@ -262,6 +262,8 @@ real(r8), intent(out) :: x(:)
 
 x = MISSING_R8
 
+! FIXME ... this should issue a horrible warning and then DIE.
+
 end subroutine init_conditions
 
 
@@ -285,6 +287,8 @@ subroutine adv_1step(x, time)
 
 real(r8),        intent(inout) :: x(:)
 type(time_type), intent(in)    :: time
+
+! FIXME ... this should issue a horrible warning and then DIE.
 
 end subroutine adv_1step
 
@@ -350,9 +354,8 @@ integer,            intent(out) :: istatus
   real(r8)         :: loc_array(3), llon, llat
   real(r8)         :: lheight
   integer          :: base_offset, rel_offset
-  integer          :: nf, i, n0, n1
-  integer          :: iloc, jloc, kloc, nxp, nyp, nzp
-  real(r8)         :: xi, yi, xf, yf, zf, q1, q2, vt, vb
+  integer          :: i
+  integer          :: iloc, jloc, kloc
 
   IF ( .not. module_initialized ) call static_init_model
 
@@ -444,47 +447,44 @@ subroutine get_state_meta_data(index_in, location, var_type)
 integer,             intent(in)            :: index_in
 type(location_type), intent(out)           :: location
 integer,             intent(out), optional :: var_type
-integer  :: nxp, nyp, nzp, iloc, jloc, kloc, nf, n
-integer  :: myindx, lat_index, lon_index, index2
-real(r8) :: height
-real(r8) :: x1,y1
 
+integer :: nxp, nyp, nzp, iloc, jloc, kloc, nf, n
+integer :: myindx
 
 if (.not. module_initialized ) call static_init_model
 
-  myindx = -1
-  nf     = -1
+myindx = -1
+nf     = -1
 
-  FindIndex : DO n = 1, nvars
-    IF( (progvar(n)%index1 <= index_in) .and. (index_in <= progvar(n)%indexN) ) THEN
-      nf = n
-      myindx = index_in - progvar(n)%index1 + 1
-      EXIT FindIndex
-    ENDIF
-  ENDDO FindIndex
-
-  IF( myindx == -1 ) THEN
-     write(string1,*) 'Problem, cannot find base_offset, index_in is: ', & 
-                      index_in
-     call error_handler(E_ERR,'get_state_meta_data',string1,source,revision, &
-                       revdate)
+FindIndex : DO n = 1, nvars
+  IF( (progvar(n)%index1 <= index_in) .and. (index_in <= progvar(n)%indexN) ) THEN
+    nf = n
+    myindx = index_in - progvar(n)%index1 + 1
+    EXIT FindIndex
   ENDIF
+ENDDO FindIndex
 
-  nxp = progvar(nf)%dimlens(1)
-  nyp = progvar(nf)%dimlens(2)
+IF( myindx == -1 ) THEN
+   write(string1,*) 'Problem, cannot find base_offset, index_in is: ', & 
+                    index_in
+   call error_handler(E_ERR,'get_state_meta_data',string1,source,revision, &
+                     revdate)
+ENDIF
 
-  index2 = myindx
-  kloc   = 1 + (myindx-1) / (nxp*nyp)
-  myindx = myindx - (kloc-1)*nyp*nxp
-  jloc   = 1 + (myindx-1) / nxp
-  myindx = myindx - (jloc-1)*nxp
-  iloc   = myindx
-  
-  location = set_location(real(xlon(iloc),r8), real(xlat(jloc),r8), 0.0_r8, VERTISUNDEF)
+nxp = progvar(nf)%dimlens(1)
+nyp = progvar(nf)%dimlens(2)
 
-  IF (present(var_type)) THEN
-     var_type = progvar(nf)%dart_kind
-  ENDIF
+kloc   = 1 + (myindx-1) / (nxp*nyp)
+myindx = myindx - (kloc-1)*nyp*nxp
+jloc   = 1 + (myindx-1) / nxp
+myindx = myindx - (jloc-1)*nxp
+iloc   = myindx
+
+location = set_location(real(xlon(iloc),r8), real(xlat(jloc),r8), 0.0_r8, VERTISUNDEF)
+
+IF (present(var_type)) THEN
+   var_type = progvar(nf)%dart_kind
+ENDIF
 
 end subroutine get_state_meta_data
 
@@ -983,8 +983,7 @@ subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
        integer                         :: x, y, s, z, lun, rel_offset, base_offset
        INTEGER                         :: i !_state vector index
        CHARACTER(len=5)                :: member_dir
-       CHARACTER(len=256)              :: file_aod, file_conc, ens_dir
-       LOGICAL                         :: file_existence
+       CHARACTER(len=256)              :: file_aod, file_conc
        REAL(r8)                        :: f_aod(nspecies+2)
        REAL(r4)                        :: f_conc(nx,ny,nz,nspecies)
 
@@ -1001,7 +1000,6 @@ subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
         
        state_vector = MISSING_R8
        WRITE(member_dir,'(A1,I0.2,A2)') 'E', ens_num, '00'
-       ens_dir = trim(path) // '/' // member_dir
        file_aod = trim(path) // '/NAAPSAOD/' // trim(member_dir) &
                 // '/' // trim(dtg) // '_aod'
        file_conc = trim(path) // '/NAAPS/' // trim(member_dir) &
@@ -1044,6 +1042,8 @@ subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
        read(lun) f_conc     ! conc
        call CLOSE_FILE(lun)
 
+       ! FIXME : do something with model_time ... either compare against
+       ! the module storage one or ...
       
        DO s = nspecies+1, nvars
           base_offset = progvar(s)%index1
@@ -1069,7 +1069,7 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
        INTEGER         , INTENT(in)    :: ens_num 
        REAL(r8),         INTENT(inout) :: statevector(:)
        TYPE(time_type),  INTENT(out)   :: model_time
-       CHARACTER(len=256)              :: file_concda, file_conc, ens_dir
+       CHARACTER(len=256)              :: file_concda, file_conc
        CHARACTER(len=5)                :: member_dir
        REAL(r4)                        :: height(nx,ny), binrad(nspecies), binradw(nspecies), &
                                           rho(nspecies), refract_i(nspecies), refract_r(nspecies), &
@@ -1077,7 +1077,7 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
                                           sinkd(nx,ny,nspecies), sinkw(nx,ny,nspecies),            &
                                           temperature(nx,ny,nz), sfc_pressure(nx,ny), siga(nz+1),  & 
                                           sigb(nz+1), conc(nx,ny,nz,nspecies)
-       INTEGER                         :: n, base_offset, rel_offset, i, j, k, l, s, lun, icdtg, fhr
+       INTEGER                         :: n, i, j, k, l, s, lun, icdtg, fhr
        real(r8)                        :: tmp(nx,ny,nz) 
        REAL(r4)                        :: lats(ny), lons(nx)
        !_read in bootstrap _conc
@@ -1110,10 +1110,11 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
        read(lun) temperature  ! temperature
        read(lun) sfc_pressure ! sfc_pressure
 
-
        !_either rewind or create separate output path - write out
 
        call CLOSE_FILE(lun)
+
+       ! FIXME : sanity check ... set the model_time to the icdtg + fhr question
 
        !_rehape concentration portion of sv (i,j,k,s)
        DO n = nspecies + 1, nvars
@@ -1188,7 +1189,7 @@ subroutine get_naaps_metadata(path, dtg, model_time )
        CHARACTER(len=*),  INTENT(in)  :: dtg
        TYPE(time_type),   INTENT(out) :: model_time
        CHARACTER(len=256)             :: filename 
-       INTEGER                        :: dum, lun, icdtg, days, seconds
+       INTEGER                        :: dum, lun, icdtg
        INTEGER                        :: mn, ss, hh, dd, yyyy, mm
        REAL(r4), ALLOCATABLE          :: asig(:), bsig(:)
        
@@ -1217,13 +1218,14 @@ subroutine get_naaps_metadata(path, dtg, model_time )
        dlon = ABS(xlon(2) - xlon(1)) !/ (nx - 1)
        if (debug) write(*,*) dlat, dlon, 'DLATLON'
 
-       !_Calculate model_time (days,seconds)
+       !_Calculate model_time
        read(dtg,'(i4,i2,i2,i2)') yyyy, mm, dd, hh
-       ss = 0
        mn = 0
+       ss = 0
        model_time = set_date(yyyy,mm,dd,hh,mn,ss)
        call print_date(model_time,str='get_naaps_metadata: model time')
        deallocate(asig,bsig)
+       ! DO NOT deallocate xlat, xlon ... they are to remain 
 
 end subroutine get_naaps_metadata
 

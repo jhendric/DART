@@ -54,13 +54,12 @@ namelist /naaps_to_dart_nml/ naaps_to_dart_output_file
 ! global storage
 !----------------------------------------------------------------------
 
-LOGICAL               :: verbose = .TRUE.
-INTEGER               :: io, iunit, x_size
-INTEGER               :: nx, ny, nz, ns, member
-TYPE(time_type)       :: model_time
-REAL(r8), allocatable :: statevector(:)
-CHARACTER(len=256)    :: naaps_restart_path 
-CHARACTER(len=10)     :: dtg
+logical               :: verbose = .TRUE.
+integer               :: io, iunit, x_size, member
+type(time_type)       :: model_time
+real(r8), allocatable :: statevector(:)
+character(len=256)    :: naaps_restart_path 
+character(len=10)     :: dtg
 
 !======================================================================
 
