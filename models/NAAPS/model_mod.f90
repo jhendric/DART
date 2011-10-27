@@ -1245,7 +1245,9 @@ subroutine get_naaps_metadata(path, dtg, model_time )
        
        if ( .not. module_initialized ) call static_init_model
 
-       filename = trim(path) // '/NAAPS/E2000/' // trim(dtg) // '_conc'
+       write(filename,'(a,''/NAAPS/E'',i2.2,''00/'',a,''_conc'')') &
+                    trim(path),       member,     trim(dtg)
+       !filename = trim(path) // '/NAAPS/E2000/' // trim(dtg) // '_conc'
        !filename = '/aerosol_opstmp/native/naaps/conc/201110/2011101000_conc'
 
        if (debug) write(*,*) 'get_naaps_metadata: opening ',trim(filename)

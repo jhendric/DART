@@ -49,21 +49,20 @@ foreach FILE ( input.nml.template filter naaps_to_dart dart_to_naaps )
 end
 
 #-------------------------------------------------------------------------
-# Determine time of model state ... from file name of first member
-# of the form "./${CASE}.pop.$ensemble_member.r.2000-01-06-00000.nc"
+# Determine time of model state ... input namelist
 #-------------------------------------------------------------------------
 
 set FILE = `grep dtg input.nml.template`
-set OCN_DATE = `echo $FILE | sed -e "s#[',]##g"`
-set DTG         = $OCN_DATE[3]
-set OCN_YEAR    = `echo $DTG | cut -c1-4`
-set OCN_MONTH   = `echo $DTG | cut -c5-6`
-set OCN_DAY     = `echo $DTG | cut -c7-8`
-set OCN_HOURS   = `echo $DTG | cut -c9-10`
+set MODEL_DATE = `echo $FILE | sed -e "s#[',]##g"`
+set DTG         = $MODEL_DATE[3]
+set MODEL_YEAR    = `echo $DTG | cut -c1-4`
+set MODEL_MONTH   = `echo $DTG | cut -c5-6`
+set MODEL_DAY     = `echo $DTG | cut -c7-8`
+set MODEL_HOURS   = `echo $DTG | cut -c9-10`
 
-echo "valid time of model is $OCN_YEAR $OCN_MONTH $OCN_DAY $OCN_HOURS"
-set DART_OBS_DIR = "${OCN_YEAR}${OCN_MONTH}"
-set OBSDIR = /shared/aerosol_jack/users/sessions/products/DART/OBS_SEQ/${DART_OBS_DIR}
+echo "assimilate.csh: valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOURS"
+set YYYYMM = "${MODEL_YEAR}${MODEL_MONTH}"
+set OBSDIR = /shared/aerosol_jack/users/sessions/products/DART/OBS_SEQ/${YYYYMM}
 
 set FILE = `grep ens_size input.nml.template | sed -e "s#[',]##g"`
 set ensemble_size = $FILE[3]
@@ -127,8 +126,8 @@ foreach FILE ( prior post )
 end
 
 #-------------------------------------------------------------------------
-# Block 1: convert N POP restart files to DART initial conditions file(s)
-# pop_to_dart is serial code, we can do all of these at the same time
+# Block 1: convert N NAAPS restart files to DART initial conditions file(s)
+# naaps_to_dart is serial code, we can do all of these at the same time
 # and just wait for them to finish IFF it were not for the fact we'd have
 # to have unique namelists for all of them.
 #
@@ -138,7 +137,7 @@ end
 # DART namelist settings appropriate/required:
 # &filter_nml:           restart_in_file_name    = 'filter_ics'
 # &ensemble_manager_nml: single_restart_file_in  = '.false.'
-# &pop_to_dart_nml:      pop_to_dart_output_file = 'dart.ud',
+# &naaps_to_dart_nml:      naaps_to_dart_output_file = 'dart.ud',
 #-------------------------------------------------------------------------
 
 set member = 1
@@ -191,8 +190,8 @@ wait
 
 # Determine proper observation sequence file.
 
-set OBSFNAME = "obs_seq.out.${OCN_YEAR}${OCN_MONTH}${OCN_DAY}${OCN_HOURS}"
-set OBS_FILE = /shared/aerosol_jack/users/sessions/products/DART/OBS_SEQ/201108/obs_seq.out.2011080100 
+set OBSFNAME = "${YYYYMM}/obs_seq.out.${DTG}"
+set OBS_FILE = /shared/aerosol_jack/users/sessions/products/DART/OBS_SEQ/${OBSFNAME}
 
 ${LINK} ${OBS_FILE} obs_seq.out
 
@@ -200,10 +199,10 @@ sed -e "s/MEMBER_NUMBER/1/" < input.nml.template >! input.nml
 
 ./filter || exit 2
 
-${MOVE} Prior_Diag.nc      ../Prior_Diag.${OCN_DATE_EXT}.nc
-${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${OCN_DATE_EXT}.nc
-${MOVE} obs_seq.final      ../obs_seq.${OCN_DATE_EXT}.final
-${MOVE} dart_log.out       ../dart_log.${OCN_DATE_EXT}.out
+${MOVE} Prior_Diag.nc      ../Prior_Diag.${DTG}.nc
+${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${DTG}.nc
+${MOVE} obs_seq.final      ../obs_seq.${DTG}.final
+${MOVE} dart_log.out       ../dart_log.${DTG}.out
 
 exit
 
@@ -215,28 +214,28 @@ foreach INFLATION ( prior post )
       # 1) rename file to reflect current date
       # 2) move to CENTRALDIR so the DART INFLATION BLOCK works next time
    
-      ${MOVE} ${INFLATION}_inflate_restart ../${INFLATION}_inflate.${OCN_DATE_EXT}.restart.be 
+      ${MOVE} ${INFLATION}_inflate_restart ../${INFLATION}_inflate.${DTG}.restart.be 
 
    else
-      echo "No ${INFLATION}_inflate_restart for ${OCN_DATE_EXT}"
+      echo "No ${INFLATION}_inflate_restart for ${DTG}"
    endif
 
    if ( -e ${INFLATION}_inflate_diag ) then
-      ${MOVE} ${INFLATION}_inflate_diag ../${INFLATION}_inflate.${OCN_DATE_EXT}.diag
+      ${MOVE} ${INFLATION}_inflate_diag ../${INFLATION}_inflate.${DTG}.diag
    else
-      echo "No ${INFLATION}_inflate_diag for ${OCN_DATE_EXT}"
+      echo "No ${INFLATION}_inflate_diag for ${DTG}"
    endif
 
 end
 
 #-------------------------------------------------------------------------
-# Block 3: Update the POP restart files ... simultaneously ...
+# Block 3: Update the naaps restart files ... simultaneously ...
 #
 # DART namelist settings required:
 # &filter_nml:           restart_out_file_name  = 'filter_restart'
 # &ensemble_manager_nml: single_restart_file_in = '.false.'
-# &dart_to_pop_nml:      dart_to_pop_input_file = 'dart.ic',
-# &dart_to_pop_nml:      advance_time_present   = .false.
+# &dart_to_naaps_nml:      dart_to_naaps_input_file = 'dart.ic',
+# &dart_to_naaps_nml:      advance_time_present   = .false.
 #-------------------------------------------------------------------------
 
 set member = 1
@@ -254,13 +253,13 @@ while ( $member <= $ensemble_size )
    set DART_RESTART_FILE = `printf filter_restart.%04d $member`
    ${LINK} ../$DART_RESTART_FILE dart.ic
 
-   set OCN_RESTART_FILENAME = `head -1 ../../rpointer.ocn.$member.restart`
-   ${LINK} ../../$OCN_RESTART_FILENAME pop.r.nc
-   ${LINK} ../../pop2_in.$member       pop_in
+   set MODEL_RESTART_FILENAME = `head -1 ../../rpointer.ocn.$member.restart`
+   ${LINK} ../../$MODEL_RESTART_FILENAME naaps.r.nc
+   ${LINK} ../../naaps2_in.$member       naaps_in
 
    cp -f ../input.nml .
 
-   ../dart_to_pop &
+   ../dart_to_naaps &
 
    cd ..
 
