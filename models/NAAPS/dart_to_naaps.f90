@@ -5,10 +5,10 @@
 program dart_to_naaps
 
 ! <next few lines under version control, do not edit>
-! $URL: $
-! $Id: $
-! $Revision: $
-! $Date: $
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
 
 !----------------------------------------------------------------------
 ! purpose: interface between DART and the naaps model
@@ -26,21 +26,22 @@ program dart_to_naaps
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8
-use    utilities_mod, only : initialize_utilities, timestamp, &
+use    utilities_mod, only : initialize_utilities, finalize_utilities,   &
                              find_namelist_in_file, check_namelist_read, &
                              logfileunit, open_file, close_file
 use  assim_model_mod, only : open_restart_read, aread_state_restart, close_restart
-use time_manager_mod, only : time_type, print_time, print_date, operator(-), get_time
+use time_manager_mod, only : time_type, print_time, print_date, get_time, get_date
 use        model_mod, only : static_init_model, statevector_to_analysis_file, &
-                             get_model_size, get_base_time, get_naaps_restart_path
+                             get_model_size, get_naaps_restart_path,          &
+                             get_naaps_ensemble_member 
 
 implicit none
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
-   source   = "$URL: $", &
-   revision = "$Revision: $", &
-   revdate  = "$Date: $"
+   source   = "$URL$", &
+   revision = "$Revision$", &
+   revdate  = "$Date$"
 
 !------------------------------------------------------------------
 ! The namelist variables
@@ -58,14 +59,19 @@ namelist /dart_to_naaps_nml/ dart_to_naaps_input_file, &
 ! Local variables
 !----------------------------------------------------------------------
 
-integer               :: iunit, io, x_size, diff1, diff2
-type(time_type)       :: model_time, adv_to_time, base_time
+integer               :: iunit, io, x_size, member
+type(time_type)       :: model_time, adv_to_time
 real(r8), allocatable :: statevector(:)
 character(len=256)    :: naaps_restart_path
+integer               :: iyear,imonth,iday,ihour,imin,isec,dtg
 
-!----------------------------------------------------------------------
+!======================================================================
 
 call initialize_utilities(progname='dart_to_naaps', output_flag=verbose)
+
+!----------------------------------------------------------------------
+! Read the namelist to get the output filename, etc.
+!----------------------------------------------------------------------
 
 call find_namelist_in_file("input.nml", "dart_to_naaps_nml", iunit)
 read(iunit, nml = dart_to_naaps_nml, iostat = io)
@@ -73,26 +79,24 @@ call check_namelist_read(iunit, io, "dart_to_naaps_nml")
 
 !----------------------------------------------------------------------
 ! Call model_mod:static_init_model() which reads the naaps namelists
-! to set grid sizes, etc.
+! to set grid sizes, restart path, etc.
 !----------------------------------------------------------------------
 
 call static_init_model()
-
-x_size = get_model_size()
-allocate(statevector(x_size))
-
-! Read the namelist to get the input filename. 
-
 call get_naaps_restart_path( naaps_restart_path )
+call get_naaps_ensemble_member( member )
 
 write(*,*)
-write(*,'(''dart_to_naaps:converting DART file '',A, &
-      &'' to naaps restart file '',A)') &
-     trim(dart_to_naaps_input_file), trim(naaps_restart_path)
+write(*,'(''dart_to_naaps:converting DART file '',a, &
+      &'' to naaps restart dir '',a,'' member '',i4)') &
+     trim(dart_to_naaps_input_file), trim(naaps_restart_path), member
 
 !----------------------------------------------------------------------
 ! Reads the valid time, the state, and the target time.
 !----------------------------------------------------------------------
+
+x_size = get_model_size()
+allocate(statevector(x_size))
 
 iunit = open_restart_read(dart_to_naaps_input_file)
 
@@ -105,18 +109,16 @@ call close_restart(iunit)
 
 !----------------------------------------------------------------------
 ! update the current naaps state vector
-! Convey the amount of time to integrate the model ...
-! time_manager_nml: stop_option, stop_count increments
+! write out a tiny file with the advance_to_dtg information ... mebbe
 !----------------------------------------------------------------------
 
-call statevector_to_analysis_file(statevector, naaps_restart_path, model_time)
+call statevector_to_analysis_file(statevector, naaps_restart_path, member, model_time)
 
 if ( advance_time_present ) then
-   base_time = get_base_time(naaps_restart_path)
-   call get_time((model_time  - base_time), diff1)
-   call get_time((adv_to_time - base_time), diff2)
-   iunit = open_file('times', action='write')
-   write(iunit, '(I8, I8)') diff1, diff2
+   call get_date(adv_to_time,iyear,imonth,iday,ihour,imin,isec)
+   dtg = iyear*1000000 + imonth*10000 + iday*100 + ihour
+   iunit = open_file('adv_to_dtg', action='write')
+   write(iunit,*) dtg
    call close_file(iunit)
 endif
 
@@ -124,10 +126,10 @@ endif
 ! Log what we think we're doing, and exit.
 !----------------------------------------------------------------------
 
-call print_date( model_time,'dart_to_naaps:naaps  model date')
-call print_time( model_time,'dart_to_naaps:DART model time')
-call print_date( model_time,'dart_to_naaps:naaps  model date',logfileunit)
-call print_time( model_time,'dart_to_naaps:DART model time',logfileunit)
+call print_date( model_time,'dart_to_naaps:NAAPS model date')
+call print_time( model_time,'dart_to_naaps:DART  model time')
+call print_date( model_time,'dart_to_naaps:NAAPS model date',logfileunit)
+call print_time( model_time,'dart_to_naaps:DART  model time',logfileunit)
 
 if ( advance_time_present ) then
 call print_time(adv_to_time,'dart_to_naaps:advance_to time')
@@ -136,8 +138,7 @@ call print_time(adv_to_time,'dart_to_naaps:advance_to time',logfileunit)
 call print_date(adv_to_time,'dart_to_naaps:advance_to date',logfileunit)
 endif
 
-! When called with 'end', timestamp will call finalize_utilities()
-call timestamp(string1=source, pos='end')
+call finalize_utilities()
 
 end program dart_to_naaps
 

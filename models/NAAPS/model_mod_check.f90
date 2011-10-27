@@ -5,10 +5,10 @@
 program model_mod_check
 
 ! <next few lines under version control, do not edit>
-! $URL: $
-! $Id: $
-! $Revision: $
-! $Date: $
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
 
 !----------------------------------------------------------------------
 ! purpose: test routines
@@ -47,9 +47,9 @@ implicit none
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
-   source   = "$URL: $", &
-   revision = "$Revision: $", &
-   revdate  = "$Date: $"
+   source   = "$URL$", &
+   revision = "$Revision$", &
+   revdate  = "$Date$"
 
 character(len=256) :: string1, string2
 

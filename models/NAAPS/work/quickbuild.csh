@@ -4,7 +4,7 @@
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
-# $Id: quickbuild.csh 4918 2011-05-25 22:57:43Z thoar $
+# $Id$
 #
 # Script to manage the compilation of all components for this model;
 
@@ -119,7 +119,7 @@ echo ' for mpich run "mpd" once, then "runme_filter"'
 exit 0
 
 # <next few lines under version control, do not edit>
-# $URL: https://proxy.subversion.ucar.edu/DAReS/DART/releases/Kodiak/models/NCOMMAS/work/quickbuild.csh $
-# $Revision: 4918 $
-# $Date: 2011-05-25 15:57:43 -0700 (Wed, 25 May 2011) $
+# $URL$
+# $Revision$
+# $Date$
 

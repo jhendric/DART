@@ -5,10 +5,10 @@
 module model_mod
 
 ! <next few lines under version control, do not edit>
-! $URL: $
-! $Id: $
-! $Revision: $
-! $Date: $
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
 
 ! This is a template showing the interfaces required for a model to be compliant
 ! with the DART data assimilation infrastructure. The public interfaces listed
@@ -29,7 +29,7 @@ use     location_mod, only : location_type,      get_close_maxdist_init, &
 use    utilities_mod, only : register_module, error_handler, nc_check, &
                              E_ERR, E_MSG, find_namelist_in_file,      &
                              check_namelist_read, get_unit, open_file, &
-                             close_file
+                             close_file, do_nml_file, nmlfileunit, do_nml_term
 use     obs_kind_mod, only : paramname_length, get_raw_obs_kind_index
 
 use netcdf
@@ -38,33 +38,36 @@ use typesizes
 implicit none
 private
 
-public :: get_model_size,         &
-          adv_1step,              &
-          get_state_meta_data,    &
-          model_interpolate,      &
-          get_model_time_step,    &
-          end_model,              &
-          static_init_model,      &
-          init_time,              &
-          init_conditions,        &
-          nc_write_model_atts,    &
-          nc_write_model_vars,    &
-          pert_model_state,       &
-          get_close_maxdist_init, &
-          get_close_obs_init,     &
-          get_close_obs,          &
-          analysis_file_to_statevector,     &
-          statevector_to_analysis_file,     &
-          get_naaps_restart_path, &
-          get_naaps_metadata,     &
-          get_naaps_nens,         &
+public :: get_model_size,               &
+          adv_1step,                    &
+          get_state_meta_data,          &
+          model_interpolate,            &
+          get_model_time_step,          &
+          end_model,                    &
+          static_init_model,            &
+          init_time,                    &
+          init_conditions,              &
+          nc_write_model_atts,          &
+          nc_write_model_vars,          &
+          pert_model_state,             &
+          get_close_maxdist_init,       &
+          get_close_obs_init,           &
+          get_close_obs,                &
           ens_mean_for_model
+
+public :: analysis_file_to_statevector, &
+          statevector_to_analysis_file, &
+          get_naaps_restart_path,       &
+          get_naaps_metadata,           &
+          get_naaps_nens,               &
+          get_naaps_dtg,                &
+          get_naaps_ensemble_member
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
-   source   = "$URL: $", &
-   revision = "$Revision: $", &
-   revdate  = "$Date: $"
+   source   = "$URL$", &
+   revision = "$Revision$", &
+   revdate  = "$Date$"
 
 ! EXAMPLE: define model parameters here
 integer                          :: model_size   !-Length of state vector 
@@ -84,10 +87,11 @@ integer            :: time_step_days      = 0
 integer            :: time_step_seconds   = 21600
 logical            :: output_state_vector = .false.
 logical            :: debug               = .false.
+integer            :: member              = 1
 
 namelist /model_nml/ nens, dtg, naaps_restart_path, &
                      time_step_seconds, time_step_days, &
-                     output_state_vector, debug
+                     output_state_vector, debug, member
 
 ! Everything needed to describe a variable
 integer, parameter :: max_state_variables = 80
@@ -157,7 +161,9 @@ subroutine static_init_model()
        !integer  :: iunit, io
 
        if ( module_initialized ) return
+
        module_initialized = .true.
+
        ! Print module information to log file and stdout.
        call register_module(source, revision, revdate)
 
@@ -165,10 +171,11 @@ subroutine static_init_model()
        call find_namelist_in_file("input.nml", "model_nml", iunit)
        read(iunit, nml = model_nml, iostat = io)
        call check_namelist_read(iunit, io, "model_nml")
-       CALL set_calendar_type('Gregorian')
+       call set_calendar_type('Gregorian')
+
        ! Record the namelist values used for the run ...
-       !if (do_nml_file()) write(nmlfileunit, nml=model_nml)
-       !if (do_nml_term()) write(     *     , nml=model_nml)
+       if (do_nml_file()) write(nmlfileunit, nml=model_nml)
+       if (do_nml_term()) write(     *     , nml=model_nml)
 
        !_Provided the path, open 
 
@@ -190,15 +197,15 @@ subroutine static_init_model()
            progvar(i)%kind_string = species_kinds(i)
            progvar(i)%dart_kind = get_raw_obs_kind_index(progvar(i)%kind_string)
 
-           WRITE(*,*)
-           WRITE(*,*) progvar(i)%numdims 
-           WRITE(*,*) progvar(i)%dimlens(1:progvar(i)%numdims)
-           WRITE(*,*) progvar(i)%numvertical
-           WRITE(*,*) progvar(i)%varsize 
-           WRITE(*,*) progvar(i)%index1 
-           WRITE(*,*) progvar(i)%indexN
-           WRITE(*,*) trim(progvar(i)%varname) 
-           WRITE(*,*) trim(progvar(i)%kind_string)
+           if (debug) WRITE(*,*)
+           if (debug) WRITE(*,*) progvar(i)%numdims 
+           if (debug) WRITE(*,*) progvar(i)%dimlens(1:progvar(i)%numdims)
+           if (debug) WRITE(*,*) progvar(i)%numvertical
+           if (debug) WRITE(*,*) progvar(i)%varsize 
+           if (debug) WRITE(*,*) progvar(i)%index1 
+           if (debug) WRITE(*,*) progvar(i)%indexN
+           if (debug) WRITE(*,*) trim(progvar(i)%varname) 
+           if (debug) WRITE(*,*) trim(progvar(i)%kind_string)
        END DO
 
        DO i=nspecies+1, nspecies*2
@@ -217,19 +224,20 @@ subroutine static_init_model()
            progvar(i)%kind_string = species_kinds(i)
            progvar(i)%dart_kind = get_raw_obs_kind_index(progvar(i)%kind_string)
 
-           WRITE(*,*)
-           WRITE(*,*) progvar(i)%numdims 
-           WRITE(*,*) progvar(i)%dimlens(1:progvar(i)%numdims)
-           WRITE(*,*) progvar(i)%numvertical
-           WRITE(*,*) progvar(i)%varsize 
-           WRITE(*,*) progvar(i)%index1 
-           WRITE(*,*) progvar(i)%indexN
-           WRITE(*,*) trim(progvar(i)%varname) 
-           WRITE(*,*) trim(progvar(i)%kind_string)
+           if (debug) WRITE(*,*)
+           if (debug) WRITE(*,*) progvar(i)%numdims 
+           if (debug) WRITE(*,*) progvar(i)%dimlens(1:progvar(i)%numdims)
+           if (debug) WRITE(*,*) progvar(i)%numvertical
+           if (debug) WRITE(*,*) progvar(i)%varsize 
+           if (debug) WRITE(*,*) progvar(i)%index1 
+           if (debug) WRITE(*,*) progvar(i)%indexN
+           if (debug) WRITE(*,*) trim(progvar(i)%varname) 
+           if (debug) WRITE(*,*) trim(progvar(i)%kind_string)
            
            model_size = progvar(i)%indexN
        END DO
        nvars = nspecies * 2
+
        ! The time_step in terms of a time type must also be initialized.
        time_step = set_time(time_step_seconds, time_step_days)
 
@@ -965,12 +973,12 @@ end subroutine ens_mean_for_model
 
 
 
-subroutine analysis_file_to_statevector(path, state_vector, en, model_time)
+subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
 !------------------------------------------------------------------
 ! Smooshes ensemble files into a single state vector
        character(len=*), intent(in)    :: path 
        REAL(r8),         INTENT(inout) :: state_vector(:)
-       INTEGER,          INTENT(in)    :: en
+       INTEGER,          INTENT(in)    :: ens_num 
        type(time_type),  intent(out)   :: model_time
        integer                         :: x, y, s, z, lun, rel_offset, base_offset
        INTEGER                         :: i !_state vector index
@@ -979,6 +987,7 @@ subroutine analysis_file_to_statevector(path, state_vector, en, model_time)
        LOGICAL                         :: file_existence
        REAL(r8)                        :: f_aod(nspecies+2)
        REAL(r4)                        :: f_conc(nx,ny,nz,nspecies)
+
        !_Columns of AOD files 
        !_statevector will be in the order of (nens,nx,ny,nz,nspecies)+(nens,nx,ny,nspecies)
        ! Concentrations first, aod second?  Or just work with aod?
@@ -991,7 +1000,7 @@ subroutine analysis_file_to_statevector(path, state_vector, en, model_time)
        i = 1
         
        state_vector = MISSING_R8
-       WRITE(member_dir,'(A1,I0.2,A2)') 'E', en, '00'
+       WRITE(member_dir,'(A1,I0.2,A2)') 'E', ens_num, '00'
        ens_dir = trim(path) // '/' // member_dir
        file_aod = trim(path) // '/NAAPSAOD/' // trim(member_dir) &
                 // '/' // trim(dtg) // '_aod'
@@ -1053,30 +1062,38 @@ subroutine analysis_file_to_statevector(path, state_vector, en, model_time)
 
 end subroutine analysis_file_to_statevector
 
-SUBROUTINE statevector_to_analysis_file( statevector, naaps_restart_path, model_time )
+
+
+subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_num, model_time )
        CHARACTER(len=*), INTENT(in)    :: naaps_restart_path 
-       REAL(r8),         INTENT(inout) :: state_vector(:)
+       INTEGER         , INTENT(in)    :: ens_num 
+       REAL(r8),         INTENT(inout) :: statevector(:)
        TYPE(time_type),  INTENT(out)   :: model_time
-       CHARACTER(len=256)              :: file_aod, file_conc, ens_dir
+       CHARACTER(len=256)              :: file_concda, file_conc, ens_dir
+       CHARACTER(len=5)                :: member_dir
        REAL(r4)                        :: height(nx,ny), binrad(nspecies), binradw(nspecies), &
                                           rho(nspecies), refract_i(nspecies), refract_r(nspecies), &
                                           budget_vars(15), mix(nx,ny), lift(nx,ny,nspecies),       &
                                           sinkd(nx,ny,nspecies), sinkw(nx,ny,nspecies),            &
                                           temperature(nx,ny,nz), sfc_pressure(nx,ny), siga(nz+1),  & 
-                                          sigb(nz+1)
-       INTEGER                         :: n, base_offset, rel_offset
-
+                                          sigb(nz+1), conc(nx,ny,nz,nspecies)
+       INTEGER                         :: n, base_offset, rel_offset, i, j, k, l, s, lun, icdtg, fhr
+       real(r8)                        :: tmp(nx,ny,nz) 
+       REAL(r4)                        :: lats(ny), lons(nx)
        !_read in bootstrap _conc
        if ( .not. module_initialized ) call static_init_model
+       WRITE(member_dir,'(A1,I0.2,A2)') 'E', ens_num, '00'
        file_conc = trim(naaps_restart_path) // '/NAAPS/' // trim(member_dir) &
                 // '/' // trim(dtg) // '_conc'
-
+       file_concda = trim(naaps_restart_path) // '/NAAPS/' // trim(member_dir) &
+                // '/' // trim(dtg) // '_dart'!_temporarily named for debugging
+       print *, 'OUTPUT: ', trim(file_concda)
        !_Read in CONC data
        lun = OPEN_FILE(file_conc, FORM='unformatted')
        read(lun) icdtg, fhr   ! icdtg, fhr
        read(lun)              ! nx, ny, nz, ns 
-       read(lun)              ! lats 
-       read(lun)              ! lons 
+       read(lun) lats             ! lats 
+       read(lun) lons             ! lons 
        read(lun) siga, sigb   ! siga, sigb 
        read(lun) height       ! height
        read(lun) binrad       ! binrad 
@@ -1099,38 +1116,74 @@ SUBROUTINE statevector_to_analysis_file( statevector, naaps_restart_path, model_
        call CLOSE_FILE(lun)
 
        !_rehape concentration portion of sv (i,j,k,s)
-       DO n = 1, nspecies
-
+       DO n = nspecies + 1, nvars
+           CALL vector_to_3d_prog_var( statevector, n, tmp )
+           conc(:,:,:,n-nspecies) = REAL(tmp,r4)
        ENDDO
+
        !_shove into conc, write file
-
-!subroutine vector_to_3d_prog_var(x, ivar, data_3d_array)
-!------------------------------------------------------------------
-! convert the values from a 1d array, starting at an offset,
-! into a 3d array.
-!
-!real(r8), dimension(:),     intent(in)  :: x
-!integer,                    intent(in)  :: ivar
-!real(r8), dimension(:,:,:), intent(out) :: data_3d_array
-
-
+       lun = OPEN_FILE(file_concda, form='unformatted')
+       WRITE(lun) icdtg, fhr 
+       WRITE(lun) nx, ny, nz, nspecies 
+       WRITE(lun) (lats(j),j=1,ny)
+       WRITE(lun) (lons(i),i=1,nx)
+       WRITE(lun) (siga(k),k=1,nz+1), (sigb(k),k=1,nz+1)
+       WRITE(lun) ((height(i,j),i=1,nx),j=1,ny)
+       WRITE(lun) binrad
+       WRITE(lun) binradw
+       WRITE(lun) rho     
+       WRITE(lun) refract_r
+       WRITE(lun) refract_i 
+       WRITE(lun) budget_vars
+       WRITE(lun) ((((conc(i,j,k,l),i=1,nx),j=1,ny),k=1,nz),l=1,nspecies)      
+       WRITE(lun) ((mix(i,j),i=1,nx),j=1,ny)
+       WRITE(lun) (((lift(i,j,s), i=1, nx), j=1, ny), s=1, nspecies)
+       WRITE(lun) (((sinkd(i,j,s), i=1, nx), j=1, ny), s=1, nspecies)
+       WRITE(lun) (((sinkw(i,j,s), i=1, nx), j=1, ny), s=1, nspecies)
+       WRITE(lun) (((temperature(i,j,k),i=1,nx),j=1,ny),k=1,nz)        
+       WRITE(lun) ((sfc_pressure(i,j), i=1, nx), j=1, ny)
+       CALL CLOSE_FILE(lun)
+ 
 END SUBROUTINE statevector_to_analysis_file
 
-SUBROUTINE get_naaps_restart_path(path)
-       CHARACTER(len=*), INTENT(OUT) :: path
+
+
+subroutine get_naaps_restart_path(path)
+       character(len=*), intent(out) :: path
        if ( .not. module_initialized ) call static_init_model
        path = trim(naaps_restart_path)
-END SUBROUTINE get_naaps_restart_path
+end subroutine get_naaps_restart_path
 
-SUBROUTINE get_naaps_nens( n )
-       INTEGER,          INTENT(out) :: n
+
+
+subroutine get_naaps_nens( n )
+! FIXME : is this routine necessary - only filter needs to know the ensemble size,
+! and that cames from the filter_nml&ens_size ...
+       integer,          intent(out) :: n
        if ( .not. module_initialized ) call static_init_model
        n = nens 
-END SUBROUTINE get_naaps_nens
+end subroutine get_naaps_nens
+
+
+
+subroutine get_naaps_dtg( mydtg )
+       character(len=*), intent(out) :: mydtg 
+       if ( .not. module_initialized ) call static_init_model
+       mydtg = dtg
+end subroutine get_naaps_dtg
+
+
+
+subroutine get_naaps_ensemble_member( myne )
+       integer, intent(out) :: myne
+       if ( .not. module_initialized ) call static_init_model
+       myne = member
+end subroutine get_naaps_ensemble_member
 
 
 
 subroutine get_naaps_metadata(path, dtg, model_time )
+
        CHARACTER(len=*),  INTENT(in)  :: path
        CHARACTER(len=*),  INTENT(in)  :: dtg
        TYPE(time_type),   INTENT(out) :: model_time
@@ -1140,18 +1193,21 @@ subroutine get_naaps_metadata(path, dtg, model_time )
        REAL(r4), ALLOCATABLE          :: asig(:), bsig(:)
        
        if ( .not. module_initialized ) call static_init_model
+
        filename = trim(path) // '/NAAPS/E2000/' // trim(dtg) // '_conc'
        !filename = '/aerosol_opstmp/native/naaps/conc/201110/2011101000_conc'
-       WRITE(*,*) 'META: opening ',filename
+
+       if (debug) write(*,*) 'get_naaps_metadata: opening ',trim(filename)
+
        lun = get_unit() 
        open(lun,file=filename,status='old',form='unformatted')!,iostat=istat)
        read(lun) icdtg, dum
        read(lun) nx, ny, nz, nspecies
-       ALLOCATE(xlat(ny), xlon(nx), asig(nz+1), bsig(nz+1))
+       allocate(xlat(ny), xlon(nx), asig(nz+1), bsig(nz+1))
        !read(lun) !itype, ipack
        read(lun) xlat 
        read(lun) xlon
-       WHERE ( xlon < 0.0_r4 ) xlon = xlon + 360.0_r4
+       where ( xlon < 0.0_r4 ) xlon = xlon + 360.0_r4
        
        !read(lun) asig, bsig !(nz+1, nz+1)
        close(lun)
@@ -1159,15 +1215,15 @@ subroutine get_naaps_metadata(path, dtg, model_time )
        !_Assuming evenly spaced lat/lon grid. 
        dlat = ABS(xlat(2) - xlat(1)) !/ (ny - 1)
        dlon = ABS(xlon(2) - xlon(1)) !/ (nx - 1)
-       write(*,*) dlat, dlon, 'DLATLON'
+       if (debug) write(*,*) dlat, dlon, 'DLATLON'
 
        !_Calculate model_time (days,seconds)
-       READ(dtg,'(i4,I2,i2,i2)') yyyy, mm, dd, hh
+       read(dtg,'(i4,i2,i2,i2)') yyyy, mm, dd, hh
        ss = 0
        mn = 0
        model_time = set_date(yyyy,mm,dd,hh,mn,ss)
-       CALL print_date(model_time)
-       DEALLOCATE(asig,bsig)
+       call print_date(model_time,str='get_naaps_metadata: model time')
+       deallocate(asig,bsig)
 
 end subroutine get_naaps_metadata
 
@@ -1257,6 +1313,8 @@ ii = progvar(ivar)%index1
 do idim3 = 1,progvar(ivar)%dimlens(3)
 do idim2 = 1,progvar(ivar)%dimlens(2)
 do idim1 = 1,progvar(ivar)%dimlens(1)
+   !print *, idim3, idim2, idim1, ii, ivar, 'walter'
+   !print *, progvar(ivar)%dimlens(3), 
    data_3d_array(idim1,idim2,idim3) = x(ii)
    ii = ii + 1
 enddo

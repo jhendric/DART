@@ -6,8 +6,8 @@
 #
 # $Id$
 
-../../../mkmf/mkmf -p obs_sequence_tool -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
- -a "../../.." path_names_obs_sequence_tool
+../../../mkmf/mkmf -p dart_to_naaps -t ../../../mkmf/mkmf.template -c "-Duse_netCDF" \
+ -a "../../.." path_names_dart_to_naaps
 
 exit $status
 
