@@ -19,7 +19,7 @@ module model_mod
 ! Modules that are absolutely required for use are listed
 
 use        types_mod, only : r8, r4, MISSING_R8, metadatalength
-use time_manager_mod, only : time_type, set_calendar_type, &
+use time_manager_mod, only : time_type, set_calendar_type, operator(/=), &
                              set_time, print_time, set_date, print_date
 use     location_mod, only : location_type,      get_close_maxdist_init, &
                              get_close_obs_init, get_close_obs, set_location, &
@@ -60,7 +60,6 @@ public :: analysis_file_to_statevector, &
           statevector_to_analysis_file, &
           get_naaps_restart_path,       &
           get_naaps_metadata,           &
-          get_naaps_nens,               &
           get_naaps_dtg,                &
           get_naaps_ensemble_member,    &
           dtg_to_time
@@ -1026,7 +1025,7 @@ type(time_type),  intent(out)   :: model_time
        REAL(r8)                        :: f_aod(nspecies+2)
        REAL(r4)                        :: f_conc(nx,ny,nz,nspecies)
        integer             :: icdtg,fhr
-
+       type(time_type)                 :: file_time
        if ( .not. module_initialized ) call static_init_model
 
        !_Columns of AOD files 
@@ -1083,9 +1082,14 @@ type(time_type),  intent(out)   :: model_time
        read(lun) f_conc     ! conc
        call CLOSE_FILE(lun)
 
-       ! FIXME : do something with model_time ... either compare against
-       ! the module storage one or ... the one we just read?
-       model_time = dtg_to_time(icdtg)
+       model_time = dtg_to_time(dtg)
+       file_time = dtg_to_time(icdtg)
+       if ( file_time /= model_time) then
+           write(string1, *)'DART valid time does not equal analysis file time '  
+           write(string2, *)'DART: ', dtg, ' FILE: ', icdtg
+           call error_handler(E_ERR,'analysis_file_to_statevector', string1, &
+                    source, revision, revdate, text2=string2)
+       endif
       
        DO s = nspecies+1, nvars
           base_offset = progvar(s)%index1
@@ -1106,11 +1110,10 @@ end subroutine analysis_file_to_statevector
 
 
 
-subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_num, model_time )
+subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_num )
        CHARACTER(len=*), INTENT(in)    :: naaps_restart_path 
        INTEGER         , INTENT(in)    :: ens_num 
        REAL(r8),         INTENT(inout) :: statevector(:)
-       TYPE(time_type),  INTENT(out)   :: model_time
        CHARACTER(len=256)              :: file_concda, file_conc
        CHARACTER(len=5)                :: member_dir
        REAL(r4)                        :: height(nx,ny), binrad(nspecies), binradw(nspecies), &
@@ -1122,6 +1125,7 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
        INTEGER                         :: n, i, j, k, l, s, lun, icdtg, fhr
        real(r8)                        :: tmp(nx,ny,nz) 
        REAL(r4)                        :: lats(ny), lons(nx)
+       type(time_type)                 :: file_time, model_time
 
        if ( .not. module_initialized ) call static_init_model
 
@@ -1137,8 +1141,8 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
        lun = OPEN_FILE(file_conc, form='unformatted', action='read')
        read(lun) icdtg, fhr   ! icdtg, fhr
        read(lun)              ! nx, ny, nz, ns 
-       read(lun) lats             ! lats 
-       read(lun) lons             ! lons 
+       read(lun) lats         ! lats 
+       read(lun) lons         ! lons 
        read(lun) siga, sigb   ! siga, sigb 
        read(lun) height       ! height
        read(lun) binrad       ! binrad 
@@ -1156,12 +1160,15 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
        read(lun) sfc_pressure ! sfc_pressure
 
        !_either rewind or create separate output path - write out
-
+       file_time = dtg_to_time(icdtg)
+       model_time = dtg_to_time(dtg)
+       if ( file_time /= model_time) then
+           write(string1, *)'DART valid time does not equal analysis file time '  
+           write(string2, *)'DART: ', dtg, ' FILE: ', icdtg
+           call error_handler(E_ERR,'statevector_to_analysis_file', string1, &
+                    source, revision, revdate, text2=string2)
+       endif
        call CLOSE_FILE(lun)
-
-       ! FIXME : sanity check ... set the model_time to the icdtg + fhr question
-       ! make sure we are stuffing the statevector at the right time into
-       ! the file with the right time ...
 
        !_rehape concentration portion of sv (i,j,k,s)
        DO n = nspecies + 1, nvars
@@ -1201,16 +1208,6 @@ subroutine get_naaps_restart_path(path)
    if ( .not. module_initialized ) call static_init_model
    path = trim(naaps_restart_path)
 end subroutine get_naaps_restart_path
-
-
-
-subroutine get_naaps_nens( n )
-! FIXME : is this routine necessary - only filter needs to know the ensemble size,
-! and that cames from the filter_nml&ens_size ...
-   integer,          intent(out) :: n
-   if ( .not. module_initialized ) call static_init_model
-   n = nens 
-end subroutine get_naaps_nens
 
 
 
@@ -1260,12 +1257,10 @@ subroutine get_naaps_metadata(path, dtg, model_time )
        close(lun)
 
        !_Assuming evenly spaced lat/lon grid. 
-       dlat = ABS(xlat(2) - xlat(1)) !/ (ny - 1)
-       dlon = ABS(xlon(2) - xlon(1)) !/ (nx - 1)
+       dlat = ABS(xlat(2) - xlat(1)) 
+       dlon = ABS(xlon(2) - xlon(1))
        if (debug) write(*,*) dlat, dlon, 'DLATLON'
 
-       ! FIXME : do we want to compare dtg and icdtg ???
-       ! FIXME : may not be needed ...
        model_time = dtg_to_time(dtg)
        call print_date(model_time,str='get_naaps_metadata: model time')
 
@@ -1388,11 +1383,12 @@ integer :: dummy,yyyy,mm,dd,hh,mn,ss
 yyyy  =        mydtg/1000000  ! integer arithmetic truncates
 dummy = mydtg - yyyy*1000000
 mm    =        dummy/10000
-dummy = dummy -   mm/10000
+dummy = dummy -   mm*10000
 dd    =        dummy/100
-hh    = dummy -   dd/100
+hh    = dummy -   dd*100
 mn    = 0
 ss    = 0
+
 dtg_integer_to_time = set_date(yyyy,mm,dd,hh,mn,ss)
 
 if (debug) then

@@ -50,7 +50,6 @@ character(len=128), parameter :: &
 character(len=128) :: dart_to_naaps_input_file = 'dart.ic'
 logical            :: advance_time_present     = .true.
 logical            :: verbose                  = .false.
-
 namelist /dart_to_naaps_nml/ dart_to_naaps_input_file, &
                              advance_time_present,     &
                              verbose
@@ -112,7 +111,7 @@ call close_restart(iunit)
 ! write out a tiny file with the advance_to_dtg information ... mebbe
 !----------------------------------------------------------------------
 
-call statevector_to_analysis_file(statevector, naaps_restart_path, member, model_time)
+call statevector_to_analysis_file(statevector, naaps_restart_path, member)
 
 if ( advance_time_present ) then
    call get_date(adv_to_time,iyear,imonth,iday,ihour,imin,isec)
@@ -139,6 +138,5 @@ call print_date(adv_to_time,'dart_to_naaps:advance_to date',logfileunit)
 endif
 
 call finalize_utilities()
-
 end program dart_to_naaps
 

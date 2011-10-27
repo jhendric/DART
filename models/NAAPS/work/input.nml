@@ -1,5 +1,5 @@
 &assim_model_nml
-   write_binary_restart_files = .true.,
+   write_binary_restart_files = .false.,
    netCDF_large_file_support  = .false.
   /
 
@@ -37,9 +37,7 @@
 
 &model_nml
    dtg                          = '2011080100',
-   nens                         = 20,
    naaps_restart_path           = '/shared/aerosol_jack/users/sessions/products/ENS/FCAST_2011080100_f120',
-   naaps_restart_filename       = 'naaps_analysis',
    member                       = MEMBER_NUMBER,
    time_step_days               = 0,
    time_step_seconds            = 21600, 
@@ -103,8 +101,8 @@
    output_restart           = .true.,
    async                    = 0,
    tasks_per_model_advance  = 1,
-   init_time_days           = 0,
-   init_time_seconds        = 0,
+   init_time_days           = -1,
+   init_time_seconds        = -1,
    first_obs_days           = -1,
    first_obs_seconds        = -1,
    last_obs_days            = -1,
