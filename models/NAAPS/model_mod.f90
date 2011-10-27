@@ -883,6 +883,10 @@ else
       varname = trim(progvar(ivar)%varname)
       string1 = trim(filename)//" "//trim(varname)
 
+      mystart(:) = 1
+      mycount(:) = 1
+      dimIDs     = 0
+
       ! Ensure netCDF variable is conformable with progvar quantity.
       ! The TIME and Copy dimensions are intentionally not queried
       ! by looping over the dimensions stored in the progvar type.
@@ -893,18 +897,14 @@ else
       call nc_check(nf90_inquire_variable(ncFileID,VarId,dimids=dimIDs,ndims=ncNdims), &
                     "nc_write_model_vars", "inquire "//trim(string1))
 
-      mystart(:) = 1
-      mycount(:) = 1
+      vardims(1) = progvar(ivar)%dimlens(1) ! num lons
+      vardims(2) = progvar(ivar)%dimlens(2) ! num lats
+      ndims      = 2                        ! only lon/lat
 
-      if (progvar(ivar)%numvertical == 1) then
-           ndims=2  ! only lon/lat
-      else
-           ndims=3  ! lon/lat/vert
+      if (progvar(ivar)%numvertical > 1) then
+         vardims(3) = progvar(ivar)%dimlens(3) ! num vert
+         ndims      = 3                        ! lon/lat/vert
       endif
-
-      vardims(1)=progvar(ivar)%dimlens(1)   ! num lons
-      vardims(2)=progvar(ivar)%dimlens(2)   ! num lats
-      vardims(3)=progvar(ivar)%numvertical
 
       DimCheck : do i = 1,ndims
 
