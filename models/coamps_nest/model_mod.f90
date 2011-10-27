@@ -614,11 +614,12 @@ contains
     !  PARAMETERS
     ! INOUT gc                get_close_type structure to initialize
     !   IN  maxdist           the maximum distance to process  
-    subroutine get_close_maxdist_init (gc, maxdist)
+    subroutine get_close_maxdist_init (gc, maxdist, maxdist_array)
         type(get_close_type), intent(inout) :: gc
         real(r8), intent(in)                :: maxdist
+        real(r8), intent(in), optional      :: maxdist_array(:)
 
-        call loc_get_close_maxdist_init(gc, maxdist)
+        call loc_get_close_maxdist_init(gc, maxdist, maxdist_array)
     end subroutine get_close_maxdist_init
 
     ! get_close_obs_init
