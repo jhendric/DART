@@ -19,17 +19,18 @@ module model_mod
 ! Modules that are absolutely required for use are listed
 
 use        types_mod, only : r8, r4, MISSING_R8, metadatalength
-use time_manager_mod, only : time_type, set_time, set_date, print_date, &
-                             set_calendar_type
+use time_manager_mod, only : time_type, set_calendar_type, &
+                             set_time, print_time, set_date, print_date
 use     location_mod, only : location_type,      get_close_maxdist_init, &
                              get_close_obs_init, get_close_obs, set_location, &
                              set_location_missing, VERTISUNDEF, vert_is_height, &
                              vert_is_level, vert_is_surface, vert_is_undef, &
                              get_location
 use    utilities_mod, only : register_module, error_handler, nc_check, &
-                             E_ERR, E_MSG, find_namelist_in_file,      &
-                             check_namelist_read, get_unit, open_file, &
-                             close_file, do_nml_file, nmlfileunit, do_nml_term
+                             E_ERR, E_MSG, get_unit, open_file, close_file, &
+                             find_namelist_in_file, check_namelist_read, &
+                             do_nml_file, do_nml_term, do_output, &
+                             nmlfileunit, logfileunit
 use     obs_kind_mod, only : paramname_length, get_raw_obs_kind_index
 
 use netcdf
@@ -254,15 +255,19 @@ subroutine init_conditions(x)
 ! initial condition for starting up a long integration of the model.
 ! At present, this is only used if the namelist parameter 
 ! start_from_restart is set to .false. in the program perfect_model_obs.
-! If this option is not to be used in perfect_model_obs, or if no 
-! synthetic data experiments using perfect_model_obs are planned, 
-! this can be a NULL INTERFACE.
+! If it is not possible to use some default initial conditions, this
+! can be a NULL INTERFACE that should issue a horrible warning and DIE.
 
 real(r8), intent(out) :: x(:)
 
-x = MISSING_R8
+if ( .not. module_initialized ) call static_init_model
 
-! FIXME ... this should issue a horrible warning and then DIE.
+write(string1,*) 'Cannot initialize NAAPS with a default state.'
+write(string2,*) 'perfect_model_obs_nml:start_from_restart cannot be .FALSE.'
+call error_handler(E_ERR,'init_conditions',string1,source,revision,revdate,&
+                                     text2=string2)
+
+x = MISSING_R8 ! tell compiler to be quiet about unused variables
 
 end subroutine init_conditions
 
@@ -283,12 +288,22 @@ subroutine adv_1step(x, time)
 ! state as a separate executable. If one of these options
 ! is not going to be used (the model will only be advanced as
 ! a separate model-specific executable), this can be a 
-! NULL INTERFACE.
+! NULL INTERFACE, just die if it ever gets here.
 
 real(r8),        intent(inout) :: x(:)
 type(time_type), intent(in)    :: time
 
-! FIXME ... this should issue a horrible warning and then DIE.
+if ( .not. module_initialized ) call static_init_model
+
+if (do_output()) then
+   call print_time(time,'NULL interface adv_1step (no advance) DART time is')
+   call print_time(time,'NULL interface adv_1step (no advance) DART time is',logfileunit)
+endif
+
+write(string1,*) 'Cannot advance NAAPS with a subroutine call; async cannot equal 0'
+call error_handler(E_ERR,'adv_1step',string1,source,revision,revdate)
+
+x = MISSING_R8 ! tell compiler to be quiet about unused variables
 
 end subroutine adv_1step
 
@@ -296,15 +311,13 @@ end subroutine adv_1step
 
 function get_model_size()
 !------------------------------------------------------------------
-!
-! Returns the size of the model as an integer. Required for all
-! applications.
+! Returns the size of the model as an integer. Required. 
 
-       integer :: get_model_size
+integer :: get_model_size
 
-       if ( .not. module_initialized ) call static_init_model
+if ( .not. module_initialized ) call static_init_model
 
-       get_model_size = model_size
+get_model_size = model_size
 
 end function get_model_size
 
@@ -322,6 +335,10 @@ subroutine init_time(time)
 ! this can be a NULL INTERFACE.
 
 type(time_type), intent(out) :: time
+
+if ( .not. module_initialized ) call static_init_model
+
+! FIXME
 
 ! for now, just set to 0
 time = set_time(0,0)
@@ -428,6 +445,7 @@ function get_model_time_step()
 
 type(time_type) :: get_model_time_step
 
+if ( .not. module_initialized ) call static_init_model
 get_model_time_step = time_step
 
 end function get_model_time_step
@@ -954,6 +972,8 @@ real(r8), intent(in)  :: state(:)
 real(r8), intent(out) :: pert_state(:)
 logical,  intent(out) :: interf_provided
 
+if ( .not. module_initialized ) call static_init_model
+
 pert_state      = state
 interf_provided = .false.
 
@@ -967,6 +987,10 @@ subroutine ens_mean_for_model(ens_mean)
 ! Not used in low-order models
 
 real(r8), intent(in) :: ens_mean(:)
+
+if ( .not. module_initialized ) call static_init_model
+
+! FIXME
 
 end subroutine ens_mean_for_model
 
@@ -987,6 +1011,8 @@ subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
        REAL(r8)                        :: f_aod(nspecies+2)
        REAL(r4)                        :: f_conc(nx,ny,nz,nspecies)
 
+       if ( .not. module_initialized ) call static_init_model
+
        !_Columns of AOD files 
        !_statevector will be in the order of (nens,nx,ny,nz,nspecies)+(nens,nx,ny,nspecies)
        ! Concentrations first, aod second?  Or just work with aod?
@@ -996,7 +1022,6 @@ subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
        ! Take out the 2d<->3d portion of NAVDAS, use that to operate
        !_Currently just going to convert AOD fields.
        ! Loop over ensemble members, check file existence
-       i = 1
         
        state_vector = MISSING_R8
        WRITE(member_dir,'(A1,I0.2,A2)') 'E', ens_num, '00'
@@ -1017,11 +1042,11 @@ subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
                state_vector(i) = f_aod(2 + s)
                !write(*,*) x, y, s, i 
                !write(*,*) state_vector(i)
-               !i = i + 1
            ENDDO
        ENDDO
        ENDDO
        call CLOSE_FILE(lun)
+
        !_Read concentration data in (look to readn.f in NAVDAS)
        !_CURRENTLY AOD ONLY
 
@@ -1080,8 +1105,11 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
        INTEGER                         :: n, i, j, k, l, s, lun, icdtg, fhr
        real(r8)                        :: tmp(nx,ny,nz) 
        REAL(r4)                        :: lats(ny), lons(nx)
-       !_read in bootstrap _conc
+
        if ( .not. module_initialized ) call static_init_model
+
+       !_read in bootstrap _conc
+
        WRITE(member_dir,'(A1,I0.2,A2)') 'E', ens_num, '00'
        file_conc = trim(naaps_restart_path) // '/NAAPS/' // trim(member_dir) &
                 // '/' // trim(dtg) // '_conc'
@@ -1150,9 +1178,9 @@ END SUBROUTINE statevector_to_analysis_file
 
 
 subroutine get_naaps_restart_path(path)
-       character(len=*), intent(out) :: path
-       if ( .not. module_initialized ) call static_init_model
-       path = trim(naaps_restart_path)
+   character(len=*), intent(out) :: path
+   if ( .not. module_initialized ) call static_init_model
+   path = trim(naaps_restart_path)
 end subroutine get_naaps_restart_path
 
 
@@ -1160,25 +1188,25 @@ end subroutine get_naaps_restart_path
 subroutine get_naaps_nens( n )
 ! FIXME : is this routine necessary - only filter needs to know the ensemble size,
 ! and that cames from the filter_nml&ens_size ...
-       integer,          intent(out) :: n
-       if ( .not. module_initialized ) call static_init_model
-       n = nens 
+   integer,          intent(out) :: n
+   if ( .not. module_initialized ) call static_init_model
+   n = nens 
 end subroutine get_naaps_nens
 
 
 
 subroutine get_naaps_dtg( mydtg )
-       character(len=*), intent(out) :: mydtg 
-       if ( .not. module_initialized ) call static_init_model
-       mydtg = dtg
+   character(len=*), intent(out) :: mydtg 
+   if ( .not. module_initialized ) call static_init_model
+   mydtg = dtg
 end subroutine get_naaps_dtg
 
 
 
 subroutine get_naaps_ensemble_member( myne )
-       integer, intent(out) :: myne
-       if ( .not. module_initialized ) call static_init_model
-       myne = member
+   integer, intent(out) :: myne
+   if ( .not. module_initialized ) call static_init_model
+   myne = member
 end subroutine get_naaps_ensemble_member
 
 
