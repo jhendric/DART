@@ -116,6 +116,8 @@ end type progvartype
 
 type(progvartype), dimension(max_state_variables) :: progvar
 
+real(r8), allocatable, dimension(:) :: module_ensemble_mean
+
 INTERFACE vector_to_prog_var
       MODULE PROCEDURE vector_to_1d_prog_var
       MODULE PROCEDURE vector_to_2d_prog_var
@@ -247,6 +249,9 @@ subroutine static_init_model()
 
        ! The time_step in terms of a time type must also be initialized.
        time_step = set_time(time_step_seconds, time_step_days)
+
+       ! Allocate space for an ensemble mean
+       allocate(module_ensemble_mean(model_size))
 
 end subroutine static_init_model
 
@@ -525,6 +530,10 @@ subroutine end_model()
 !
 ! Does any shutdown and clean-up needed for model. Can be a NULL
 ! INTERFACE if the model has no need to clean up storage, etc.
+
+if (allocated(module_ensemble_mean)) deallocate(module_ensemble_mean)
+if (allocated(xlon))                 deallocate(xlon)
+if (allocated(xlat))                 deallocate(xlat)
 
 end subroutine end_model
 
@@ -996,13 +1005,16 @@ end subroutine pert_model_state
 
 subroutine ens_mean_for_model(ens_mean)
 !------------------------------------------------------------------
-! Not used in low-order models
+! Store a copy of the ensemble mean in the model_mod module for use
+! by routines that might need it. Most commonly, using a single
+! definition to find the 'height' of an observation when the model
+! uses a hybrid vertical coordinate system.
 
 real(r8), intent(in) :: ens_mean(:)
 
 if ( .not. module_initialized ) call static_init_model
 
-! FIXME
+module_ensemble_mean = ens_mean
 
 end subroutine ens_mean_for_model
 

@@ -265,8 +265,6 @@ wait
 # Cleanup
 #-------------------------------------------------------------------------
 
-ls -lrt
-
 exit 0
 
 # <next few lines under version control, do not edit>
