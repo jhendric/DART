@@ -1006,7 +1006,7 @@ subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
                 // '/' // trim(dtg) // '_conc'
        
        !_Check for file existence
-       lun = OPEN_FILE(file_aod, FORM='formatted')
+       lun = OPEN_FILE(file_aod, form='formatted', action='read')
        !write(*,*) 'COORDS', nx, ny, nspecies
        !_Loop over x, y, s
        DO x = 1, nx
@@ -1026,7 +1026,7 @@ subroutine analysis_file_to_statevector(path, state_vector, ens_num, model_time)
        !_CURRENTLY AOD ONLY
 
        !_Read in CONC data
-       lun = OPEN_FILE(file_conc, FORM='unformatted')
+       lun = OPEN_FILE(file_conc, form='unformatted', action='read')
        read(lun)            ! icdtg, fhr
        read(lun)            ! nx, ny, nz, ns 
        read(lun)            ! lats 
@@ -1089,7 +1089,7 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
                 // '/' // trim(dtg) // '_dart'!_temporarily named for debugging
        print *, 'OUTPUT: ', trim(file_concda)
        !_Read in CONC data
-       lun = OPEN_FILE(file_conc, FORM='unformatted')
+       lun = OPEN_FILE(file_conc, form='unformatted', action='read')
        read(lun) icdtg, fhr   ! icdtg, fhr
        read(lun)              ! nx, ny, nz, ns 
        read(lun) lats             ! lats 
@@ -1123,7 +1123,7 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
        ENDDO
 
        !_shove into conc, write file
-       lun = OPEN_FILE(file_concda, form='unformatted')
+       lun = OPEN_FILE(file_concda, form='unformatted', action='write')
        WRITE(lun) icdtg, fhr 
        WRITE(lun) nx, ny, nz, nspecies 
        WRITE(lun) (lats(j),j=1,ny)
