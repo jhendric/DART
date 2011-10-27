@@ -1044,7 +1044,10 @@ type(time_type),  intent(out)   :: model_time
                 // '/' // trim(dtg) // '_aod'
        file_conc = trim(path) // '/NAAPS/' // trim(member_dir) &
                 // '/' // trim(dtg) // '_conc'
-       
+      
+       if (debug) write(*,*)'analysis_file_to_statevector:Reading AOD  file',trim(file_aod)
+       if (debug) write(*,*)'analysis_file_to_statevector:Reading CONC file',trim(file_conc)
+ 
        !_Check for file existence
        lun = OPEN_FILE(file_aod, form='formatted', action='read')
        !write(*,*) 'COORDS', nx, ny, nspecies
@@ -1137,6 +1140,10 @@ subroutine statevector_to_analysis_file( statevector, naaps_restart_path, ens_nu
        file_concda = trim(naaps_restart_path) // '/NAAPS/' // trim(member_dir) &
                 // '/' // trim(dtg) // '_dart'!_temporarily named for debugging
        print *, 'OUTPUT: ', trim(file_concda)
+
+       if (debug) write(*,*)'statevector_to_analysis_file:Reading CONC file',trim(file_conc)
+       if (debug) write(*,*)'statevector_to_analysis_file:Writing CONC file',trim(file_concda)
+
        !_Read in CONC data
        lun = OPEN_FILE(file_conc, form='unformatted', action='read')
        read(lun) icdtg, fhr   ! icdtg, fhr
