@@ -28,8 +28,8 @@ use        types_mod, only : r8
 use    utilities_mod, only : initialize_utilities, finalize_utilities, &
                              find_namelist_in_file, check_namelist_read
 use        model_mod, only : get_model_size, analysis_file_to_statevector, &
-                             get_naaps_restart_path, get_naaps_metadata,   &
-                             get_naaps_dtg, get_naaps_ensemble_member,     &
+                             get_naaps_restart_path, get_naaps_dtg,        &
+                             get_naaps_ensemble_member,     &
                              static_init_model
 use  assim_model_mod, only : awrite_state_restart, open_restart_write, close_restart
 use time_manager_mod, only : time_type, print_time, print_date
@@ -81,7 +81,6 @@ call check_namelist_read(iunit, io, "naaps_to_dart_nml")
 call static_init_model()
 call get_naaps_restart_path( naaps_restart_path )
 call get_naaps_dtg( dtg )
-call get_naaps_metadata( naaps_restart_path, dtg, model_time )
 call get_naaps_ensemble_member( member )
 
 write(*,*)

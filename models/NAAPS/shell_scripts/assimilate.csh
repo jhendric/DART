@@ -132,7 +132,6 @@ end
 # to have unique namelists for all of them.
 #
 # At the end of the block, we have DART restart files  filter_ics.[1-N]
-# that came from pointer files ../rpointer.ocn.[1-N].restart
 #
 # DART namelist settings appropriate/required:
 # &filter_nml:           restart_in_file_name    = 'filter_ics'
@@ -148,15 +147,15 @@ while ( $member <= $ensemble_size )
    # they all read their OWN 'input.nml' ... the output
    # filenames must inserted into the appropriate input.nml
 
-   set MYTEMPDIR = member_${member}
+   set MYTEMPDIR = `printf member_%04d $member`
    mkdir -p $MYTEMPDIR
    cd $MYTEMPDIR
 
    # the slash in the filename screws up 'sed' ... unless
-   set DART_IC_FILE = `printf ..\\/filter_ics.%04d $member`
+   set DART_IC_FILE = `printf ../filter_ics.%04d $member`
 
-   sed -e "s/dart.ud/${DART_IC_FILE}/" < ../input.nml.template >! tmp.nml
-   sed -e "s/MEMBER_NUMBER/$member/" < tmp.nml >! input.nml
+   sed -e "s#dart.ud#${DART_IC_FILE}#" < ../input.nml.template >! tmp.nml
+   sed -e "s#MEMBER_NUMBER#$member#" < tmp.nml >! input.nml
    $REMOVE tmp.nml
 
    ../naaps_to_dart &
@@ -204,8 +203,6 @@ ${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${DTG}.nc
 ${MOVE} obs_seq.final      ../obs_seq.${DTG}.final
 ${MOVE} dart_log.out       ../dart_log.${DTG}.out
 
-exit
-
 # Accomodate any possible inflation files 
 
 foreach INFLATION ( prior post )
@@ -234,8 +231,8 @@ end
 # DART namelist settings required:
 # &filter_nml:           restart_out_file_name  = 'filter_restart'
 # &ensemble_manager_nml: single_restart_file_in = '.false.'
-# &dart_to_naaps_nml:      dart_to_naaps_input_file = 'dart.ic',
-# &dart_to_naaps_nml:      advance_time_present   = .false.
+# &dart_to_naaps_nml:    dart_to_naaps_input_file = 'dart.ic',
+# &dart_to_naaps_nml:    advance_time_present   = .false.
 #-------------------------------------------------------------------------
 
 set member = 1
@@ -246,18 +243,14 @@ while ( $member <= $ensemble_size )
    # they all read their OWN 'input.nml' ... the output
    # filenames must inserted into the appropriate input.nml
 
-   set MYTEMPDIR = member_${member}
+   set MYTEMPDIR = `printf member_%04d $member`
    mkdir -p $MYTEMPDIR
    cd $MYTEMPDIR
 
-   set DART_RESTART_FILE = `printf filter_restart.%04d $member`
-   ${LINK} ../$DART_RESTART_FILE dart.ic
-
-   set MODEL_RESTART_FILENAME = `head -1 ../../rpointer.ocn.$member.restart`
-   ${LINK} ../../$MODEL_RESTART_FILENAME naaps.r.nc
-   ${LINK} ../../naaps2_in.$member       naaps_in
-
-   cp -f ../input.nml .
+   set DART_RESTART_FILE = `printf ../filter_restart.%04d $member`
+   sed -e "s#dart.ic#${DART_RESTART_FILE}#" < ../input.nml.template >! tmp.nml
+   sed -e "s#MEMBER_NUMBER#$member#" < tmp.nml >! input.nml
+   $REMOVE tmp.nml
 
    ../dart_to_naaps &
 
