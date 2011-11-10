@@ -22,6 +22,10 @@
 #
 # If you want to change something in your case other than the runtime settings,
 # you need to delete everything and start the run from scratch. 
+#
+#
+# ./${CASENAME}.*.clean_build
+# ./configure -cleanall
 
 # ====================================================================
 # ====  Set case options
@@ -32,9 +36,9 @@
 # ======================
 
 setenv ccsmtag       cesm1_1_beta04
-setenv case          FD005
-setenv compset       F_AMIP_CN
+setenv case          Farchive
 setenv compset       F
+setenv compset       F_AMIP_CN
 setenv resolution    f09_f09   
 
 # ======================
@@ -155,11 +159,11 @@ cd $caseroot
 ./xmlchange -file env_run.xml -id STOP_N      -val $stop_n 
 ./xmlchange -file env_run.xml -id CALENDAR    -val GREGORIAN
 
-# Have not sorted out the archiving just yet ... turning it off for now.
+# Substantial archiving changes ...
 # DOUT_S     is to turn on/off the short-term archiving
 # DOUT_L_MS  is to store to the HPSS (formerly "MSS")
-./xmlchange -file env_run.xml -id DOUT_S      -val 'FALSE' 
-./xmlchange -file env_run.xml -id DOUT_L_MS   -val 'FALSE' 
+./xmlchange -file env_run.xml -id DOUT_S      -val 'TRUE' 
+./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES      -val 'TRUE' 
 
 #------------------
 #  Create namelist template: user_nl_cam 
@@ -176,25 +180,42 @@ cd $caseroot
   ./configure -case
 
 #------------------
+#  Stage a copy of the DART assimilate.csh script HERE
+#------------------
+
+  cd $caseroot
+
+  ln -s /glade/home/thoar/svn/DART/dev/models/cam/shell_scripts/assimilate.csh .
+  ln -s /glade/home/thoar/svn/DART/dev/models/cam/shell_scripts/st_archive.sh Tools/st_archive.sh
+
+#------------------
 #  TJH FIXME EARLY EXIT
 #------------------
 
-echo
+echo ''
 echo 'Edit the Buildconf/{cam,cice,clm}.buildnml.csh files'
 echo '  cam.buildnml.csh      ncdata = "cam_initial_${atm_inst_counter}.nc"'
 echo ' cice.buildnml.csh      ice_ic = "ice_restart_${ice_inst_counter}.nc"'
 echo '  clm.buildnml.csh  hand edit all the clm_restart_x.nc instances in all HERE docs'
-echo 
+echo ''
 echo 'Add the call to assimilate.csh to the *.run script.'
-echo 
+echo ''
 echo 'IMPORTANT: Change Tools/ccsm_postrun.csh:83 to CONTINUE_RUN -val FALSE'
 echo 'for all the resubmits to be coldstarts.'
+echo ''
 
 exit
 
-echo
-echo 'Staging the restarts'
-echo
+#------------------
+#  build 
+#------------------
+   
+  cd $caseroot
+  ./$case.$mach.build 
+
+#------------------
+# Stage the restarts now that the run directory exists
+#------------------
 
 @ n = 1
 set Nens = 4
@@ -207,28 +228,6 @@ while ($n <= $Nens)
 
  @ n++
 end
-
-#------------------
-#  Stage a copy of the DART assimilate.csh script HERE
-#------------------
-
-  cd $caseroot
-
-  ln -s /glade/home/thoar/svn/DART/kodiak/models/cam/shell_scripts/assimilate.csh .
-
-
-#------------------
-#  build 
-#------------------
-   
-  cd $caseroot
-  ./$case.$mach.build 
-
-#------------------
-#  Save another copy of the original 'initial' namelist so we 
-# can tell if build changes anything
-#------------------
-   
 
 # ====================================================================
 #  Continue run

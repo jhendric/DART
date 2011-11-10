@@ -222,16 +222,16 @@ set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 ${LINK} ${OBS_FILE} obs_seq.out
 
 # FIXME: special for trying out non-monotonic task layouts.
-setenv ORG_PATH "${PATH}"
-setenv LSF_BINDIR /contrib/lsf/tgmpatch
-setenv PATH ${LSF_BINDIR}:${PATH}
-setenv ORG_TASK_GEOMETRY "${LSB_PJL_TASK_GEOMETRY}"
+# TJH setenv ORG_PATH "${PATH}"
+# TJH setenv LSF_BINDIR /contrib/lsf/tgmpatch
+# TJH setenv PATH ${LSF_BINDIR}:${PATH}
+# TJH setenv ORG_TASK_GEOMETRY "${LSB_PJL_TASK_GEOMETRY}"
 
 # layout: flat
 setenv NANCY_GEOMETRY_54_1NODE \
 	"{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53)}";
 
-setenv LSB_PJL_TASK_GEOMETRY "${NANCY_GEOMETRY_54_1NODE}"
+# TJH setenv LSB_PJL_TASK_GEOMETRY "${NANCY_GEOMETRY_54_1NODE}"
 
 which mpirun.lsf
 
@@ -264,8 +264,8 @@ foreach INFLATION ( prior post )
 end
 
 # FIXME: special for trying out non-monotonic task layouts.
-setenv PATH "${ORG_PATH}"
-setenv LSB_PJL_TASK_GEOMETRY "${ORG_TASK_GEOMETRY}"
+# TJH setenv PATH "${ORG_PATH}"
+# TJH setenv LSB_PJL_TASK_GEOMETRY "${ORG_TASK_GEOMETRY}"
 
 #-------------------------------------------------------------------------
 # Block 3: Update the cam restart files ... simultaneously ...
@@ -312,22 +312,13 @@ while ( ${member} <= ${ensemble_size} )
 
    # The initial filenames are static and come from the atm_in_xxxx namelist.
    # We must rename the updated initial files to the static names.
+   # I do not want to stymy the archive scripts.
+   #
+   # IMPORTANT: The Tools/st_archive.sh script must be substantially modified.
 
-   ${MOVE} ../../$ATM_INITIAL_FILENAME ../../cam_initial_${member}.nc
-   ${MOVE} ../../$LND_RESTART_FILENAME ../../clm_restart_${member}.nc
-   ${MOVE} ../../$ICE_RESTART_FILENAME ../../ice_restart_${member}.nc
-
-   # This is a safety precaution. We want to make sure CESM uses the static
-   # files for initialization as opposed to the pointer files and their
-   # contents. Basically, we are preventing CESM from using restarts instead
-   # of the initial files. Move all of the files for this instance to
-   # this directory
-
-   set INSTANCE = `printf %04d ${member}`
-   ${MOVE} ../../$ATM_POINTER_FILENAME         .
-   ${MOVE} ../../$LND_POINTER_FILENAME         .
-   ${MOVE} ../../$ICE_POINTER_FILENAME         .
-   ${MOVE} ../../${MYCASE}.*_${INSTANCE}.*.nc  .
+   ${COPY} ../../$ATM_INITIAL_FILENAME ../../cam_initial_${member}.nc
+   ${COPY} ../../$LND_RESTART_FILENAME ../../clm_restart_${member}.nc
+   ${COPY} ../../$ICE_RESTART_FILENAME ../../ice_restart_${member}.nc
 
    cd ..
 
@@ -349,7 +340,7 @@ wq
 ex_end
 
 mkdir safehouse
-${MOVE} *pointer* FD* safehouse
+# TJH ${MOVE} *pointer* FD* safehouse
 
 #-------------------------------------------------------------------------
 # Cleanup
