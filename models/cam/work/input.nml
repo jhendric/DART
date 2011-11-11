@@ -4,7 +4,7 @@
    ens_size                 = 20, 
    start_from_restart       = .true.,
    output_restart           = .true.,
-   obs_sequence_in_name     = "obs_seq.in",
+   obs_sequence_in_name     = "obs_seq.out",
    obs_sequence_out_name    = "obs_seq.final",
    restart_in_file_name     = "filter_ic_old",
    restart_out_file_name    = "filter_ic_new", 
