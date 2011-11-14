@@ -35,7 +35,7 @@
 ## ======================
 
 setenv ccsmtag       cesm1_1_beta04
-setenv case          F_AMIP6
+setenv case          F_AMIP7
 #setenv compset       F
 setenv compset       F_AMIP_CN
 setenv resolution    f09_f09   
@@ -60,7 +60,7 @@ setenv year_end    2010
 ## runtime settings
 ## ======================
 
-setenv resubmit      0
+setenv resubmit      2
 setenv stop_n        6
 setenv stop_option   nhours
 
@@ -152,19 +152,21 @@ cd $caseroot
 ./xmlchange -file env_mach_pes.xml -id NINST_LND -val $num_instances
 ./xmlchange -file env_mach_pes.xml -id NINST_ICE -val $num_instances
 
-set num_tasks_per_instance = 12
+# was 12 when nthreads was 1
+set num_tasks_per_instance = 2
+set nthreads = 6
 @ total_nt = $num_instances * $num_tasks_per_instance
 
 ./xmlchange -file env_mach_pes.xml -id NTASKS_ATM -val "$total_nt"
-./xmlchange -file env_mach_pes.xml -id NTHRDS_ATM -val '1'
+./xmlchange -file env_mach_pes.xml -id NTHRDS_ATM -val "$nthreads"
 ./xmlchange -file env_mach_pes.xml -id ROOTPE_ATM -val '0'
 
 ./xmlchange -file env_mach_pes.xml -id NTASKS_LND -val "$total_nt"
-./xmlchange -file env_mach_pes.xml -id NTHRDS_LND -val '1'
+./xmlchange -file env_mach_pes.xml -id NTHRDS_LND -val "$nthreads"
 ./xmlchange -file env_mach_pes.xml -id ROOTPE_LND -val '0'
 
 ./xmlchange -file env_mach_pes.xml -id NTASKS_ICE -val "$total_nt"
-./xmlchange -file env_mach_pes.xml -id NTHRDS_ICE -val '1'
+./xmlchange -file env_mach_pes.xml -id NTHRDS_ICE -val "$nthreads"
 ./xmlchange -file env_mach_pes.xml -id ROOTPE_ICE -val '0'
    
 
