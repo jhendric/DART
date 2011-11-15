@@ -45,7 +45,7 @@ echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (ho
 # Set variables containing various directory names where we will GET things
 #-----------------------------------------------------------------------------
 
-set DARTDIR = ${HOME}/svn/DART/kodiak/models/cam/work
+set DARTDIR = ${HOME}/svn/DART/dev/models/cam/work
 
 set DART_OBS_DIR = ${MODEL_YEAR}${MODEL_MONTH}_6H
 set  OBSDIR = /glade/proj3/image/Observations/ACARS/${DART_OBS_DIR}
@@ -66,7 +66,9 @@ end
 
 ${COPY} /glade/proj3/DART/raeder/FV1deg_4.0/cam_phis.nc .
 
-# Make sure the DART ensemble size matches CESM instances
+# Modify the DART input.nml such that
+# the DART ensemble size matches the CESM number of instances
+# WARNING: the output files contain ALL enemble members ==> BIG
 
 ex input.nml <<ex_end
 g;ens_size ;s;= .*;= $ensemble_size;
@@ -75,63 +77,150 @@ g;num_output_obs_members ;s;= .*;= $ensemble_size;
 wq
 ex_end
 
-
 #-------------------------------------------------------------------------
-# This is the file for the sampling error correction.
-# Each ensemble size has its own file.
-# It is static - it does not need to be archived, etc.
+# DART SAMPLING ERROR CORRECTION BLOCK
+# This stages the files needed for the sampling error correction.
+# Each ensemble size has its own (static) file which does not need to be archived.
 # It is only needed if 
 # input.nml:&assim_tools_nml:sampling_error_correction = .true.,
 #-------------------------------------------------------------------------
 
-set SAMP_ERR_FILE = ${DARTDIR}/system_simulation/final_full.${ensemble_size}
+set  MYSTRING = `grep sampling_error_correction input.nml`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
+set SECSTRING = `echo $MYSTRING[2] | tr [A-Z] [a-z]`
 
-if ( -e ${SAMP_ERR_FILE}/ ) then
-   ${COPY} ${SAMP_ERR_FILE} .
+if ( $SECSTRING == ".true." ) then
+   set SAMP_ERR_FILE = ${DARTDIR}/system_simulation/final_full_precomputed_tables/final_full.${ensemble_size}
+   if (  -e   ${SAMP_ERR_FILE} ) then
+      ${COPY} ${SAMP_ERR_FILE} .
+   else
+      echo "ERROR: no sampling error correction file for this ensemble size."
+      echo "ERROR: looking for ${SAMP_ERR_FILE}"
+      exit 2
+   endif
 else
-   echo "WARNING: no sampling error correction file for this ensemble size."
-   echo "warning: looking for ${SAMP_ERR_FILE}"
+   echo "Sampling Error Correction not requested for this assimilation."
 endif
 
 #-------------------------------------------------------------------------
 # DART INFLATION BLOCK
+# This stages the files that contain the inflation values.
+# The inflation values change through time and should be archived.
+# 
 # This file is only relevant if 'inflation' is turned on -
-# i.e. if inf_flavor(1) /= 0 - AND we are in a 'restart' mode.
+# i.e. if inf_flavor(1) /= 0 AND inf_initial_from_restart = .TRUE.
 #
 # filter_nml
 # inf_flavor                  = 2,                       0,
 # inf_initial_from_restart    = .true.,                  .false.,
 # inf_in_file_name            = 'prior_inflate_ics',     'post_inflate_ics',
+# inf_out_file_name           = 'prior_inflate_restart', 'post_inflate_restart',
+# inf_diag_file_name          = 'prior_inflate_diag',    'post_inflate_diag',
 #
-# This is a 'test' configuration for this script. We are simply
-# assuming that the namelist values are set such that we need this file,
-# and that it is called 'prior_inflate_ics'. Since the inflation file is
-# essentially a duplicate of the model state ... it is slaved to a specific 
-# geometry. I created the file offline.  The inflation values are all unity.
+# NOTICE: the archiving scripts more or less require the names of these
+# files to be as listed above. When being archived, the filenames get a
+# unique extension (describing the assimilation time) appended to them.
 #
-# The strategy is to use the LATEST inflation file from CENTRALDIR if one exists - 
+# The inflation file is essentially a duplicate of the model state ... 
+# it is slaved to a specific geometry. The initial files are created 
+# offline with values of unity. For the purpose of this script, they are 
+# thought to be the output of a previous assimilation, so they should be 
+# named something like prior_inflate_restart.YYYY-MM-DD-SSSSS
 #
-# After an assimilation, the output file will be copied back to CENTRALDIR
-# to be used for subsequent assimilations.
+# The first inflation file can be created with 'fill_inflation_restart'
+# which can be built in the usual DART manner.
+#
+# The strategy is to use the LATEST inflation file from the CESM 'rundir'.
+# After an assimilation, the new inflation values/files will be moved to
+# the CESM rundir to be used for subsequent assimilations. If the short-term
+# archiver has worked correctly, only the LATEST files will available. Of
+# course, it is not required to have short-term archiving turned on, so ...
 #-------------------------------------------------------------------------
 
-foreach FILE ( prior post ) 
+set  MYSTRING = `grep inf_flavor input.nml`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
+set  PRIOR_INF = $MYSTRING[2]
+set  POSTE_INF = $MYSTRING[3]
 
-   # These files may or may not exist. This causes some complexity.
-   # So - we look for the 'newest' and use it. And Pray.
+set  MYSTRING = `grep inf_initial_from_restart input.nml`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
+set  PRIOR_TF = `echo $MYSTRING[2] | tr [A-Z] [a-z]`
+set  POSTE_TF = `echo $MYSTRING[3] | tr [A-Z] [a-z]`
 
-   (ls -rt1 ../${FILE}_inflate.*.restart.* | tail -1 >! latestfile) > & /dev/null
-   set nfiles = `cat latestfile | wc -l`
+# its a little tricky to remove both styles of quotes from the string.
 
-   if ( $nfiles > 0 ) then
-      set latest = `cat latestfile`
-      ${LINK} $latest ${FILE}_inflate_ics
-   else
-      # MUST HAVE inf_initial_from_restart = .false.
-      echo "WARNING: no incoming ${FILE}_inflate.YYYY-MM-DD-00000.restart.endiansuffix"
+set  MYSTRING = `grep inf_in_file_name input.nml`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
+set  PRIOR_INF_IFNAME = $MYSTRING[2]
+set  POSTE_INF_IFNAME = $MYSTRING[3]
+
+set  MYSTRING = `grep inf_out_file_name input.nml`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
+set  PRIOR_INF_OFNAME = $MYSTRING[2]
+set  POSTE_INF_OFNAME = $MYSTRING[3]
+
+set  MYSTRING = `grep inf_diag_file_name input.nml`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
+set  PRIOR_INF_DIAG = $MYSTRING[2]
+set  POSTE_INF_DIAG = $MYSTRING[3]
+
+# IFF we want PRIOR inflation:
+
+if ( $PRIOR_INF > 0 ) then
+
+   if ($PRIOR_TF == ".false.") then
+      echo "ERROR: inf_flavor(1) = $PRIOR_INF, yet inf_initial_from_restart = $PRIOR_TF"
+      echo "ERROR: fix input.nml to reflect whether you want prior inflation or not."
+      exit 3
    endif
 
-end
+   # Look for the output from the previous assimilation
+   (ls -rt1 ../${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+   set nfiles = `cat latestfile | wc -l`
+
+   # If one exists, use it as input for this assimilation
+   if ( $nfiles > 0 ) then
+      set latest = `cat latestfile`
+      ${LINK} $latest ${PRIOR_INF_IFNAME}
+   else
+      echo "ERROR: Requested prior inflation but specified no incoming prior inflation file."
+      echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+      exit 4
+   endif
+else
+   echo "Prior Inflation not requested for this assimilation."
+endif
+
+# POSTERIOR: We look for the 'newest' and use it - IFF we need it.
+
+if ( $POSTE_INF > 0 ) then
+
+   if ($POSTE_TF == ".false.") then
+      echo "ERROR: inf_flavor(2) = $POSTE_INF, yet inf_initial_from_restart = $POSTE_TF"
+      echo "ERROR: fix input.nml to reflect whether you want posterior inflation or not."
+      exit 5
+   endif
+
+   # Look for the output from the previous assimilation
+   (ls -rt1 ../${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+   set nfiles = `cat latestfile | wc -l`
+
+   # If one exists, use it as input for this assimilation
+   if ( $nfiles > 0 ) then
+      set latest = `cat latestfile`
+      ${LINK} $latest ${POSTE_INF_IFNAME}
+   else
+      echo "ERROR: Requested POSTERIOR inflation but specified no incoming POSTERIOR inflation file."
+      echo "ERROR: expected something like ../${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+      exit 6
+   endif
+else
+   echo "Posterior Inflation not requested for this assimilation."
+endif
 
 #-------------------------------------------------------------------------
 # Block 1: convert N cam restart files to DART initial conditions file(s)
@@ -200,7 +289,7 @@ wait
 # &filter_nml:           first_obs_seconds      = -1,
 # &filter_nml:           last_obs_days          = -1,
 # &filter_nml:           last_obs_seconds       = -1,
-# &ensemble_manager_nml: single_restart_file_in = '.false.'
+# &ensemble_manager_nml: single_restart_file_in = .false.
 #
 #-------------------------------------------------------------------------
 
@@ -235,7 +324,7 @@ setenv NANCY_GEOMETRY_54_1NODE \
 
 which mpirun.lsf
 
-mpirun.lsf ./filter || exit 2
+mpirun.lsf ./filter || exit 7
 
 ${MOVE} Prior_Diag.nc      ../Prior_Diag.${MODEL_DATE_EXT}.nc
 ${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${MODEL_DATE_EXT}.nc
@@ -243,24 +332,16 @@ ${MOVE} obs_seq.final      ../obs_seq.${MODEL_DATE_EXT}.final
 ${MOVE} dart_log.out       ../dart_log.${MODEL_DATE_EXT}.out
 
 # Accomodate any possible inflation files 
+# 1) rename file to reflect current date
+# 2) move to CENTRALDIR so the DART INFLATION BLOCK works next time and
+#    that they can get archived.
 
-foreach INFLATION ( prior post )
-
-   if ( -e ${INFLATION}_inflate_restart ) then
-      # 1) rename file to reflect current date
-      # 2) move to CENTRALDIR so the DART INFLATION BLOCK works next time
-   
-      ${MOVE} ${INFLATION}_inflate_restart ../${INFLATION}_inflate.${MODEL_DATE_EXT}.restart.be 
+foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE_INF_DIAG} )
+   if ( -e ${FILE} ) then
+      ${MOVE} ${FILE} ../${FILE}.${MODEL_DATE_EXT}
    else
-      echo "No ${INFLATION}_inflate_restart for ${MODEL_DATE_EXT}"
+      echo "No ${FILE} for ${MODEL_DATE_EXT}"
    endif
-
-   if ( -e ${INFLATION}_inflate_diag ) then
-      ${MOVE} ${INFLATION}_inflate_diag ../${INFLATION}_inflate.${MODEL_DATE_EXT}.diag
-   else
-      echo "No ${INFLATION}_inflate_diag for ${MODEL_DATE_EXT}"
-   endif
-
 end
 
 # FIXME: special for trying out non-monotonic task layouts.
@@ -338,9 +419,6 @@ g; start_ymd;s;=[ ]*.*;= ${MODEL_YEAR}${MODEL_MONTH}${MODEL_DAY};
 g; start_tod;s;=[ ]*.*;= $MODEL_SECONDS;
 wq
 ex_end
-
-mkdir safehouse
-# TJH ${MOVE} *pointer* FD* safehouse
 
 #-------------------------------------------------------------------------
 # Cleanup

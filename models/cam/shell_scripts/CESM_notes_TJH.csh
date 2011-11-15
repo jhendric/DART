@@ -229,6 +229,9 @@ while ($n <= $Nens)
  @ n++
 end
 
+echo "If inflation is being used ... "
+echo "must stage a ${rundir}/[prior,pos]_inflate_restart.YYYY-MM-DD-SSSSS"
+
 # ====================================================================
 #  Continue run
 # ====================================================================
