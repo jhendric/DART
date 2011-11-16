@@ -43,10 +43,10 @@
 # ======================
 
 setenv ccsmtag       cesm1_1_beta04
-setenv case          F_AMIP8
-#setenv compset       F
-#setenv compset       F2000
-setenv compset       F_AMIP_CN
+#setenv ccsmtag       cesm1_1_beta05
+setenv case          F_AMIP9
+setenv compset       F_2000
+#setenv compset       F_AMIP_CN
 setenv resolution    f09_f09   
 
 
@@ -57,11 +57,13 @@ setenv resolution    f09_f09
 # my home, and temp/scratch space
 setenv my_home $HOME
 setenv my_scratch $SCRATCH
+setenv nancy_home ~nscollin
+setenv nancy_scratch /scratch/scratchdirs/nscollin
 
 setenv mach hopp2                                       ;# machine - must match cesm names
 setenv cesm_public /project/projectdirs/ccsm1
 
-setenv ccsmroot ${my_home}/${ccsmtag}                   ;# this is where the cesm code lives
+setenv ccsmroot ${nancy_home}/${ccsmtag}                   ;# this is where the cesm code lives
 #setenv ccsmroot ${cesm_public}/collections/${ccsmtag}  ;# this is where the cesm code lives
 
 setenv caseroot ${my_home}/cases/$case                  ;## your cesm case directory
@@ -69,17 +71,25 @@ setenv lockroot ${my_home}/locked_cases                 ;## locked cases
 setenv rundir ${my_scratch}/${case}
 
 # for data files not in the public cems area
-setenv my_datadir ${my_scratch}/cesm_datafiles
+setenv my_datadir ${nancy_scratch}/cesm_datafiles
+
+# ======================
+# clear out previous builds
+# ======================
+
+echo removing old files from $caseroot and $rundir
+rm -fr $caseroot
+rm -fr $rundir
 
 # ======================
 # configure settings
 # ======================
 
-setenv num_instances    80
+setenv num_instances    40
 
 setenv run_startdate 2008-10-31
 
-setenv sst_dataset $my_datadir/sst_HadOIBl_bc_0.9x1.25_1850_2011_c110307.nc
+setenv sst_dataset $nancy_datadir/sst_HadOIBl_bc_0.9x1.25_1850_2011_c110307.nc
 setenv year_start  1850
 setenv year_end    2010
 
@@ -109,12 +119,12 @@ cat <<EOF >! user_nl_cam_${case}
  prescribed_ozone_file      = 'ozone_1.9x2.5_L26_1850-2015_rcp45_c101108.nc'
  prescribed_ozone_name      = 'O3'
  prescribed_ozone_type      = 'INTERP_MISSING_MONTHS'
- prescribed_volcaero_datapath = "$my_datadir"
+ prescribed_volcaero_datapath = "$nancy_datadir"
  prescribed_volcaero_file   = 'CCSM4_volcanic_1850-2011_prototype1.nc'
  solar_data_file            = '${cesm_public}/inputdata/atm/cam/solar/SOLAR_TSI_Lean_1610-2140_annual_c100301.nc'
  prescribed_aero_datapath   = '${cesm_public}/inputdata/atm/cam/chem/trop_mozart_aero/aero'
  prescribed_aero_file       = 'aero_rcp45_v1_1.9x2.5_L26_1995-2105_c100316.nc'
- aerodep_flx_datapath       = "$my_datadir"
+ aerodep_flx_datapath       = "$nancy_datadir"
  aerodep_flx_file           = 'aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
 /
 EOF
@@ -126,7 +136,7 @@ cat <<EOF >! user_nl_clm_${case}
 &clmexp
   fsurdat  = '${cesm_public}/inputdata/lnd/clm2/surfdata/surfdata_0.9x1.25_simyr1850_c091006.nc'
   fpftdyn  = '${cesm_public}/inputdata/lnd/clm2/surfdata/surfdata.pftdyn_0.9x1.25_rcp2.6_simyr1850-2100_c100323.nc'
-  faerdep  = "$my_datadir/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc"
+  faerdep  = "$nancy_datadir/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc"
 /
 EOF
 
@@ -157,7 +167,7 @@ cd  $ccsmroot/scripts
 cd $caseroot
 
 ./xmlchange -file env_build.xml    -id USE_ESMF_LIB   -val TRUE
-./xmlchange -file env_build.xml    -id ESMF_LIBDIR    -val ${my_scratch}/esmf-mpi
+./xmlchange -file env_build.xml    -id ESMF_LIBDIR    -val ${nancy_scratch}/esmf-mpi
 
 # number of instances == ensemble size
 ./xmlchange -file env_mach_pes.xml -id NINST_ATM -val $num_instances
@@ -211,9 +221,11 @@ set nthreads = 6
 \mv -f ${this_dir}/user_nl_clm_{$case} ${caseroot}/user_nl_clm
 
 # FIXME: updated source files
-cp ~/seq*F90 $caseroot/SourceMods/src.drv
-echo updated source files:
+cp ${nancy_home}/cesm_mods/seq*F90  $caseroot/SourceMods/src.drv
+cp ${nancy_home}/cesm_mods/hist*F90 $caseroot/SourceMods/src.clm
+echo updated source files not in standard distribution:
 ls -l $caseroot/SourceMods/src.drv/*
+ls -l $caseroot/SourceMods/src.clm/*
 
 #------------------
 # configure
@@ -358,14 +370,14 @@ echo
 while ($n <= $num_instances)
 
    echo "Staging restarts for instance $n of $num_instances"
-   cp ${my_scratch}/tim_datafiles/CAM/caminput_${n}.nc ${rundir}/run/cam_initial_${n}.nc
-   cp ${my_scratch}/tim_datafiles/CLM/clminput_${n}.nc ${rundir}/run/clm_restart_${n}.nc
-   cp ${my_scratch}/tim_datafiles/ICE/iceinput_${n}.nc ${rundir}/run/ice_restart_${n}.nc
+   cp ${nancy_scratch}/tim_datafiles/CAM/caminput_${n}.nc ${rundir}/run/cam_initial_${n}.nc
+   cp ${nancy_scratch}/tim_datafiles/CLM/clminput_${n}.nc ${rundir}/run/clm_restart_${n}.nc
+   cp ${nancy_scratch}/tim_datafiles/ICE/iceinput_${n}.nc ${rundir}/run/ice_restart_${n}.nc
 
  @ n++
 end
 
-cp ${my_scratch}/tim_datafiles/DART/p*inflate_restart.* ${rundir}/run/
+cp ${nancy_scratch}/tim_datafiles/DART/p*inflate_restart.* ${rundir}/run/
 
 #------------------
 #  Save another copy of the original 'initial' namelist so we 
