@@ -1,4 +1,6 @@
 #!/usr/bin/tcsh
+# FIXME: where it might be on bluefire but not hopper:
+#!/usr/local/bin/tcsh
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
@@ -11,6 +13,11 @@ set   MOVE = 'mv -fv'
 set   COPY = 'cp -fv --preserve=timestamps'
 set   LINK = 'ln -fvs'
 set REMOVE = 'rm -fr'
+# FIXME: not on hopper:
+#set   MOVE = '/usr/local/bin/mv -fv'
+#set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
+#set   LINK = '/usr/local/bin/ln -fvs'
+#set REMOVE = '/usr/local/bin/rm -fr'
 
 set ensemble_size = ${NINST_ATM}
 
@@ -47,7 +54,7 @@ echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (ho
 # FIXME: different for everyone
 set DARTDIR = ${HOME}/devel/models/cam/work
 
-# FIXME: different everyplace
+# FIXME: different on hopper
 set DART_OBS_DIR = ${MODEL_YEAR}${MODEL_MONTH}_6H
 set  OBSDIR = /scratch/scratchdirs/nscollin/ACARS/${DART_OBS_DIR}
 
@@ -89,7 +96,8 @@ ex_end
 #-------------------------------------------------------------------------
 
 set  MYSTRING = `grep sampling_error_correction input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
 set SECSTRING = `echo $MYSTRING[2] | tr [A-Z] [a-z]`
 
 if ( $SECSTRING == ".true." ) then
@@ -150,18 +158,24 @@ set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
 set  PRIOR_TF = `echo $MYSTRING[2] | tr [A-Z] [a-z]`
 set  POSTE_TF = `echo $MYSTRING[3] | tr [A-Z] [a-z]`
 
+# its a little tricky to remove both styles of quotes from the string.
+# (only in the cshell.  bash/ksh variants have better quoting styles)
+
 set  MYSTRING = `grep inf_in_file_name input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
 set  PRIOR_INF_IFNAME = $MYSTRING[2]
 set  POSTE_INF_IFNAME = $MYSTRING[3]
 
 set  MYSTRING = `grep inf_out_file_name input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
 set  PRIOR_INF_OFNAME = $MYSTRING[2]
 set  POSTE_INF_OFNAME = $MYSTRING[3]
 
 set  MYSTRING = `grep inf_diag_file_name input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
 set  PRIOR_INF_DIAG = $MYSTRING[2]
 set  POSTE_INF_DIAG = $MYSTRING[3]
 
@@ -307,11 +321,16 @@ set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 
 ${LINK} ${OBS_FILE} obs_seq.out
 
-# hopper uses aprun as opposed to  mpirun or mpirun.lsf
+# FIXME: removed shell vars that are undefined for PBS
 
-# FIXME: this needs to come from the calling script
-setenv NTASKS 24
+
+# FIXME: mpirun, mpirun.lsf, or aprun are popular choices here
+# to start filter:
+
+setenv NTASKS ${TOTALPES}
+echo starting filter executable now
 aprun -n $NTASKS ./filter || exit 7
+
 
 ${MOVE} Prior_Diag.nc      ../Prior_Diag.${MODEL_DATE_EXT}.nc
 ${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${MODEL_DATE_EXT}.nc
@@ -330,6 +349,8 @@ foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE
       echo "No ${FILE} for ${MODEL_DATE_EXT}"
    endif
 end
+
+# FIXME: removed shell vars that are undefined for PBS
 
 #-------------------------------------------------------------------------
 # Block 3: Update the cam restart files ... simultaneously ...
@@ -375,10 +396,7 @@ while ( ${member} <= ${ensemble_size} )
    echo "finished dart_to_cam for member ${member} at "`date`
 
    # The initial filenames are static and come from the atm_in_xxxx namelist.
-   # We must rename the updated initial files to the static names.
-   # I do not want to stymy the archive scripts.
-   #
-   # IMPORTANT: The Tools/st_archive.sh script must be substantially modified.
+   # We must copy the updated initial files to the static names.
 
    ${COPY} ../../$ATM_INITIAL_FILENAME ../../cam_initial_${member}.nc
    ${COPY} ../../$LND_RESTART_FILENAME ../../clm_restart_${member}.nc
