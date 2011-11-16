@@ -1814,7 +1814,7 @@ end subroutine write_cam_coord_def
 ! write CAM 'initial' file fields that have been updated
 
 character (len = *), intent(in)           :: file_name
-type(model_type),    intent(in)           :: var
+type(model_type),    intent(inout)        :: var
 type(time_type),     intent(in), optional :: model_time
 
 integer               :: i, k, n, m, ifld, ncfileid, ncfldid, f_dim1, f_dim2
@@ -2229,6 +2229,8 @@ if (lon_val == MISSING_r8 .or. lat_val == MISSING_r8 ) then
          'What should be specified for it in the call to location?'
    call error_handler(E_ERR, 'get_state_meta_data', msgstring, source, revision, revdate)
 else
+   if (lat_val <= -90.0_r8) lat_val = -89.9999999_r8
+   if (lat_val >=  90.0_r8) lat_val =  89.9999999_r8
    location = set_location(lon_val, lat_val, lev_val, which_vert)  
 endif
 
