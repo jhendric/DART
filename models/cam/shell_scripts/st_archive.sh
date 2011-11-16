@@ -146,12 +146,13 @@ set ${CASE}.cpl.r.*;                                                            
 set ${CASE}.cpl.h* ;                                                                                                  dispose ifiles_n ${sta}/cpl/hist $*
 
 
-#still needs tweaking - remove assimilate_dir.* directories?, dart_log.nml's?
+#possible tweaking - remove assimilate_dir.* directories? anything else?
 set dart_log.*;                                                                                                       dispose ifiles_n ${sta}/dart/logs $*
 set Prior_Diag.*.nc;                                                                                                  dispose ifiles_n ${sta}/dart/hist $*
 set Posterior_Diag.*.nc;                                                                                              dispose ifiles_n ${sta}/dart/hist $*
-set p*inflate_restart*;   latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null;    dispose ifiles_n ${sta}/dart/hist $*
 set obs_seq.*.final;                                                                                                  dispose ifiles_n ${sta}/dart/hist $*
+set pr*_inf*_res*.*;        latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null;  dispose ifiles_n ${sta}/dart/rest $*
+set po*_inf*_res*.*;        latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null;  dispose ifiles_n ${sta}/dart/rest $*
 
 
 IDX=1
