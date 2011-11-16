@@ -23,14 +23,12 @@ dispose() {
     if [ "$1" == "ifiles_y" ] && [ "$DOUT_S_SAVE_INT_REST_FILES" != "TRUE" ]; then
 	shift
 	shift
-        echo "not archiving $*"
 	rm $*       2> /dev/null
     else
 	shift
 	dest=$1
 	mkdir -p $dest
 	shift
-        echo "    archiving $*"
 	mv $* $dest 2> /dev/null
     fi
 }
@@ -147,17 +145,14 @@ set ccsm*.log.*;                                                                
 set ${CASE}.cpl.r.*;                                                                                                  dispose ifiles_y ${sta}/cpl/rest $*
 set ${CASE}.cpl.h* ;                                                                                                  dispose ifiles_n ${sta}/cpl/hist $*
 
-echo "Archiving DART files"
-cat st_archive_Archiving_DART_files
 
 #still needs tweaking - remove assimilate_dir.* directories?, dart_log.nml's?
 set dart_log.*;                                                                                                       dispose ifiles_n ${sta}/dart/logs $*
 set Prior_Diag.*.nc;                                                                                                  dispose ifiles_n ${sta}/dart/hist $*
 set Posterior_Diag.*.nc;                                                                                              dispose ifiles_n ${sta}/dart/hist $*
+set p*inflate_restart*;   latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null;    dispose ifiles_n ${sta}/dart/hist $*
 set obs_seq.*.final;                                                                                                  dispose ifiles_n ${sta}/dart/hist $*
 
-echo "Archiving CAM files"
-cat st_archive_Archiving_CAM_files
 
 IDX=1
 while [ $IDX -le $NINST_ATM ]
@@ -191,8 +186,6 @@ do
     IDX=`expr $IDX + 1`
 done
 
-echo "Archiving CLM files"
-cat st_archive_Archiving_CLM_files
 
 IDX=1
 while [ $IDX -le $NINST_LND ]
@@ -221,8 +214,6 @@ do
     IDX=`expr $IDX + 1`
 done
 
-echo "Archiving ICE files"
-cat st_archive_Archiving_ICE_files
 
 IDX=1
 while [ $IDX -le $NINST_ICE ]
@@ -243,8 +234,6 @@ do
     IDX=`expr $IDX + 1`
 done
 
-echo "Archiving OCN files"
-cat st_archive_Archiving_OCN_files
 
 IDX=1
 while [ $IDX -le $NINST_OCN ]
@@ -269,8 +258,6 @@ do
     IDX=`expr $IDX + 1`
 done
 
-echo "Archiving GLC files"
-cat st_archive_Archiving_GLC_files
 
 IDX=1
 while [ $IDX -le $NINST_GLC ]
@@ -287,9 +274,6 @@ do
     IDX=`expr $IDX + 1`
 done
 
-
-echo "copy back the required files for next restart"
-cat st_archive_Copy_Files_Back
 
 cp ${sta}/rest/${dname}/* .
 
