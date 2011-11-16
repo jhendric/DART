@@ -1,6 +1,6 @@
 &filter_nml
-   async                    = 2,
-   adv_ens_command          = "./advance_model.csh",
+   async                    = 0,
+   adv_ens_command          = "no_advance_script",
    ens_size                 = 20, 
    start_from_restart       = .true.,
    output_restart           = .true.,
@@ -26,9 +26,9 @@
    output_timestamps        = .true.,
    silence                  = .false.,
 
-   inf_flavor                  = 0,                       0,
-   inf_initial_from_restart    = .false.,                 .false.,
-   inf_sd_initial_from_restart = .false.,                 .false.,
+   inf_flavor                  = 2,                       0,
+   inf_initial_from_restart    = .true.,                 .false.,
+   inf_sd_initial_from_restart = .true.,                 .false.,
    inf_output_restart          = .true.,                  .true.,
    inf_deterministic           = .true.,                  .true.,
    inf_in_file_name            = 'prior_inflate_ics',     'post_inflate_ics',
