@@ -1,4 +1,4 @@
-#!/usr/local/bin/tcsh
+#!/bin/csh
 #
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -6,7 +6,7 @@
 #
 # $Id$
 
-# The FORCE options are not optional. 
+# The FORCE options are not optional.
 # the VERBOSE options are useful for debugging.
 set   MOVE = '/usr/local/bin/mv -fv'
 set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
@@ -29,7 +29,7 @@ cd $temp_dir
 set FILE = `head -1 ../rpointer.atm_0001`
 set FILE = $FILE:t
 set FILE = $FILE:r
-set MYCASE = $FILE:ar
+set MYCASE = `echo $FILE | sed -e "s#\..*##"`
 set MODEL_DATE_EXT = `echo $FILE:e`
 set MODEL_DATE     = `echo $FILE:e | sed -e "s#-# #g"`
 set MODEL_YEAR     = $MODEL_DATE[1]
@@ -52,7 +52,7 @@ set  OBSDIR = /glade/proj3/image/Observations/ACARS/${DART_OBS_DIR}
 
 #-------------------------------------------------------------------------
 # DART COPY BLOCK
-# Populate a run-time directory with the bits needed to run DART 
+# Populate a run-time directory with the bits needed to run DART
 #-------------------------------------------------------------------------
 
 foreach FILE ( input.nml filter cam_to_dart dart_to_cam )
@@ -81,7 +81,7 @@ ex_end
 # DART SAMPLING ERROR CORRECTION BLOCK
 # This stages the files needed for the sampling error correction.
 # Each ensemble size has its own (static) file which does not need to be archived.
-# It is only needed if 
+# It is only needed if
 # input.nml:&assim_tools_nml:sampling_error_correction = .true.,
 #-------------------------------------------------------------------------
 
@@ -107,7 +107,7 @@ endif
 # DART INFLATION BLOCK
 # This stages the files that contain the inflation values.
 # The inflation values change through time and should be archived.
-# 
+#
 # This file is only relevant if 'inflation' is turned on -
 # i.e. if inf_flavor(1) /= 0 AND inf_initial_from_restart = .TRUE.
 #
@@ -122,10 +122,10 @@ endif
 # files to be as listed above. When being archived, the filenames get a
 # unique extension (describing the assimilation time) appended to them.
 #
-# The inflation file is essentially a duplicate of the model state ... 
-# it is slaved to a specific geometry. The initial files are created 
-# offline with values of unity. For the purpose of this script, they are 
-# thought to be the output of a previous assimilation, so they should be 
+# The inflation file is essentially a duplicate of the model state ...
+# it is slaved to a specific geometry. The initial files are created
+# offline with values of unity. For the purpose of this script, they are
+# thought to be the output of a previous assimilation, so they should be
 # named something like prior_inflate_restart.YYYY-MM-DD-SSSSS
 #
 # The first inflation file can be created with 'fill_inflation_restart'
@@ -306,7 +306,7 @@ ${LINK} ../$MODEL_INITIAL_FILENAME caminput.nc
 # Determine proper observation sequence file.
 
 set OBSFNAME = `printf obs_seq${MODEL_YEAR}${MODEL_MONTH}${MODEL_DAY}%02d ${MODEL_HOUR}`
-set OBS_FILE = ${OBSDIR}/${OBSFNAME} 
+set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 
 ${LINK} ${OBS_FILE} obs_seq.out
 
@@ -331,7 +331,7 @@ ${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${MODEL_DATE_EXT}.nc
 ${MOVE} obs_seq.final      ../obs_seq.${MODEL_DATE_EXT}.final
 ${MOVE} dart_log.out       ../dart_log.${MODEL_DATE_EXT}.out
 
-# Accomodate any possible inflation files 
+# Accomodate any possible inflation files
 # 1) rename file to reflect current date
 # 2) move to CENTRALDIR so the DART INFLATION BLOCK works next time and
 #    that they can get archived.
@@ -409,8 +409,8 @@ end
 wait
 
 #-------------------------------------------------------------------------
-# Now that everything is staged, we have to communicate the current 
-# model time to the drv_in&seq_timemgr_inparm namelist 
+# Now that everything is staged, we have to communicate the current
+# model time to the drv_in&seq_timemgr_inparm namelist
 # which is built from CASEROOT/user_nl_drv by the *.run script
 #-------------------------------------------------------------------------
 
