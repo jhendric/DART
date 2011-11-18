@@ -7,6 +7,8 @@
 #
 # $Id$
 #
+# ====================================================================
+#
 # ---------------------
 # Purpose
 # ---------------------
@@ -15,6 +17,20 @@
 # and build a CESM instance that has CAM, CLM, and CICE as active components
 # in a multi-instance configuration over a single data ocean ... etc.
 # Despite looking like a script, it might best be used as a set of notes.
+# ---------------------
+# How to set the script
+# ---------------------
+# -- Copy this script into your directory
+# -- Choose a case name (by changing "setenv case" ) and save the script as $case.csh
+# -- Set the case options at the top of the script
+# -- If you have source mods, the script assumes that your mods are in: mods_$case.
+#    So, if you have source mods, create a subdirectory mods_$case that contains your mods.
+#    If you don t have any source mods, the script creates an empty subdirectory mods_$case.
+# -- If you have namelist mods, you need to add them to the namelist template: user_nl_cam_$case
+#    Set your namelist variables over there (without modifying the syntax to create user_nl_cam_$case
+# -- Now, you are ready to go. Save your script and submit your run with the command: ./$case.csh
+#    The script creates your case, configure, compile and submit your job.
+# -- The script also creates a subdirectory (nml_$case) that contains your namelists.
 #
 # ---------------------
 # Important features
@@ -34,10 +50,11 @@
 # case settings
 # ======================
 
+#setenv case          F2000
+#setenv compset       F_2000
+setenv case          F_AMIP_CN
+setenv compset       F_AMIP_CN
 setenv ccsmtag       cesm1_1_beta04
-setenv case          F2000
-#setenv compset       F_AMIP_CN
-setenv compset       F_2000
 setenv resolution    f09_f09
 setenv num_instances 20
 
@@ -45,13 +62,21 @@ setenv num_instances 20
 # define machines and directories
 # ================================
 
-setenv mach bluefire                             ;# machine
-setenv ptmp /glade/scratch/thoar                 ;# your ptmp on this machine
-setenv ccsmroot /glade/home/thoar/${ccsmtag}     ;# this is where the cesm code lives
-setenv caseroot /glade/user/thoar/cases/${case}  ;# your cesm case directory
-#setenv lockroot /glade/user/thoar/locked_cases  ;# locked cases
-setenv rundir ${ptmp}/${case}
-setenv DARTdir /glade/home/thoar/svn/DART/dev
+setenv mach bluefire                                ;# machine
+setenv DARTdir /glade/home/thoar/svn/DART/dev       ;# DART executables, scripts and input
+setenv cesm_public /glade/proj3/cseg/inputdata      ;# aka DIN_LOC_ROOT
+setenv ccsmroot /glade/home/thoar/${ccsmtag}        ;# this is where the cesm code resides
+setenv caseroot /glade/user/thoar/cases/${case}     ;# your (future) cesm case directory
+setenv rundir /ptmp/thoar/${case}                   ;# (future) run-time directory
+setenv archdir /glade/scratch/thoar/archive/${case} ;# (future) short-term archive directory
+
+# ======================
+# clear out previous builds
+# ======================
+
+echo "removing old files from ${caseroot} and ${rundir}"
+\rm -fr ${caseroot}
+\rm -fr ${rundir}
 
 # ======================
 # configure settings
@@ -59,7 +84,7 @@ setenv DARTdir /glade/home/thoar/svn/DART/dev
 
 setenv run_startdate 2008-10-31
 
-setenv sst_dataset /glade/proj3/cseg/inputdata/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2011_c110307.nc
+setenv sst_dataset ${cesm_public}/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2011_c110307.nc
 setenv year_start  1850
 setenv year_end    2010
 
@@ -75,10 +100,9 @@ setenv stop_option   nhours
 # job settings
 # ======================
 
-# project numbers available
 setenv proj         93300315
-setenv timewall     6:00
-setenv queue        premium
+setenv timewall     2:00
+setenv queue        regular
 
 # ======================
 # namelist variables
@@ -89,27 +113,27 @@ setenv this_dir `pwd`
 
 cat <<EOF >! user_nl_cam_${case}
 &camexp
- inithist                   = 'ENDOFRUN'
- div24del2flag              = 4
- bndtvghg                   = '/fis/cgd/cseg/csm/inputdata/atm/cam/ggas/ghg_rcp45_1765-2500_c100405.nc'
- prescribed_ozone_datapath  = '/fis/cgd/cseg/csm/inputdata/atm/cam/ozone'
- prescribed_ozone_file      = 'ozone_1.9x2.5_L26_1850-2015_rcp45_c101108.nc'
- prescribed_ozone_name      = 'O3'
- prescribed_ozone_type      = 'INTERP_MISSING_MONTHS'
- prescribed_volcaero_file   = 'CCSM4_volcanic_1850-2011_prototype1.nc'
- solar_data_file            = '/fis/cgd/cseg/csm/inputdata/atm/cam/solar/SOLAR_TSI_Lean_1610-2140_annual_c100301.nc'
- prescribed_aero_datapath   = '/fis/cgd/cseg/csm/inputdata/atm/cam/chem/trop_mozart_aero/aero'
- prescribed_aero_file       = 'aero_rcp45_v1_1.9x2.5_L26_1995-2105_c100316.nc'
- aerodep_flx_datapath       = '/fis/cgd/cseg/csm/inputdata/atm/cam/chem/trop_mozart_aero/aero'
- aerodep_flx_file           = 'aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
+ inithist                     = 'ENDOFRUN'
+ div24del2flag                = 4
+ bndtvghg                     = '${cesm_public}/atm/cam/ggas/ghg_rcp45_1765-2500_c100405.nc'
+ prescribed_ozone_datapath    = '${cesm_public}/atm/cam/ozone'
+ prescribed_ozone_file        = 'ozone_1.9x2.5_L26_1850-2015_rcp45_c101108.nc'
+ prescribed_ozone_name        = 'O3'
+ prescribed_ozone_type        = 'INTERP_MISSING_MONTHS'
+ prescribed_volcaero_datapath = '${cesm_public}/atm/cam/volc'
+ prescribed_volcaero_file     = 'CCSM4_volcanic_1850-2011_prototype1.nc'
+ solar_data_file              = '${cesm_public}/atm/cam/solar/SOLAR_TSI_Lean_1610-2140_annual_c100301.nc'
+ prescribed_aero_datapath     = '${cesm_public}/atm/cam/chem/trop_mozart_aero/aero'
+ prescribed_aero_file         = 'aero_rcp45_v1_1.9x2.5_L26_1995-2105_c100316.nc'
+ aerodep_flx_datapath         = '${cesm_public}/atm/cam/chem/trop_mozart_aero/aero'
+ aerodep_flx_file             = 'aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
 /
 EOF
 
-
 cat <<EOF >! user_nl_clm_${case}
 &clmexp
-  fpftdyn  = '/fis/cgd/cseg/csm/inputdata/lnd/clm2/surfdata/surfdata.pftdyn_0.9x1.25_rcp4.5_simyr1850-2100_c100406.nc'
-  faerdep  = '/fis/cgd/cseg/csm/inputdata/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
+  fpftdyn  = '${cesm_public}/lnd/clm2/surfdata/surfdata.pftdyn_0.9x1.25_rcp4.5_simyr1850-2100_c100406.nc'
+  faerdep  = '${cesm_public}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
 /
 EOF
 
@@ -123,27 +147,36 @@ EOF
 # ====================================================================
 
 cd  ${ccsmroot}/scripts
-./create_newcase -case $caseroot -mach $mach -res $resolution -compset $compset -skip_rundb
+./create_newcase -case ${caseroot} -mach $mach -res $resolution -compset $compset -skip_rundb
+
+if ( $status != 0 ) then
+   echo "ERROR: Case could not be created."
+   exit 1
+endif
 
 cd ${caseroot}
 
 ./xmlchange -file env_build.xml    -id USE_ESMF_LIB   -val TRUE
+#./xmlchange -file env_build.xml    -id ESMF_LIBDIR    -val ${nancy_scratch}/esmf-mpi
 
-./xmlchange -file env_mach_pes.xml -id NINST_ATM -val $num_instances
-./xmlchange -file env_mach_pes.xml -id NINST_LND -val $num_instances
-./xmlchange -file env_mach_pes.xml -id NINST_ICE -val $num_instances
+set num_tasks_per_instance = 32
+set nthreads = 1
+@ total_nt = $num_instances * $num_tasks_per_instance
 
-#  ./xmlchange -file env_mach_pes.xml -id NTASKS_ATM -val '256'
-#  ./xmlchange -file env_mach_pes.xml -id NTHRDS_ATM -val '1'
-#  ./xmlchange -file env_mach_pes.xml -id ROOTPE_ATM -val '0'
+./xmlchange -file env_mach_pes.xml -id NTASKS_ATM -val $total_nt
+./xmlchange -file env_mach_pes.xml -id NTHRDS_ATM -val $nthreads
+./xmlchange -file env_mach_pes.xml -id ROOTPE_ATM -val 0
+./xmlchange -file env_mach_pes.xml -id  NINST_ATM -val $num_instances
 
-#  ./xmlchange -file env_mach_pes.xml -id NTASKS_LND -val '256'
-#  ./xmlchange -file env_mach_pes.xml -id NTHRDS_LND -val '1'
-#  ./xmlchange -file env_mach_pes.xml -id ROOTPE_LND -val '0'
+./xmlchange -file env_mach_pes.xml -id NTASKS_LND -val $total_nt
+./xmlchange -file env_mach_pes.xml -id NTHRDS_LND -val $nthreads
+./xmlchange -file env_mach_pes.xml -id ROOTPE_LND -val 0
+./xmlchange -file env_mach_pes.xml -id  NINST_LND -val $num_instances
 
-#  ./xmlchange -file env_mach_pes.xml -id NTASKS_ICE -val '256'
-#  ./xmlchange -file env_mach_pes.xml -id NTHRDS_ICE -val '1'
-#  ./xmlchange -file env_mach_pes.xml -id ROOTPE_ICE -val '0'
+./xmlchange -file env_mach_pes.xml -id NTASKS_ICE -val $total_nt
+./xmlchange -file env_mach_pes.xml -id NTHRDS_ICE -val $nthreads
+./xmlchange -file env_mach_pes.xml -id ROOTPE_ICE -val 0
+./xmlchange -file env_mach_pes.xml -id  NINST_ICE -val $num_instances
 
 ./xmlchange -file env_conf.xml -id RUN_TYPE                -val startup
 ./xmlchange -file env_conf.xml -id RUN_STARTDATE           -val $run_startdate
@@ -151,20 +184,22 @@ cd ${caseroot}
 ./xmlchange -file env_conf.xml -id DOCN_SSTDATA_FILENAME   -val $sst_dataset
 ./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_START -val $year_start
 ./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_END   -val $year_end
-
-./xmlchange -file env_conf.xml -id CLM_CONFIG_OPTS         -val '-bgc cn -rtm off'
 ./xmlchange -file env_conf.xml -id CLM_CONFIG_OPTS         -val '-rtm off'
+#./xmlchange -file env_conf.xml -id CLM_CONFIG_OPTS         -val '-bgc cn -rtm off'
 
 ./xmlchange -file env_run.xml -id RESUBMIT    -val $resubmit
 ./xmlchange -file env_run.xml -id STOP_OPTION -val $stop_option
 ./xmlchange -file env_run.xml -id STOP_N      -val $stop_n
 ./xmlchange -file env_run.xml -id CALENDAR    -val GREGORIAN
 
-# Substantial archiving changes ...
+# Substantial archiving changes exist in the Tools/st_archive.sh script.
 # DOUT_S     is to turn on/off the short-term archiving
 # DOUT_L_MS  is to store to the HPSS (formerly "MSS")
-./xmlchange -file env_run.xml -id DOUT_S                     -val 'TRUE'
-./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val 'TRUE'
+./xmlchange -file env_run.xml -id DOUT_S_ROOT                -val ${archdir}
+./xmlchange -file env_run.xml -id DOUT_S                     -val TRUE
+./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val TRUE
+./xmlchange -file env_run.xml -id DOUT_L_MS                  -val TRUE
+./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val TRUE
 
 # ====================================================================
 # Create namelist template: user_nl_cam
@@ -174,11 +209,28 @@ cd ${caseroot}
 \mv -f ${this_dir}/user_nl_clm_{$case} ${caseroot}/user_nl_clm
 
 # ====================================================================
-# configure
+# Update source files if need be
+# ====================================================================
+
+\cp ~/seq*F90 ${caseroot}/SourceMods/src.drv 
+if ( $status == 0) then
+   echo "FYI - Local Source Modifications used for this case:"
+   ls -l ${caseroot}/SourceMods/src.drv/*
+else
+   echo "FYI - No SourceMods for this case"
+endif
+
+# ====================================================================
+# Configure
 # ====================================================================
 
 cd ${caseroot}
 ./configure -case
+
+if ( $status != 0 ) then
+   echo "ERROR: Case could not be configured."
+   exit 2
+endif
 
 # ====================================================================
 # Stage a copy of the DART assimilate.csh script HERE
@@ -186,11 +238,13 @@ cd ${caseroot}
 
 cd ${caseroot}
 
-ln -sf ${DARTdir}/models/cam/shell_scripts/assimilate.csh .
-ln -sf ${DARTdir}/models/cam/shell_scripts/st_archive.sh Tools/st_archive.sh
+\mv Tools/st_archive.sh Tools/st_archive.sh.org
+
+\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.csh .
+\cp -f ${DARTdir}/models/cam/shell_scripts/st_archive.sh Tools/st_archive.sh
 
 # ====================================================================
-# This is the part where you would normally hand edit - or - 
+# update the namelists and scripts as needed
 # ====================================================================
 
 echo ''
@@ -239,16 +293,16 @@ end
 # the "here" document. No kidding. It has to be "EndOfText"
 # ====================================================================
 
+cd ${caseroot}
+
 echo ''
 echo 'Adding the call to assimilate.csh to the *.run script.'
 echo ''
 
-cd ${caseroot}
-
 cat << "EndOfText" >! add_to_run.txt
 
 # -------------------------------------------------------------------------
-# If CSM finishes correctly (pirated from ccsm_postrun.csh),
+# START OF DART: if CESM finishes correctly (pirated from ccsm_postrun.csh);
 # perform an assimilation with DART.
 # -------------------------------------------------------------------------
 
@@ -270,6 +324,10 @@ if ( $status == 0 ) then
      exit -5
   endif
 endif
+
+# END OF DART BLOCK
+# -------------------------------------------------------------------------
+
 "EndOfText"
 
 # Now that the "here" document is created, 
@@ -293,6 +351,8 @@ tail -$lastlines ${case}.${mach}.run.orig >> ${case}.${mach}.run
 # Change Tools/ccsm_postrun.csh line 83 to CONTINUE_RUN -val FALSE'
 # ====================================================================
 
+cd ${caseroot}/Tools
+
 echo ''
 echo 'Changing Tools/ccsm_postrun.csh such that all the resubmits are coldstarts.'
 echo ''
@@ -311,12 +371,18 @@ echo 'CONTINUE_RUN should be FALSE'
 # build
 # ====================================================================
 
+cd ${caseroot}
+
 echo ''
 echo 'Building the case'
 echo ''
 
-cd ${caseroot}
 ./$case.$mach.build
+
+if ( $status != 0 ) then
+   echo "ERROR: Case could not be built."
+   exit 3
+endif
 
 # ====================================================================
 # Stage the restarts now that the run directory exists
@@ -356,15 +422,18 @@ set QUEUE=`grep BSUB $case.$mach.run | grep -e '-q' `
 sed s/$QUEUE[3]/$queue/ < $case.$mach.run >! temp
 /bin/mv temp  $case.$mach.run
 
+chmod 0744 $case.$mach.run
+
 # ====================================================================
 # Submit job
 # ====================================================================
 
 echo ''
 echo 'case is now ready to submit'
+echo "cd into ${caseroot} and run: ./$case.$mach.submit"
 echo ''
 
-exit
+# exit
 
 cd ${caseroot}
 ./$case.$mach.submit
