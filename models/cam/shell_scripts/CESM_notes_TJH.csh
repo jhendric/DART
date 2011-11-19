@@ -1,14 +1,11 @@
 #!/bin/csh
-# ====================================================================
 #
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
 # $Id$
-#
-# ====================================================================
-#
+
 # ---------------------
 # Purpose
 # ---------------------
@@ -354,18 +351,16 @@ tail -$lastlines ${case}.${mach}.run.orig >> ${case}.${mach}.run
 cd ${caseroot}/Tools
 
 echo ''
-echo 'Changing Tools/ccsm_postrun.csh such that all the resubmits are coldstarts.'
+echo 'Changing Tools/ccsm_postrun.csh such that all the resubmits are coldstarts,'
+echo 'which means CONTINUE_RUN should be FALSE in ccsm_postrun.csh'
 echo ''
 
-ex Tools/ccsm_postrun.csh <<ex_end
+ex ccsm_postrun.csh <<ex_end
 /use COMP_RUN_BARRIERS as surrogate for timing run logical/
 /CONTINUE_RUN/
 s;TRUE;FALSE;
 wq
 ex_end
-
-grep CONTINUE_RUN Tools/ccsm_postrun.csh
-echo 'CONTINUE_RUN should be FALSE'
 
 # ====================================================================
 # build
@@ -428,8 +423,13 @@ chmod 0744 $case.$mach.run
 # Submit job
 # ====================================================================
 
+set MYSTRING = `grep "set DARTDIR" assimilate.csh`
+set DARTDIR = $MYSTRING[4]
+
 echo ''
-echo 'case is now ready to submit'
+echo 'case is ready to submit after you check the'
+echo "DART settings in ${DARTDIR}/input.nml"
+echo 'After you check them,'
 echo "cd into ${caseroot} and run: ./$case.$mach.submit"
 echo ''
 
