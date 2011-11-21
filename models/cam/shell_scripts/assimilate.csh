@@ -45,7 +45,7 @@ echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (ho
 # Set variables containing various directory names where we will GET things
 #-----------------------------------------------------------------------------
 
-set DARTDIR = ${HOME}/svn/DART/dev/models/cam/work
+set DARTDIR = ${HOME}/svn/DART/dev
 
 set DART_OBS_DIR = ${MODEL_YEAR}${MODEL_MONTH}_6H
 set  OBSDIR = /glade/proj3/image/Observations/ACARS/${DART_OBS_DIR}
@@ -56,8 +56,8 @@ set  OBSDIR = /glade/proj3/image/Observations/ACARS/${DART_OBS_DIR}
 #-------------------------------------------------------------------------
 
 foreach FILE ( input.nml filter cam_to_dart dart_to_cam )
-   if (  -e   ${DARTDIR}/${FILE} ) then
-      ${COPY} ${DARTDIR}/${FILE} .
+   if (  -e   ${DARTDIR}/models/cam/work/${FILE} ) then
+      ${COPY} ${DARTDIR}/models/cam/work/${FILE} .
    else
       echo "DART required file ${DARTDIR}/${FILE} not found ... ERROR"
       exit 1
@@ -86,11 +86,11 @@ ex_end
 #-------------------------------------------------------------------------
 
 set  MYSTRING = `grep sampling_error_correction input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,'\.]# #g"`
 set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
-set SECSTRING = `echo $MYSTRING[2] | tr [A-Z] [a-z]`
+set SECSTRING = `echo $MYSTRING[2] | tr 'A-Z' 'a-z'`
 
-if ( $SECSTRING == ".true." ) then
+if ( $SECSTRING == true ) then
    set SAMP_ERR_FILE = ${DARTDIR}/system_simulation/final_full_precomputed_tables/final_full.${ensemble_size}
    if (  -e   ${SAMP_ERR_FILE} ) then
       ${COPY} ${SAMP_ERR_FILE} .
