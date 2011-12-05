@@ -24,7 +24,7 @@ use      obs_kind_mod, only : SAT_U_WIND_COMPONENT, SAT_V_WIND_COMPONENT, &
                               QKSWND_U_WIND_COMPONENT, QKSWND_V_WIND_COMPONENT, &
                               RADIOSONDE_U_WIND_COMPONENT, RADIOSONDE_V_WIND_COMPONENT, &
                               RADIOSONDE_TEMPERATURE, RADIOSONDE_SPECIFIC_HUMIDITY, &
-                              DEWPOINT, &
+                              RADIOSONDE_DEWPOINT, METAR_DEWPOINT_2_METER, &
                               METAR_U_10_METER_WIND, METAR_V_10_METER_WIND, METAR_TEMPERATURE_2_METER, &
                               METAR_SPECIFIC_HUMIDITY_2_METER, METAR_SURFACE_PRESSURE, METAR_POT_TEMP_2_METER, &
                               BUOY_U_WIND_COMPONENT, BUOY_V_WIND_COMPONENT, BUOY_SURFACE_PRESSURE, &
@@ -228,7 +228,7 @@ if (Use_SoundObs .eqv. .TRUE.) then
                           u_wind_type      = RADIOSONDE_U_WIND_COMPONENT, &
                           v_wind_type      = RADIOSONDE_V_WIND_COMPONENT, &
                           temperature_type = RADIOSONDE_TEMPERATURE, &
-                          dew_point_type   = DEWPOINT, &
+                          dew_point_type   = RADIOSONDE_DEWPOINT, &
                           which_vert=VERTISPRESSURE, num_obs=num_obs, obs=obs, seq=seq)
    enddo
    write(*,101) 'Processed  OBS_TYPE    VAR#   DART#  Total_DART#'  
@@ -304,7 +304,7 @@ if (Use_MetarObs .eqv. .TRUE.) then
                           u_wind_type      = METAR_U_10_METER_WIND, &
                           v_wind_type      = METAR_V_10_METER_WIND, &
                           temperature_type = METAR_TEMPERATURE_2_METER, &
-                          dew_point_type   = DEWPOINT, &
+                          dew_point_type   = METAR_DEWPOINT_2_METER, &
                           which_vert=VERTISSURFACE, num_obs=num_obs, obs=obs, seq=seq)
    enddo
 !  print*,'Processed ', ob%num_metar, ' METAR,  total obs # ', num_obs
