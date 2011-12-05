@@ -179,7 +179,7 @@ endwhere
 ! default to doing the whole column
 temperature_top_index = size(granule%pressStd)
 do i = 1, size(granule%pressStd)
-   if (granule%pressStd(i) < top_pressure_level) then
+   if (granule%pressStd(i) <= top_pressure_level) then
       temperature_top_index = i
       exit
    endif
@@ -188,7 +188,7 @@ if (DEBUG) print *, 'temp_top_index = ', temperature_top_index
 
 humidity_top_index = size(granule%pressH2O)
 do i = 1, size(granule%pressH2O)
-   if (granule%pressH2O(i) < top_pressure_level) then
+   if (granule%pressH2O(i) <= top_pressure_level) then
       humidity_top_index = i
       exit
    endif
