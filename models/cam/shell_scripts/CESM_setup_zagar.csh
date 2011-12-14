@@ -47,13 +47,11 @@
 # case settings
 # ======================
 
-#setenv case          F_AMIP_CN
-#setenv compset       F_AMIP_CN
- setenv case          F2000
+ setenv case          Fzagar
  setenv compset       F_2000
-setenv ccsmtag        cesm1_1_beta06
+setenv ccsmtag        cesm1_1_beta04
 setenv resolution     f09_f09
-setenv num_instances  10
+setenv num_instances  80
 
 # had to edit the following to remove the LSB_PJL_... word too long error
 # /glade/home/thoar/cesm1_1_beta04/scripts/ccsm_utils/Machines/mkbatch.bluefire
@@ -63,12 +61,13 @@ setenv num_instances  10
 # define machines and directories
 # ================================
 
+# setenv ccsmroot ${cesm_public}/collections/${ccsmtag} ;# location of the public cesm code
+
 setenv mach bluefire                                ;# machine
 setenv DARTdir /glade/home/thoar/svn/DART/dev       ;# DART executables, scripts and input
 
 setenv cesm_public /glade/proj3/cseg                ;# location of public CESM sandbox
 setenv cesm_datadir /glade/proj3/cseg/inputdata
-setenv ccsmroot ${cesm_public}/collections/${ccsmtag} ;# location of the public cesm code
 setenv ccsmroot /glade/home/thoar/${ccsmtag}        ;# location of your personal cesm code
 setenv caseroot /glade/user/thoar/cases/${case}     ;# your (future) cesm case directory
 setenv rundir /glade/scratch/thoar/${case}          ;# (future) run-time directory
@@ -86,7 +85,7 @@ echo "removing old files from ${caseroot} and ${rundir}"
 # configure settings
 # ======================
 
-setenv run_startdate 2008-10-31
+setenv run_startdate 2008-08-01
 
 setenv sst_dataset ${cesm_datadir}/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2011_c110307.nc
 setenv year_start  1850
@@ -119,25 +118,23 @@ cat <<EOF >! user_nl_cam_${case}
 &camexp
  inithist                     = 'ENDOFRUN'
  div24del2flag                = 4
- bndtvghg                     = '${cesm_datadir}/atm/cam/ggas/ghg_rcp45_1765-2500_c100405.nc'
- prescribed_ozone_datapath    = '${cesm_datadir}/atm/cam/ozone'
- prescribed_ozone_file        = 'ozone_1.9x2.5_L26_1850-2015_rcp45_c101108.nc'
- prescribed_ozone_name        = 'O3'
- prescribed_ozone_type        = 'INTERP_MISSING_MONTHS'
- prescribed_volcaero_datapath = '${cesm_datadir}/atm/cam/volc'
- prescribed_volcaero_file     = 'CCSM4_volcanic_1850-2011_prototype1.nc'
- solar_data_file              = '${cesm_datadir}/atm/cam/solar/SOLAR_TSI_Lean_1610-2140_annual_c100301.nc'
- prescribed_aero_datapath     = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero'
- prescribed_aero_file         = 'aero_rcp45_v1_1.9x2.5_L26_1995-2105_c100316.nc'
  aerodep_flx_datapath         = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero'
- aerodep_flx_file             = 'aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
+ aerodep_flx_file             = 'aerosoldep_monthly_1849-2006_1.9x2.5_c090803.nc'
+ aerodep_flx_cycle_yr         = 2000
+ aerodep_flx_type             = 'CYCLICAL'
+ iradae                       = -12
+ empty_htapes                 = .true.
+ nhtfrq                       = -12
 /
 EOF
 
 cat <<EOF >! user_nl_clm_${case}
 &clmexp
-  fpftdyn  = '${cesm_datadir}/lnd/clm2/surfdata/surfdata.pftdyn_0.9x1.25_rcp4.5_simyr1850-2100_c100406.nc'
+  fatmgrid = '${cesm_datadir}/lnd/clm2/griddata/griddata_0.9x1.25_070212.nc'
   faerdep  = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
+  outnc_large_files = .true.
+  hist_nhtfrq = -12
+  hist_empty_htapes = .true.
 /
 EOF
 
@@ -157,15 +154,6 @@ if ( $status != 0 ) then
    echo "ERROR: Case could not be created."
    exit 1
 endif
-
-# Change Tools/Templates/cam.cpl7.template
-# ncdata  = '${RUN_REFCASE}.cam.i.${RUN_REFDATE}-00000.nc'
-# to
-# ncdata  = '${RUN_REFCASE}.cam_\$INST_ATM.i.${RUN_REFDATE}-${RUN_REFTOD}.nc'
-
-# Add the RUN_REFTOD xml crap
-# cesm1_1_beta04/scripts/ccsm_utils/Case.template/config_definition.xml
-
 
 cd ${caseroot}
 
@@ -192,22 +180,18 @@ set nthreads = 1
 ./xmlchange -file env_mach_pes.xml -id ROOTPE_ICE -val 0
 ./xmlchange -file env_mach_pes.xml -id  NINST_ICE -val $num_instances
 
-./xmlchange -file env_conf.xml -id RUN_TYPE                -val hybrid
+./xmlchange -file env_conf.xml -id RUN_TYPE                -val startup
 ./xmlchange -file env_conf.xml -id RUN_STARTDATE           -val $run_startdate
-./xmlchange -file env_conf.xml -id RUN_REFDATE             -val $run_startdate
-./xmlchange -file env_conf.xml -id RUN_REFCASE             -val ref_${case}
-./xmlchange -file env_conf.xml -id GET_REFCASE             -val FALSE
+./xmlchange -file env_conf.xml -id DOCN_SSTDATA_FILENAME   -val $sst_dataset
+./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_START -val $year_start
+./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_END   -val $year_end
 
-#./xmlchange -file env_conf.xml -id DOCN_SSTDATA_FILENAME   -val $sst_dataset   #TJH WARNING not being set in F2000!
-#./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_START -val $year_start
-#./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_END   -val $year_end
-./xmlchange -file env_conf.xml -id CLM_CONFIG_OPTS         -val '-rtm off'
-#./xmlchange -file env_conf.xml -id CLM_CONFIG_OPTS         -val '-bgc cn -rtm off'
+#./xmlchange -file env_conf.xml     -id CLM_CONFIG_OPTS  -val '-rtm off'
 
-./xmlchange -file env_run.xml -id RESUBMIT    -val $resubmit
-./xmlchange -file env_run.xml -id STOP_OPTION -val $stop_option
-./xmlchange -file env_run.xml -id STOP_N      -val $stop_n
-./xmlchange -file env_run.xml -id CALENDAR    -val GREGORIAN
+./xmlchange -file env_run.xml      -id RESUBMIT         -val $resubmit
+./xmlchange -file env_run.xml      -id STOP_OPTION      -val $stop_option
+./xmlchange -file env_run.xml      -id STOP_N           -val $stop_n
+./xmlchange -file env_run.xml      -id CALENDAR         -val GREGORIAN
 
 # Substantial archiving changes exist in the Tools/st_archive.sh script.
 # DOUT_S     is to turn on/off the short-term archiving
@@ -258,7 +242,7 @@ cd ${caseroot}
 \mv Tools/st_archive.sh Tools/st_archive.sh.org
 \cp -f ${DARTdir}/models/cam/shell_scripts/st_archive.sh Tools/st_archive.sh
 
-\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.csh .
+\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.zagar.csh assimilate.csh
 
 # ====================================================================
 # update the namelists and scripts as needed
