@@ -152,7 +152,6 @@ echo starting perfect_model_obs executable now with 1 task
 ${MOVE} obs_seq.out        ../obs_seq.${MODEL_DATE_EXT}.out
 ${MOVE} dart_log.out       ../dart_log.${MODEL_DATE_EXT}.out
 ${MOVE} True_State.nc      ../True_State.${MODEL_DATE_EXT}.nc
-${MOVE} Prior_Diag.nc      ../Prior_Diag.${MODEL_DATE_EXT}.nc
 
 
 #-------------------------------------------------------------------------
