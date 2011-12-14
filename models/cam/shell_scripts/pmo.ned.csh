@@ -27,7 +27,7 @@ cd $temp_dir
 # of the form "./${CASE}.cam_${ensemble_member}.r.2000-01-06-00000.nc"
 #-------------------------------------------------------------------------
 
-set FILE = `head -1 ../rpointer.atm_0001`
+set FILE = `head -1 ../rpointer.atm`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = $FILE:ar
@@ -77,7 +77,7 @@ ${COPY} $HOME/cam_phis.nc .
 # Block 1: convert 1 cam restart files to DART initial conditions file
 #
 # At the end of the block, we have DART restart files  perfect_ics
-# that came from pointer files ../rpointer.atm_[1]
+# that came from pointer files ../rpointer.atm
 #
 # DART namelist settings appropriate/required:
 # &perfect_model_obs_nml: restart_in_file_name   = 'perfect_ics'
@@ -90,7 +90,7 @@ ${COPY} $HOME/cam_phis.nc .
 
 set member = 1
 
-set POINTER_FILENAME = `printf rpointer.atm_%04d ${member}`
+set POINTER_FILENAME = `printf rpointer.atm`
 set MODEL_RESTART_FILENAME = `head -1 ../${POINTER_FILENAME}`
 set MODEL_INITIAL_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
 ${LINK} ../$MODEL_INITIAL_FILENAME caminput.nc
@@ -127,7 +127,7 @@ echo "finished cam_to_dart for member ${member} at "`date`
 
 # cam always needs a cam_initial.nc and a cam_history.nc to start.
 
-set MODEL_RESTART_FILENAME = `head -1 ../rpointer.atm_0001`
+set MODEL_RESTART_FILENAME = `head -1 ../rpointer.atm`
 set MODEL_INITIAL_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
 set MODEL_HISTORY_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.h0\.#"`
 
@@ -170,9 +170,9 @@ set member = 1
 
 set DART_RESTART_FILE = "perfect_restart"
 
-set ATM_POINTER_FILENAME = `printf rpointer.atm_%04d ${member}`
-set LND_POINTER_FILENAME = `printf rpointer.lnd_%04d ${member}`
-set ICE_POINTER_FILENAME = `printf rpointer.ice_%04d ${member}`
+set ATM_POINTER_FILENAME = `printf rpointer.atm`
+set LND_POINTER_FILENAME = `printf rpointer.lnd`
+set ICE_POINTER_FILENAME = `printf rpointer.ice`
 
 set ATM_RESTART_FILENAME = `head -1 ../${ATM_POINTER_FILENAME}`
 set LND_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.clm2_#"`
