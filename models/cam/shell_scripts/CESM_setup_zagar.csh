@@ -363,13 +363,12 @@ echo 'Changing Tools/ccsm_postrun.csh such that all the resubmits are coldstarts
 echo 'which means CONTINUE_RUN should be FALSE in ccsm_postrun.csh'
 echo ''
 
-# TJH turning off to see what happens with a BRANCH run
-#ex ccsm_postrun.csh <<ex_end
-#/use COMP_RUN_BARRIERS as surrogate for timing run logical/
-#/CONTINUE_RUN/
-#s;TRUE;FALSE;
-#wq
-#ex_end
+ex ccsm_postrun.csh <<ex_end
+/use COMP_RUN_BARRIERS as surrogate for timing run logical/
+/CONTINUE_RUN/
+s;TRUE;FALSE;
+wq
+ex_end
 
 # ====================================================================
 # build
@@ -430,7 +429,7 @@ set QUEUE=`grep BSUB $case.$mach.run | grep -e '-q' `
 sed s/$QUEUE[3]/$queue/ < $case.$mach.run >! temp
 /bin/mv temp  $case.$mach.run
 
-chmod 0744 $case.$mach.run
+chmod 0774 $case.$mach.run
 
 # ====================================================================
 # Submit job
