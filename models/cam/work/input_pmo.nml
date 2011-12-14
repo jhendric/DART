@@ -13,7 +13,7 @@
    output_timestamps        = .true.,
    trace_execution          = .true.,
    output_forward_op_errors = .false.,
-   print_every_nth_obs      = -1,
+   print_every_nth_obs      = 5000,
    silence                  = .false.,
    output_interval          = 1,
    restart_in_file_name     = "perfect_ics",
@@ -24,16 +24,17 @@
 /
 
 &ensemble_manager_nml
-   single_restart_file_in  = .false.,
-   single_restart_file_out = .false.,
-   perturbation_amplitude  = 0.2 /
+   single_restart_file_in  = .true.,
+   single_restart_file_out = .true.,
+   perturbation_amplitude  = 0.0 
+/
 
 &assim_tools_nml
    filter_kind                     = 1,
    cutoff                          = 0.2,
    sort_obs_inc                    = .false.,
    spread_restoration              = .false.,
-   sampling_error_correction       = .false.,
+   sampling_error_correction       = .true.,
    adaptive_localization_threshold = -1,
    output_localization_diagnostics = .false.,
    localization_diagnostics_file   = 'localization_diagnostics',
@@ -41,32 +42,35 @@
 /
 
 &cov_cutoff_nml
-   select_localization = 1  /
+   select_localization = 1  
+/
 
 &reg_factor_nml
    select_regression    = 1,
    input_reg_file       = "time_mean_reg",
    save_reg_diagnostics = .false.,
-   reg_diagnostics_file = 'reg_diagnostics' /
+   reg_diagnostics_file = 'reg_diagnostics' 
+/
 
 &obs_sequence_nml
-   write_binary_obs_sequence = .false.  /
+   write_binary_obs_sequence = .false.  
+/
 
 &assim_model_nml
    write_binary_restart_files = .true.,
    netCDF_large_file_support  = .true.
-   /
+/
 
 &cam_to_dart_nml
    cam_to_dart_input_file  = 'caminput.nc',
    cam_to_dart_output_file = 'perfect_ics',
-   /
+/
 
 &dart_to_cam_nml
   dart_to_cam_input_file  = 'perfect_restart',
   dart_to_cam_output_file = 'caminput.nc',
   advance_time_present    = .false.,
-   /
+/
 
 &model_nml
    output_state_vector = .false.,
@@ -81,19 +85,19 @@
    which_vert_1d       = 0,
    which_vert_2d       = -1,
    which_vert_3d       = 6*1,
-   pert_names          = 'T', 'US', 'VS',
-   pert_sd             = 0.20,
+   pert_names          = '',
+   pert_sd             = -888888.0d0,
    pert_base_vals      = -888888.0d0,
-   highest_obs_pressure_mb   = 100.0,
-   highest_state_pressure_mb = 150.0,
+   highest_obs_pressure_mb   = 1.0,
+   highest_state_pressure_mb = 1.0,
    max_obs_lat_degree        = 89.0,
-   Time_step_seconds   = 21600,
+   Time_step_seconds   = 43200,
    Time_step_days      = 0,
    print_details       = .false.,
-   /
+/
 
 &location_nml
-  /
+/
 
 
 &preprocess_nml
@@ -104,23 +108,24 @@
   input_files              = '../../../obs_def/obs_def_gps_mod.f90',
                              '../../../obs_def/obs_def_altimeter_mod.f90',
                              '../../../obs_def/obs_def_reanalysis_bufr_mod.f90'
-   /
+/
 
 &obs_kind_nml
    assimilate_these_obs_types = 'RADIOSONDE_TEMPERATURE',
                                 'RADIOSONDE_U_WIND_COMPONENT',
                                 'RADIOSONDE_V_WIND_COMPONENT',
-  /
+/
 
 &utilities_nml
    TERMLEVEL = 1,
    module_details = .false.,
    logfilename = 'dart_log.out',
    nmlfilename = 'dart_log.nml',
-   write_nml   = 'file'  /
+   write_nml   = 'file'  
+/
 
 &mpi_utilities_nml
-   /
+/
 
 &obs_def_gps_nml
   max_gpsro_obs = 100000,
