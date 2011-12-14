@@ -1,13 +1,12 @@
-#!/usr/bin/tcsh
-# FIXME: where it might be on bluefire but not hopper:
-#!/usr/local/bin/tcsh
+#!/bin/csh
+#
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
 # $Id$
 
-# The FORCE options are not optional. 
+# The FORCE options are not optional.
 # the VERBOSE options are useful for debugging.
 set   MOVE = 'mv -fv'
 set   COPY = 'cp -fv --preserve=timestamps'
@@ -35,7 +34,7 @@ cd $temp_dir
 set FILE = `head -1 ../rpointer.atm_0001`
 set FILE = $FILE:t
 set FILE = $FILE:r
-set MYCASE = $FILE:ar
+set MYCASE = `echo $FILE | sed -e "s#\..*##"`
 set MODEL_DATE_EXT = `echo $FILE:e`
 set MODEL_DATE     = `echo $FILE:e | sed -e "s#-# #g"`
 set MODEL_YEAR     = $MODEL_DATE[1]
@@ -51,8 +50,8 @@ echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (ho
 # Set variables containing various directory names where we will GET things
 #-----------------------------------------------------------------------------
 
-# FIXME: different for everyone
-set DARTDIR = ${HOME}/devel/models/cam/work
+# where the dart source has been checked out
+set DARTDIR = ${HOME}/devel
 
 # FIXME: different on hopper
 set DART_OBS_DIR = ${MODEL_YEAR}${MODEL_MONTH}_6H
@@ -60,12 +59,12 @@ set  OBSDIR = /scratch/scratchdirs/nscollin/ACARS/${DART_OBS_DIR}
 
 #-------------------------------------------------------------------------
 # DART COPY BLOCK
-# Populate a run-time directory with the bits needed to run DART 
+# Populate a run-time directory with the bits needed to run DART
 #-------------------------------------------------------------------------
 
 foreach FILE ( input.nml filter cam_to_dart dart_to_cam )
-   if (  -e   ${DARTDIR}/${FILE} ) then
-      ${COPY} ${DARTDIR}/${FILE} .
+   if (  -e   ${DARTDIR}/models/cam/work/${FILE} ) then
+      ${COPY} ${DARTDIR}/models/cam/work/${FILE} .
    else
       echo "DART required file ${DARTDIR}/${FILE} not found ... ERROR"
       exit 1
@@ -91,16 +90,16 @@ ex_end
 # DART SAMPLING ERROR CORRECTION BLOCK
 # This stages the files needed for the sampling error correction.
 # Each ensemble size has its own (static) file which does not need to be archived.
-# It is only needed if 
+# It is only needed if
 # input.nml:&assim_tools_nml:sampling_error_correction = .true.,
 #-------------------------------------------------------------------------
 
 set  MYSTRING = `grep sampling_error_correction input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,'\.]# #g"`
 set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
-set SECSTRING = `echo $MYSTRING[2] | tr [A-Z] [a-z]`
+set SECSTRING = `echo $MYSTRING[2] | tr 'A-Z' 'a-z'`
 
-if ( $SECSTRING == ".true." ) then
+if ( $SECSTRING == true ) then
    set SAMP_ERR_FILE = ${DARTDIR}/system_simulation/final_full_precomputed_tables/final_full.${ensemble_size}
    if (  -e   ${SAMP_ERR_FILE} ) then
       ${COPY} ${SAMP_ERR_FILE} .
@@ -117,7 +116,7 @@ endif
 # DART INFLATION BLOCK
 # This stages the files that contain the inflation values.
 # The inflation values change through time and should be archived.
-# 
+#
 # This file is only relevant if 'inflation' is turned on -
 # i.e. if inf_flavor(1) /= 0 AND inf_initial_from_restart = .TRUE.
 #
@@ -132,10 +131,10 @@ endif
 # files to be as listed above. When being archived, the filenames get a
 # unique extension (describing the assimilation time) appended to them.
 #
-# The inflation file is essentially a duplicate of the model state ... 
-# it is slaved to a specific geometry. The initial files are created 
-# offline with values of unity. For the purpose of this script, they are 
-# thought to be the output of a previous assimilation, so they should be 
+# The inflation file is essentially a duplicate of the model state ...
+# it is slaved to a specific geometry. The initial files are created
+# offline with values of unity. For the purpose of this script, they are
+# thought to be the output of a previous assimilation, so they should be
 # named something like prior_inflate_restart.YYYY-MM-DD-SSSSS
 #
 # The first inflation file can be created with 'fill_inflation_restart'
@@ -155,8 +154,8 @@ set  POSTE_INF = $MYSTRING[3]
 
 set  MYSTRING = `grep inf_initial_from_restart input.nml`
 set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
-set  PRIOR_TF = `echo $MYSTRING[2] | tr [A-Z] [a-z]`
-set  POSTE_TF = `echo $MYSTRING[3] | tr [A-Z] [a-z]`
+set  PRIOR_TF = `echo $MYSTRING[2] | tr 'A-Z' 'a-z'`
+set  POSTE_TF = `echo $MYSTRING[3] | tr 'A-Z' 'a-z'`
 
 # its a little tricky to remove both styles of quotes from the string.
 # (only in the cshell.  bash/ksh variants have better quoting styles)
@@ -317,7 +316,7 @@ ${LINK} ../$MODEL_INITIAL_FILENAME caminput.nc
 # Determine proper observation sequence file.
 
 set OBSFNAME = `printf obs_seq${MODEL_YEAR}${MODEL_MONTH}${MODEL_DAY}%02d ${MODEL_HOUR}`
-set OBS_FILE = ${OBSDIR}/${OBSFNAME} 
+set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 
 ${LINK} ${OBS_FILE} obs_seq.out
 
@@ -337,7 +336,7 @@ ${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${MODEL_DATE_EXT}.nc
 ${MOVE} obs_seq.final      ../obs_seq.${MODEL_DATE_EXT}.final
 ${MOVE} dart_log.out       ../dart_log.${MODEL_DATE_EXT}.out
 
-# Accomodate any possible inflation files 
+# Accomodate any possible inflation files
 # 1) rename file to reflect current date
 # 2) move to CENTRALDIR so the DART INFLATION BLOCK works next time and
 #    that they can get archived.
@@ -410,8 +409,8 @@ end
 wait
 
 #-------------------------------------------------------------------------
-# Now that everything is staged, we have to communicate the current 
-# model time to the drv_in&seq_timemgr_inparm namelist 
+# Now that everything is staged, we have to communicate the current
+# model time to the drv_in&seq_timemgr_inparm namelist
 # which is built from CASEROOT/user_nl_drv by the *.run script
 #-------------------------------------------------------------------------
 
