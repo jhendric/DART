@@ -54,6 +54,7 @@ setenv case           F_PMO_3
 setenv compset        F_2000
 setenv resolution     f09_f09
 setenv num_instances  1
+setenv coldbuild      true
 
 # had to edit the following to remove the LSB_PJL_... word too long error
 # /glade/home/thoar/cesm1_1_beta04/scripts/ccsm_utils/Machines/mkbatch.bluefire
@@ -87,9 +88,11 @@ setenv nancy_datadir ${nancy_scratch}/cesm_datafiles
 # clear out previous builds
 # ======================
 
-echo "removing old files from ${caseroot} and ${rundir}"
-\rm -fr ${caseroot}
-\rm -fr ${rundir}
+if ("${coldbuild}" == "true") then
+   echo "removing old files from ${caseroot} and ${rundir}"
+   \rm -fr ${caseroot}
+   \rm -fr ${rundir}
+endif
 
 # ======================
 # configure settings
@@ -165,12 +168,14 @@ EOF
 # For list of the cases: ./create_newcase -list
 # ====================================================================
 
-${ccsmroot}/scripts/create_newcase -case ${caseroot} -mach ${mach} \
-                -res ${resolution} -compset ${compset} -skip_rundb
-
-if ( $status != 0 ) then
-   echo "ERROR: Case could not be created."
-   exit 1
+if ("${coldbuild}" == "true") then
+   ${ccsmroot}/scripts/create_newcase -case ${caseroot} -mach ${mach} \
+                   -res ${resolution} -compset ${compset} -skip_rundb
+   
+   if ( $status != 0 ) then
+      echo "ERROR: Case could not be created."
+      exit 1
+   endif
 endif
 
 cd ${caseroot}
@@ -215,10 +220,12 @@ set nthreads = 1
 # DOUT_S     is to turn on/off the short-term archiving
 # DOUT_L_MS  is to store to the HPSS (formerly "MSS")
 ./xmlchange -file env_run.xml -id DOUT_S_ROOT                -val ${archdir}
-./xmlchange -file env_run.xml -id DOUT_S                     -val TRUE
-./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val TRUE
-./xmlchange -file env_run.xml -id DOUT_L_MS                  -val TRUE
-./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val TRUE
+./xmlchange -file env_run.xml -id DOUT_S                     -val FALSE
+./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val FALSE
+./xmlchange -file env_run.xml -id DOUT_L_MS                  -val FALSE
+./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val FALSE
+
+echo ALL ARCHIVING DISABLED
 
 # ====================================================================
 # Create namelist template: user_nl_cam
@@ -285,7 +292,7 @@ cp -f  clm.buildnml.csh  clm.buildnml.csh.org
 ex cam.buildnml.csh <<ex_end
 /cam_inparm/
 /ncdata/
-s;= '.*';= "cam_initial_\${atm_inst_counter}.nc";
+s;= '.*';= "cam_initial_1.nc";
 wq
 ex_end
 
@@ -294,25 +301,23 @@ ex_end
 ex cice.buildnml.csh <<ex_end
 /setup_nml/
 /ice_ic/
-s;= '.*';= "ice_restart_\${ice_inst_counter}.nc";
+s;= '.*';= "ice_restart_1.nc";
 wq
 ex_end
 
-# The CLM buildnml script needs changing in MANY places.
+# The CLM buildnml script needs changing in 1 place.
 
-@ n = 1
-while ($n <= $num_instances)
-   set inst = `printf "%04d" $n`
-   ex clm.buildnml.csh <<ex_end
-/lnd_in_$inst/
+ex clm.buildnml.csh <<ex_end
+/lnd_in/
 /finidat/
-s;= '.*';= "clm_restart_${n}.nc";
+s;= '.*';= "clm_restart_1.nc";
 wq
 ex_end
-   @ n++
-end
 
 chmod 0755 clm.buildnml.csh
+
+echo 'if you do a clean namelist, you must repeat the previous namelist update section.'
+echo ' ' 
 
 # ====================================================================
 # The *.run script must be modified to call the DART perfect model script.
