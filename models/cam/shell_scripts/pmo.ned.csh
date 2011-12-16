@@ -4,7 +4,7 @@
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
-# $Id: assimilate.hopper.csh 5403 2011-11-16 15:20:05Z nancy $
+# $Id$
 
 # The FORCE options are not optional. 
 # the VERBOSE options are useful for debugging.
@@ -50,9 +50,18 @@ echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (ho
 set DARTROOT = ${HOME}/devel
 set DARTDIR = ${DARTROOT}/models/cam/work
 
-# FIXME: different on hopper
 set DART_OBS_DIR = UVT_skeleton_12H
-set  OBSDIR = /scratch/scratchdirs/nscollin/Synthetic/${DART_OBS_DIR}
+
+switch ( "`hostname`" )
+   case be*:
+      set OBSDIR = /glade/proj3/image/Observations/Synthetic/${DART_OBS_DIR}
+      set PHISLOC = /glade/proj3/DART/raeder/FV1deg_4.0
+   breaksw
+   default:
+      set OBSDIR = /scratch/scratchdirs/nscollin/Synthetic/${DART_OBS_DIR}
+      set PHISLOC = ${HOME}
+   breaksw
+endsw
 
 #-------------------------------------------------------------------------
 # DART COPY BLOCK
@@ -71,7 +80,7 @@ end
 ${COPY} input_pmo.nml input.nml
 
 # surface height data
-${COPY} $HOME/cam_phis.nc .
+${COPY} ${PHISLOC}/cam_phis.nc .
 
 #-------------------------------------------------------------------------
 # Block 1: convert 1 cam restart files to DART initial conditions file
@@ -201,7 +210,7 @@ ex_end
 exit 0
 
 # <next few lines under version control, do not edit>
-# $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/development/models/cam/shell_scripts/assimilate.hopper.csh $
-# $Revision: 5403 $
-# $Date: 2011-11-16 07:20:05 -0800 (Wed, 16 Nov 2011) $
+# $URL$
+# $Revision$
+# $Date$
 
