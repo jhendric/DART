@@ -4,7 +4,7 @@
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
-# $Id: CESM_setup_zagar.csh 5444 2011-12-14 22:22:12Z thoar $
+# $Id$
 
 # ---------------------
 # Purpose
