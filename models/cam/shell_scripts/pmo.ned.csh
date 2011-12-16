@@ -155,14 +155,9 @@ ${MOVE} True_State.nc      ../True_State.${MODEL_DATE_EXT}.nc
 
 
 #-------------------------------------------------------------------------
-# Block 3: Update the cam restart file
+# Block 3: perfect model doesn't change the state, so we don't have to
+#  run dart_to_cam.  we just have to copy the existing files to the fixed names.
 #
-# DART namelist settings required:
-# &perfect_model_obs_nml: restart_out_file_name  = 'perfect_restart'
-# &ensemble_manager_nml:  single_restart_file_in = '.true.'
-# &dart_to_cam_nml:       dart_to_cam_input_file = 'perfect_restart',
-# &dart_to_cam_nml:       advance_time_present   = .false.
-# &atm_in_xxxx:ncdata = 'cam_initial_x.nc'
 #-------------------------------------------------------------------------
 
 set member = 1
@@ -178,15 +173,6 @@ set LND_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.clm2_
 set ICE_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.cice_#"`
 
 set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
-
-#  set ATM_HISTORY_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.h0\.#"`
-#  ${LINK} ../$ATM_RESTART_FILENAME cam_restart.nc
-#  ${LINK} ../$ATM_HISTORY_FILENAME cam_history.nc
-   ${LINK} ../$ATM_INITIAL_FILENAME caminput.nc
-
-echo "starting dart_to_cam for member ${member} at "`date`
-./dart_to_cam >! output.${member}.dart_to_cam
-echo "finished dart_to_cam for member ${member} at "`date`
 
 # The initial filenames are static and come from the atm_in_xxxx namelist.
 # We must copy the updated initial files to the static names.
