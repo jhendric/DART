@@ -56,7 +56,7 @@ set DARTROOT = ${HOME}/devel
 set DARTDIR = ${DARTROOT}/models/cam/work
 
 # FIXME: different on hopper
-set DART_OBS_DIR = UVT_Set1_12H
+set DART_OBS_DIR = UVT_Set2_12H
 set  OBSDIR = /scratch/scratchdirs/nscollin/Synthetic/${DART_OBS_DIR}
 
 #-------------------------------------------------------------------------
@@ -323,8 +323,7 @@ ${LINK} ../$MODEL_INITIAL_FILENAME caminput.nc
 
 # Determine proper observation sequence file.
 
-set OBSFNAME = `printf syn_obs_seq${MODEL_YEAR}${MODEL_MONTH}${MODEL_DAY}%02d ${MODEL_HOUR}`
-set OBS_FILE = ${OBSDIR}/${OBSFNAME} 
+set OBS_FILE = ${OBSDIR}/obs_seq.${MODEL_DATE_EXT}.out
 
 ${LINK} ${OBS_FILE} obs_seq.out
 
