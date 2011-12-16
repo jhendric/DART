@@ -50,7 +50,7 @@
 # beta05 is also available, but i'm still using 04 for now
 # because i have a fixed copy in my home directory.
 setenv ccsmtag        cesm1_1_beta04
-setenv case           F_PMO_Z
+setenv case           F_PMO_3
 setenv compset        F_2000
 setenv resolution     f09_f09
 setenv num_instances  1
@@ -64,23 +64,24 @@ setenv num_instances  1
 # ================================
 
 # my home, and temp/scratch space
-setenv my_home $HOME
-setenv my_scratch $SCRATCH
+setenv nancy_home $HOME
+setenv nancy_scratch $SCRATCH
 
 setenv mach hopp2                                       ;# machine - must match cesm names
+setenv DARTdir ${nancy_home}/devel
+
 setenv cesm_datadir /project/projectdirs/ccsm1/inputdata
 
-setenv ccsmroot ${my_home}/${ccsmtag}                   ;# this is where the cesm code lives
+setenv ccsmroot ${nancy_home}/${ccsmtag}                   ;# this is where the cesm code lives
 #setenv ccsmroot ${cesm_public}/collections/${ccsmtag}  ;# this is where the cesm code lives
 
-setenv caseroot ${my_home}/cases/$case                  ;## your cesm case directory
-setenv lockroot ${my_home}/locked_cases                 ;## locked cases
-setenv rundir ${my_scratch}/${case}
-
-setenv DARTdir ${my_home}/devel
+setenv caseroot ${nancy_home}/cases/$case                  ;## your cesm case directory
+setenv lockroot ${nancy_home}/locked_cases                 ;## locked cases
+setenv rundir   ${nancy_scratch}/${case}
+setenv archdir  ${nancy_scratch}/archive
 
 # for data files not in the public cems area
-setenv my_datadir ${my_scratch}/cesm_datafiles
+setenv nancy_datadir ${nancy_scratch}/cesm_datafiles
 
 # ======================
 # clear out previous builds
@@ -131,20 +132,29 @@ cat <<EOF >! user_nl_cam_${case}
  aerodep_flx_cycle_yr         = 2000
  aerodep_flx_type             = 'CYCLICAL'
  iradae                       = -12
- empty_htapes                 = .true.
- nhtfrq                       = -12
 /
 EOF
+
+# kevin had these in his cam namelist but they seem to cause
+# problems with the restart files with cesm.
+#  empty_htapes                 = .true.
+#  nhtfrq                       = -12
 
 cat <<EOF >! user_nl_clm_${case}
 &clmexp
   fatmgrid = '${cesm_datadir}/lnd/clm2/griddata/griddata_0.9x1.25_070212.nc'
-  faerdep  = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
+  faerdep  = '${nancy_datadir}/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
   outnc_large_files = .true.
-  hist_nhtfrq = -12
-  hist_empty_htapes = .true.
 /
 EOF
+
+# where it would be in the cesm datadir; not on hopper:
+#  faerdep  = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
+
+# kevin had these in his clm namelist but they seem to cause
+# problems with the restart files with cesm.
+#  hist_nhtfrq = -12
+#  hist_empty_htapes = .true.
 
 # ====================================================================
 # ====  End of case options
@@ -167,7 +177,7 @@ cd ${caseroot}
 
 ./xmlchange -file env_build.xml    -id EXEROOT        -val ${rundir}
 ./xmlchange -file env_build.xml    -id USE_ESMF_LIB   -val TRUE
-#./xmlchange -file env_build.xml    -id ESMF_LIBDIR    -val ${nancy_scratch}/esmf-mpi
+./xmlchange -file env_build.xml    -id ESMF_LIBDIR    -val ${nancy_scratch}/esmf-mpi
 
 set num_tasks_per_instance = 12
 set nthreads = 1
@@ -220,8 +230,9 @@ set nthreads = 1
 # ====================================================================
 # Update source files if need be
 # ====================================================================
-cp ~/cesm_mods/seq*F90  $caseroot/SourceMods/src.drv
-cp ~/cesm_mods/hist*F90 $caseroot/SourceMods/src.clm
+cp ~/cesm_mods/seq*F90           $caseroot/SourceMods/src.drv
+cp ~/cesm_mods/hist*F90          $caseroot/SourceMods/src.clm
+cp ~/cesm_mods/ccsm_comp_mod.F90 $caseroot/SourceMods/src.drv
 
 if ( $status == 0) then
    echo "FYI - Local Source Modifications used for this case:"
@@ -250,6 +261,8 @@ cd ${caseroot}
 
 \mv Tools/st_archive.sh Tools/st_archive.sh.org
 \cp -f ${DARTdir}/models/cam/shell_scripts/st_archive.sh Tools/st_archive.sh
+# only needed for beta04 - fixed in more recent versions
+\cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/lt_archive.csh
 
 \cp -f ${DARTdir}/models/cam/shell_scripts/pmo.ned.csh pmo.csh
 
@@ -402,7 +415,7 @@ endif
 # Stage the restarts now that the run directory exists
 # ====================================================================
 
-set stagedir = ${my_scratch}/ned_datafiles
+set stagedir = ${nancy_scratch}/ned_datafiles
 
 echo ''
 echo "Staging the restarts from {$stagedir}"
