@@ -178,8 +178,8 @@ set LND_POINTER_FILENAME = `printf rpointer.lnd`
 set ICE_POINTER_FILENAME = `printf rpointer.ice`
 
 set ATM_RESTART_FILENAME = `head -1 ../${ATM_POINTER_FILENAME}`
-set LND_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.clm2_#"`
-set ICE_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.cice_#"`
+set LND_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam#\.clm2#"`
+set ICE_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam#\.cice#"`
 
 set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
 
