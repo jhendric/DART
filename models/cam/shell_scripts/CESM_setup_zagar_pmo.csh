@@ -51,11 +51,11 @@
 # ====  Set case options
 # ====================================================================
 
- setenv case          Fzagar
+ setenv case          Fzagar_pmo
  setenv compset       F_2000
 setenv ccsmtag        cesm1_1_beta04
 setenv resolution     f09_f09
-setenv num_instances  80
+setenv num_instances  1
 setenv coldbuild      false
 
 # ================================
@@ -96,8 +96,8 @@ setenv stop_option   nhours
 # ======================
 
 setenv proj         93300315
-setenv timewall     2:30
-setenv queue        lrg_regular
+setenv timewall     1:00
+setenv queue        premium
 
 # ======================
 # namelist variables
@@ -117,6 +117,9 @@ cat <<EOF >! user_nl_cam_${case}
  iradae                       = -12
 /
 EOF
+
+# kevin had these in his cam namelist but they seem to cause
+# problems with the restart files with cesm.
 #  empty_htapes                 = .true.
 #  nhtfrq                       = -12
 
@@ -127,8 +130,14 @@ cat <<EOF >! user_nl_clm_${case}
   outnc_large_files = .true.
 /
 EOF
-#   hist_nhtfrq = -12
-#   hist_empty_htapes = .true.
+
+# where it would be in the cesm datadir; not on hopper:
+#  faerdep  = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
+
+# kevin had these in his clm namelist but they seem to cause
+# problems with the restart files with cesm.
+#  hist_nhtfrq = -12
+#  hist_empty_htapes = .true.
 
 # ====================================================================
 # Create the case.
@@ -199,10 +208,12 @@ set nthreads = 1
 # DOUT_S     is to turn on/off the short-term archiving
 # DOUT_L_MS  is to store to the HPSS (formerly "MSS")
 ./xmlchange -file env_run.xml -id DOUT_S_ROOT                -val ${archdir}
-./xmlchange -file env_run.xml -id DOUT_S                     -val TRUE
-./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val TRUE
-./xmlchange -file env_run.xml -id DOUT_L_MS                  -val TRUE
-./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val TRUE
+./xmlchange -file env_run.xml -id DOUT_S                     -val FALSE
+./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val FALSE
+./xmlchange -file env_run.xml -id DOUT_L_MS                  -val FALSE
+./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val FALSE
+
+echo ALL ARCHIVING DISABLED
 
 # ====================================================================
 # Create namelist template: user_nl_cam
@@ -236,7 +247,7 @@ if ( $status != 0 ) then
 endif
 
 # ====================================================================
-# Stage a copy of the DART assimilate.csh script HERE
+# Stage a copy of the DART pmo.csh script HERE
 # ====================================================================
 
 cd ${caseroot}
@@ -244,9 +255,9 @@ cd ${caseroot}
 \mv Tools/st_archive.sh Tools/st_archive.sh.org
 \cp -f ${DARTdir}/models/cam/shell_scripts/st_archive.sh Tools/st_archive.sh
 # only needed for beta04 - fixed in more recent versions
-\cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh .
+\cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/lt_archive.csh
 
-\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.zagar.csh assimilate.csh
+\cp -f ${DARTdir}/models/cam/shell_scripts/pmo.ned.csh pmo.csh
 
 # ====================================================================
 # Update the scripts that build the namelists.
@@ -268,7 +279,7 @@ cp -f  clm.buildnml.csh  clm.buildnml.csh.org
 ex cam.buildnml.csh <<ex_end
 /cam_inparm/
 /ncdata/
-s;= '.*';= "cam_initial_\${atm_inst_counter}.nc";
+s;= '.*';= "cam_initial_1.nc";
 wq
 ex_end
 
@@ -277,26 +288,26 @@ ex_end
 ex cice.buildnml.csh <<ex_end
 /setup_nml/
 /ice_ic/
-s;= '.*';= "ice_restart_\${ice_inst_counter}.nc";
+s;= '.*';= "ice_restart_1.nc";
 wq
 ex_end
 
-# The CLM buildnml script needs changing in MULTIPLE places.
+# The CLM buildnml script needs changing in 1 place.
 
-@ n = 1
-while ($n <= $num_instances)
-   set inst = `printf "%04d" $n`
-   ex clm.buildnml.csh <<ex_end
-/lnd_in_$inst/
+ex clm.buildnml.csh <<ex_end
+/lnd_in/
 /finidat/
-s;= '.*';= "clm_restart_${n}.nc";
+s;= '.*';= "clm_restart_1.nc";
 wq
 ex_end
-   @ n++
-end
+
+chmod 0755 clm.buildnml.csh
+
+echo 'if you do a clean namelist, you must repeat the previous namelist update section.'
+echo ' ' 
 
 # ====================================================================
-# The *.run script must be modified to call the DART assimilate script.
+# The *.run script must be modified to call the DART perfect model script.
 # The modifications are contained in a "here" document that MUST NOT
 # expand the wildcards etc., before it is run. This is achieved by
 # double-quoting the characters used to delineate the start/stop of
@@ -306,31 +317,31 @@ end
 cd ${caseroot}
 
 echo ''
-echo 'Adding the call to assimilate.csh to the *.run script.'
+echo 'Adding the call to pmo.csh to the *.run script.'
 echo ''
 
 cat << "EndOfText" >! add_to_run.txt
 
 # -------------------------------------------------------------------------
 # START OF DART: if CESM finishes correctly (pirated from ccsm_postrun.csh);
-# perform an assimilation with DART.
+# perform a perfect model run with DART.
 # -------------------------------------------------------------------------
 
 set CplLogFile = `ls -1t cpl.log* | head -1`
 if ($CplLogFile == "") then
  echo 'ERROR: Model did not complete - no cpl.log file present - exiting'
- echo 'ERROR: Assimilation will not be attempted.'
+ echo 'ERROR: Perfect model run will not be attempted.'
  exit -4
 endif
 
 grep 'SUCCESSFUL TERMINATION' $CplLogFile
 if ( $status == 0 ) then
-  ${CASEROOT}/assimilate.csh
+  ${CASEROOT}/pmo.csh
 
   if ( $status == 0 ) then
      echo "`date` -- DART HAS FINISHED"
   else
-     echo "`date` -- DART FILTER ERROR - ABANDON HOPE"
+     echo "`date` -- DART ERROR - ABANDON HOPE"
      exit -5
   endif
 endif
@@ -440,7 +451,7 @@ chmod 0774 $case.$mach.run
 # Submit job
 # ====================================================================
 
-set MYSTRING = `grep "set DARTDIR" assimilate.csh`
+set MYSTRING = `grep "set DARTDIR" pmo.csh`
 set DARTDIR = $MYSTRING[4]
 
 echo ''
