@@ -308,7 +308,8 @@ ${LINK} ../$MODEL_INITIAL_FILENAME caminput.nc
 
 # stage the proper observation sequence file.
 
-set OBSFNAME = `printf obs_seq${MODEL_YEAR}${MODEL_MONTH}${MODEL_DAY}%02d ${MODEL_HOUR}`
+# filenames look like this: obs_seq.2008-09-25-43200.out
+set OBSFNAME = `printf obs_seq.${MODEL_DATE_EXT}.out`
 set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 
 ${LINK} ${OBS_FILE} obs_seq.out
