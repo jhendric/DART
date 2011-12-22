@@ -250,7 +250,7 @@ cd ${caseroot}
 # only needed for beta04 - fixed in more recent versions
 \cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh .
 
-\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.zagar.csh assimilate.csh
+\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.Fzagar.csh assimilate.csh
 
 # ====================================================================
 # Update the scripts that build the namelists.
