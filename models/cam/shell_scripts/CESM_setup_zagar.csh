@@ -67,11 +67,11 @@ setenv DARTdir /glade/home/thoar/svn/DART/dev         ;# DART executables, scrip
 
 setenv cesm_public  /glade/proj3/cseg                 ;# location of public CESM sandbox
 setenv cesm_datadir /glade/proj3/cseg/inputdata
-setenv caseroot /glade/user/thoar/cases/${case}       ;# your (future) cesm case directory
-setenv rundir  /glade/scratch/thoar/${case}           ;# (future) run-time directory
-setenv archdir /glade/scratch/thoar/archive/${case}   ;# (future) short-term archive directory
-setenv ccsmroot ${cesm_public}/collections/${ccsmtag} ;# location of the public cesm code
 setenv ccsmroot /glade/home/thoar/${ccsmtag}          ;# location of your personal cesm code
+setenv caseroot /glade/user/nancy/cases/${case}       ;# your (future) cesm case directory
+setenv rundir   /glade/scratch/nancy/${case}          ;# (future) run-time directory
+setenv archdir  /glade/scratch/nancy/archive/${case}  ;# (future) short-term archive directory
+
 
 # ======================
 # configure settings
@@ -117,6 +117,8 @@ cat <<EOF >! user_nl_cam_${case}
  iradae                       = -12
 /
 EOF
+
+# these cause problems when running with the full cesm:
 #  empty_htapes                 = .true.
 #  nhtfrq                       = -12
 
@@ -127,6 +129,8 @@ cat <<EOF >! user_nl_clm_${case}
   outnc_large_files = .true.
 /
 EOF
+
+# these cause problems when running with the full cesm:
 #   hist_nhtfrq = -12
 #   hist_empty_htapes = .true.
 
@@ -215,7 +219,7 @@ set nthreads = 1
 # Update source files if need be
 # ====================================================================
 
-\cp -rf ~/${ccsmtag}/SourceMods/* ${caseroot}/SourceMods/
+\cp -rf ~thoar/${ccsmtag}/SourceMods/* ${caseroot}/SourceMods/
 if ( $status == 0) then
    echo "FYI - Local Source Modifications used for this case:"
    ls -lr ${caseroot}/SourceMods/*
