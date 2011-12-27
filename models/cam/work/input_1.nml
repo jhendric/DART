@@ -227,7 +227,7 @@
 /
 
 
-&restart_file_utility_nml
+&restart_file_tool_nml
   input_file_name              = "filter_restart"
   output_file_name             = "filter_updated_restart"
   ens_size                     = 1
