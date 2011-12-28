@@ -65,13 +65,13 @@ setenv coldbuild      false
 setenv mach bluefire                                  ;# machine
 setenv DARTdir /glade/home/thoar/svn/DART/dev         ;# DART executables, scripts and input
 
-setenv cesm_public  /glade/proj3/cseg                 ;# location of public CESM sandbox
 setenv cesm_datadir /glade/proj3/cseg/inputdata
-setenv ccsmroot /glade/home/thoar/${ccsmtag}          ;# location of your personal cesm code
-setenv caseroot /glade/user/nancy/cases/${case}       ;# your (future) cesm case directory
-setenv rundir   /glade/scratch/nancy/${case}          ;# (future) run-time directory
-setenv archdir  /glade/scratch/nancy/archive/${case}  ;# (future) short-term archive directory
-
+setenv cesm_public  /glade/proj3/cseg                 ;# location of public CESM sandbox
+setenv ccsmroot ${cesm_public}/collections/${ccsmtag} ;# location of the public cesm code
+setenv ccsmroot /glade/home/${USER}/${ccsmtag}        ;# location of your personal cesm code
+setenv caseroot /glade/user/${USER}/cases/${case}     ;# your (future) cesm case directory
+setenv rundir  /glade/scratch/${USER}/${case}         ;# (future) run-time directory
+setenv archdir /glade/scratch/${USER}/archive/${case} ;# (future) short-term archive directory
 
 # ======================
 # configure settings
@@ -131,8 +131,8 @@ cat <<EOF >! user_nl_clm_${case}
 EOF
 
 # these cause problems when running with the full cesm:
-#   hist_nhtfrq = -12
-#   hist_empty_htapes = .true.
+#  hist_nhtfrq = -12
+#  hist_empty_htapes = .true.
 
 # ====================================================================
 # Create the case.
@@ -209,7 +209,7 @@ set nthreads = 1
 ./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val TRUE
 
 # ====================================================================
-# Create namelist template: user_nl_cam
+# Create namelist template: user_nl_cam, user_nl_clm
 # ====================================================================
 
 \mv -f ${this_dir}/user_nl_cam_{$case} ${caseroot}/user_nl_cam
@@ -232,6 +232,7 @@ endif
 # ====================================================================
 
 cd ${caseroot}
+
 ./configure -case
 
 if ( $status != 0 ) then
@@ -246,9 +247,9 @@ endif
 cd ${caseroot}
 
 \mv Tools/st_archive.sh Tools/st_archive.sh.org
-\cp -f ${DARTdir}/models/cam/shell_scripts/st_archive.sh Tools/st_archive.sh
-# only needed for beta04 - fixed in more recent versions
-\cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh .
+\cp -f ${DARTdir}/models/cam/shell_scripts/st_archive.sh   Tools/st_archive.sh
+\cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/lt_archive.sh
+# cesm_1_1_beta04 did not have a lt_archive.sh in the tag ... oops.
 
 \cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.Fzagar.csh assimilate.csh
 
@@ -361,14 +362,14 @@ cat              add_to_run.txt           >> ${case}.${mach}.run
 tail -$lastlines ${case}.${mach}.run.orig >> ${case}.${mach}.run
 
 # ====================================================================
-# IMPORTANT: All resubmits must be coldstarts.
+# IMPORTANT: All resubmits must be type 'startup'.
 # Change Tools/ccsm_postrun.csh line 83 to CONTINUE_RUN -val FALSE'
 # ====================================================================
 
 cd ${caseroot}/Tools
 
 echo ''
-echo 'Changing Tools/ccsm_postrun.csh such that all the resubmits are coldstarts,'
+echo 'Changing Tools/ccsm_postrun.csh such that all the resubmits are "startup",'
 echo 'which means CONTINUE_RUN should be FALSE in ccsm_postrun.csh'
 echo ''
 
@@ -438,7 +439,7 @@ set QUEUE=`grep BSUB $case.$mach.run | grep -e '-q' `
 sed s/$QUEUE[3]/$queue/ < $case.$mach.run >! temp
 /bin/mv temp  $case.$mach.run
 
-chmod 0774 $case.$mach.run
+chmod 0744 $case.$mach.run
 
 # ====================================================================
 # Submit job
@@ -453,8 +454,4 @@ echo "DART settings in ${DARTDIR}/input.nml"
 echo 'After you check them,'
 echo "cd into ${caseroot} and run: ./$case.$mach.submit"
 echo ''
-
-
-#  cd $caseroot
-#  ./$case.$mach.submit
 
