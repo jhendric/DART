@@ -248,7 +248,7 @@ cd ${caseroot}
 
 \mv Tools/st_archive.sh Tools/st_archive.sh.org
 \cp -f ${DARTdir}/models/cam/shell_scripts/st_archive.sh   Tools/st_archive.sh
-\cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/lt_archive.sh
+\cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/lt_archive.csh
 # cesm_1_1_beta04 did not have a lt_archive.sh in the tag ... oops.
 
 \cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.Fzagar.csh assimilate.csh
