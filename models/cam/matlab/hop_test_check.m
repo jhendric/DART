@@ -65,8 +65,9 @@ else
 end
 
 for i = 1:length(vars)
-    
-   varinfo = nc_getvarinfo(file0,vars{i});
+
+   varinfo       = nc_getvarinfo(file0,vars{i});
+   nonsingletons = (varinfo.Size > 1);
    if (varinfo.Nctype == 2)
        % Character string variables need not be checked.
        fprintf('Skipping   %s\n',vars{i})
@@ -74,44 +75,57 @@ for i = 1:length(vars)
    else
        fprintf('Comparing  %s\n',vars{i})
    end
-   nonsingletons = (varinfo.Size > 1);
-   mydimnames    = varinfo.Dimension(nonsingletons);
-   mydimsizes    = varinfo.Size(nonsingletons);
-   levdim        = find(strcmp(mydimnames,'lev'));
+   hop.varname   = vars{i};
+   hop.dimsizes  = varinfo.Size(nonsingletons);
+   hop.dimnames  = varinfo.Dimension(nonsingletons);
+   hop.levdim    = find(strcmp(hop.dimnames,'lev'));
 
-   myunits       = GetAttribute(file0,vars{i},'units');
-   start         = nc_varget(file0,vars{i});
-   onehop        = nc_varget(file1,vars{i});
    twohop        = nc_varget(file2,vars{i});
-   tendency      = onehop - start;
-   change        = twohop - onehop;
-   
-   if (length(mydimsizes) == 1)
-       continue % How do we compare 1D arrays?
-   elseif (isempty(levdim))
-       % We still have a multimensional object... 
-       my2dplot(vars{i}, change, tendency, mydimnames, myunits)
-       disp('          pausing - hit any key to continue ...')
-       pause
-   else
-       for ilevel = 1:mydimsizes(levdim)
-           myplot(vars{i}, ilevel, change, tendency, mydimnames, myunits)
-           eval(pausecmd)
-       end  
+   onehop        = nc_varget(file1,vars{i});
+   start         = nc_varget(file0,vars{i});
+   hop.units     = GetAttribute(file0,vars{i},'units');
+   hop.tendency  = onehop - start;
+   hop.change    = twohop - onehop;
+
+   switch BestPlotType(hop)
+      case 'bylevel'
+         for ilevel = 1:hop.dimsizes(hop.levdim)
+            myplot(hop, ilevel)
+            eval(pausecmd)
+         end  
+      case 'horizontalslab'
+         my2dplot(hop)
+         disp('          pausing - hit any key to continue ...')
+         pause
+      case 'lineplot'
+      otherwise
    end
  
 end
 
 
-function my2dplot(varname,slab,orgslab,dimnames,units)
+function x = BestPlotType(hopobj)
+
+   if ( ~isempty(hopobj.levdim) )
+       x = 'bylevel';
+   elseif (length(hopobj.dimsizes) == 1)
+       x = 'lineplot';
+   elseif (isempty(hopobj.levdim))
+       x = 'horizontalslab';
+   else
+       x = 'dunno';
+   end
+
+
+function my2dplot(hopobj)
 %% Make some plots
 %
 
-slabmin = min(slab(:));
-slabmax = max(slab(:));
+slabmin = min(hopobj.change(:));
+slabmax = max(hopobj.change(:));
 
-orgmin = min(orgslab(:));
-orgmax = max(orgslab(:));
+orgmin = min(hopobj.tendency(:));
+orgmax = max(hopobj.tendency(:));
 datmax = max(abs([orgmin orgmax]));
 
 if orgmin == orgmax
@@ -129,45 +143,49 @@ sbpos = [0.10 0.06 0.80 0.28;
 figure(1); clf; orient tall; 
 
 subplot('position',sbpos(3,:))
-   hist(slab(:),50)
-   title(sprintf('(min %0.5g %s) hopping difference histogram (max %0.5g %s)',slabmin,units, slabmax,units))
-   xlabel(units)
+   hist(hopobj.change(:),50)
+   str1 = sprintf('(min %0.5g %s) hopping difference histogram (max %0.5g %s)', ...
+                   slabmin, hopobj.units, slabmax, hopobj.units);
+   title(str1,'Interpreter','none')
+   xlabel(hopobj.units)
 
 subplot('position',sbpos(2,:))
-   imagesc(slab,clim);
+   imagesc(hopobj.change,clim);
    set(gca,'YDir','normal','TickDir','out','XMinorTick','on','FontSize',14)
-   title(sprintf('%s difference from hopping',varname))
+   str2 = sprintf('%s difference from hopping',hopobj.varname);
+   title(str2,'Interpreter','none')
    axis image
-   ylabel(sprintf('%s (index)',dimnames{1}))
+   ylabel(sprintf('%s (index)',hopobj.dimnames{1}))
    h = colorbar('vert');
-   set(get(h,'YLabel'),'String',units)
+   set(get(h,'YLabel'),'String',hopobj.units)
    
 subplot('position',sbpos(1,:))
-   imagesc(orgslab,clim);
+   imagesc(hopobj.tendency,clim);
    set(gca,'YDir','normal','TickDir','out','XMinorTick','on','FontSize',14)
-   title(sprintf('%s tendency',varname))
+   str3 = sprintf('%s tendency',hopobj.varname);
+   title(str3,'Interpreter','none')
    axis image
-   ylabel(sprintf('%s (index)',dimnames{1}))
-   xlabel(sprintf('%s (index)',dimnames{2}))
+   ylabel(sprintf('%s (index)',hopobj.dimnames{1}))
+   xlabel(sprintf('%s (index)',hopobj.dimnames{2}))
    h = colorbar('vert');
-   set(get(h,'YLabel'),'String',units)
+   set(get(h,'YLabel'),'String',hopobj.units)
 
 
-function myplot(varname,levelindx,diffmat,tendmat,dimnames,units)
+function myplot(hopobj,levelindx)
 %% Make some plots
 %
 
-slab = squeeze(diffmat(levelindx,:,:));
+slab    = squeeze(hopobj.change(levelindx,:,:));
 slabmin = min(slab(:));
 slabmax = max(slab(:));
 
 if slabmin == slabmax, return; end
 
-orgslab = squeeze(tendmat(levelindx,:,:));
-orgmin = min(orgslab(:));
-orgmax = max(orgslab(:));
-datmax = max(abs([orgmin orgmax]));
-clim = [-datmax datmax];
+orgslab = squeeze(hopobj.tendency(levelindx,:,:));
+orgmin  = min(orgslab(:));
+orgmax  = max(orgslab(:));
+datmax  = max(abs([orgmin orgmax]));
+clim    = [-datmax datmax];
 
 sbpos = [0.10 0.06 0.80 0.28; 
          0.10 0.43 0.80 0.28;
@@ -176,27 +194,31 @@ sbpos = [0.10 0.06 0.80 0.28;
 figure(1); clf; orient tall; 
 subplot('position',sbpos(3,:))
    hist(slab(:),50)
-   title(sprintf('(min %0.5g %s) hopping difference histogram (max %0.5g %s)',slabmin,units,slabmax,units))
-   xlabel(units)
+   str1 = sprintf('(min %0.5g %s) hopping difference histogram (max %0.5g %s)', ...
+                    slabmin, hopobj.units, slabmax, hopobj.units);
+   title(str1,'Interpreter','none')
+   xlabel(hopobj.units)
 
 subplot('position',sbpos(2,:))
    imagesc(slab,clim);
    set(gca,'YDir','normal','TickDir','out','XMinorTick','on','FontSize',14)
-   title(sprintf('%s level %d difference from hopping',varname,levelindx))
+   str2 = sprintf('%s level %d difference from hopping',hopobj.varname,levelindx);
+   title(str2,'Interpreter','none')
    axis image
-   ylabel(sprintf('%s (index)',dimnames{2}))
+   ylabel(sprintf('%s (index)',hopobj.dimnames{2}))
    h = colorbar('vert');
-   set(get(h,'YLabel'),'String',units)
+   set(get(h,'YLabel'),'String',hopobj.units)
    
 subplot('position',sbpos(1,:))
    imagesc(orgslab,clim);
    set(gca,'YDir','normal','TickDir','out','XMinorTick','on','FontSize',14)
-   title(sprintf('%s level %d tendency',varname,levelindx))
+   str3 = sprintf('%s level %d tendency',hopobj.varname,levelindx);
+   title(str3,'Interpreter','none')
    axis image
-   ylabel(sprintf('%s (index)',dimnames{2}))
-   xlabel(sprintf('%s (index)',dimnames{3}))
+   ylabel(sprintf('%s (index)',hopobj.dimnames{2}))
+   xlabel(sprintf('%s (index)',hopobj.dimnames{3}))
    h = colorbar('vert');
-   set(get(h,'YLabel'),'String',units)
+   set(get(h,'YLabel'),'String',hopobj.units)
 
 
 
