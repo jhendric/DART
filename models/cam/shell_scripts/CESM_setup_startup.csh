@@ -23,8 +23,8 @@
 # -- If you have source mods, the script assumes that your mods are in: mods_$case.
 #    So, if you have source mods, create a subdirectory mods_$case that contains your mods.
 #    If you don t have any source mods, the script creates an empty subdirectory mods_$case.
-# -- If you have namelist mods, you need to add them to the namelist template: user_nl_cam_$case
-#    Set your namelist variables over there (without modifying the syntax to create user_nl_cam_$case
+# -- If you have namelist mods, you need to add them to the namelist template: user_nl_cam
+#    Set your namelist variables over there (without modifying the syntax to create user_nl_cam
 # -- Now, you are ready to go. Save your script and submit your run with the command: ./$case.csh
 #    The script creates your case, configure, compile and submit your job.
 # -- The script also creates a subdirectory (nml_$case) that contains your namelists.
@@ -38,49 +38,49 @@
 #
 # ./${CASENAME}.*.clean_build
 # ./configure -cleanall
+#
+# ====================================================================
+# === IMPORTANT modifications to the distribution code before ANYTHING 
+# ====================================================================
+
+# had to edit the following to remove the LSB_PJL_... word too long error
+# cesm1_1_beta04/scripts/ccsm_utils/Machines/mkbatch.bluefire
+# as long as OMP_NUM_THREADS == 1 ... the default is fine.
 
 # ====================================================================
 # ====  Set case options
 # ====================================================================
 
-# ======================
-# case settings
-# ======================
-
-#setenv case          F_AMIP_CN
-#setenv compset       F_AMIP_CN
- setenv case          F2000
- setenv compset       F_2000
-setenv ccsmtag        cesm1_1_beta06
-setenv resolution     f09_f09
-setenv num_instances  10
-
-# had to edit the following to remove the LSB_PJL_... word too long error
-# /glade/home/thoar/cesm1_1_beta04/scripts/ccsm_utils/Machines/mkbatch.bluefire
-# as long as OMP_NUM_THREADS == 1 ... the default is fine.
+setenv case                 startup1
+setenv compset              F_2000
+setenv ccsmtag              cesm1_1_beta04
+setenv resolution           f09_f09
+setenv num_instances        4
+setenv reuse_existing_case  true
 
 # ================================
 # define machines and directories
 # ================================
+#
+# mach            computer name
+# cesm_datadir    location of public CESM data files
+# cesm_public     location of public CESM code distributions
+# caseroot        your (future) cesm case directory
+# rundir          (future) run-time directory
+# archdir         (future) short-term archive directory
+# ccsmroot        location of the cesm code base
+# DARTdir         location of DART executables, scripts and input
 
-setenv mach bluefire                                ;# machine
-setenv DARTdir /glade/home/thoar/svn/DART/dev       ;# DART executables, scripts and input
-
-setenv cesm_public /glade/proj3/cseg                ;# location of public CESM sandbox
+setenv mach         bluefire
 setenv cesm_datadir /glade/proj3/cseg/inputdata
-setenv ccsmroot ${cesm_public}/collections/${ccsmtag} ;# location of the public cesm code
-setenv ccsmroot /glade/home/thoar/${ccsmtag}        ;# location of your personal cesm code
-setenv caseroot /glade/user/thoar/cases/${case}     ;# your (future) cesm case directory
-setenv rundir /glade/scratch/thoar/${case}          ;# (future) run-time directory
-setenv archdir /glade/scratch/thoar/archive/${case} ;# (future) short-term archive directory
+setenv cesm_public  /glade/proj3/cseg
+setenv caseroot     /glade/user/${USER}/cases/${case}
+setenv rundir       /glade/scratch/${USER}/${case}
+setenv archdir      /glade/scratch/${USER}/archive/${case}
+setenv DARTdir      /glade/home/thoar/svn/DART/dev
 
-# ======================
-# clear out previous builds
-# ======================
-
-echo "removing old files from ${caseroot} and ${rundir}"
-\rm -fr ${caseroot}
-\rm -fr ${rundir}
+setenv ccsmroot     /glade/home/thoar/${ccsmtag}
+#setenv ccsmroot     ${cesm_public}/collections/${ccsmtag}
 
 # ======================
 # configure settings
@@ -97,7 +97,7 @@ setenv year_end    2010
 # ======================
 
 setenv resubmit      0
-setenv stop_n        12
+setenv stop_n        6
 setenv stop_option   nhours
 
 # ======================
@@ -105,67 +105,35 @@ setenv stop_option   nhours
 # ======================
 
 setenv proj         93300315
-setenv timewall     5:00
-setenv queue        regular
-
-# ======================
-# namelist variables
-# ======================
-# Create namelist templates that get copied once the case has been configured.
-
-setenv this_dir `pwd`
-
-cat <<EOF >! user_nl_cam_${case}
-&camexp
- inithist                     = 'ENDOFRUN'
- div24del2flag                = 4
- bndtvghg                     = '${cesm_datadir}/atm/cam/ggas/ghg_rcp45_1765-2500_c100405.nc'
- prescribed_ozone_datapath    = '${cesm_datadir}/atm/cam/ozone'
- prescribed_ozone_file        = 'ozone_1.9x2.5_L26_1850-2015_rcp45_c101108.nc'
- prescribed_ozone_name        = 'O3'
- prescribed_ozone_type        = 'INTERP_MISSING_MONTHS'
- prescribed_volcaero_datapath = '${cesm_datadir}/atm/cam/volc'
- prescribed_volcaero_file     = 'CCSM4_volcanic_1850-2011_prototype1.nc'
- solar_data_file              = '${cesm_datadir}/atm/cam/solar/SOLAR_TSI_Lean_1610-2140_annual_c100301.nc'
- prescribed_aero_datapath     = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero'
- prescribed_aero_file         = 'aero_rcp45_v1_1.9x2.5_L26_1995-2105_c100316.nc'
- aerodep_flx_datapath         = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero'
- aerodep_flx_file             = 'aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
-/
-EOF
-
-cat <<EOF >! user_nl_clm_${case}
-&clmexp
-  fpftdyn  = '${cesm_datadir}/lnd/clm2/surfdata/surfdata.pftdyn_0.9x1.25_rcp4.5_simyr1850-2100_c100406.nc'
-  faerdep  = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
-/
-EOF
+setenv timewall     1:00
+setenv queue        lrg_regular
 
 # ====================================================================
-# ====  End of case options
-# ====================================================================
-
-# ====================================================================
-# Create a new case, configure, and build.
+# Create the case.
 # For list of the cases: ./create_newcase -list
 # ====================================================================
 
-${ccsmroot}/scripts/create_newcase -case ${caseroot} -mach ${mach} \
-                -res ${resolution} -compset ${compset} -skip_rundb
+# if reuse_existing_case is false and the directory does not exist, ...
 
-if ( $status != 0 ) then
-   echo "ERROR: Case could not be created."
-   exit 1
+if ("${reuse_existing_case}" == "false") then
+   echo "removing old files from ${caseroot} and ${rundir}"
+   \rm -fr ${caseroot}
+   \rm -fr ${rundir}
+   ${ccsmroot}/scripts/create_newcase -case ${caseroot} -mach ${mach} \
+                   -res ${resolution} -compset ${compset} -skip_rundb
+
+   if ( $status != 0 ) then
+      echo "ERROR: Case could not be created."
+      exit 1
+   endif
+else
+   cd ${caseroot}
+   ./configure  -cleannamelist
 endif
 
-# Change Tools/Templates/cam.cpl7.template
-# ncdata  = '${RUN_REFCASE}.cam.i.${RUN_REFDATE}-00000.nc'
-# to
-# ncdata  = '${RUN_REFCASE}.cam_\$INST_ATM.i.${RUN_REFDATE}-${RUN_REFTOD}.nc'
-
-# Add the RUN_REFTOD xml crap
-# cesm1_1_beta04/scripts/ccsm_utils/Case.template/config_definition.xml
-
+# ====================================================================
+# Configure the case.
+# ====================================================================
 
 cd ${caseroot}
 
@@ -192,22 +160,20 @@ set nthreads = 1
 ./xmlchange -file env_mach_pes.xml -id ROOTPE_ICE -val 0
 ./xmlchange -file env_mach_pes.xml -id  NINST_ICE -val $num_instances
 
-./xmlchange -file env_conf.xml -id RUN_TYPE                -val hybrid
+./xmlchange -file env_conf.xml -id RUN_TYPE                -val startup
 ./xmlchange -file env_conf.xml -id RUN_STARTDATE           -val $run_startdate
-./xmlchange -file env_conf.xml -id RUN_REFDATE             -val $run_startdate
-./xmlchange -file env_conf.xml -id RUN_REFCASE             -val ref_${case}
-./xmlchange -file env_conf.xml -id GET_REFCASE             -val FALSE
-
-#./xmlchange -file env_conf.xml -id DOCN_SSTDATA_FILENAME   -val $sst_dataset   #TJH WARNING not being set in F2000!
-#./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_START -val $year_start
-#./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_END   -val $year_end
+./xmlchange -file env_conf.xml -id DOCN_SSTDATA_FILENAME   -val $sst_dataset
+./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_START -val $year_start
+./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_END   -val $year_end
 ./xmlchange -file env_conf.xml -id CLM_CONFIG_OPTS         -val '-rtm off'
-#./xmlchange -file env_conf.xml -id CLM_CONFIG_OPTS         -val '-bgc cn -rtm off'
 
-./xmlchange -file env_run.xml -id RESUBMIT    -val $resubmit
-./xmlchange -file env_run.xml -id STOP_OPTION -val $stop_option
-./xmlchange -file env_run.xml -id STOP_N      -val $stop_n
-./xmlchange -file env_run.xml -id CALENDAR    -val GREGORIAN
+# The river transport model ON is useful only when using an active ocean or
+# land surface diagnostics.
+
+./xmlchange -file env_run.xml      -id RESUBMIT         -val $resubmit
+./xmlchange -file env_run.xml      -id STOP_OPTION      -val $stop_option
+./xmlchange -file env_run.xml      -id STOP_N           -val $stop_n
+./xmlchange -file env_run.xml      -id CALENDAR         -val GREGORIAN
 
 # Substantial archiving changes exist in the Tools/st_archive.sh script.
 # DOUT_S     is to turn on/off the short-term archiving
@@ -215,21 +181,51 @@ set nthreads = 1
 ./xmlchange -file env_run.xml -id DOUT_S_ROOT                -val ${archdir}
 ./xmlchange -file env_run.xml -id DOUT_S                     -val TRUE
 ./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val TRUE
-./xmlchange -file env_run.xml -id DOUT_L_MS                  -val TRUE
-./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val TRUE
+./xmlchange -file env_run.xml -id DOUT_L_MS                  -val FALSE 
+./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val FALSE
 
 # ====================================================================
-# Create namelist template: user_nl_cam
+# Create namelist template: user_nl_cam, user_nl_clm
 # ====================================================================
 
-\mv -f ${this_dir}/user_nl_cam_{$case} ${caseroot}/user_nl_cam
-\mv -f ${this_dir}/user_nl_clm_{$case} ${caseroot}/user_nl_clm
+cd ${caseroot}
+
+cat <<EOF >! user_nl_cam
+&camexp
+ inithist             = 'ENDOFRUN'
+ div24del2flag        = 4
+ empty_htapes         = .true.
+ fincl1               = 'PHIS:I'
+ nhtfrq               = -$stop_n
+ iradae               = -$stop_n
+ aerodep_flx_datapath = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero'
+ aerodep_flx_file     = 'aerosoldep_monthly_1849-2006_1.9x2.5_c090803.nc'
+ aerodep_flx_cycle_yr = 2000
+ aerodep_flx_type     = 'CYCLICAL'
+/
+EOF
+
+# these cause problems when running with the full cesm:
+#  nhtfrq                       = -12
+# faerdep ... perhaps only used if CN modeling on ... 
+
+cat <<EOF >! user_nl_clm
+&clmexp
+  fatmgrid = '${cesm_datadir}/lnd/clm2/griddata/griddata_0.9x1.25_070212.nc'
+  faerdep  = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
+  outnc_large_files = .true.
+  hist_empty_htapes = .true.
+/
+EOF
+
+# these cause problems when running with the full cesm:
+#  hist_nhtfrq = -12
 
 # ====================================================================
 # Update source files if need be
 # ====================================================================
 
-\cp -rf ~/${ccsmtag}/SourceMods/* ${caseroot}/SourceMods/
+\cp -rf ~thoar/${ccsmtag}/SourceMods/* ${caseroot}/SourceMods/
 if ( $status == 0) then
    echo "FYI - Local Source Modifications used for this case:"
    ls -lr ${caseroot}/SourceMods/*
@@ -242,6 +238,7 @@ endif
 # ====================================================================
 
 cd ${caseroot}
+
 ./configure -case
 
 if ( $status != 0 ) then
@@ -257,11 +254,14 @@ cd ${caseroot}
 
 \mv Tools/st_archive.sh Tools/st_archive.sh.org
 \cp -f ${DARTdir}/models/cam/shell_scripts/st_archive.sh Tools/st_archive.sh
+# only needed for beta04 - fixed in more recent versions
+\cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/.
 
-\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.csh .
+ln -sf ${DARTdir}/models/cam/shell_scripts/assimilate.startup.csh assimilate.csh
 
 # ====================================================================
-# update the namelists and scripts as needed
+# Update the scripts that build the namelists.
+# The active components scripts need to support the multi-instance naming.
 # ====================================================================
 
 echo ''
@@ -292,7 +292,7 @@ s;= '.*';= "ice_restart_\${ice_inst_counter}.nc";
 wq
 ex_end
 
-# The CLM buildnml script needs changing in MANY places.
+# The CLM buildnml script needs changing in MULTIPLE places.
 
 @ n = 1
 while ($n <= $num_instances)
@@ -368,24 +368,23 @@ cat              add_to_run.txt           >> ${case}.${mach}.run
 tail -$lastlines ${case}.${mach}.run.orig >> ${case}.${mach}.run
 
 # ====================================================================
-# IMPORTANT: All resubmits must be coldstarts.
+# IMPORTANT: All resubmits must be type 'startup'.
 # Change Tools/ccsm_postrun.csh line 83 to CONTINUE_RUN -val FALSE'
 # ====================================================================
 
 cd ${caseroot}/Tools
 
 echo ''
-echo 'Changing Tools/ccsm_postrun.csh such that all the resubmits are coldstarts,'
+echo 'Changing Tools/ccsm_postrun.csh such that all the resubmits are "startup",'
 echo 'which means CONTINUE_RUN should be FALSE in ccsm_postrun.csh'
 echo ''
 
-# TJH turning off to see what happens with a BRANCH run
-#ex ccsm_postrun.csh <<ex_end
-#/use COMP_RUN_BARRIERS as surrogate for timing run logical/
-#/CONTINUE_RUN/
-#s;TRUE;FALSE;
-#wq
-#ex_end
+ex ccsm_postrun.csh <<ex_end
+/use COMP_RUN_BARRIERS as surrogate for timing run logical/
+/CONTINUE_RUN/
+s;TRUE;FALSE;
+wq
+ex_end
 
 # ====================================================================
 # build
@@ -411,6 +410,7 @@ endif
 # 20081031 ... /ptmp/thoar/restarts
 # 20080801 ... /glade/proj3/DART/raeder/FV1deg_4.0/Exp1/obs_0000
 set stagedir = /glade/proj3/DART/raeder/FV1deg_4.0/Exp1/obs_0000
+set stagedir = /ptmp/thoar/restarts
 
 echo ''
 echo "Staging the restarts from {$stagedir}"
@@ -420,9 +420,9 @@ echo ''
 while ($n <= $num_instances)
 
    echo "Staging restarts for instance $n of $num_instances"
-   cp ${stagedir}/CAM/caminput_${n}.nc ${rundir}/run/cam_initial_${n}.nc
-   cp ${stagedir}/CLM/clminput_${n}.nc ${rundir}/run/clm_restart_${n}.nc
-   cp ${stagedir}/ICE/iceinput_${n}.nc ${rundir}/run/ice_restart_${n}.nc
+   cp --preserve=timestamps ${stagedir}/CAM/caminput_${n}.nc ${rundir}/run/cam_initial_${n}.nc
+   cp --preserve=timestamps ${stagedir}/CLM/clminput_${n}.nc ${rundir}/run/clm_restart_${n}.nc
+   cp --preserve=timestamps ${stagedir}/ICE/iceinput_${n}.nc ${rundir}/run/ice_restart_${n}.nc
 
  @ n++
 end
@@ -461,9 +461,4 @@ echo "DART settings in ${DARTDIR}/input.nml"
 echo 'After you check them,'
 echo "cd into ${caseroot} and run: ./$case.$mach.submit"
 echo ''
-
-exit
-
-cd ${caseroot}
-./$case.$mach.submit
 

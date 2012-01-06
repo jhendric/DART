@@ -178,8 +178,8 @@ do
     set ${CASE}.cam${inst_suffix}.h4.*;                                                                                            dispose ifiles_n ${sta}/atm/hist $*
     set ${CASE}.cam${inst_suffix}.h5.*;                                                                                            dispose ifiles_n ${sta}/atm/hist $*
     set ${CASE}.cam${inst_suffix}.hs.*;                                                                                            dispose ifiles_n ${sta}/atm/hist $*
-    set ${CASE}.cam${inst_suffix}.i.*;                                                                                             dispose ifiles_y ${sta}/atm/init $*
-    set cam_initial_${IDX}.nc;            latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/init $*
+    set ${CASE}.cam${inst_suffix}.i.*;                                                                                             dispose ifiles_n ${sta}/atm/init $*
+    set cam_initial_${IDX}.nc;            latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/rest $*
     set ${CASE}.camice${inst_suffix}.r.*;                                                                                          dispose ifiles_y ${sta}/ice/rest $*
     set ${CASE}.camdom${inst_suffix}.r.*;                                                                                          dispose ifiles_y ${sta}/ocn/rest $*
     set ${CASE}.camsom${inst_suffix}.r.*;                                                                                          dispose ifiles_y ${sta}/ocn/rest $*
@@ -196,7 +196,7 @@ do
     get_inst_suffix $IDX $NINST_LND
     set lnd${inst_suffix}.log.*;                                                                                                   dispose ifiles_n ${sta}/lnd/logs $*
     set clm_restart_${IDX}.nc;            latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/lnd/rest $*
-    set ${CASE}.clm?${inst_suffix}.r.*;                                                                                            dispose ifiles_y ${sta}/lnd/rest $*
+    set ${CASE}.clm?${inst_suffix}.r.*;                                                                                            dispose ifiles_n ${sta}/lnd/rest $*
     set ${CASE}.clm?${inst_suffix}.rh0.*;                                                                                          dispose ifiles_y ${sta}/lnd/rest $*
     set ${CASE}.clm?${inst_suffix}.rh1.*;                                                                                          dispose ifiles_y ${sta}/lnd/rest $*
     set ${CASE}.clm?${inst_suffix}.rh2.*;                                                                                          dispose ifiles_y ${sta}/lnd/rest $*
@@ -224,6 +224,7 @@ do
     get_inst_suffix $IDX $NINST_ICE
     set ice${inst_suffix}.log.*;                                                                                                      dispose ifiles_n ${sta}/ice/logs $*
     set ice_restart_${IDX}.nc;               latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/ice/rest $*
+    set ${CASE}.cice${inst_suffix}.r.*;                                                                                               dispose ifiles_n ${sta}/ice/rest $*
     set ${CASE}.cice${inst_suffix}.r.[0-9]*;                                                                                          dispose ifiles_y ${sta}/ice/rest $*
     set ${CASE}.cice${inst_suffix}.r.volpn*;                                                                                          dispose ifiles_y ${sta}/ice/rest $*
     set ${CASE}.cice${inst_suffix}.r.dEdd*;                                                                                           dispose ifiles_y ${sta}/ice/rest $*
