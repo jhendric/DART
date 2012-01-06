@@ -23,8 +23,8 @@
 # -- If you have source mods, the script assumes that your mods are in: mods_$case.
 #    So, if you have source mods, create a subdirectory mods_$case that contains your mods.
 #    If you don t have any source mods, the script creates an empty subdirectory mods_$case.
-# -- If you have namelist mods, you need to add them to the namelist template: user_nl_cam_$case
-#    Set your namelist variables over there (without modifying the syntax to create user_nl_cam_$case
+# -- If you have namelist mods, you need to add them to the namelist template: user_nl_cam
+#    Set your namelist variables over there (without modifying the syntax to create user_nl_cam
 # -- Now, you are ready to go. Save your script and submit your run with the command: ./$case.csh
 #    The script creates your case, configure, compile and submit your job.
 # -- The script also creates a subdirectory (nml_$case) that contains your namelists.
@@ -44,49 +44,67 @@
 # ====================================================================
 
 # had to edit the following to remove the LSB_PJL_... word too long error
-# cesm1_1_beta04/scripts/ccsm_utils/Machines/mkbatch.bluefire
+# cesm1_1_beta08/scripts/ccsm_utils/Machines/mkbatch.bluefire
 # as long as OMP_NUM_THREADS == 1 ... the default is fine.
+
+# Ensure that RUN_REFTOD has been added to 
+# cesm1_1_beta08/scripts/ccsm_utils/Case.template/config_definition.xml
+
+# Change cesm1_1_beta08/models/atm/cam/bld/cam.cpl7.template
+# ncdata  = '${RUN_REFCASE}.cam.i.${RUN_REFDATE}-00000.nc'
+# to
+# ncdata  = '\${RUN_REFCASE}.cam_\${atm_inst_string}.i.\${RUN_REFDATE}-\${RUN_REFTOD}.nc'
+
+# Change cesm1_1_beta08/models/ice/cice/bld/cice.cpl7.template
+# set ice_ic = ${RUN_REFCASE}.cice.r.${RUN_REFDATE}-00000.nc
+# to
+# set ice_ic = \${RUN_REFCASE}.cice_\${ice_inst_string}.r.\${RUN_REFDATE}-\${RUN_REFTOD}.nc
+
+# Change cesm1_1_beta08/models/lnd/clm/bld/clm.cpl7.template
+# There's more to it than this for the beta08 distribution.
+# xxdiff the DART development branch models/cam/shell_scripts/clm.cpl7.template and ...
 
 # ====================================================================
 # ====  Set case options
 # ====================================================================
 
-setenv case           F2000hybrid
-setenv compset        F_2000
-setenv ccsmtag        cesm1_1_beta04
-setenv resolution     f09_f09
-setenv num_instances  3
+setenv case                 hybrid1
+setenv compset              F_2000
+setenv ccsmtag              cesm1_1_beta08
+setenv resolution           f09_f09
+setenv num_instances        4
+setenv reuse_existing_case  true
 
-# ================================
+# --------------------------------------------------------------------
 # define machines and directories
-# ================================
+# --------------------------------------------------------------------
+#
+# mach            computer name
+# cesm_datadir    location of public CESM data files
+# cesm_public     location of public CESM code distributions
+# caseroot        your (future) cesm case directory
+# rundir          (future) run-time directory
+# archdir         (future) short-term archive directory
+# ccsmroot        location of the cesm code base
+# DARTdir         location of DART executables, scripts and input
 
-setenv mach bluefire                                  ;# machine
-setenv DARTdir /glade/home/thoar/svn/DART/dev         ;# DART executables, scripts and input
-
-setenv cesm_public  /glade/proj3/cseg                 ;# location of public CESM sandbox
+setenv mach         bluefire
 setenv cesm_datadir /glade/proj3/cseg/inputdata
-setenv caseroot /glade/user/thoar/cases/${case}       ;# your (future) cesm case directory
-setenv rundir   /glade/scratch/thoar/${case}          ;# (future) run-time directory
-setenv archdir  /glade/scratch/thoar/archive/${case}  ;# (future) short-term archive directory
+setenv cesm_public  /glade/proj3/cseg
+setenv caseroot     /glade/user/${USER}/cases/${case}
+setenv rundir       /glade/scratch/${USER}/${case}
+setenv archdir      /glade/scratch/${USER}/archive/${case}
 
-setenv ccsmroot /glade/home/thoar/${ccsmtag}          ;# location of your personal cesm code
-setenv ccsmroot ${cesm_public}/collections/${ccsmtag} ;# location of the public cesm code
-
-# ======================
-# clear out previous builds
-# ======================
-
-echo "removing old files from ${caseroot} and ${rundir}"
-\rm -fr ${caseroot}
-\rm -fr ${rundir}
+setenv ccsmroot     ${cesm_public}/collections/${ccsmtag}
+setenv ccsmroot     /glade/home/thoar/${ccsmtag}
+setenv DARTdir      /glade/home/thoar/svn/DART/dev
 
 # ======================
 # configure settings
 # ======================
 
-setenv run_startdate 2008-08-01
-setenv run_starttod 21600
+setenv run_refdate 2008-10-31
+setenv run_reftod  00000
 
 setenv sst_dataset ${cesm_datadir}/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2011_c110307.nc
 setenv year_start  1850
@@ -97,7 +115,7 @@ setenv year_end    2010
 # ======================
 
 setenv resubmit      0
-setenv stop_n        12
+setenv stop_n        6
 setenv stop_option   nhours
 
 # ======================
@@ -105,7 +123,7 @@ setenv stop_option   nhours
 # ======================
 
 setenv proj         93300315
-setenv timewall     5:00
+setenv timewall     1:30
 setenv queue        lrg_regular
 
 # ====================================================================
@@ -113,146 +131,27 @@ setenv queue        lrg_regular
 # For list of the cases: ./create_newcase -list
 # ====================================================================
 
-${ccsmroot}/scripts/create_newcase -case ${caseroot} -mach ${mach} \
-                -res ${resolution} -compset ${compset} -skip_rundb
+# if reuse_existing_case is false and the directory does not exist, ...
 
-if ( $status != 0 ) then
-   echo "ERROR: Case could not be created."
-   exit 1
+if ("${reuse_existing_case}" == "false") then
+   echo "removing old files from ${caseroot} and ${rundir}"
+   \rm -fr ${caseroot}
+   \rm -fr ${rundir}
+   ${ccsmroot}/scripts/create_newcase -case ${caseroot} -mach ${mach} \
+                   -res ${resolution} -compset ${compset} -skip_rundb
+
+   if ( $status != 0 ) then
+      echo "ERROR: Case could not be created."
+      exit 1
+   endif
+else
+   cd ${caseroot}
+   ./configure  -cleannamelist
 endif
-
 
 # ====================================================================
 # Configure the case.
 # ====================================================================
-
-cd ${caseroot}/Tools
-
-# Fix a scripting error on their part
-\cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh .
-
-# --------------------------------------------------------------------
-# As of cesm_1_1_beta06, the hybrid runs do not allow for a start TOD
-# other than 00000. Assimilation runs will need to modify that. There
-# is a RUN_REFDATE, we are adding a companion RUN_REFTOD.
-# Tools/config_definition.xml must define it, the *buildnml* scripts
-# must ultimately use it,  ...
-
-cat << EndOfText >! myblock.txt
-<entry id="RUN_REFTOD" 
- type="char"
- valid_values="" 
- value="12321" 
- group="conf_def"
- sdesc="Reference time of day (seconds) for hybrid or branch runs (sssss)"
- ldesc="Reference time of day (seconds) for hybrid or branch runs (sssss).
-        Used to determine the component dataset that the model starts from.
-        Ignored for startup runs "
-></entry>
-
-EndOfText
-
-# Now that the "here" document is created, determine WHERE to insert it.
-# could put it anywhere ... nice to insert it near its brethren, i.e.
-# between the declarations of RUN_REFDATE and BRNCH_RETAIN_CASENAME.
-
-set ENTRY1 = `grep --line-number RUN_REFDATE config_definition.xml`
-set ENTRY1 = `echo $ENTRY1 | sed -e "s#:# #g"`
-set LINE1  = $ENTRY1[1]
-set ENTRY2 = `grep --line-number BRNCH_RETAIN_CASENAME config_definition.xml`
-set ENTRY2 = `echo $ENTRY2 | sed -e "s#:# #g"`
-set LINE2  = $ENTRY2[1]
-
-@ orglen = `cat config_definition.xml | wc -l`
-@ keep = $ENTRY2[1] - 1
-@ lastlines = $orglen - $keep
-
-mv config_definition.xml config_definition.xml.orig
-
-head -$keep      config_definition.xml.orig >! config_definition.xml
-cat              myblock.txt                >> config_definition.xml
-tail -$lastlines config_definition.xml.orig >> config_definition.xml
-
-# IMPORTANT
-# Add the instance number and ability to have restarts at RUN_REFTOD
-# to the Buildconf/*.buildnml.* scripts which only exist after the 
-# case has been built.
-
-# after configure, change:
-#  Tools/Templates/cam.cpl7.template
-#  Tools/Templates/clm.cpl7.template
-#  Tools/Templates/cice.cpl7.template
-
-cd ${caseroot}/Tools/Templates
-
-# The CAM buildnml script needs changing ...
-# ncdata  = '${RUN_REFCASE}.cam.i.${RUN_REFDATE}-00000.nc'
-# to
-# ncdata  = '${RUN_REFCASE}.cam_\$atm_inst_string.i.${RUN_REFDATE}-${RUN_REFTOD}.nc'
-
-ex cam.cpl7.template <<ex_end
-/ncdata/
-s;00000;\${RUN_REFTOD};
-wq
-ex_end
-
-# The CICE buildnml script only needs changing in one place.
-
-ex cice.cpl7.template <<ex_end
-/ice_ic/
-/RUN_REFDATE/
-s;00000;\${RUN_REFTOD};
-wq
-ex_end
-
-# The CLM buildnml script needs changing in MANY places.
-
-ex clm.cpl7.template <<ex_end
-/set finidat/
-/RUN_REFDATE/
-s;00000;\${RUN_REFTOD};
-wq
-ex_end
-
-# ====================================================================
-# Create user namelists
-# ${caseroot}/user_nl_clm/user_nl_clm_x  namelists 
-# ====================================================================
-
-cat <<EOF >! user_nl_cam
-&camexp
- inithist                     = 'ENDOFRUN'
- div24del2flag                = 4
- aerodep_flx_datapath         = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero'
- aerodep_flx_file             = 'aerosoldep_monthly_1849-2006_1.9x2.5_c090803.nc'
- aerodep_flx_cycle_yr         = 2000
- aerodep_flx_type             = 'CYCLICAL'
- iradae                       = -12
-/
-EOF
-# empty_htapes                 = .true.
-# nhtfrq                       = -12
-
-mkdir user_nl_clm
-
-@ instance = 1
-while ( $instance <= $num_instances ) 
-   set clm_inst_string = `printf "%04d" $instance`
-   cat <<EOF >! user_nl_clm/user_nl_clm_$instance
-&clmexp
-  fatmgrid = '${cesm_datadir}/lnd/clm2/griddata/griddata_0.9x1.25_070212.nc'
-  faerdep  = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
-  outnc_large_files = .true.
-  finidat = ${case}.clm2_${clm_inst_string}.r.${run_startdate}-${run_starttod}.nc;
-/
-EOF
-   @ instance++
-end
-# hist_nhtfrq = -12
-# hist_empty_htapes = .true.
-
-
-# --------------------------------------------------------------------
 
 cd ${caseroot}
 
@@ -280,22 +179,25 @@ set nthreads = 1
 ./xmlchange -file env_mach_pes.xml -id  NINST_ICE -val $num_instances
 
 ./xmlchange -file env_conf.xml -id RUN_TYPE                -val hybrid
-./xmlchange -file env_conf.xml -id RUN_STARTDATE           -val $run_startdate
-./xmlchange -file env_conf.xml -id RUN_REFDATE             -val $run_startdate
-./xmlchange -file env_conf.xml -id RUN_REFTOD              -val $run_starttod
+./xmlchange -file env_conf.xml -id RUN_STARTDATE           -val $run_refdate
+./xmlchange -file env_conf.xml -id RUN_REFDATE             -val $run_refdate
+./xmlchange -file env_conf.xml -id RUN_REFTOD              -val $run_reftod
 ./xmlchange -file env_conf.xml -id RUN_REFCASE             -val ${case}
 ./xmlchange -file env_conf.xml -id GET_REFCASE             -val FALSE
 ./xmlchange -file env_conf.xml -id BRNCH_RETAIN_CASENAME   -val TRUE
-./xmlchange -file env_conf.xml -id DOCN_SSTDATA_FILENAME   -val $sst_dataset
-./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_START -val $year_start
-./xmlchange -file env_conf.xml -id DOCN_SSTDATA_YEAR_END   -val $year_end
-
+./xmlchange -file env_conf.xml -id SSTICE_DATA_FILENAME    -val $sst_dataset
+./xmlchange -file env_conf.xml -id SSTICE_YEAR_ALIGN       -val $year_start
+./xmlchange -file env_conf.xml -id SSTICE_YEAR_START       -val $year_start
+./xmlchange -file env_conf.xml -id SSTICE_YEAR_END         -val $year_end
 ./xmlchange -file env_conf.xml -id CLM_CONFIG_OPTS         -val '-rtm off'
 
-./xmlchange -file env_run.xml -id RESUBMIT    -val $resubmit
-./xmlchange -file env_run.xml -id STOP_OPTION -val $stop_option
-./xmlchange -file env_run.xml -id STOP_N      -val $stop_n
-./xmlchange -file env_run.xml -id CALENDAR    -val GREGORIAN
+# The river transport model ON is useful only when using an active ocean or
+# land surface diagnostics.
+
+./xmlchange -file env_run.xml      -id RESUBMIT         -val $resubmit
+./xmlchange -file env_run.xml      -id STOP_OPTION      -val $stop_option
+./xmlchange -file env_run.xml      -id STOP_N           -val $stop_n
+./xmlchange -file env_run.xml      -id CALENDAR         -val GREGORIAN
 
 # Substantial archiving changes exist in the Tools/st_archive.sh script.
 # DOUT_S     is to turn on/off the short-term archiving
@@ -303,16 +205,50 @@ set nthreads = 1
 ./xmlchange -file env_run.xml -id DOUT_S_ROOT                -val ${archdir}
 ./xmlchange -file env_run.xml -id DOUT_S                     -val TRUE
 ./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val TRUE
-./xmlchange -file env_run.xml -id DOUT_L_MS                  -val TRUE
-./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val TRUE
+./xmlchange -file env_run.xml -id DOUT_L_MS                  -val FALSE 
+./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val FALSE
 
+# ====================================================================
+# Create namelist template: user_nl_cam, user_nl_clm
+# ====================================================================
 
+cd ${caseroot}
+
+cat <<EOF >! user_nl_cam
+&camexp
+ inithist             = 'ENDOFRUN'
+ div24del2flag        = 4
+ empty_htapes         = .true.
+ fincl1               = 'PHIS:I'
+ nhtfrq               = -$stop_n
+ iradae               = -$stop_n
+ aerodep_flx_datapath = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero'
+ aerodep_flx_file     = 'aerosoldep_monthly_1849-2006_1.9x2.5_c090803.nc'
+ aerodep_flx_cycle_yr = 2000
+ aerodep_flx_type     = 'CYCLICAL'
+/
+EOF
+
+# at least one of these caused problems when running with the full cesm:
+# empty_htapes                 = .true.
+# nhtfrq                       = -12
+# faerdep ... perhaps only used if CN modeling on ... 
+
+cat <<EOF >! user_nl_clm
+&clmexp
+  fatmgrid = '${cesm_datadir}/lnd/clm2/griddata/griddata_0.9x1.25_070212.nc'
+/
+EOF
+
+# at least one of these caused problems when running with the full cesm:
+#  hist_nhtfrq = -12
+#  hist_empty_htapes = .true.
 
 # ====================================================================
 # Update source files if need be
 # ====================================================================
 
-\cp -rf ~/${ccsmtag}/SourceMods/* ${caseroot}/SourceMods/
+\cp -rf ~thoar/${ccsmtag}/SourceMods/* ${caseroot}/SourceMods/
 if ( $status == 0) then
    echo "FYI - Local Source Modifications used for this case:"
    ls -lr ${caseroot}/SourceMods/*
@@ -325,6 +261,7 @@ endif
 # ====================================================================
 
 cd ${caseroot}
+
 ./configure -case
 
 if ( $status != 0 ) then
@@ -338,77 +275,11 @@ endif
 
 cd ${caseroot}
 
-# \mv Tools/st_archive.sh Tools/st_archive.sh.org
-# \cp -f ${DARTdir}/models/cam/shell_scripts/st_archive.sh Tools/st_archive.sh
+\mv Tools/st_archive.sh Tools/st_archive.sh.org
+\cp -f ${DARTdir}/models/cam/shell_scripts/st_archive_hybrid.sh Tools/st_archive.sh
 
-\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.csh .
-
-# ====================================================================
-# Update the scripts that build the namelists.
-# The active components scripts need to support the multi-instance naming.
-# ====================================================================
-
-# cesm1_1_beta04/models/ice/cice/bld/cice.cpl7.template
-# cesm1_1_beta04/models/atm/cam/bld/cam.cpl7.template
-# cesm1_1_beta04/models/lnd/clm/bld/clm.cpl7.template
-
-# stuff like 
-# ncdata  = '${RUN_REFCASE}.cam.i.${RUN_REFDATE}-${RUN_REFTOD}.nc'
-# to
-# ncdata  = '${RUN_REFCASE}.cam_\$atm_inst_string.i.${RUN_REFDATE}-${RUN_REFTOD}.nc'
-
-# set ice_ic = ${RUN_REFCASE}.cice.r.${RUN_REFDATE}-00000.nc
-# to
-# set ice_ic = ${RUN_REFCASE}.cice_\$ice_inst_string.r.${RUN_REFDATE}-${RUN_REFTOD}.nc
-
-# set finidat = " finidat = '${RUN_REFCASE}.clm2.r.${RUN_REFDATE}-00000.nc' "
-# to
-# set finidat = " finidat = '${RUN_REFCASE}.clm2_\$lnd_inst_string.r.${RUN_REFDATE}-${RUN_REFTOD}.nc' "
-
-echo ''
-echo 'Editing the Buildconf/{cam,cice,clm}.buildnml.csh files'
-echo ''
-
-cd ${caseroot}/Buildconf
-
-cp -f  cam.buildnml.csh  cam.buildnml.csh.org
-cp -f cice.buildnml.csh cice.buildnml.csh.org
-cp -f  clm.buildnml.csh  clm.buildnml.csh.org
-
-# The CAM buildnml script only needs changing in one place.
-
-ex cam.buildnml.csh <<ex_end
-/cam_inparm/
-/ncdata/
-s;.cam.;.cam_\${atm_inst_string}.;
-s;';";g
-wq
-ex_end
-
-# The CICE buildnml script only needs changing in one place.
-
-ex cice.buildnml.csh <<ex_end
-/setup_nml/
-/ice_ic/
-s;.cice.;.cice_\${ice_inst_string}.;
-s;';";g
-wq
-ex_end
-
-# The CLM buildnml script needs changing in MULTIPLE places.
-
-@ n = 1
-while ($n <= $num_instances)
-   set inst = `printf "%04d" $n`
-   ex clm.buildnml.csh <<ex_end
-/lnd_in_$inst/
-/finidat/
-s;.clm2.;.clm2_${inst}.;
-s;';";g
-wq
-ex_end
-   @ n++
-end
+# TJH Until I get it working, use a link ... 
+ln -sf ${DARTdir}/models/cam/shell_scripts/assimilate.hybrid.csh assimilate.csh
 
 # ====================================================================
 # The *.run script must be modified to call the DART assimilate script.
@@ -456,38 +327,43 @@ endif
 "EndOfText"
 
 # Now that the "here" document is created, 
-# determine WHERE to insert it.
+# determine WHERE to insert it -- ONLY IF it is not already there.
 
-set MYSTRING = `grep --line-number "CSM EXECUTION HAS FINISHED" ${case}.${mach}.run`
-set MYSTRING = `echo $MYSTRING | sed -e "s#:# #g"`
+grep --line-number "ABANDON HOPE" ${case}.run
+if ( $status > 1 ) then
 
-@ orglen = `cat ${case}.${mach}.run | wc -l`
-@ keep = $MYSTRING[1]
-@ lastlines = $orglen - $keep 
+   set MYSTRING = `grep --line-number "CSM EXECUTION HAS FINISHED" ${case}.run`
+   set MYSTRING = `echo $MYSTRING | sed -e "s#:# #g"`
 
-mv ${case}.${mach}.run ${case}.${mach}.run.orig
+   @ orglen = `cat ${case}.run | wc -l`
+   @ keep = $MYSTRING[1]
+   @ lastlines = $orglen - $keep 
 
-head -$keep      ${case}.${mach}.run.orig >! ${case}.${mach}.run
-cat              add_to_run.txt           >> ${case}.${mach}.run
-tail -$lastlines ${case}.${mach}.run.orig >> ${case}.${mach}.run
+   mv ${case}.run ${case}.run.orig
+
+   head -$keep      ${case}.run.orig >! ${case}.run
+   cat              add_to_run.txt   >> ${case}.run
+   tail -$lastlines ${case}.run.orig >> ${case}.run
+
+endif
 
 # ====================================================================
-# Still true.
+# We are trying to make all resubmits to be continuation ... 
 # ====================================================================
 
-cd ${caseroot}/Tools
+# TJH cd ${caseroot}/Tools
 
-echo ''
-echo 'Require all resubmits to be hybrid starts, which means'
-echo 'CONTINUE_RUN should be FALSE in Tools/ccsm_postrun.csh'
-echo ''
+# TJH echo ''
+# TJH echo 'Require all resubmits to be hybrid starts, which means'
+# TJH echo 'CONTINUE_RUN should be FALSE in Tools/ccsm_postrun.csh'
+# TJH echo ''
 
-ex ccsm_postrun.csh <<ex_end
-/use COMP_RUN_BARRIERS as surrogate for timing run logical/
-/CONTINUE_RUN/
-s;TRUE;FALSE;
-wq
-ex_end
+# TJH ex ccsm_postrun.csh <<ex_end
+# TJH /use COMP_RUN_BARRIERS as surrogate for timing run logical/
+# TJH /CONTINUE_RUN/
+# TJH s;TRUE;FALSE;
+# TJH wq
+# TJH ex_end
 
 # ====================================================================
 # build
@@ -499,7 +375,7 @@ echo ''
 echo 'Building the case'
 echo ''
 
-./$case.$mach.build
+./$case.build
 
 if ( $status != 0 ) then
    echo "ERROR: Case could not be built."
@@ -513,6 +389,7 @@ endif
 # 20081031 ... /ptmp/thoar/restarts
 # 20080801 ... /glade/proj3/DART/raeder/FV1deg_4.0/Exp1/obs_0000
 set stagedir = /glade/proj3/DART/raeder/FV1deg_4.0/Exp1/obs_0000
+set stagedir = /ptmp/thoar/restarts
 
 echo ''
 echo "Staging the restarts from {$stagedir}"
@@ -556,13 +433,13 @@ while ($n <= $num_instances)
 
    # create new filenames
 
-   set NEWATMFILE = `printf "${case}.cam_%04d.i.%04d-%02d-%02d-%05d.nc" $n $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_TOD`
+   set NEWATMFILE = `printf "${case}.cam_%04d.i.%04d-%02d-%02d-%05d.nc"  $n $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_TOD`
    set NEWLNDFILE = `printf "${case}.clm2_%04d.r.%04d-%02d-%02d-%05d.nc" $n $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_TOD`
    set NEWICEFILE = `printf "${case}.cice_%04d.r.%04d-%02d-%02d-%05d.nc" $n $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_TOD`
 
-   cp ${ATMFILE} ${rundir}/run/${NEWATMFILE}
-   cp ${LNDFILE} ${rundir}/run/${NEWLNDFILE}
-   cp ${ICEFILE} ${rundir}/run/${NEWICEFILE}
+   cp --preserve=timestamps ${ATMFILE} ${rundir}/run/${NEWATMFILE}
+   cp --preserve=timestamps ${LNDFILE} ${rundir}/run/${NEWLNDFILE}
+   cp --preserve=timestamps ${ICEFILE} ${rundir}/run/${NEWICEFILE}
 
  @ n++
 end
@@ -574,19 +451,19 @@ echo "must stage a ${rundir}/[prior,pos]_inflate_restart.YYYY-MM-DD-SSSSS"
 # Edit the run script to reflect project, queue, and wallclock
 # ====================================================================
 
-set PROJ=`grep BSUB $case.$mach.run | grep -e '-P' `
-sed s/$PROJ[3]/$proj/ < $case.$mach.run >! temp
-/bin/mv temp  $case.$mach.run
+set PROJ=`grep BSUB $case.run | grep -e '-P' `
+sed s/$PROJ[3]/$proj/ < $case.run >! temp
+/bin/mv temp  $case.run
 
-set TIMEWALL=`grep BSUB $case.$mach.run | grep -e '-W' `
-sed s/$TIMEWALL[3]/$timewall/ < $case.$mach.run >! temp
-/bin/mv temp  $case.$mach.run
+set TIMEWALL=`grep BSUB $case.run | grep -e '-W' `
+sed s/$TIMEWALL[3]/$timewall/ < $case.run >! temp
+/bin/mv temp  $case.run
 
-set QUEUE=`grep BSUB $case.$mach.run | grep -e '-q' `
-sed s/$QUEUE[3]/$queue/ < $case.$mach.run >! temp
-/bin/mv temp  $case.$mach.run
+set QUEUE=`grep BSUB $case.run | grep -e '-q' `
+sed s/$QUEUE[3]/$queue/ < $case.run >! temp
+/bin/mv temp  $case.run
 
-chmod 0744 $case.$mach.run
+chmod 0744 $case.run
 
 # ====================================================================
 # Submit job
@@ -599,11 +476,6 @@ echo ''
 echo 'case is ready to submit after you check the'
 echo "DART settings in ${DARTDIR}/input.nml"
 echo 'After you check them,'
-echo "cd into ${caseroot} and run: ./$case.$mach.submit"
+echo "cd into ${caseroot} and run: ./$case.submit"
 echo ''
-
-exit
-
-cd ${caseroot}
-./$case.$mach.submit
 

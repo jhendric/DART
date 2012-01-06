@@ -142,11 +142,6 @@ if ("$COMP_GLC" != "sglc" )then
    set options = "$options -glc_grid $GLC_GRID -glc_smb $GLC_SMB"
 endif
 
-#TJH checking
-echo $options
-echo $CLM_NAMELIST_OPTS
-echo $CASEBUILD
-
 $CODEROOT/lnd/clm*/bld/build-namelist $options \
     -namelist "&clm_inparm $CLM_NAMELIST_OPTS /" \
     -csmdata \$DIN_LOC_ROOT \
