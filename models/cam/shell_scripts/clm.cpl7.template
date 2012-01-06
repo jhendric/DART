@@ -41,23 +41,25 @@ $CODEROOT/lnd/clm/bld/configure $config_opts \
 # BUT -- we don't have CLM datasets available for these resolutions
 setenv CLM_RTM_RES "R05"
 
-set nrevsn = " "
-if ($RUN_TYPE == branch) set nrevsn  = " nrevsn  = '${RUN_REFCASE}.clm2.r.${RUN_REFDATE}-${RUN_REFTOD}.nc'"
-
 @ clm_dtime  = ( 3600 * 24 ) / $LND_NCPL
 
 set rtm_tstep = " -rtm_tstep 10800 "             # RTM time-step every 3 hours
 set rtm_res   = " -rtm_res $CLM_RTM_RES"
 set co2ppmv   = " -co2_ppmv $CCSM_CO2_PPMV"
-set co2type   = " co2_type  =  '$CLM_CO2_TYPE'"
+set co2type   = " '$CLM_CO2_TYPE'"
 
 cat >> $cfgdir/cesm_namelist << EOF1
  &clm_inparm
  dtime            =  $clm_dtime
  fatmlndfrc       =  '${LND_DOMAIN_PATH}/${LND_DOMAIN_FILE}'
-$co2type
-$nrevsn
+ co2_type         =  $co2type
 EOF1
+
+if ($RUN_TYPE == branch ) then
+cat >> $cfgdir/cesm_namelist << EOF1
+ nrevsn  = '${RUN_REFCASE}.clm2.r.${RUN_REFDATE}-${RUN_REFTOD}.nc'
+EOF1
+endif
 
 if ($RUN_TYPE == hybrid ) then
 cat >> $cfgdir/cesm_namelist << EOF1
@@ -68,7 +70,6 @@ endif
 cat >> $cfgdir/cesm_namelist << EOF1
 /
 EOF1
-
 
 # Allow the user to supply namelist values by putting them in the file
 # $CASEROOT/user_nl_clm.  The file should contain
