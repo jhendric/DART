@@ -6,12 +6,39 @@
 #
 # $Id$
 
-# The FORCE options are not optional.
-# the VERBOSE options are useful for debugging.
-set   MOVE = '/usr/local/bin/mv -fv'
-set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
-set   LINK = '/usr/local/bin/ln -fvs'
-set REMOVE = '/usr/local/bin/rm -fr'
+# This block is an attempt to localize all the machine-specific 
+# changes to this script such that the same script can be used
+# on multiple platforms. This will help us maintain the script.
+
+echo "starting assimilate script at "`date`
+
+switch ("`hostname`")
+   case be*:
+      # NCAR "bluefire"
+      # The FORCE options are not optional.
+      # the VERBOSE options are useful for debugging.
+      set   MOVE = '/usr/local/bin/mv -fv'
+      set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
+      set   LINK = '/usr/local/bin/ln -fvs'
+      set REMOVE = '/usr/local/bin/rm -fr'
+
+      set BASEOBSDIR = /glade/proj3/image/Observations/ACARS
+      set DARTDIR    = ${HOME}/svn/DART/dev
+      set LAUNCHCMD  = mpirun.lsf
+
+   breaksw
+   default:
+      # NERSC "hopper"
+      set   MOVE = 'mv -fv'                                                                    
+      set   COPY = 'cp -fv --preserve=timestamps'                                              
+      set   LINK = 'ln -fvs'                                                                   
+      set REMOVE = 'rm -fr' 
+
+      set BASEOBSDIR = /scratch/scratchdirs/nscollin/ACARS
+      set DARTDIR    = ${HOME}/devel
+      set LAUNCHCMD  = "aprun -n $NTASKS"
+   breaksw
+endsw 
 
 set ensemble_size = ${NINST_ATM}
 
@@ -45,9 +72,8 @@ echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (ho
 # Set variables containing various directory names where we will GET things
 #-----------------------------------------------------------------------------
 
-set DARTDIR      = ${HOME}/svn/DART/dev
 set DART_OBS_DIR = ${MODEL_YEAR}${MODEL_MONTH}_6H
-set OBSDIR       = /glade/proj3/image/Observations/ACARS/${DART_OBS_DIR}
+set OBSDIR       = ${BASEOBSDIR}/${DART_OBS_DIR}
 
 #=========================================================================
 # Block 1: Populate a run-time directory with the bits needed to run DART.
@@ -249,7 +275,7 @@ while ( ${member} <= ${ensemble_size} )
 
    set POINTER_FILENAME = `printf rpointer.atm_%04d ${member}`
 
-   set ATM_HISTORY_FILENAME = `ls   -1 ../../*.h0.* | head -1`
+   set ATM_HISTORY_FILENAME = `ls   -1 ../../*.cam_????.h0.* | head -1`
    set ATM_RESTART_FILENAME = `head -1 ../../${POINTER_FILENAME}`
    set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
 
@@ -315,7 +341,9 @@ set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 
 ${LINK} ${OBS_FILE} obs_seq.out
 
-mpirun.lsf ./filter || exit 7
+echo "assimilate:starting filter at "`date`
+$LAUNCHCMD ./filter || exit 7
+echo "assimilate:finished filter at "`date`
 
 ${MOVE} Prior_Diag.nc      ../Prior_Diag.${MODEL_DATE_EXT}.nc
 ${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${MODEL_DATE_EXT}.nc
@@ -423,6 +451,7 @@ ex_end
 #-------------------------------------------------------------------------
 # Cleanup
 #-------------------------------------------------------------------------
+echo "finished assimilate script at "`date`
 
 exit 0
 
