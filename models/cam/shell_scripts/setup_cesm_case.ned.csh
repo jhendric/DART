@@ -50,7 +50,7 @@
 # beta05 is also available, but i'm still using 04 for now
 # because i have a fixed copy in my home directory.
 setenv ccsmtag        cesm1_1_beta04
-setenv case           F_ZAGAR3
+setenv case           F_ZAGAR3_BF
 setenv compset        F_2000
 setenv resolution     f09_f09
 setenv num_instances  80
@@ -78,19 +78,11 @@ setenv ccsmroot ${nancy_home}/${ccsmtag}                   ;# this is where the 
 setenv caseroot ${nancy_home}/cases/$case                  ;## your cesm case directory
 setenv lockroot ${nancy_home}/locked_cases                 ;## locked cases
 setenv rundir   ${nancy_scratch}/${case}
-setenv archdir  ${nancy_scratch}/archive
+setenv archdir  ${nancy_scratch}/archive/${case}
 
 
 # for data files not in the public cems area
 setenv nancy_datadir ${nancy_scratch}/cesm_datafiles
-
-# ======================
-# clear out previous builds
-# ======================
-
-echo "removing old files from ${caseroot} and ${rundir}"
-\rm -fr ${caseroot}
-\rm -fr ${rundir}
 
 # ======================
 # configure settings
@@ -114,8 +106,8 @@ setenv stop_option   nhours
 # job settings
 # ======================
 
-setenv timewall     01:45:00
-setenv queue        premium
+setenv timewall     00:59:00
+setenv queue        regular
 
 # ======================
 # namelist variables
@@ -166,13 +158,29 @@ EOF
 # For list of the cases: ./create_newcase -list
 # ====================================================================
 
-${ccsmroot}/scripts/create_newcase -case ${caseroot} -mach ${mach} \
-                -res ${resolution} -compset ${compset} -skip_rundb
+# ======================
+# clear out previous builds
+# ======================
 
-if ( $status != 0 ) then
-   echo "ERROR: Case could not be created."
-   exit 1
+if (0) then
+   echo "removing old files from ${caseroot} and ${rundir}"
+   \rm -fr ${caseroot}
+   \rm -fr ${rundir}
+
+   ${ccsmroot}/scripts/create_newcase -case ${caseroot} -mach ${mach} \
+                   -res ${resolution} -compset ${compset} -skip_rundb
+
+   if ( $status != 0 ) then
+      echo "ERROR: Case could not be created."
+      exit 1
+   endif
+else
+   # reconfiguring an existing case
+   cd ${caseroot}
+   ./configure  -cleannamelist
 endif
+
+
 
 cd ${caseroot}
 
