@@ -35,7 +35,7 @@ cd $temp_dir
 set FILE = `head -1 ../rpointer.atm_0001`
 set FILE = $FILE:t
 set FILE = $FILE:r
-set MYCASE = $FILE:ar
+set MYCASE = `echo $FILE | sed -e "s#\..*##"`
 set MODEL_DATE_EXT = `echo $FILE:e`
 set MODEL_DATE     = `echo $FILE:e | sed -e "s#-# #g"`
 set MODEL_YEAR     = $MODEL_DATE[1]
@@ -61,7 +61,7 @@ set  OBSDIR = /scratch/scratchdirs/nscollin/Synthetic/${DART_OBS_DIR}
 
 #-------------------------------------------------------------------------
 # DART COPY BLOCK
-# Populate a run-time directory with the bits needed to run DART 
+# Populate a run-time directory with the bits needed to run DART
 #-------------------------------------------------------------------------
 
 foreach FILE ( input_1.nml input_n.nml filter cam_to_dart dart_to_cam )
@@ -76,8 +76,8 @@ end
 # special: input_1.nml for first step, input_n.nml after.
 # FIXME: this should sed the few lines which are special for run 1
 # so we only have a single input.nml file running around.
-#${COPY} input_1.nml input.nml
-${COPY} input_n.nml input.nml
+${COPY} input_1.nml input.nml
+#${COPY} input_n.nml input.nml
 
 # FIXME: doesn't exist on hopper
 #${COPY} /glade/proj3/DART/raeder/FV1deg_4.0/cam_phis.nc .
@@ -90,17 +90,15 @@ ${COPY} $HOME/cam_phis.nc .
 ex input.nml <<ex_end
 g;ens_size ;s;= .*;= $ensemble_size;
 g;num_output_state_members ;s;= .*;= $ensemble_size;
+g;num_output_obs_members ;s;= .*;= $ensemble_size;
 wq
 ex_end
-
-# we do not need all 80 obs values
-#g;num_output_obs_members ;s;= .*;= $ensemble_size;
 
 #-------------------------------------------------------------------------
 # DART SAMPLING ERROR CORRECTION BLOCK
 # This stages the files needed for the sampling error correction.
 # Each ensemble size has its own (static) file which does not need to be archived.
-# It is only needed if 
+# It is only needed if
 # input.nml:&assim_tools_nml:sampling_error_correction = .true.,
 #-------------------------------------------------------------------------
 
@@ -124,7 +122,7 @@ endif
 # DART INFLATION BLOCK
 # This stages the files that contain the inflation values.
 # The inflation values change through time and should be archived.
-# 
+#
 # This file is only relevant if 'inflation' is turned on -
 # i.e. if inf_flavor(1) /= 0 AND inf_initial_from_restart = .TRUE.
 #
@@ -139,10 +137,10 @@ endif
 # files to be as listed above. When being archived, the filenames get a
 # unique extension (describing the assimilation time) appended to them.
 #
-# The inflation file is essentially a duplicate of the model state ... 
-# it is slaved to a specific geometry. The initial files are created 
-# offline with values of unity. For the purpose of this script, they are 
-# thought to be the output of a previous assimilation, so they should be 
+# The inflation file is essentially a duplicate of the model state ...
+# it is slaved to a specific geometry. The initial files are created
+# offline with values of unity. For the purpose of this script, they are
+# thought to be the output of a previous assimilation, so they should be
 # named something like prior_inflate_restart.YYYY-MM-DD-SSSSS
 #
 # The first inflation file can be created with 'fill_inflation_restart'
@@ -289,6 +287,12 @@ while ( ${member} <= ${ensemble_size} )
 end
 
 wait
+if ($status != 0) then
+   exit $status
+endif
+if ($status != 0) then
+   exit $status
+endif
 
 #-------------------------------------------------------------------------
 # Block 2: Actually run the assimilation.
@@ -343,7 +347,7 @@ ${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${MODEL_DATE_EXT}.nc
 ${MOVE} obs_seq.final      ../obs_seq.${MODEL_DATE_EXT}.final
 ${MOVE} dart_log.out       ../dart_log.${MODEL_DATE_EXT}.out
 
-# Accomodate any possible inflation files 
+# Accomodate any possible inflation files
 # 1) rename file to reflect current date
 # 2) move to CENTRALDIR so the DART INFLATION BLOCK works next time and
 #    that they can get archived.
@@ -355,8 +359,6 @@ foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE
       echo "No ${FILE} for ${MODEL_DATE_EXT}"
    endif
 end
-
-# FIXME: removed shell vars that are undefined for PBS
 
 #-------------------------------------------------------------------------
 # Block 3: Update the cam restart files ... simultaneously ...
@@ -373,7 +375,7 @@ set member = 1
 while ( ${member} <= ${ensemble_size} )
 
    # Each member will do its job in its own directory.
-   # Cannot do these simultaneously -
+   # After they are all done, we can move them.
 
    set MYTEMPDIR = member_${member}
    mkdir -p $MYTEMPDIR
@@ -392,17 +394,40 @@ while ( ${member} <= ${ensemble_size} )
 
    set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
 
-#  set ATM_HISTORY_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.h0\.#"`
-#  ${LINK} ../../$ATM_RESTART_FILENAME cam_restart.nc
-#  ${LINK} ../../$ATM_HISTORY_FILENAME cam_history.nc
    ${LINK} ../../$ATM_INITIAL_FILENAME caminput.nc
 
    echo "starting dart_to_cam for member ${member} at "`date`
-   ../dart_to_cam >! output.${member}.dart_to_cam
+   ../dart_to_cam >! output.${member}.dart_to_cam &
    echo "finished dart_to_cam for member ${member} at "`date`
 
-   # The initial filenames are static and come from the atm_in_xxxx namelist.
-   # We must copy the updated initial files to the static names.
+   cd ..
+
+   @ member++
+end
+
+wait
+if ($status != 0) then
+   exit $status
+endif
+
+#-------------------------------------------------------------------------
+# Block 4: The cam files have now been updated, move them into position.
+#-------------------------------------------------------------------------
+
+set member = 1
+while ( ${member} <= ${ensemble_size} )
+
+   cd member_${member}
+
+   set ATM_POINTER_FILENAME = `printf rpointer.atm_%04d ${member}`
+   set LND_POINTER_FILENAME = `printf rpointer.lnd_%04d ${member}`
+   set ICE_POINTER_FILENAME = `printf rpointer.ice_%04d ${member}`
+
+   set ATM_RESTART_FILENAME = `head -1 ../../${ATM_POINTER_FILENAME}`
+   set LND_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.clm2_#"`
+   set ICE_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.cice_#"`
+
+   set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
 
    ${COPY} ../../$ATM_INITIAL_FILENAME ../../cam_initial_${member}.nc
    ${COPY} ../../$LND_RESTART_FILENAME ../../clm_restart_${member}.nc
@@ -413,11 +438,9 @@ while ( ${member} <= ${ensemble_size} )
    @ member++
 end
 
-wait
-
 #-------------------------------------------------------------------------
-# Now that everything is staged, we have to communicate the current 
-# model time to the drv_in&seq_timemgr_inparm namelist 
+# Now that everything is staged, we have to communicate the current
+# model time to the drv_in&seq_timemgr_inparm namelist
 # which is built from CASEROOT/user_nl_drv by the *.run script
 #-------------------------------------------------------------------------
 
@@ -430,6 +453,15 @@ ex_end
 #-------------------------------------------------------------------------
 # Cleanup
 #-------------------------------------------------------------------------
+
+# we (dart) do not need these files, and CESM does not need them either
+# to continue a run.  if we remove them here, they do not get moved to
+# the short-term archiver.
+${REMOVE} ../*.rs.*
+${REMOVE} ../*.rh0.*
+${REMOVE} ../*.rs1.*
+${REMOVE} ../*cam.r.*
+${REMOVE} ../PET*ESMF_Logfile
 
 exit 0
 

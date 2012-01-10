@@ -101,7 +101,7 @@ set member = 1
 
 set POINTER_FILENAME = `printf rpointer.atm`
 set MODEL_RESTART_FILENAME = `head -1 ../${POINTER_FILENAME}`
-set MODEL_INITIAL_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
+set MODEL_INITIAL_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed -e "s#\.r\.#\.i\.#"`
 ${LINK} ../$MODEL_INITIAL_FILENAME caminput.nc
 
 # TJH can we use a .h0. file instead of some arbitrary cam_phis.nc
@@ -137,8 +137,8 @@ echo "finished cam_to_dart for member ${member} at "`date`
 # cam always needs a cam_initial.nc and a cam_history.nc to start.
 
 set MODEL_RESTART_FILENAME = `head -1 ../rpointer.atm`
-set MODEL_INITIAL_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
-set MODEL_HISTORY_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.h0\.#"`
+set MODEL_INITIAL_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed -e "s#\.r\.#\.i\.#"`
+set MODEL_HISTORY_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed -e "s#\.r\.#\.h0\.#"`
 
 ${LINK} ../$MODEL_INITIAL_FILENAME caminput.nc
 #${LINK} ../$MODEL_RESTART_FILENAME cam_restart.nc
@@ -178,10 +178,10 @@ set LND_POINTER_FILENAME = `printf rpointer.lnd`
 set ICE_POINTER_FILENAME = `printf rpointer.ice`
 
 set ATM_RESTART_FILENAME = `head -1 ../${ATM_POINTER_FILENAME}`
-set LND_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam#\.clm2#"`
-set ICE_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam#\.cice#"`
+set LND_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed -e "s#\.cam#\.clm2#"`
+set ICE_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed -e "s#\.cam#\.cice#"`
 
-set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
+set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed -e "s#\.r\.#\.i\.#"`
 
 # The initial filenames are static and come from the atm_in_xxxx namelist.
 # We must copy the updated initial files to the static names.
@@ -206,6 +206,8 @@ ex_end
 #-------------------------------------------------------------------------
 # Cleanup
 #-------------------------------------------------------------------------
+
+${REMOVE} ../PET*.ESMF_LogFile
 
 exit 0
 

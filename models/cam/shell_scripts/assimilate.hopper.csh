@@ -424,6 +424,15 @@ ex_end
 # Cleanup
 #-------------------------------------------------------------------------
 
+# we (dart) do not need these files, and CESM does not need them either
+# to continue a run.  if we remove them here, they do not get moved to
+# the short-term archiver.
+${REMOVE} ../*.rs.*
+${REMOVE} ../*.rh0.*
+${REMOVE} ../*.rs1.*
+${REMOVE} ../*cam.r.*
+${REMOVE} ../PET*ESMF_Logfile
+
 exit 0
 
 # <next few lines under version control, do not edit>
