@@ -427,9 +427,9 @@ while ( ${member} <= ${ensemble_size} )
    #
    # IMPORTANT: The Tools/st_archive.sh script must be substantially modified.
 
-   ${COPY} ../../$LND_RESTART_FILENAME ../../clm_restart_${member}.nc
-   ${COPY} ../../$ICE_RESTART_FILENAME ../../ice_restart_${member}.nc
-   ${COPY} ../../$ATM_INITIAL_FILENAME ../../cam_initial_${member}.nc
+   ${MOVE} ../../$LND_RESTART_FILENAME ../../clm_restart_${member}.nc
+   ${MOVE} ../../$ICE_RESTART_FILENAME ../../ice_restart_${member}.nc
+   ${MOVE} ../../$ATM_INITIAL_FILENAME ../../cam_initial_${member}.nc
 
    cd ..
 
@@ -447,6 +447,16 @@ g; start_ymd;s;=[ ]*.*;= ${MODEL_YEAR}${MODEL_MONTH}${MODEL_DAY};
 g; start_tod;s;=[ ]*.*;= $MODEL_SECONDS;
 wq
 ex_end
+
+# we (DART) do not need these files, and CESM does not need them either
+# to continue a run.  if we remove them here they do not get moved to
+# the short-term archiver.
+${REMOVE} ../*.rs.*
+${REMOVE} ../*.rh0.*
+${REMOVE} ../*.rs1.*
+${REMOVE} ../*cam.r.*
+${REMOVE} ../PET*ESMF_Logfile
+
 
 #-------------------------------------------------------------------------
 # Cleanup
