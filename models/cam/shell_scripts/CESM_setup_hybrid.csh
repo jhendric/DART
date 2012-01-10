@@ -194,6 +194,7 @@ set nthreads = 1
 # The river transport model ON is useful only when using an active ocean or
 # land surface diagnostics.
 
+./xmlchange -file env_run.xml      -id CONTINUE_RUN     -val FALSE
 ./xmlchange -file env_run.xml      -id RESUBMIT         -val $resubmit
 ./xmlchange -file env_run.xml      -id STOP_OPTION      -val $stop_option
 ./xmlchange -file env_run.xml      -id STOP_N           -val $stop_n
@@ -351,19 +352,19 @@ endif
 # We are trying to make all resubmits to be continuation ... 
 # ====================================================================
 
-# TJH cd ${caseroot}/Tools
+cd ${caseroot}/Tools
 
-# TJH echo ''
-# TJH echo 'Require all resubmits to be hybrid starts, which means'
-# TJH echo 'CONTINUE_RUN should be FALSE in Tools/ccsm_postrun.csh'
-# TJH echo ''
+echo ''
+echo 'Require all resubmits to be hybrid starts, which means'
+echo 'CONTINUE_RUN should be FALSE in Tools/ccsm_postrun.csh'
+echo ''
 
-# TJH ex ccsm_postrun.csh <<ex_end
-# TJH /use COMP_RUN_BARRIERS as surrogate for timing run logical/
-# TJH /CONTINUE_RUN/
-# TJH s;TRUE;FALSE;
-# TJH wq
-# TJH ex_end
+ex ccsm_postrun.csh <<ex_end
+/use COMP_RUN_BARRIERS as surrogate for timing run logical/
+/CONTINUE_RUN/
+s;TRUE;FALSE;
+wq
+ex_end
 
 # ====================================================================
 # build
