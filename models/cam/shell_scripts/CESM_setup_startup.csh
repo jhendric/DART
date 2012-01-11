@@ -55,7 +55,7 @@ setenv case                 startup1
 setenv compset              F_2000
 setenv ccsmtag              cesm1_1_beta04
 setenv resolution           f09_f09
-setenv num_instances        4
+setenv num_instances        80
 setenv reuse_existing_case  true
 
 # ================================
@@ -141,24 +141,58 @@ cd ${caseroot}
 ./xmlchange -file env_build.xml    -id USE_ESMF_LIB   -val TRUE
 #./xmlchange -file env_build.xml    -id ESMF_LIBDIR    -val ${nancy_scratch}/esmf-mpi
 
-set num_tasks_per_instance = 16
+# The game here is that - for memory reasons - we want 4 ATMs running
+# on a bluefire node ... capable of 64 tasks.
+set num_tasks_per_atm_instance = 16
 set nthreads = 1
-@ total_nt = $num_instances * $num_tasks_per_instance
+@ total_atm = $num_tasks_per_atm_instance * $num_instances
+@ total_ice = $num_tasks_per_atm_instance * $num_instances / 4
+@ total_cpl = $num_tasks_per_atm_instance * $num_instances / 4
+@ total_ocn = $num_tasks_per_atm_instance * 4
+@ ice_start = $total_cpl
+@ ocn_start = $total_cpl + $total_ice
+@ lnd_start = $total_cpl + $total_ice + $total_ocn
+@ total_lnd = $total_atm - $lnd_start
 
-./xmlchange -file env_mach_pes.xml -id NTASKS_ATM -val $total_nt
+# Tony: "if f19_g16, i'd recommend using 320 for cice, 32 for
+# docn, 320 for cpl, and then the rest for clm as a starting point."
+# I'm changing the ratios ... not sure about using half a node
+# [CPL][ICE][DOCN][LND] .... assuming we're using 20 nodes ...
+# 1 node DOCN
+# 5 nodes CPL
+# 5 nodes ICE
+# 9 nodes LND
+
+./xmlchange -file env_mach_pes.xml -id NTASKS_ATM -val $total_atm
 ./xmlchange -file env_mach_pes.xml -id NTHRDS_ATM -val $nthreads
 ./xmlchange -file env_mach_pes.xml -id ROOTPE_ATM -val 0
 ./xmlchange -file env_mach_pes.xml -id  NINST_ATM -val $num_instances
 
-./xmlchange -file env_mach_pes.xml -id NTASKS_LND -val $total_nt
+./xmlchange -file env_mach_pes.xml -id NTASKS_LND -val $total_lnd
 ./xmlchange -file env_mach_pes.xml -id NTHRDS_LND -val $nthreads
-./xmlchange -file env_mach_pes.xml -id ROOTPE_LND -val 0
+./xmlchange -file env_mach_pes.xml -id ROOTPE_LND -val $lnd_start
 ./xmlchange -file env_mach_pes.xml -id  NINST_LND -val $num_instances
 
-./xmlchange -file env_mach_pes.xml -id NTASKS_ICE -val $total_nt
+./xmlchange -file env_mach_pes.xml -id NTASKS_ICE -val $total_ice
 ./xmlchange -file env_mach_pes.xml -id NTHRDS_ICE -val $nthreads
-./xmlchange -file env_mach_pes.xml -id ROOTPE_ICE -val 0
+./xmlchange -file env_mach_pes.xml -id ROOTPE_ICE -val $ice_start
 ./xmlchange -file env_mach_pes.xml -id  NINST_ICE -val $num_instances
+
+./xmlchange -file env_mach_pes.xml -id NTASKS_CPL -val $total_cpl
+./xmlchange -file env_mach_pes.xml -id NTHRDS_CPL -val $nthreads
+./xmlchange -file env_mach_pes.xml -id ROOTPE_CPL -val 0
+
+./xmlchange -file env_mach_pes.xml -id NTASKS_OCN -val $total_ocn
+./xmlchange -file env_mach_pes.xml -id NTHRDS_OCN -val $nthreads
+./xmlchange -file env_mach_pes.xml -id ROOTPE_OCN -val $ocn_start
+./xmlchange -file env_mach_pes.xml -id  NINST_OCN -val 1
+
+./xmlchange -file env_mach_pes.xml -id NTASKS_GLC -val $total_ocn
+./xmlchange -file env_mach_pes.xml -id NTHRDS_GLC -val $nthreads
+./xmlchange -file env_mach_pes.xml -id ROOTPE_GLC -val 0
+./xmlchange -file env_mach_pes.xml -id  NINST_GLC -val 1
+
+./xmlchange -file env_mach_pes.xml -id TOTALPES   -val $total_atm
 
 ./xmlchange -file env_conf.xml -id RUN_TYPE                -val startup
 ./xmlchange -file env_conf.xml -id RUN_STARTDATE           -val $run_startdate
@@ -170,6 +204,7 @@ set nthreads = 1
 # The river transport model ON is useful only when using an active ocean or
 # land surface diagnostics.
 
+./xmlchange -file env_run.xml      -id CONTINUE_RUN     -val FALSE
 ./xmlchange -file env_run.xml      -id RESUBMIT         -val $resubmit
 ./xmlchange -file env_run.xml      -id STOP_OPTION      -val $stop_option
 ./xmlchange -file env_run.xml      -id STOP_N           -val $stop_n
@@ -257,7 +292,7 @@ cd ${caseroot}
 # only needed for beta04 - fixed in more recent versions
 \cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/.
 
-ln -sf ${DARTdir}/models/cam/shell_scripts/assimilate.startup.csh assimilate.csh
+\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.startup.csh assimilate.csh
 
 # ====================================================================
 # Update the scripts that build the namelists.
@@ -352,20 +387,27 @@ endif
 "EndOfText"
 
 # Now that the "here" document is created, 
-# determine WHERE to insert it.
+# determine WHERE to insert it -- ONLY IF it is not already there.
 
-set MYSTRING = `grep --line-number "CSM EXECUTION HAS FINISHED" ${case}.${mach}.run`
-set MYSTRING = `echo $MYSTRING | sed -e "s#:# #g"`
+grep --line-number "ABANDON HOPE" ${case}.${mach}.run
+if ( $status == 0 ) then
+   echo "DART block already present in ${case}.${mach}.run"
+else
 
-@ orglen = `cat ${case}.${mach}.run | wc -l`
-@ keep = $MYSTRING[1]
-@ lastlines = $orglen - $keep 
+   set MYSTRING = `grep --line-number "CSM EXECUTION HAS FINISHED" ${case}.${mach}.run`
+   set MYSTRING = `echo $MYSTRING | sed -e "s#:# #g"`
 
-mv ${case}.${mach}.run ${case}.${mach}.run.orig
+   @ orglen = `cat ${case}.${mach}.run | wc -l`
+   @ keep = $MYSTRING[1]
+   @ lastlines = $orglen - $keep 
 
-head -$keep      ${case}.${mach}.run.orig >! ${case}.${mach}.run
-cat              add_to_run.txt           >> ${case}.${mach}.run
-tail -$lastlines ${case}.${mach}.run.orig >> ${case}.${mach}.run
+   mv ${case}.${mach}.run ${case}.${mach}.run.orig
+
+   head -$keep      ${case}.${mach}.run.orig >! ${case}.${mach}.run
+   cat              add_to_run.txt           >> ${case}.${mach}.run
+   tail -$lastlines ${case}.${mach}.run.orig >> ${case}.${mach}.run
+
+endif
 
 # ====================================================================
 # IMPORTANT: All resubmits must be type 'startup'.
