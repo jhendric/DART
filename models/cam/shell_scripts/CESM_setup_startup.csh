@@ -151,7 +151,7 @@ set nthreads = 1
 @ total_ocn = $num_tasks_per_atm_instance * 4
 @ ice_start = $total_cpl
 @ ocn_start = $total_cpl + $total_ice
-@ lnd_start = $total_cpl + $total_ice + $total_ocn
+@ lnd_start = $ocn_start + $total_ocn
 @ total_lnd = $total_atm - $lnd_start
 
 # Tony: "if f19_g16, i'd recommend using 320 for cice, 32 for
