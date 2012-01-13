@@ -251,9 +251,6 @@ endif
 # cam_to_dart is serial code, we can do all of these at the same time
 # as long as we can have unique namelists for all of them.
 #
-# At the end of this block, we have DART restart files  filter_ic_old.[1-N]
-# that came from pointer files ../rpointer.atm_[1-N]
-#
 # DART namelist settings appropriate/required:
 # &filter_nml:           restart_in_file_name    = 'filter_ic_old'
 # &ensemble_manager_nml: single_restart_file_in  = '.false.'
@@ -274,7 +271,7 @@ while ( ${member} <= ${ensemble_size} )
    cd $MYTEMPDIR
 
    set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${MODEL_DATE_EXT}.nc ${member}`
-   set ATM_HISTORY_FILENAME = `ls -1t ../../${MYCASE}.cam*.h0.* | head -1`
+   set ATM_HISTORY_FILENAME = `printf ../../${MYCASE}.cam_%04d.h0.${MODEL_DATE_EXT}.nc ${member}`
 
    ${LINK} $ATM_INITIAL_FILENAME caminput.nc
    ${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
@@ -324,8 +321,8 @@ endif
 # CAM:static_init_model() always needs a caminput.nc and a cam_phis.nc
 # for geometry information, etc.
 
-set ATM_INITIAL_FILENAME =         ../${MYCASE}.cam_0001.i.${MODEL_DATE_EXT}.nc
-set ATM_HISTORY_FILENAME = `ls -1t ../${MYCASE}.cam_0001.h0.* | head -1`
+set ATM_INITIAL_FILENAME = ../${MYCASE}.cam_0001.i.${MODEL_DATE_EXT}.nc
+set ATM_HISTORY_FILENAME = ../${MYCASE}.cam_0001.h0.${MODEL_DATE_EXT}.nc
 
 ${LINK} $ATM_INITIAL_FILENAME caminput.nc
 ${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
@@ -413,7 +410,6 @@ while ( ${member} <= ${ensemble_size} )
    set LND_RESTART_FILENAME = `head -1 ../../${LND_POINTER_FILENAME}`
    set ICE_RESTART_FILENAME = `head -1 ../../${ICE_POINTER_FILENAME}`
    set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${MODEL_DATE_EXT}.nc ${member}`
-   set ATM_HISTORY_FILENAME = `ls -1t ../../${MYCASE}.cam*.h0.* | head -1`
 
    # As implemented, the input filenames are static in the namelists.
    # In order to archive the 'dynamic' files (i.e. with the dates) 
@@ -449,9 +445,7 @@ ex_end
 ${REMOVE} ../*.rs.*
 ${REMOVE} ../*.rh0.*
 ${REMOVE} ../*.rs1.*
-${REMOVE} ../*cam.r.*
-${REMOVE} ../PET*ESMF_Logfile
-
+${REMOVE} ../PET*ESMF_LogFile
 
 #-------------------------------------------------------------------------
 # Cleanup

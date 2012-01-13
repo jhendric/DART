@@ -1,4 +1,4 @@
-#!/bin/csh
+#!/bin/csh -f
 #
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -6,12 +6,39 @@
 #
 # $Id$
 
-# The FORCE options are not optional.
-# the VERBOSE options are useful for debugging.
-set   MOVE = '/usr/local/bin/mv -fv'
-set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
-set   LINK = '/usr/local/bin/ln -fvs'
-set REMOVE = '/usr/local/bin/rm -fr'
+# This block is an attempt to localize all the machine-specific 
+# changes to this script such that the same script can be used
+# on multiple platforms. This will help us maintain the script.
+
+echo "starting assimilate script at "`date`
+
+switch ("`hostname`")
+   case be*:
+      # NCAR "bluefire"
+      # The FORCE options are not optional.
+      # the VERBOSE options are useful for debugging.
+      set   MOVE = '/usr/local/bin/mv -fv'
+      set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
+      set   LINK = '/usr/local/bin/ln -fvs'
+      set REMOVE = '/usr/local/bin/rm -fr'
+
+      set BASEOBSDIR = /glade/proj3/image/Observations/ACARS
+      set DARTDIR    = ${HOME}/svn/DART/dev
+      set LAUNCHCMD  = mpirun.lsf
+
+   breaksw
+   default:
+      # NERSC "hopper"
+      set   MOVE = 'mv -fv'
+      set   COPY = 'cp -fv --preserve=timestamps'
+      set   LINK = 'ln -fvs'
+      set REMOVE = 'rm -fr'
+
+      set BASEOBSDIR = /scratch/scratchdirs/nscollin/ACARS
+      set DARTDIR    = ${HOME}/devel
+      set LAUNCHCMD  = "aprun -n $NTASKS"
+   breaksw
+endsw 
 
 set ensemble_size = ${NINST_ATM}
 
@@ -45,9 +72,8 @@ echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (ho
 # Set variables containing various directory names where we will GET things
 #-----------------------------------------------------------------------------
 
-set DARTDIR      = ${HOME}/svn/DART/dev
 set DART_OBS_DIR = ${MODEL_YEAR}${MODEL_MONTH}_6H
-set OBSDIR       = /glade/proj3/image/Observations/ACARS/${DART_OBS_DIR}
+set OBSDIR       = ${BASEOBSDIR}/${DART_OBS_DIR}
 
 #=========================================================================
 # Block 1: Populate a run-time directory with the bits needed to run DART.
@@ -225,9 +251,6 @@ endif
 # cam_to_dart is serial code, we can do all of these at the same time
 # as long as we can have unique namelists for all of them.
 #
-# At the end of this block, we have DART restart files  filter_ic_old.[1-N]
-# that came from pointer files ../rpointer.atm_[1-N]
-#
 # DART namelist settings appropriate/required:
 # &filter_nml:           restart_in_file_name    = 'filter_ic_old'
 # &ensemble_manager_nml: single_restart_file_in  = '.false.'
@@ -248,7 +271,7 @@ while ( ${member} <= ${ensemble_size} )
    cd $MYTEMPDIR
 
    set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${MODEL_DATE_EXT}.nc ${member}`
-   set ATM_HISTORY_FILENAME = `ls -1t ../../${MYCASE}.cam*.h0.* | head -1`
+   set ATM_HISTORY_FILENAME = `printf ../../${MYCASE}.cam_%04d.h0.${MODEL_DATE_EXT}.nc ${member}`
 
    ${LINK} $ATM_INITIAL_FILENAME caminput.nc
    ${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
@@ -298,8 +321,8 @@ endif
 # CAM:static_init_model() always needs a caminput.nc and a cam_phis.nc
 # for geometry information, etc.
 
-set ATM_INITIAL_FILENAME =         ../${MYCASE}.cam_0001.i.${MODEL_DATE_EXT}.nc
-set ATM_HISTORY_FILENAME = `ls -1t ../${MYCASE}.cam_0001.h0.* | head -1`
+set ATM_INITIAL_FILENAME = ../${MYCASE}.cam_0001.i.${MODEL_DATE_EXT}.nc
+set ATM_HISTORY_FILENAME = ../${MYCASE}.cam_0001.h0.${MODEL_DATE_EXT}.nc
 
 ${LINK} $ATM_INITIAL_FILENAME caminput.nc
 ${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
@@ -311,7 +334,9 @@ set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 
 ${LINK} ${OBS_FILE} obs_seq.out
 
-mpirun.lsf ./filter || exit 7
+echo "assimilate:starting filter at "`date`
+$LAUNCHCMD ./filter || exit 7
+echo "assimilate:finished filter at "`date`
 
 ${MOVE} Prior_Diag.nc      ../Prior_Diag.${MODEL_DATE_EXT}.nc
 ${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${MODEL_DATE_EXT}.nc
@@ -382,10 +407,18 @@ cd ${CASEROOT}
 ./xmlchange -file env_conf.xml -id RUN_REFTOD  -val ${MODEL_SECONDS}
 ${COPY} env_conf.xml LockedFiles/env_conf.xml.locked
 cd $mydir 
+# we (DART) do not need these files, and CESM does not need them either
+# to continue a run.  if we remove them here they do not get moved to
+# the short-term archiver.
+${REMOVE} ../*.rs.*
+${REMOVE} ../*.rh0.*
+${REMOVE} ../*.rs1.*
+${REMOVE} ../PET*ESMF_LogFile
 
 #-------------------------------------------------------------------------
 # Cleanup
 #-------------------------------------------------------------------------
+echo "finished assimilate script at "`date`
 
 exit 0
 
