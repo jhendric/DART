@@ -115,9 +115,12 @@ if [ -z "$NINST_GLC" ]; then
 fi
 
 #create directory for restart files
-set ${CASE}.cpl.r.*
+#set ${CASE}.cpl.r.*
+#cplfile=`ls -rt $* 2> /dev/null | tail -1`
+#dname=`echo $cplfile | sed "s/\.nc//; s/^.*\.r\.//;"`
+set Posterior_Diag.*.nc
 cplfile=`ls -rt $* 2> /dev/null | tail -1`
-dname=`echo $cplfile | sed "s/\.nc//; s/^.*\.r\.//;"`
+dname=`echo "$cplfile" | cut -f2 -d'.'`
 if [ -d ${sta}/rest/${dname} ]; then
     rm -rf ${sta}/rest/${dname}
 fi
@@ -178,7 +181,7 @@ do
     set ${CASE}.cam${inst_suffix}.h4.*;                                                                                            dispose ifiles_n ${sta}/atm/hist $*
     set ${CASE}.cam${inst_suffix}.h5.*;                                                                                            dispose ifiles_n ${sta}/atm/hist $*
     set ${CASE}.cam${inst_suffix}.hs.*;                                                                                            dispose ifiles_n ${sta}/atm/hist $*
-    set ${CASE}.cam${inst_suffix}.i.*;                                                                                             dispose ifiles_n ${sta}/atm/init $*
+    set ${CASE}.cam${inst_suffix}.i.*;                                                                                             dispose ifiles_n ${sta}/atm/rest $*
     set cam_initial_${IDX}.nc;            latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/rest $*
     set ${CASE}.camice${inst_suffix}.r.*;                                                                                          dispose ifiles_y ${sta}/ice/rest $*
     set ${CASE}.camdom${inst_suffix}.r.*;                                                                                          dispose ifiles_y ${sta}/ocn/rest $*
