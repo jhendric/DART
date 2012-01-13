@@ -51,12 +51,12 @@
 # ====  Set case options
 # ====================================================================
 
-setenv case                 startup1
+setenv case                 startup0
 setenv compset              F_2000
 setenv ccsmtag              cesm1_1_beta04
 setenv resolution           f09_f09
-setenv num_instances        80
-setenv reuse_existing_case  true
+setenv num_instances        4
+setenv reuse_existing_case  false
 
 # ================================
 # define machines and directories
@@ -145,14 +145,48 @@ cd ${caseroot}
 # on a bluefire node ... capable of 64 tasks.
 set num_tasks_per_atm_instance = 16
 set nthreads = 1
-@ total_atm = $num_tasks_per_atm_instance * $num_instances
-@ total_ice = $num_tasks_per_atm_instance * $num_instances / 4
-@ total_cpl = $num_tasks_per_atm_instance * $num_instances / 4
-@ total_ocn = $num_tasks_per_atm_instance * 4
-@ ice_start = $total_cpl
-@ ocn_start = $total_cpl + $total_ice
-@ lnd_start = $ocn_start + $total_ocn
-@ total_lnd = $total_atm - $lnd_start
+
+# PE LAYOUT: 
+#   total number of tasks  = 1280 
+#   maximum threads per task = 1 
+#   cpl ntasks = 320  nthreads=1 rootpe=  0 ninst=1 
+#   cam ntasks =1280  nthreads=1 rootpe=  0 ninst=80 
+#   clm ntasks = 576  nthreads=1 rootpe=704 ninst=80 
+#   cice ntasks= 320  nthreads=1 rootpe=320 ninst=80 
+#   docn ntasks=  64  nthreads=1 rootpe=640 ninst=1 
+#   sglc ntasks=  64  nthreads=1 rootpe=  0 ninst=1 
+#   
+#   total number of hw pes = 1280 
+#     cpl hw pe range ~ from 0 to 319 
+#     cam hw pe range ~ from 0 to 1279 
+#     clm hw pe range ~ from 704 to 1279 
+#     cice hw pe range ~ from 320 to 639 
+#     docn hw pe range ~ from 640 to 703 
+#     sglc hw pe range ~ from 0 to 63 
+
+if ( $num_instances == 4 ) then
+   @ total_atm = 128
+   @ total_ice = 32
+   @ total_cpl = 32
+   @ total_ocn = 32
+   @ ice_start = $total_cpl
+   @ ocn_start = $total_cpl + $total_ice
+   @ lnd_start = $ocn_start + $total_ocn
+   @ total_lnd = $total_atm - $lnd_start
+else
+   @ total_atm = $num_tasks_per_atm_instance * $num_instances
+   @ total_ice = $num_tasks_per_atm_instance * $num_instances / 4
+   @ total_cpl = $num_tasks_per_atm_instance * $num_instances / 4
+   @ total_ocn = $num_tasks_per_atm_instance * 4
+   @ ice_start = $total_cpl
+   @ ocn_start = $total_cpl + $total_ice
+   @ lnd_start = $ocn_start + $total_ocn
+   @ total_lnd = $total_atm - $lnd_start
+endif
+
+echo "Node layout"
+echo "[0 ......................... ATM ..................... $total_atm]"
+echo "[0 ... CPL ... $total_cpl ... ICE ... $ocn_start ... OCN ... $lnd_start ... LND ... $total_atm]"
 
 # Tony: "if f19_g16, i'd recommend using 320 for cice, 32 for
 # docn, 320 for cpl, and then the rest for clm as a starting point."
@@ -282,7 +316,7 @@ if ( $status != 0 ) then
 endif
 
 # ====================================================================
-# Stage a copy of the DART assimilate.csh script HERE
+# Stage the required parts of DART in the caseroot directory.
 # ====================================================================
 
 cd ${caseroot}
@@ -293,6 +327,10 @@ cd ${caseroot}
 \cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/.
 
 \cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.startup.csh assimilate.csh
+\cp -f ${DARTdir}/models/cam/work/input.nml    .
+\cp -f ${DARTdir}/models/cam/work/filter       .
+\cp -f ${DARTdir}/models/cam/work/cam_to_dart  .
+\cp -f ${DARTdir}/models/cam/work/dart_to_cam  .
 
 # ====================================================================
 # Update the scripts that build the namelists.
@@ -494,13 +532,11 @@ chmod 0744 $case.$mach.run
 # Submit job
 # ====================================================================
 
-set MYSTRING = `grep "set DARTDIR" assimilate.csh`
-set DARTDIR = $MYSTRING[4]
-
 echo ''
-echo 'case is ready to submit after you check the'
-echo "DART settings in ${DARTDIR}/input.nml"
-echo 'After you check them,'
-echo "cd into ${caseroot} and run: ./$case.$mach.submit"
+echo 'Time to check the case.'
+echo "cd ${caseroot}"
+echo "Modify what you like in input.nml, make sure the observation directory"
+echo 'names built in assimilate.csh match those on your system, submit the job:'
+echo "./$case.$mach.submit"
 echo ''
 

@@ -1,4 +1,4 @@
-#!/bin/csh
+#!/bin/csh -f
 #
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -6,12 +6,39 @@
 #
 # $Id$
 
-# The FORCE options are not optional.
-# the VERBOSE options are useful for debugging.
-set   MOVE = '/usr/local/bin/mv -fv'
-set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
-set   LINK = '/usr/local/bin/ln -fvs'
-set REMOVE = '/usr/local/bin/rm -fr'
+# This block is an attempt to localize all the machine-specific 
+# changes to this script such that the same script can be used
+# on multiple platforms. This will help us maintain the script.
+
+echo "starting assimilate script at "`date`
+
+switch ("`hostname`")
+   case be*:
+      # NCAR "bluefire"
+      # The FORCE options are not optional.
+      # the VERBOSE options are useful for debugging.
+      set   MOVE = '/usr/local/bin/mv -fv'
+      set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
+      set   LINK = '/usr/local/bin/ln -fvs'
+      set REMOVE = '/usr/local/bin/rm -fr'
+
+      set BASEOBSDIR = /glade/proj3/image/Observations/ACARS
+      set DARTDIR    = ${HOME}/svn/DART/dev
+      set LAUNCHCMD  = mpirun.lsf
+
+   breaksw
+   default:
+      # NERSC "hopper"
+      set   MOVE = 'mv -fv'
+      set   COPY = 'cp -fv --preserve=timestamps'
+      set   LINK = 'ln -fvs'
+      set REMOVE = 'rm -fr'
+
+      set BASEOBSDIR = /scratch/scratchdirs/nscollin/ACARS
+      set DARTDIR    = ${HOME}/devel
+      set LAUNCHCMD  = "aprun -n $NTASKS"
+   breaksw
+endsw 
 
 set ensemble_size = ${NINST_ATM}
 
@@ -23,10 +50,10 @@ cd $temp_dir
 
 #-------------------------------------------------------------------------
 # Determine time of model state ... from file name of first member
-# of the form "./${CASE}.cam_${ensemble_member}.r.2000-01-06-00000.nc"
+# of the form "./${CASE}.cam_${ensemble_member}.i.2000-01-06-00000.nc"
 #-------------------------------------------------------------------------
 
-set FILE = `head -1 ../rpointer.atm_0001`
+set FILE = `ls -1t ../*.cam_0001.i.* | head -1`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
@@ -45,26 +72,22 @@ echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (ho
 # Set variables containing various directory names where we will GET things
 #-----------------------------------------------------------------------------
 
-set DARTDIR = ${HOME}/svn/DART/dev
-
 set DART_OBS_DIR = ${MODEL_YEAR}${MODEL_MONTH}_6H
-set  OBSDIR = /glade/proj3/image/Observations/ACARS/${DART_OBS_DIR}
+set OBSDIR       = ${BASEOBSDIR}/${DART_OBS_DIR}
 
-#-------------------------------------------------------------------------
-# DART COPY BLOCK
-# Populate a run-time directory with the bits needed to run DART
-#-------------------------------------------------------------------------
+#=========================================================================
+# Block 1: Populate a run-time directory with the bits needed to run DART.
+#=========================================================================
 
 foreach FILE ( input.nml filter cam_to_dart dart_to_cam )
-   if (  -e   ${DARTDIR}/models/cam/work/${FILE} ) then
-      ${COPY} ${DARTDIR}/models/cam/work/${FILE} .
+   if (  -e   ${CASEROOT}/${FILE} ) then
+      ${COPY} ${CASEROOT}/${FILE} .
    else
-      echo "DART required file ${DARTDIR}/${FILE} not found ... ERROR"
+      echo "ERROR ... DART required file ${CASEROOT}/${FILE} not found ... ERROR"
+      echo "ERROR ... DART required file ${CASEROOT}/${FILE} not found ... ERROR"
       exit 1
    endif
 end
-
-${COPY} /glade/proj3/DART/raeder/FV1deg_4.0/cam_phis.nc .
 
 # Modify the DART input.nml such that
 # the DART ensemble size matches the CESM number of instances
@@ -77,13 +100,13 @@ g;num_output_obs_members ;s;= .*;= $ensemble_size;
 wq
 ex_end
 
-#-------------------------------------------------------------------------
-# DART SAMPLING ERROR CORRECTION BLOCK
-# This stages the files needed for the sampling error correction.
+#=========================================================================
+# Block 2: Stage the files needed for SAMPLING ERROR CORRECTION
+#
 # Each ensemble size has its own (static) file which does not need to be archived.
 # It is only needed if
 # input.nml:&assim_tools_nml:sampling_error_correction = .true.,
-#-------------------------------------------------------------------------
+#=========================================================================
 
 set  MYSTRING = `grep sampling_error_correction input.nml`
 set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,'\.]# #g"`
@@ -103,8 +126,8 @@ else
    echo "Sampling Error Correction not requested for this assimilation."
 endif
 
-#-------------------------------------------------------------------------
-# DART INFLATION BLOCK
+#=========================================================================
+# Block 3: DART INFLATION
 # This stages the files that contain the inflation values.
 # The inflation values change through time and should be archived.
 #
@@ -136,7 +159,7 @@ endif
 # the CESM rundir to be used for subsequent assimilations. If the short-term
 # archiver has worked correctly, only the LATEST files will available. Of
 # course, it is not required to have short-term archiving turned on, so ...
-#-------------------------------------------------------------------------
+#=========================================================================
 
 set  MYSTRING = `grep inf_flavor input.nml`
 set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
@@ -222,20 +245,21 @@ else
    echo "Posterior Inflation not requested for this assimilation."
 endif
 
-#-------------------------------------------------------------------------
-# Block 1: convert N cam restart files to DART initial conditions file(s)
-# cam_to_dart is serial code, we can do all of these at the same time
-# and just wait for them to finish IFF it were not for the fact we'd have
-# to have unique namelists for all of them.
+#=========================================================================
 #
-# At the end of the block, we have DART restart files  filter_ic_old.[1-N]
+# Block 4: Convert CAM restart files to DART initial condition files.
+# cam_to_dart is serial code, we can do all of these at the same time
+# as long as we can have unique namelists for all of them.
+#
+# At the end of this block, we have DART restart files  filter_ic_old.[1-N]
 # that came from pointer files ../rpointer.atm_[1-N]
 #
 # DART namelist settings appropriate/required:
 # &filter_nml:           restart_in_file_name    = 'filter_ic_old'
 # &ensemble_manager_nml: single_restart_file_in  = '.false.'
 # &cam_to_dart_nml:      cam_to_dart_output_file = 'dart_ics',
-#-------------------------------------------------------------------------
+#
+#=========================================================================
 
 set member = 1
 while ( ${member} <= ${ensemble_size} )
@@ -249,13 +273,11 @@ while ( ${member} <= ${ensemble_size} )
    mkdir -p $MYTEMPDIR
    cd $MYTEMPDIR
 
-   set POINTER_FILENAME = `printf rpointer.atm_%04d ${member}`
-   set MODEL_RESTART_FILENAME = `head -1 ../../${POINTER_FILENAME}`
-   set MODEL_INITIAL_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
-   ${LINK} ../../$MODEL_INITIAL_FILENAME caminput.nc
-   ${LINK} ../cam_phis.nc .
+   set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${MODEL_DATE_EXT}.nc ${member}`
+   set ATM_HISTORY_FILENAME = `ls -1t ../../${MYCASE}.cam*.h0.* | head -1`
 
-   # TJH can we use a .h0. file instead of some arbitrary cam_phis.nc
+   ${LINK} $ATM_INITIAL_FILENAME caminput.nc
+   ${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
 
    set DART_IC_FILE = `printf ../filter_ic_old.%04d ${member}`
 
@@ -272,8 +294,14 @@ end
 
 wait
 
-#-------------------------------------------------------------------------
-# Block 2: Actually run the assimilation.
+if ($status != 0) then
+   echo "ERROR ... DART died in 'cam_to_dart' ... ERROR"
+   echo "ERROR ... DART died in 'cam_to_dart' ... ERROR"
+   exit 7
+endif
+
+#=========================================================================
+# Block 5: Actually run the assimilation.
 # Will result in a set of files : 'filter_restart.xxxx'
 #
 # DART namelist settings required:
@@ -291,17 +319,16 @@ wait
 # &filter_nml:           last_obs_seconds       = -1,
 # &ensemble_manager_nml: single_restart_file_in = .false.
 #
-#-------------------------------------------------------------------------
+#=========================================================================
 
-# cam always needs a cam_initial.nc and a cam_history.nc to start.
+# CAM:static_init_model() always needs a caminput.nc and a cam_phis.nc
+# for geometry information, etc.
 
-set MODEL_RESTART_FILENAME = `head -1 ../rpointer.atm_0001`
-set MODEL_INITIAL_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
-set MODEL_HISTORY_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.h0\.#"`
+set ATM_INITIAL_FILENAME =         ../${MYCASE}.cam_0001.i.${MODEL_DATE_EXT}.nc
+set ATM_HISTORY_FILENAME = `ls -1t ../${MYCASE}.cam_0001.h0.* | head -1`
 
-${LINK} ../$MODEL_INITIAL_FILENAME caminput.nc
-#${LINK} ../$MODEL_RESTART_FILENAME cam_restart.nc
-#${LINK} ../$MODEL_HISTORY_FILENAME cam_history.nc
+${LINK} $ATM_INITIAL_FILENAME caminput.nc
+${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
 
 # Determine proper observation sequence file.
 
@@ -310,21 +337,9 @@ set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 
 ${LINK} ${OBS_FILE} obs_seq.out
 
-# FIXME: special for trying out non-monotonic task layouts.
-# TJH setenv ORG_PATH "${PATH}"
-# TJH setenv LSF_BINDIR /contrib/lsf/tgmpatch
-# TJH setenv PATH ${LSF_BINDIR}:${PATH}
-# TJH setenv ORG_TASK_GEOMETRY "${LSB_PJL_TASK_GEOMETRY}"
-
-# layout: flat
-setenv NANCY_GEOMETRY_54_1NODE \
-	"{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53)}";
-
-# TJH setenv LSB_PJL_TASK_GEOMETRY "${NANCY_GEOMETRY_54_1NODE}"
-
-which mpirun.lsf
-
-mpirun.lsf ./filter || exit 7
+echo "assimilate:starting filter at "`date`
+$LAUNCHCMD ./filter || exit 7
+echo "assimilate:finished filter at "`date`
 
 ${MOVE} Prior_Diag.nc      ../Prior_Diag.${MODEL_DATE_EXT}.nc
 ${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${MODEL_DATE_EXT}.nc
@@ -344,12 +359,8 @@ foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE
    endif
 end
 
-# FIXME: special for trying out non-monotonic task layouts.
-# TJH setenv PATH "${ORG_PATH}"
-# TJH setenv LSB_PJL_TASK_GEOMETRY "${ORG_TASK_GEOMETRY}"
-
-#-------------------------------------------------------------------------
-# Block 3: Update the cam restart files ... simultaneously ...
+#=========================================================================
+# Block 6: Update the cam restart files. 
 #
 # DART namelist settings required:
 # &filter_nml:           restart_out_file_name  = 'filter_ic_new'
@@ -357,49 +368,22 @@ end
 # &dart_to_cam_nml:      dart_to_cam_input_file = 'temp_ic',
 # &dart_to_cam_nml:      advance_time_present   = .false.
 # &atm_in_xxxx:ncdata = 'cam_initial_x.nc'
-#-------------------------------------------------------------------------
+#=========================================================================
 
 set member = 1
 while ( ${member} <= ${ensemble_size} )
 
-   # Each member will do its job in its own directory.
-   # Cannot do these simultaneously -
+   # Each member will do its job in its own directory, which already exists
+   # and has the required input files remaining from 'Block 4'
 
-   set MYTEMPDIR = member_${member}
-   mkdir -p $MYTEMPDIR
-   cd $MYTEMPDIR
+   cd member_${member}
 
    set DART_RESTART_FILE = `printf filter_ic_new.%04d ${member}`
    ${LINK} ../$DART_RESTART_FILE temp_ic
 
-   set ATM_POINTER_FILENAME = `printf rpointer.atm_%04d ${member}`
-   set LND_POINTER_FILENAME = `printf rpointer.lnd_%04d ${member}`
-   set ICE_POINTER_FILENAME = `printf rpointer.ice_%04d ${member}`
-
-   set ATM_RESTART_FILENAME = `head -1 ../../${ATM_POINTER_FILENAME}`
-   set LND_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.clm2_#"`
-   set ICE_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.cice_#"`
-
-   set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
-
-#  set ATM_HISTORY_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.h0\.#"`
-#  ${LINK} ../../$ATM_RESTART_FILENAME cam_restart.nc
-#  ${LINK} ../../$ATM_HISTORY_FILENAME cam_history.nc
-   ${LINK} ../../$ATM_INITIAL_FILENAME caminput.nc
-
    echo "starting dart_to_cam for member ${member} at "`date`
-   ../dart_to_cam >! output.${member}.dart_to_cam
+   ../dart_to_cam >! output.${member}.dart_to_cam &
    echo "finished dart_to_cam for member ${member} at "`date`
-
-   # The initial filenames are static and come from the atm_in_xxxx namelist.
-   # We must rename the updated initial files to the static names.
-   # I do not want to stymy the archive scripts.
-   #
-   # IMPORTANT: The Tools/st_archive.sh script must be substantially modified.
-
-   ${COPY} ../../$ATM_INITIAL_FILENAME ../../cam_initial_${member}.nc
-   ${COPY} ../../$LND_RESTART_FILENAME ../../clm_restart_${member}.nc
-   ${COPY} ../../$ICE_RESTART_FILENAME ../../ice_restart_${member}.nc
 
    cd ..
 
@@ -407,6 +391,45 @@ while ( ${member} <= ${ensemble_size} )
 end
 
 wait
+
+if ($status != 0) then
+   echo "ERROR ... DART died in 'dart_to_cam' ... ERROR"
+   echo "ERROR ... DART died in 'dart_to_cam' ... ERROR"
+   exit 8
+endif
+
+#-------------------------------------------------------------------------
+# Block 4: The cam files have now been updated, move them into position.
+#-------------------------------------------------------------------------
+
+set member = 1
+while ( ${member} <= ${ensemble_size} )
+
+   cd member_${member}
+
+   set LND_POINTER_FILENAME = `printf rpointer.lnd_%04d ${member}`
+   set ICE_POINTER_FILENAME = `printf rpointer.ice_%04d ${member}`
+
+   set LND_RESTART_FILENAME = `head -1 ../../${LND_POINTER_FILENAME}`
+   set ICE_RESTART_FILENAME = `head -1 ../../${ICE_POINTER_FILENAME}`
+   set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${MODEL_DATE_EXT}.nc ${member}`
+   set ATM_HISTORY_FILENAME = `ls -1t ../../${MYCASE}.cam*.h0.* | head -1`
+
+   # As implemented, the input filenames are static in the namelists.
+   # In order to archive the 'dynamic' files (i.e. with the dates) 
+   # and restage the 'static' files, we must copy the updated files 
+   # to the static names.
+   #
+   # IMPORTANT: The Tools/st_archive.sh script must be substantially modified.
+
+   ${MOVE} ../../$LND_RESTART_FILENAME ../../clm_restart_${member}.nc
+   ${MOVE} ../../$ICE_RESTART_FILENAME ../../ice_restart_${member}.nc
+   ${MOVE} ../../$ATM_INITIAL_FILENAME ../../cam_initial_${member}.nc
+
+   cd ..
+
+   @ member++
+end
 
 #-------------------------------------------------------------------------
 # Now that everything is staged, we have to communicate the current
@@ -420,9 +443,20 @@ g; start_tod;s;=[ ]*.*;= $MODEL_SECONDS;
 wq
 ex_end
 
+# we (DART) do not need these files, and CESM does not need them either
+# to continue a run.  if we remove them here they do not get moved to
+# the short-term archiver.
+${REMOVE} ../*.rs.*
+${REMOVE} ../*.rh0.*
+${REMOVE} ../*.rs1.*
+${REMOVE} ../*cam.r.*
+${REMOVE} ../PET*ESMF_Logfile
+
+
 #-------------------------------------------------------------------------
 # Cleanup
 #-------------------------------------------------------------------------
+echo "finished assimilate script at "`date`
 
 exit 0
 

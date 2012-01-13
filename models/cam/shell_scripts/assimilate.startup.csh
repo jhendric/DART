@@ -1,4 +1,4 @@
-#!/bin/csh
+#!/bin/csh -f
 #
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -29,10 +29,10 @@ switch ("`hostname`")
    breaksw
    default:
       # NERSC "hopper"
-      set   MOVE = 'mv -fv'                                                                    
-      set   COPY = 'cp -fv --preserve=timestamps'                                              
-      set   LINK = 'ln -fvs'                                                                   
-      set REMOVE = 'rm -fr' 
+      set   MOVE = 'mv -fv'
+      set   COPY = 'cp -fv --preserve=timestamps'
+      set   LINK = 'ln -fvs'
+      set REMOVE = 'rm -fr'
 
       set BASEOBSDIR = /scratch/scratchdirs/nscollin/ACARS
       set DARTDIR    = ${HOME}/devel
@@ -50,10 +50,10 @@ cd $temp_dir
 
 #-------------------------------------------------------------------------
 # Determine time of model state ... from file name of first member
-# of the form "./${CASE}.cam_${ensemble_member}.r.2000-01-06-00000.nc"
+# of the form "./${CASE}.cam_${ensemble_member}.i.2000-01-06-00000.nc"
 #-------------------------------------------------------------------------
 
-set FILE = `head -1 ../rpointer.atm_0001`
+set FILE = `ls -1t ../*.cam_0001.i.* | head -1`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
@@ -80,11 +80,11 @@ set OBSDIR       = ${BASEOBSDIR}/${DART_OBS_DIR}
 #=========================================================================
 
 foreach FILE ( input.nml filter cam_to_dart dart_to_cam )
-   if (  -e   ${DARTDIR}/models/cam/work/${FILE} ) then
-      ${COPY} ${DARTDIR}/models/cam/work/${FILE} .
+   if (  -e   ${CASEROOT}/${FILE} ) then
+      ${COPY} ${CASEROOT}/${FILE} .
    else
-      echo "ERROR ... DART required file ${DARTDIR}/${FILE} not found ... ERROR"
-      echo "ERROR ... DART required file ${DARTDIR}/${FILE} not found ... ERROR"
+      echo "ERROR ... DART required file ${CASEROOT}/${FILE} not found ... ERROR"
+      echo "ERROR ... DART required file ${CASEROOT}/${FILE} not found ... ERROR"
       exit 1
    endif
 end
@@ -273,14 +273,11 @@ while ( ${member} <= ${ensemble_size} )
    mkdir -p $MYTEMPDIR
    cd $MYTEMPDIR
 
-   set POINTER_FILENAME = `printf rpointer.atm_%04d ${member}`
+   set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${MODEL_DATE_EXT}.nc ${member}`
+   set ATM_HISTORY_FILENAME = `ls -1t ../../${MYCASE}.cam*.h0.* | head -1`
 
-   set ATM_HISTORY_FILENAME = `ls   -1 ../../*.cam_????.h0.* | head -1`
-   set ATM_RESTART_FILENAME = `head -1 ../../${POINTER_FILENAME}`
-   set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
-
-   ${LINK} ../../$ATM_INITIAL_FILENAME caminput.nc
-   ${LINK}       $ATM_HISTORY_FILENAME cam_phis.nc
+   ${LINK} $ATM_INITIAL_FILENAME caminput.nc
+   ${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
 
    set DART_IC_FILE = `printf ../filter_ic_old.%04d ${member}`
 
@@ -327,12 +324,11 @@ endif
 # CAM:static_init_model() always needs a caminput.nc and a cam_phis.nc
 # for geometry information, etc.
 
-set ATM_RESTART_FILENAME = `head -1 ../rpointer.atm_0001`
-set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
-set ATM_HISTORY_FILENAME = `ls   -1 ../*.cam_0001.h0.* | head -1`
+set ATM_INITIAL_FILENAME =         ../${MYCASE}.cam_0001.i.${MODEL_DATE_EXT}.nc
+set ATM_HISTORY_FILENAME = `ls -1t ../${MYCASE}.cam_0001.h0.* | head -1`
 
-${LINK} ../$ATM_INITIAL_FILENAME caminput.nc
-${LINK}    $ATM_HISTORY_FILENAME cam_phis.nc
+${LINK} $ATM_INITIAL_FILENAME caminput.nc
+${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
 
 # Determine proper observation sequence file.
 
@@ -413,12 +409,11 @@ while ( ${member} <= ${ensemble_size} )
 
    set LND_POINTER_FILENAME = `printf rpointer.lnd_%04d ${member}`
    set ICE_POINTER_FILENAME = `printf rpointer.ice_%04d ${member}`
-   set ATM_POINTER_FILENAME = `printf rpointer.atm_%04d ${member}`
 
    set LND_RESTART_FILENAME = `head -1 ../../${LND_POINTER_FILENAME}`
    set ICE_RESTART_FILENAME = `head -1 ../../${ICE_POINTER_FILENAME}`
-   set ATM_RESTART_FILENAME = `head -1 ../../${ATM_POINTER_FILENAME}`
-   set ATM_INITIAL_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
+   set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${MODEL_DATE_EXT}.nc ${member}`
+   set ATM_HISTORY_FILENAME = `ls -1t ../../${MYCASE}.cam*.h0.* | head -1`
 
    # As implemented, the input filenames are static in the namelists.
    # In order to archive the 'dynamic' files (i.e. with the dates) 
