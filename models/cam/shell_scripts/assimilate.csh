@@ -53,7 +53,7 @@ cd $temp_dir
 # of the form "./${CASE}.cam_${ensemble_member}.i.2000-01-06-00000.nc"
 #-------------------------------------------------------------------------
 
-set FILE = `ls -1t ../*.cam_0001.i.* | head -1`
+set FILE = `ls -1t ../*.cam_0001.i.* | head -n 1`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
@@ -76,18 +76,16 @@ set DART_OBS_DIR = ${MODEL_YEAR}${MODEL_MONTH}_6H
 set OBSDIR       = ${BASEOBSDIR}/${DART_OBS_DIR}
 
 #=========================================================================
-# Block 1: Populate a run-time directory with the bits needed to run DART.
+# Block 1: Populate a run-time directory with the input needed to run DART.
 #=========================================================================
 
-foreach FILE ( input.nml filter cam_to_dart dart_to_cam )
-   if (  -e   ${CASEROOT}/${FILE} ) then
-      ${COPY} ${CASEROOT}/${FILE} .
-   else
-      echo "ERROR ... DART required file ${CASEROOT}/${FILE} not found ... ERROR"
-      echo "ERROR ... DART required file ${CASEROOT}/${FILE} not found ... ERROR"
-      exit 1
-   endif
-end
+if (  -e   ${CASEROOT}/input.nml ) then
+   ${COPY} ${CASEROOT}/input.nml .
+else
+   echo "ERROR ... DART required file ${CASEROOT}/${FILE} not found ... ERROR"
+   echo "ERROR ... DART required file ${CASEROOT}/${FILE} not found ... ERROR"
+   exit 1
+endif
 
 # Modify the DART input.nml such that
 # the DART ensemble size matches the CESM number of instances
@@ -266,22 +264,26 @@ while ( ${member} <= ${ensemble_size} )
    # they all read their OWN 'input.nml' ... the output
    # filenames must inserted into the appropriate input.nml
 
+   # Turns out the .h0. files are timestamped with the START of the 
+   # run, which is *not* MODEL_DATE_EXT ...  I just link to a whatever 
+   # is convenient (since the info is static).
+
    set MYTEMPDIR = member_${member}
    mkdir -p $MYTEMPDIR
    cd $MYTEMPDIR
 
    set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${MODEL_DATE_EXT}.nc ${member}`
-   set ATM_HISTORY_FILENAME = `printf ../../${MYCASE}.cam_%04d.h0.${MODEL_DATE_EXT}.nc ${member}`
+   set ATM_HISTORY_FILENAME = `ls -1t ../../${MYCASE}.cam*.h0.* | head -n 1`
+   set DART_IC_FILE = `printf ../filter_ic_old.%04d ${member}`
 
    ${LINK} $ATM_INITIAL_FILENAME caminput.nc
    ${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
+   ${LINK} $DART_IC_FILE         dart_ics
 
-   set DART_IC_FILE = `printf ../filter_ic_old.%04d ${member}`
-
-   sed -e "s#dart_ics#${DART_IC_FILE}#" < ../input.nml >! input.nml
+   cp ../input.nml .
 
    echo "starting cam_to_dart for member ${member} at "`date`
-   ../cam_to_dart >! output.${member}.cam_to_dart &
+   ${EXEROOT}/cam_to_dart >! output.${member}.cam_to_dart &
    echo "finished cam_to_dart for member ${member} at "`date`
 
    cd ..
@@ -322,7 +324,7 @@ endif
 # for geometry information, etc.
 
 set ATM_INITIAL_FILENAME = ../${MYCASE}.cam_0001.i.${MODEL_DATE_EXT}.nc
-set ATM_HISTORY_FILENAME = ../${MYCASE}.cam_0001.h0.${MODEL_DATE_EXT}.nc
+set ATM_HISTORY_FILENAME = `ls -1t ../${MYCASE}.cam*.h0.* | head -n 1`
 
 ${LINK} $ATM_INITIAL_FILENAME caminput.nc
 ${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
@@ -335,7 +337,7 @@ set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 ${LINK} ${OBS_FILE} obs_seq.out
 
 echo "assimilate:starting filter at "`date`
-$LAUNCHCMD ./filter || exit 7
+${LAUNCHCMD} ${EXEROOT}/filter || exit 7
 echo "assimilate:finished filter at "`date`
 
 ${MOVE} Prior_Diag.nc      ../Prior_Diag.${MODEL_DATE_EXT}.nc
@@ -375,11 +377,11 @@ while ( ${member} <= ${ensemble_size} )
 
    cd member_${member}
 
-   set DART_RESTART_FILE = `printf filter_ic_new.%04d ${member}`
-   ${LINK} ../$DART_RESTART_FILE temp_ic
+   set DART_RESTART_FILE = `printf ../filter_ic_new.%04d ${member}`
+   ${LINK} $DART_RESTART_FILE temp_ic
 
    echo "starting dart_to_cam for member ${member} at "`date`
-   ../dart_to_cam >! output.${member}.dart_to_cam &
+   ${EXEROOT}/dart_to_cam >! output.${member}.dart_to_cam &
    echo "finished dart_to_cam for member ${member} at "`date`
 
    cd ..
@@ -395,9 +397,16 @@ if ($status != 0) then
    exit 8
 endif
 
-#-------------------------------------------------------------------------
-# Block 4: The cam files have now been updated, move them into position.
-#-------------------------------------------------------------------------
+#=========================================================================
+# Block 7: The cam files have now been updated, move them into position.
+#
+# As implemented, the input filenames are static in the CESM namelists.
+# Since the short-term archiver creates unique directories for these,
+# it is OK to move the uniquely-named files to static names.
+#
+# IMPORTANT: the DART/models/cam/shell_scripts/st_archive.sh MUST be used
+# instead of the CESM st_archive.sh script.
+#=========================================================================
 
 set member = 1
 while ( ${member} <= ${ensemble_size} )
@@ -407,20 +416,13 @@ while ( ${member} <= ${ensemble_size} )
    set LND_POINTER_FILENAME = `printf rpointer.lnd_%04d ${member}`
    set ICE_POINTER_FILENAME = `printf rpointer.ice_%04d ${member}`
 
-   set LND_RESTART_FILENAME = `head -1 ../../${LND_POINTER_FILENAME}`
-   set ICE_RESTART_FILENAME = `head -1 ../../${ICE_POINTER_FILENAME}`
-   set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${MODEL_DATE_EXT}.nc ${member}`
+   set LND_RESTART_FILENAME = `head -n 1 ../../${LND_POINTER_FILENAME}`
+   set ICE_RESTART_FILENAME = `head -n 1 ../../${ICE_POINTER_FILENAME}`
+   set ATM_INITIAL_FILENAME = `printf ${MYCASE}.cam_%04d.i.${MODEL_DATE_EXT}.nc ${member}`
 
-   # As implemented, the input filenames are static in the namelists.
-   # In order to archive the 'dynamic' files (i.e. with the dates) 
-   # and restage the 'static' files, we must copy the updated files 
-   # to the static names.
-   #
-   # IMPORTANT: The Tools/st_archive.sh script must be substantially modified.
-
-   ${MOVE} ../../$LND_RESTART_FILENAME ../../clm_restart_${member}.nc
-   ${MOVE} ../../$ICE_RESTART_FILENAME ../../ice_restart_${member}.nc
-   ${MOVE} ../../$ATM_INITIAL_FILENAME ../../cam_initial_${member}.nc
+   ${MOVE} ../../$LND_RESTART_FILENAME ../../clm_restart_${member}.nc || exit 9
+   ${MOVE} ../../$ICE_RESTART_FILENAME ../../ice_restart_${member}.nc || exit 9
+   ${MOVE} ../../$ATM_INITIAL_FILENAME ../../cam_initial_${member}.nc || exit 9
 
    cd ..
 

@@ -56,7 +56,7 @@ setenv compset              F_2000
 setenv ccsmtag              cesm1_1_beta04
 setenv resolution           f09_f09
 setenv num_instances        4
-setenv reuse_existing_case  false
+setenv reuse_existing_case  true
 
 # ================================
 # define machines and directories
@@ -75,8 +75,8 @@ setenv mach         bluefire
 setenv cesm_datadir /glade/proj3/cseg/inputdata
 setenv cesm_public  /glade/proj3/cseg
 setenv caseroot     /glade/user/${USER}/cases/${case}
-setenv rundir       /glade/scratch/${USER}/${case}
-setenv archdir      /glade/scratch/${USER}/archive/${case}
+setenv rundir       /ptmp/${USER}/${case}
+setenv archdir      /ptmp/${USER}/archive/${case}
 setenv DARTdir      /glade/home/thoar/svn/DART/dev
 
 setenv ccsmroot     /glade/home/thoar/${ccsmtag}
@@ -321,16 +321,25 @@ endif
 
 cd ${caseroot}
 
-\mv Tools/st_archive.sh Tools/st_archive.sh.org
+if ( ! -e Tools/st_archive.sh.org ) then
+      # save one copy and only one, we can execute this multiple times
+      \mv Tools/st_archive.sh Tools/st_archive.sh.org
+endif
 \cp -f ${DARTdir}/models/cam/shell_scripts/st_archive.sh Tools/st_archive.sh
 # only needed for beta04 - fixed in more recent versions
 \cp -f ${ccsmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/.
 
-\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.startup.csh assimilate.csh
-\cp -f ${DARTdir}/models/cam/work/input.nml    .
-\cp -f ${DARTdir}/models/cam/work/filter       .
-\cp -f ${DARTdir}/models/cam/work/cam_to_dart  .
-\cp -f ${DARTdir}/models/cam/work/dart_to_cam  .
+\cp -f ${DARTdir}/models/cam/shell_scripts/assimilate.csh .
+\cp -f ${DARTdir}/models/cam/work/input.nml               .
+
+foreach FILE ( filter cam_to_dart dart_to_cam ) 
+   \cp -f ${DARTdir}/models/cam/work/${FILE} ${rundir}/.
+   if ( $status != 0 ) then
+      echo "ERROR: ${DARTdir}/models/cam/work/${FILE} not copied to ${rundir}"
+      echo "ERROR: ${DARTdir}/models/cam/work/${FILE} not copied to ${rundir}"
+      exit 3
+   endif
+end
 
 # ====================================================================
 # Update the scripts that build the namelists.
@@ -448,6 +457,24 @@ else
 endif
 
 # ====================================================================
+# Edit the run script to reflect project, queue, and wallclock
+# ====================================================================
+
+set PROJ=`grep BSUB $case.$mach.run | grep -e '-P' `
+sed s/$PROJ[3]/$proj/ < $case.$mach.run >! temp
+/bin/mv temp  $case.$mach.run
+
+set TIMEWALL=`grep BSUB $case.$mach.run | grep -e '-W' `
+sed s/$TIMEWALL[3]/$timewall/ < $case.$mach.run >! temp
+/bin/mv temp  $case.$mach.run
+
+set QUEUE=`grep BSUB $case.$mach.run | grep -e '-q' `
+sed s/$QUEUE[3]/$queue/ < $case.$mach.run >! temp
+/bin/mv temp  $case.$mach.run
+
+chmod 0744 $case.$mach.run
+
+# ====================================================================
 # IMPORTANT: All resubmits must be type 'startup'.
 # Change Tools/ccsm_postrun.csh line 83 to CONTINUE_RUN -val FALSE'
 # ====================================================================
@@ -509,24 +536,6 @@ end
 
 echo 'If inflation is being used ... '
 echo "must stage a ${rundir}/[prior,pos]_inflate_restart.YYYY-MM-DD-SSSSS"
-
-# ====================================================================
-# Edit the run script to reflect project, queue, and wallclock
-# ====================================================================
-
-set PROJ=`grep BSUB $case.$mach.run | grep -e '-P' `
-sed s/$PROJ[3]/$proj/ < $case.$mach.run >! temp
-/bin/mv temp  $case.$mach.run
-
-set TIMEWALL=`grep BSUB $case.$mach.run | grep -e '-W' `
-sed s/$TIMEWALL[3]/$timewall/ < $case.$mach.run >! temp
-/bin/mv temp  $case.$mach.run
-
-set QUEUE=`grep BSUB $case.$mach.run | grep -e '-q' `
-sed s/$QUEUE[3]/$queue/ < $case.$mach.run >! temp
-/bin/mv temp  $case.$mach.run
-
-chmod 0744 $case.$mach.run
 
 # ====================================================================
 # Submit job
