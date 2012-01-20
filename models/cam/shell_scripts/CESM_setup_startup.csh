@@ -111,9 +111,8 @@ setenv cesmroot     /glade/home/thoar/${cesmtag}
 setenv DARTroot     /glade/home/${USER}/svn/DART/dev
 
 setenv caseroot     /glade/user/${USER}/cases/${case}
-setenv exeroot      /ptmp/${USER}/${case}
-setenv archdir      /ptmp/${USER}/archive/${case}
-set    CESM_setup_dir = `pwd`
+setenv exeroot      /glade/scratch/${USER}/${case}
+setenv archdir      /glade/scratch/${USER}/archive/${case}
 
 # ====================================================================
 # configure settings
@@ -156,6 +155,32 @@ setenv timewall     2:00
 setenv queue        lrg_regular
 
 # ====================================================================
+# set these standard commands based on the machine you are running on.
+# ====================================================================
+
+switch ("`hostname`")
+   case be*:
+      # NCAR "bluefire"
+      # The FORCE options are not optional.
+      # the VERBOSE options are useful for debugging.
+      set   MOVE = '/usr/local/bin/mv -fv'
+      set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
+      set   LINK = '/usr/local/bin/ln -fvs'
+      set REMOVE = '/usr/local/bin/rm -fr'
+
+   breaksw
+   default:
+      # NERSC "hopper" 
+      set   MOVE = '/bin/mv -fv'
+      set   COPY = '/bin/cp -fv --preserve=timestamps'
+      set   LINK = '/bin/ln -fvs'
+      set REMOVE = '/bin/rm -fr'
+
+   breaksw
+endsw 
+
+
+# ====================================================================
 # Create the case.
 #
 # For list of the pre-defined cases: ./create_newcase -list
@@ -165,8 +190,8 @@ setenv queue        lrg_regular
 
 if ("${reuse_existing_case}" == "false") then
    echo "removing old files from ${caseroot} and ${exeroot}"
-   \rm -fr ${caseroot}
-   \rm -fr ${exeroot}
+   ${REMOVE} ${caseroot}
+   ${REMOVE} ${exeroot}
    ${cesmroot}/scripts/create_newcase -case ${caseroot} -mach ${mach} \
                    -res ${resolution} -compset ${compset} -skip_rundb
 
@@ -233,9 +258,9 @@ endif
 @ docn_rootpe = $cice_rootpe + $cice_pes
 @ lnd_rootpe  = $docn_rootpe + $docn_pes
 
-echo "check pe counting; last_pe should = total_nt - 1"
-@ last_pe = ( $lnd_rootpe + $lnd_pes ) - 1
-echo $last_pe
+# echo "check pe counting; last_pe should = total_nt - 1"
+# @ last_pe = ( $lnd_rootpe + $lnd_pes ) - 1
+# echo $last_pe
 
 echo "task layout"
 echo "[$atm_rootpe ......................... ATM ............................. $atm_pes]"
@@ -336,7 +361,8 @@ EOF
 #    mods and put in the SourceMods subdirectory found in the 'case' directory.
 # ====================================================================
 
-\cp -rf ~thoar/${cesmtag}/SourceMods/* ${caseroot}/SourceMods/
+# this one needs a recursive copy to get all the files in the subdirs
+${COPY} -r  ~thoar/${cesmtag}/SourceMods/* ${caseroot}/SourceMods/
 if ( $status == 0) then
    echo "FYI - Local Source Modifications used for this case:"
    ls -lr ${caseroot}/SourceMods/*
@@ -364,17 +390,17 @@ endif
 cd ${caseroot}
 
 if ("${reuse_existing_case}" == "false") then
-   \mv Tools/st_archive.sh Tools/st_archive.sh.orig
+   ${MOVE} Tools/st_archive.sh Tools/st_archive.sh.orig
 endif
-\cp -f ${DARTroot}/models/cam/shell_scripts/st_archive.sh Tools/.
+${COPY} ${DARTroot}/models/cam/shell_scripts/st_archive.sh Tools/
 
 # The cesm1_1_beta04 release had an error in that it did not
 # provide the lt_archive.csh script, and the one in the repos
 # did not have the -p flag, which is a good idea. So, for now ...
-\cp -f ${cesmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/.
+${COPY} ${cesmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/
 
-\cp -f ${DARTroot}/models/cam/shell_scripts/assimilate.csh .
-\cp -f ${DARTroot}/models/cam/work/input.nml                .
+${COPY} ${DARTroot}/models/cam/shell_scripts/assimilate.csh  .
+${COPY} ${DARTroot}/models/cam/work/input.nml                .
 
 # ====================================================================
 # Update the scripts that build the namelists.
@@ -387,9 +413,9 @@ echo ''
 
 cd ${caseroot}/Buildconf
 
-cp -f  cam.buildnml.csh  cam.buildnml.csh.orig
-cp -f cice.buildnml.csh cice.buildnml.csh.orig
-cp -f  clm.buildnml.csh  clm.buildnml.csh.orig
+${COPY}  cam.buildnml.csh  cam.buildnml.csh.orig
+${COPY} cice.buildnml.csh cice.buildnml.csh.orig
+${COPY}  clm.buildnml.csh  clm.buildnml.csh.orig
 
 # The CAM buildnml script only needs changing in one place.
 
@@ -502,17 +528,22 @@ endif
 # Edit the run script to reflect project, queue, and wallclock
 # ====================================================================
 
+echo ''
+echo 'Updating the run script to set the project number, wallclock time'
+echo 'and queue name.'
+echo ''
+
 set PROJ=`grep BSUB $case.$mach.run | grep -e '-P' `
 sed s/$PROJ[3]/$proj/ < $case.$mach.run >! temp
-/bin/mv temp  $case.$mach.run
+${MOVE} temp  $case.$mach.run
 
 set TIMEWALL=`grep BSUB $case.$mach.run | grep -e '-W' `
 sed s/$TIMEWALL[3]/$timewall/ < $case.$mach.run >! temp
-/bin/mv temp  $case.$mach.run
+${MOVE} temp  $case.$mach.run
 
 set QUEUE=`grep BSUB $case.$mach.run | grep -e '-q' `
 sed s/$QUEUE[3]/$queue/ < $case.$mach.run >! temp
-/bin/mv temp  $case.$mach.run
+${MOVE} temp  $case.$mach.run
 
 chmod 0744 $case.$mach.run
 
@@ -558,7 +589,7 @@ endif
 # ====================================================================
 
 foreach FILE ( filter cam_to_dart dart_to_cam )
-   \cp -f ${DARTroot}/models/cam/work/${FILE} ${exeroot}/.
+   ${COPY} ${DARTroot}/models/cam/work/${FILE} ${exeroot}/
    if ( $status != 0 ) then
       echo "ERROR: ${DARTroot}/models/cam/work/${FILE} not copied to ${exeroot}"
       echo "ERROR: ${DARTroot}/models/cam/work/${FILE} not copied to ${exeroot}"
@@ -576,37 +607,49 @@ end
 set stagedir = /ptmp/thoar/restarts
 
 echo ''
-echo "Staging the restarts from {$stagedir}"
+echo "Copying the restart files from ${stagedir}"
+echo 'into the CESM run directory.'
 echo ''
 
 @ n = 1
 while ($n <= $num_instances)
   echo "Staging restarts for instance $n of $num_instances"
-  cp --preserve=timestamps ${stagedir}/CAM/caminput_${n}.nc ${exeroot}/run/cam_initial_${n}.nc
-  cp --preserve=timestamps ${stagedir}/CLM/clminput_${n}.nc ${exeroot}/run/clm_restart_${n}.nc
-  cp --preserve=timestamps ${stagedir}/ICE/iceinput_${n}.nc ${exeroot}/run/ice_restart_${n}.nc
+  ${COPY} ${stagedir}/CAM/caminput_${n}.nc ${exeroot}/run/cam_initial_${n}.nc
+  ${COPY} ${stagedir}/CLM/clminput_${n}.nc ${exeroot}/run/clm_restart_${n}.nc
+  ${COPY} ${stagedir}/ICE/iceinput_${n}.nc ${exeroot}/run/ice_restart_${n}.nc
   @ n++
 end
 
-# This script may stage a prior_inflate_restart
-# from $CESM_setup_dir  to  ${exeroot}/[prior,pos]_inflate_restart.YYYY-MM-DD-SSSSS
-if (-f ${CESM_setup_dir}/prior_inflate_restart) then
-   cp  ${CESM_setup_dir}/prior_inflate_restart \
-     ${exeroot}/run/prior_inflate_restart.${run_startdate}-00000
-   echo "${CESM_setup_dir}/prior_inflate_restart has been copied to "
+# This script will copy an existing prior_inflate_restart to the run dir if found.
+if (-f ${stagedir}/DART/prior_inflate_restart) then
+   ${COPY} ${stagedir}/DART/prior_inflate_restart ${exeroot}/run/prior_inflate_restart.${run_startdate}-00000
+   echo ''
+   echo "${stagedir}/DART/prior_inflate_restart has been copied to "
    echo "${exeroot}/run/prior_inflate_restart.${run_startdate}-00000"
-   echo "If that has the wrong state vector, you will need to replace it before running"
+   echo 'If that has the wrong state vector, you will need to replace it before running.'
+   echo ''
 else
-   echo "May need to stage a ${exeroot}/run/prior_inflate_restart.${run_startdate}-00000"
-   echo "appropriate for this state vector in ${exeroot}/run."
-   echo "You may make one with ${DARTroot}/models/cam/work/fill_inflation_restart"
+   echo ''
+   echo 'If using inflation in DART you may need to copy an inflation restart file'
+   echo "to ${exeroot}/run/prior_inflate_restart.${run_startdate}-00000"
+   echo 'before running.  It must include the exact fields as your DART state vector.'
+   echo "You can make one with ${DARTroot}/models/cam/work/fill_inflation_restart"
+   echo ''
 endif
 
-echo '================================================================================'
-echo " If you're using DART's sampling error correction,"
-echo " the assimilate.csh script will try to copy one from"
-echo " ${DARTroot}/system_simulation/final_full_precomputed_tables/final_full.${num_instances}"
-echo '================================================================================'
+
+# only warn people if a precomputed final_full for this number of instances 
+# does not already exist.
+if (! -f ${DARTroot}/system_simulation/final_full_precomputed_tables/final_full.${num_instances}) then
+   echo ''
+   echo 'If you are using the DART sampling error correction feature'
+   echo 'the assimilate.csh script will expect to copy this file:'
+   echo "${DARTroot}/system_simulation/final_full_precomputed_tables/final_full.${num_instances}"
+   echo 'and it does not exist for your number of ensemble members.'
+   echo "Generate one by building and running ${DARTroot}/system_simulation/work/full_error"
+   echo 'with the namelist set to your ensemble size.'
+   echo ''
+endif
 
 # ====================================================================
 # What to do next
@@ -614,9 +657,10 @@ echo '==========================================================================
 
 echo ''
 echo 'Time to check the case.'
-echo "cd ${caseroot}"
-echo "Modify what you like in input.nml, make sure the observation directory"
-echo 'names built in assimilate.csh match those on your system, submit the job:'
+echo "cd into ${caseroot}"
+echo 'Modify what you like in input.nml, make sure the observation directory'
+echo 'names set in assimilate.csh match those on your system, and submit'
+echo 'the CESM job by running:'
 echo "./$case.$mach.submit"
 echo ''
 
