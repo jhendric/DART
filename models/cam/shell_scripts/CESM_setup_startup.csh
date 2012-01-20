@@ -368,6 +368,11 @@ if ("${reuse_existing_case}" == "false") then
 endif
 \cp -f ${DARTroot}/models/cam/shell_scripts/st_archive.sh Tools/.
 
+# The cesm1_1_beta04 release had an error in that it did not
+# provide the lt_archive.csh script, and the one in the repos
+# did not have the -p flag, which is a good idea. So, for now ...
+\cp -f ${cesmroot}/scripts/ccsm_utils/Tools/lt_archive.csh Tools/.
+
 \cp -f ${DARTroot}/models/cam/shell_scripts/assimilate.csh .
 \cp -f ${DARTroot}/models/cam/work/input.nml                .
 
