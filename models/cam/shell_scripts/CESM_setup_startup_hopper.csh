@@ -50,24 +50,11 @@
 # === IMPORTANT modifications to the distribution code before ANYTHING
 # ====================================================================
 
-# Had to edit the following to remove the LSB_PJL_... word too long error
-# cesm1_1_beta04/scripts/ccsm_utils/Machines/mkbatch.bluefire .
-# On bluefire for cesm1_1_beta04 it's not enough to use the hard-wired
-# SourceMods below; mkbatch.bluefire cannot be modified via SourceMods.
-# So the cesm1_1_beta04 version in Tim's directory must be used.
-# As long as OMP_NUM_THREADS == 1 ... the default is fine.
-# This may also be a problem if the number of nodes is increased, e.g.
-# if the regular memory nodes are used, or if the resolution is increased,
-# because the number of entries in BIND_THRD_GEOMETRY will increase.
-#
 # The cesm1_1_beta04 lt_archive script did not create parent dirs
 # if they did not already exist.  To fix the script, edit:
 #   ${cesmroot}/scripts/ccsm_utils/Tools/lt_archive.csh 
 # and change 'mkdir' to 'mkdir -p'.  This is fixed in more recent
 # versions of the code.
-#
-# For these reasons, it is required that you use ~thoar/cesm1_1_beta04
-# as the source of the CESM code.
 
 # ====================================================================
 # ====  Set case options
@@ -94,7 +81,7 @@ setenv reuse_existing_case  false
 # mach            Computer name
 # cesm_datadir    Root path of the public CESM data files
 # cesmroot        Location of the cesm code base
-#                 For cesm1_1_beta04 on bluefire, MUST use 'thoar' value provided.
+#                 For cesm1_1_beta04 on hopper, MUST use 'nscollin' value provided.
 # DARTroot        Location of DART code tree.
 #                    Executables, scripts and input in $DARTroot/models/cam/...
 # caseroot        Your (future) cesm case directory, where this CESM+DART will be built.
@@ -104,19 +91,25 @@ setenv reuse_existing_case  false
 # exeroot         (Future) Run-time directory; scrubbable, large amount of space needed.
 # archdir         (Future) Short-term archive directory
 #                    until the long-term archiver moves it to permanent storage.
+# note:
+#         hopper organizes the scratch space into 26 subdirs based on the
+#         first letter of the username, and then below that has the actual
+#         user's scratch dir.  $firstlet below is the first letter of the user name.
 # ====================================================================
 
-setenv mach         bluefire
-setenv cesm_datadir /glade/proj3/cseg/inputdata
-setenv cesmroot     /glade/home/thoar/${cesmtag}
+setenv mach         hopp2
+setenv cesm_datadir /project/projectdirs/ccsm1/inputdata
+setenv cesmroot     /global/u1/n/nscollin/${cesmtag}
 
-setenv DARTroot     /glade/home/${USER}/svn/DART/dev
+set firstlet = `echo $USER | cut -c1`
 
-setenv caseroot     /glade/user/${USER}/cases/${case}
-setenv exeroot      /glade/scratch/${USER}/${case}
-setenv archdir      /glade/scratch/${USER}/archive/${case}
+setenv DARTroot     /global/u1/${firstlet}/${USER}/DART/development
 
-# ====================================================================
+setenv caseroot     /global/u1/${firstlet}/${USER}/cases/${case}
+setenv exeroot      /scratch/scratchdirs/${USER}/case}
+setenv archdir      /scratch/scratchdirs/${USER}/archive/${case}
+
+# ======================
 # configure settings
 # ====================================================================
 
@@ -153,42 +146,18 @@ setenv stop_n        6
 #         from running for long periods.
 # ====================================================================
 
-setenv proj         12345678
-setenv timewall     2:00
-setenv queue        lrg_regular
+setenv timewall     1:00
+setenv queue        regular
 
 # ====================================================================
 # set these standard commands based on the machine you are running on.
 # ====================================================================
 
-switch ("`hostname`")
-   case be*:
-      # NCAR "bluefire"
-      # The FORCE options are not optional.
-      # the VERBOSE options are useful for debugging.
-      set   MOVE = '/usr/local/bin/mv -fv'
-      set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
-      set   LINK = '/usr/local/bin/ln -fvs'
-      set REMOVE = '/usr/local/bin/rm -fr'
-
-   breaksw
-   case hopp*:
-      # NERSC "hopper" 
-      set   MOVE = '/bin/mv -fv'
-      set   COPY = '/bin/cp -fv --preserve=timestamps'
-      set   LINK = '/bin/ln -fvs'
-      set REMOVE = '/bin/rm -fr'
-
-   breaksw
-   default:
-      # make this work for your system
-      set   MOVE = 'mv -fv'
-      set   COPY = 'cp -fv --preserve=timestamps'
-      set   LINK = 'ln -fvs'
-      set REMOVE = 'rm -fr'
-
-   breaksw
-endsw 
+# NERSC "hopper" 
+set   MOVE = '/bin/mv -fv'
+set   COPY = '/bin/cp -fv --preserve=timestamps'
+set   LINK = '/bin/ln -fvs'
+set REMOVE = '/bin/rm -fr'
 
 
 # ====================================================================
@@ -223,23 +192,23 @@ cd ${caseroot}
 
 ./xmlchange -file env_build.xml    -id EXEROOT        -val ${exeroot}
 ./xmlchange -file env_build.xml    -id USE_ESMF_LIB   -val TRUE
-#./xmlchange -file env_build.xml    -id ESMF_LIBDIR    -val ${nancy_scratch}/esmf-mpi
+./xmlchange -file env_build.xml    -id ESMF_LIBDIR    -val /scratch/scratchdirs/nscollin/esmf-mpi
 
 # num_tasks_per_instance = #tasks_node / #instances_node
-# Bluefire: #tasks_node = 64 using SMT
-#           #instances_node = 1-degree: 4 on lrg_ nodes, 2 on standard.
-#                             2-degree: 16 on lrg_ nodes, 8 on standard
-#           CAM5; to be determined, but no more than listed for CAM4
-set num_tasks_per_node = 64
-set num_tasks_per_instance = 16
-set num_threads = 1
-
+# hopper: #tasks_node = 4 with threading of 6/task = 24 processors
+#         #instances_node = 1-degree: 2 on standard memory nodes 
+#                           (using lrg mem nodes requires asking for ALL of them)
+set num_tasks_per_node = 4
+set num_tasks_per_instance = 2
+set num_threads = 6
 # This is hard-wiring for the current (1/17/2011) multi-instance CESM restriction
 # that all instances must be advanced simultaneously.  Work is underway to relax that.
 @ total_nt = $num_instances * $num_tasks_per_instance
 echo "total MPI tasks requested = $total_nt"
+echo "num_threads = $num_threads"
 
 # Atm gets all the nodes and runs.
+# Lnd gets all the nodes and runs.
 # The other components divide them up.
 # ? ? ?  What about sglc?  It's a stub, and doesn't matter what pes are assigned to it.
 # This algorithm figures out whether there are enough processors requested
@@ -251,32 +220,31 @@ echo "total MPI tasks requested = $total_nt"
 if ($large_small > 0) then
    # Large_small > 0 means there are at least 8 nodes requested.
    # Allot whole nodes to the major components.
-   @ cpl_pes  = ( $total_nt / (3 * $num_tasks_per_node) ) * $num_tasks_per_node
-   @ cice_pes = ( $total_nt / (3 * $num_tasks_per_node) ) * $num_tasks_per_node
+   # hopp2 doesn't use many 'tasks', so it needs a different distribution than on bluefire.
+   # In particular, we need to keep num_instances > num_tasks for atm, lnd, and ice.
    @ docn_pes = $num_tasks_per_node
-   @ lnd_pes  = $total_nt - ($cpl_pes + $cice_pes + $docn_pes)
+   @ cpl_pes  = ( $total_nt / (3 * $num_tasks_per_node) ) * $num_tasks_per_node
+   @ cice_pes = $total_nt - ($cpl_pes + $docn_pes)
+   @ lnd_pes  = $total_nt 
 else
-   # 1/4 cpl,  1/4 cice, 1/8 docn, 3/8 lnd.  These will occupy fractions of nodes.
-   @ cpl_pes  = $total_nt / 4
-   @ cice_pes = $total_nt / 4
-   @ docn_pes = $total_nt / 8
-   @ lnd_pes  = $total_nt - ($cpl_pes + $cice_pes + $docn_pes)
+   # 40% cpl,  40% cice, 20% docn, 100% lnd.  These may occupy fractions of nodes.
+   @ cpl_pes  = (2 * $total_nt) / 5
+   @ cice_pes = (2 * $total_nt) / 5
+   @ docn_pes = $total_nt - ($cpl_pes + $cice_pes)
+   @ lnd_pes  = $total_nt 
 endif
+
+echo "task layout"
+echo "[0 ......................... ATM ............................. $atm_pes]"
 
 # first pe of each component (counted from 0)
 @ atm_rootpe  = 0
+@ lnd_rootpe  = 0
 @ cpl_rootpe  = 0
 @ cice_rootpe = $cpl_rootpe  + $cpl_pes
 @ docn_rootpe = $cice_rootpe + $cice_pes
-@ lnd_rootpe  = $docn_rootpe + $docn_pes
-
-# echo "check pe counting; last_pe should = total_nt - 1"
-# @ last_pe = ( $lnd_rootpe + $lnd_pes ) - 1
-# echo $last_pe
-
-echo "task layout"
-echo "[$atm_rootpe ......................... ATM ............................. $atm_pes]"
-echo "[$cpl_rootpe ... CPL ... $cice_rootpe ... ICE ... $docn_rootpe ... OCN ... $lnd_rootpe ... LND ... $total_nt]"
+echo "[$cpl_rootpe ... CPL ... $cice_rootpe ... ICE ... $docn_rootpe ... OCN ... $total_nt]"
+echo "[$lnd_rootpe ... LND ..................................................... $total_nt]"
 echo ""
 echo "ATM gets $atm_pes"
 echo "ICE gets $cice_pes"
@@ -358,11 +326,13 @@ EOF
 cat <<EOF >! user_nl_clm
 &clmexp
   fatmgrid = '${cesm_datadir}/lnd/clm2/griddata/griddata_0.9x1.25_070212.nc'
-  faerdep  = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
+  faerdep  = '/scratch/scratchdirs/nscollin/cesm_datafiles/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
   outnc_large_files = .true.
   hist_empty_htapes = .true.
 /
 EOF
+#  faerdep  = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc'
+#  This resolution doesn't exist on hopper yet.
 
 # ====================================================================
 # Update source files if need be
@@ -372,16 +342,19 @@ EOF
 #    If you have additional source mods, they will need to be merged into any DART
 #    mods and put in the SourceMods subdirectory found in the 'case' directory.
 # ====================================================================
+cp /global/u1/n/nscollin/cesm_mods/seq*F90           $caseroot/SourceMods/src.drv
+cp /global/u1/n/nscollin/cesm_mods/hist*F90          $caseroot/SourceMods/src.clm
+cp /global/u1/n/nscollin/cesm_mods/ccsm_comp_mod.F90 $caseroot/SourceMods/src.drv
 
 # this one needs a recursive copy to get all the files in the subdirs
-${COPY} -r  ~thoar/${cesmtag}/SourceMods/* ${caseroot}/SourceMods/
-if ( $status == 0) then
-   echo "FYI - Local Source Modifications used for this case:"
-   ls -lr ${caseroot}/SourceMods/*
-else
-   echo "FYI - No SourceMods for this case"
-endif
-
+#${COPY} -r  ~thoar/${cesmtag}/SourceMods/* ${caseroot}/SourceMods/
+#if ( $status == 0) then
+#   echo "FYI - Local Source Modifications used for this case:"
+#   ls -lr ${caseroot}/SourceMods/*
+#else
+#   echo "FYI - No SourceMods for this case"
+#endif
+#
 # ====================================================================
 # Configure
 # ====================================================================
@@ -548,21 +521,21 @@ echo 'and queue name.'
 echo ''
 
 if ($?proj) then
-  set PROJ=`grep BSUB $case.$mach.run | grep -e '-P' `
-  sed s/$PROJ[3]/$proj/ < $case.$mach.run >! temp
-  ${MOVE} temp  $case.$mach.run
+  set PROJ=`grep '^#PBS ' $case.$mach.run | grep -e '-P' `
+  sed -e s/$PROJ[3]/$proj/ < $case.$mach.run >! temp
+  /bin/mv temp  $case.$mach.run
 endif
-  
+
 if ($?timewall) then
-  set TIMEWALL=`grep BSUB $case.$mach.run | grep -e '-W' `
-  sed s/$TIMEWALL[3]/$timewall/ < $case.$mach.run >! temp
-  ${MOVE} temp  $case.$mach.run
+  set TIMEWALL=`grep '^#PBS ' $case.$mach.run | grep walltime `
+  sed -e /"${TIMEWALL}"/s/=.\$/=$timewall/ < $case.$mach.run >! temp
+  /bin/mv temp  $case.$mach.run
 endif
-  
+
 if ($?queue) then
-  set QUEUE=`grep BSUB $case.$mach.run | grep -e '-q' `
-  sed s/$QUEUE[3]/$queue/ < $case.$mach.run >! temp
-  ${MOVE} temp  $case.$mach.run
+  set QUEUE=`grep '^#PBS ' $case.$mach.run | grep -e '-q' `
+  sed -e s/$QUEUE[3]/$queue/ < $case.$mach.run >! temp
+  /bin/mv temp  $case.$mach.run
 endif
 
 chmod 0755 ${case}.${mach}.run
@@ -621,10 +594,10 @@ end
 # Stage the restarts now that the run directory exists
 # ====================================================================
 
-# 20080801 ... /glade/proj3/DART/raeder/FV1deg_4.0/Exp1/obs_0000
-# 20081031 ... /ptmp/thoar/restarts
-
-set stagedir = /ptmp/thoar/restarts
+# Perfect model observations assimilation
+#set stagedir = /scratch/scratchdirs/nscollin/ned_datafiles
+# Real observations assimilation
+set stagedir = /scratch/scratchdirs/nscollin/tim_datafiles
 
 echo ''
 echo "Copying the restart files from ${stagedir}"
