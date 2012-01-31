@@ -397,3 +397,17 @@
    fieldlist_file = '',
    /
 
+&obs_common_subset_nml
+   filename_seq1       = '',
+   filename_seq2       = '',
+   filename_seq3       = '',
+   filename_seq4       = '',
+   filename_seq_list1  = 'obs_list1.txt',
+   filename_seq_list2  = 'obs_list2.txt',
+   filename_seq_list3  = 'obs_list3.txt',
+   filename_seq_list4  = '',
+   filename_out_suffix = '.common'
+   print_only          = .false.,
+   calendar            = 'Gregorian'
+   /
+
