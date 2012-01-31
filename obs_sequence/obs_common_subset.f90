@@ -5,7 +5,7 @@
 program obs_common_subset
 
 ! this program expects to be given pairs, or lists of pairs, of obs_seq
-! files as input and does an obs-by-obs comparison.  any obs which does not 
+! files as input and does an obs-by-obs comparison.  any obs which does not
 ! match in type, time, location, or (if present) DART QC is discarded.
 ! in addition to matching, the DART QCs have to be below a given threshold.
 ! the intent is to run two experiments with identical input observations
@@ -28,30 +28,24 @@ use    utilities_mod, only : register_module, initialize_utilities,            &
                              find_namelist_in_file, check_namelist_read,       &
                              error_handler, E_ERR, E_MSG, nmlfileunit,         &
                              do_nml_file, do_nml_term, get_next_filename,      &
-                             open_file, close_file, finalize_utilities,        &
-                             logfileunit
-use     location_mod, only : location_type, get_location, set_location,        &
-                             LocationName, read_location, operator(/=),        &
-                             write_location
+                             finalize_utilities, logfileunit
+use     location_mod, only : location_type, get_location, write_location,      &
+                             operator(/=)
 use      obs_def_mod, only : obs_def_type, get_obs_def_time, get_obs_kind,     &
                              get_obs_def_location, read_obs_def
-use     obs_kind_mod, only : max_obs_kinds, get_obs_kind_name,                 &
-                             get_obs_kind_index, read_obs_kind
-use time_manager_mod, only : time_type, operator(>), print_time, set_time,     &
-                             print_date, set_calendar_type,                    &
-                             operator(/=), get_calendar_type, NO_CALENDAR
+use     obs_kind_mod, only : max_obs_kinds, get_obs_kind_name
+use time_manager_mod, only : time_type, print_date, print_time, set_time,      &
+                             set_calendar_type, get_calendar_type,             &
+                             operator(/=), operator(>), NO_CALENDAR
 use obs_sequence_mod, only : obs_sequence_type, obs_type, write_obs_seq,       &
-                             init_obs, assignment(=), get_obs_def,             &
+                             init_obs, assignment(=), get_obs_def, get_obs_key,&
                              init_obs_sequence, static_init_obs_sequence,      &
                              read_obs_seq_header, read_obs_seq, get_num_obs,   &
-                             get_first_obs, get_last_obs, get_next_obs,        &
+                             get_first_obs, get_next_obs, get_num_key_range,   &
                              insert_obs_in_seq, get_num_copies, get_num_qc,    &
-                             get_copy_meta_data, get_qc_meta_data,             &
+                             get_copy_meta_data, get_qc_meta_data, get_qc,     &
                              set_copy_meta_data, set_qc_meta_data,             &
-                             destroy_obs, destroy_obs_sequence,                &
-                             delete_seq_head, delete_seq_tail,                 &
-                             get_num_key_range, get_obs_key, get_qc,           &
-                             copy_partial_obs, get_next_obs_from_key
+                             destroy_obs, destroy_obs_sequence
 
 implicit none
 
@@ -176,27 +170,25 @@ cal = (get_calendar_type() /= NO_CALENDAR)
 ! count of input files was set in the handle_filenames() routine above.
 do i = 1, num_input_files
 
-   if  ((len(filename_seq1(i)) .eq. 0) .or. (filename_seq1(i) .eq. "")) then
+   if  ((len(filename_seq1(i)) == 0) .or. (filename_seq1(i) == "")) then
       write(msgstring, *) 'entry ', i, 'for sequence1 is empty or null'
       call error_handler(E_ERR,'obs_common_subset', msgstring, &
          source,revision,revdate)  ! shouldn't happen
    endif
-   if  ((len(filename_seq2(i)) .eq. 0) .or. (filename_seq2(i) .eq. "")) then
+   if  ((len(filename_seq2(i)) == 0) .or. (filename_seq2(i) == "")) then
       write(msgstring, *) 'entry ', i, 'for sequence2 is empty or null'
       call error_handler(E_ERR,'obs_common_subset', msgstring, &
          source,revision,revdate)  ! shouldn't happen
    endif
 
-   write(*,*)'filename_seq3(i) is ',filename_seq3(i), len(filename_seq3(i)), (filename_seq3(i) .eq. "")
-
-   if  ((len(filename_seq3(i)) .eq. 0) .or. (filename_seq3(i) .eq. "")) then
+   if  ((len(filename_seq3(i)) == 0) .or. (filename_seq3(i) == "")) then
       comparing3 = .false.
       write(msgstring, *) 'entry ', i, 'for sequence3 is empty or null'
       call error_handler(E_MSG,'obs_common_subset', msgstring, &
          source,revision,revdate)  ! may happen
    endif
 
-   if  ((len(filename_seq4(i)) .eq. 0) .or. (filename_seq4(i) .eq. "")) then
+   if  ((len(filename_seq4(i)) == 0) .or. (filename_seq4(i) == "")) then
       comparing4 = .false.
       write(msgstring, *) 'entry ', i, 'for sequence4 is empty or null'
       call error_handler(E_MSG,'obs_common_subset', msgstring, &
@@ -280,11 +272,10 @@ do i = 1, num_input_files
    if (comparing3) call validate_obs_seq_time(seq_in3, filename_seq3(i))
    if (comparing4) call validate_obs_seq_time(seq_in4, filename_seq4(i))
 
-   ! the output can have no more than the max number of input obs
-   ! these can be different sizes - we are going to copy only the matching obs
-   size_seq_in1 = max_num_obs1
-   size_seq_in2 = max_num_obs2
-   size_seq_out = max(size_seq_in1, size_seq_in2)
+   ! the output can have no more than the minimum number of input obs.
+   size_seq_out = min(size_seq_in1, size_seq_in2)
+   if (comparing3) size_seq_out = min(size_seq_out, size_seq_in3)
+   if (comparing4) size_seq_out = min(size_seq_out, size_seq_in4)
 
    ! find which DART qc copy has the DART quality control.  set to -1 if not
    ! present, which will skip the threshold test.   and at this point we know
@@ -295,7 +286,7 @@ do i = 1, num_input_files
          qc_index = j
          exit
       endif
-   enddo 
+   enddo
 
    ! blank line, start of actually creating output file
    call error_handler(E_MSG,' ',' ')
@@ -317,15 +308,15 @@ do i = 1, num_input_files
       call init_obs(     obs_out3, num_copies_in, num_qc_in)
       call init_obs(prev_obs_out3, num_copies_in, num_qc_in)
    endif
-   
+
    if (comparing4) then
       call init_obs(      obs_in4, num_copies_in, num_qc_in)
       call init_obs( next_obs_in4, num_copies_in, num_qc_in)
       call init_obs(     obs_out4, num_copies_in, num_qc_in)
       call init_obs(prev_obs_out4, num_copies_in, num_qc_in)
    endif
-   
-   ! create the output sequences here 
+
+   ! create the output sequences here
                    call init_obs_sequence(seq_out1, num_copies_in, num_qc_in, size_seq_out)
                    call init_obs_sequence(seq_out2, num_copies_in, num_qc_in, size_seq_out)
    if (comparing3) call init_obs_sequence(seq_out3, num_copies_in, num_qc_in, size_seq_out)
@@ -345,13 +336,6 @@ do i = 1, num_input_files
       if (comparing3) call set_qc_meta_data(seq_out3, j, meta_data)
       if (comparing4) call set_qc_meta_data(seq_out4, j, meta_data)
    enddo
-
-   ! not sure why these would be needed?
-   !size_seq_out = get_num_key_range(seq_out)   !current size of seq_out
-   !size_seq_in  = get_num_key_range(seq_in)    !current size of seq_in
-
-   !size_seq_out = get_num_key_range(seq_out)   !current size of seq_out
-   !size_seq_in  = get_num_key_range(seq_in)    !current size of seq_in
 
    ! not sure what this should do - print after it has generated the common set?
    if (print_only)                  call print_obs_seq(seq_in1, filename_seq1(i))
@@ -399,9 +383,9 @@ do i = 1, num_input_files
 
          ! essentially record position in seq_out
                          obs_in1 = next_obs_in1
-                         obs_in2 = next_obs_in2 
-         if (comparing3) obs_in3 = next_obs_in3 
-         if (comparing4) obs_in4 = next_obs_in4 
+                         obs_in2 = next_obs_in2
+         if (comparing3) obs_in3 = next_obs_in3
+         if (comparing4) obs_in4 = next_obs_in4
 
          if (comparing4) then
             wanted = all_good(obs_in1, obs_in2, qc_index, qc_threshold, obs_in3, obs_in4)
@@ -436,9 +420,9 @@ do i = 1, num_input_files
 
             ! update position in seq for next insert
                             prev_obs_out1 = obs_out1
-                            prev_obs_out2 = obs_out2 
-            if (comparing3) prev_obs_out3 = obs_out3 
-            if (comparing4) prev_obs_out4 = obs_out4 
+                            prev_obs_out2 = obs_out2
+            if (comparing3) prev_obs_out3 = obs_out3
+            if (comparing4) prev_obs_out4 = obs_out4
             num_inserted = num_inserted + 1
 
             if (print_every > 0) then
@@ -482,15 +466,15 @@ do i = 1, num_input_files
                    filename_out2 = trim(filename_seq2(i))//trim(filename_out_suffix)
    if (comparing3) filename_out3 = trim(filename_seq3(i))//trim(filename_out_suffix)
    if (comparing4) filename_out4 = trim(filename_seq4(i))//trim(filename_out_suffix)
-   
+
    write(msgstring, *) 'Starting to write output sequence files'
    call error_handler(E_MSG,'obs_common_subset',msgstring)
-   
+
                    print*, 'Number of obs in the output seq file :', get_num_key_range(seq_out1)
                    print*, 'and                                  :', get_num_key_range(seq_out2)
    if (comparing3) print*, 'and                                  :', get_num_key_range(seq_out3)
    if (comparing4) print*, 'and                                  :', get_num_key_range(seq_out4)
-   
+
                    call print_obs_seq(seq_out1, filename_out1)
                    call print_obs_seq(seq_out2, filename_out2)
    if (comparing3) call print_obs_seq(seq_out3, filename_out3)
@@ -504,9 +488,9 @@ do i = 1, num_input_files
       write(msgstring,*) 'Output sequence files not created; print_only in namelist is .true.'
       call error_handler(E_MSG,'', msgstring)
    endif
-   
+
    ! clean up
-   
+
    call destroy_obs_sequence(seq_out1)
    call destroy_obs(         obs_out1)
    call destroy_obs(          obs_in1)
@@ -570,7 +554,7 @@ subroutine handle_filenames(filename_seq1, filename_seq_list1, &
                             filename_seq4, filename_seq_list4, &
                             num_input_files)
 
-! sort out the input lists, set the length as a return in num_input_files, 
+! sort out the input lists, set the length as a return in num_input_files,
 ! and make sure what's specified is consistent.
 
 character(len=*), intent(inout) :: filename_seq1(:), filename_seq2(:)
@@ -591,24 +575,27 @@ character(len=32) :: source1, source2, source3, source4
 ! set num_input_files to the number of pairs in the lists
 
 if (filename_seq1(1) == '' .and. filename_seq_list1 == '') then
-   call error_handler(E_ERR,'obs_common_subset',            &
+   call error_handler(E_ERR,'handle_filenames',            &
                       'no filenames specified as input 1',  &
                       source,revision,revdate)
 endif
 if (filename_seq2(1) == '' .and. filename_seq_list2 == '') then
-   call error_handler(E_ERR,'obs_common_subset',            &
+   call error_handler(E_ERR,'handle_filenames',            &
                       'no filenames specified as input 2',  &
                       source,revision,revdate)
 endif
 if (filename_seq3(1) == '' .and. filename_seq_list3 == '') then
-   call error_handler(E_ERR,'obs_common_subset',            &
-                      'no filenames specified as input 3',  &
-                      source,revision,revdate)
+   comparing3 = .false.
 endif
 if (filename_seq4(1) == '' .and. filename_seq_list4 == '') then
-   call error_handler(E_ERR,'obs_common_subset',            &
-                      'no filenames specified as input 4',  &
-                      source,revision,revdate)
+   comparing4 = .false.
+endif
+
+if (comparing4 .and. .not. comparing3) then
+   call error_handler(E_ERR,'handle_filenames', &
+       'cannot specify filename4 without specifying filename3', &
+       source,revision,revdate, &
+       text2='it just makes the logic too convoluted.')
 endif
 
 ! make sure the namelist specifies one or the other but not both
@@ -616,7 +603,7 @@ if ((filename_seq1(1) /= '' .and. filename_seq_list1 /= '') .or. &
     (filename_seq2(1) /= '' .and. filename_seq_list2 /= '') .or. &
     (filename_seq3(1) /= '' .and. filename_seq_list3 /= '') .or. &
     (filename_seq4(1) /= '' .and. filename_seq_list4 /= '')) then
-   call error_handler(E_ERR,'obs_common_subset', &
+   call error_handler(E_ERR,'handle_filenames', &
        'cannot specify both filename_seq and filename_seq_list', &
        source,revision,revdate)
 endif
@@ -639,7 +626,7 @@ else
    from_file2 = .false.
 endif
 
-if (filename_seq_list3 /= '') then
+if ((filename_seq_list3 /= '') .and. comparing3) then
    source3 = 'filename_seq_list3'
    from_file3 = .true.
 else
@@ -647,7 +634,7 @@ else
    from_file3 = .false.
 endif
 
-if (filename_seq_list4 /= '') then
+if ((filename_seq_list4 /= '') .and. comparing4) then
    source4 = 'filename_seq_list4'
    from_file4 = .true.
 else
@@ -655,10 +642,10 @@ else
    from_file4 = .false.
 endif
 
-write(*,*)'filename_seq1(1) ',trim(filename_seq1(1)),' ', trim(source1), ' ',from_file1
-write(*,*)'filename_seq2(1) ',trim(filename_seq2(1)),' ', trim(source2), ' ',from_file2
-write(*,*)'filename_seq3(1) ',trim(filename_seq3(1)),' ', trim(source3), ' ',from_file3
-write(*,*)'filename_seq4(1) ',trim(filename_seq4(1)),' ', trim(source4), ' ',from_file4
+                write(*,*)'filename_seq1(1) ',trim(filename_seq1(1)),' ', trim(source1), ' ',from_file1
+                write(*,*)'filename_seq2(1) ',trim(filename_seq2(1)),' ', trim(source2), ' ',from_file2
+if (comparing3) write(*,*)'filename_seq3(1) ',trim(filename_seq3(1)),' ', trim(source3), ' ',from_file3
+if (comparing4) write(*,*)'filename_seq4(1) ',trim(filename_seq4(1)),' ', trim(source4), ' ',from_file4
 
 ! the point of this loop is to count up how many pairs of input seq files we have.
 do indx = 1, max_num_input_files
@@ -666,16 +653,16 @@ do indx = 1, max_num_input_files
       filename_seq1(indx) = get_next_filename(filename_seq_list1, indx)
    if (from_file2) &
       filename_seq2(indx) = get_next_filename(filename_seq_list2, indx)
-   if (from_file3) &
+   if (from_file3 .and. comparing3 ) &
       filename_seq3(indx) = get_next_filename(filename_seq_list3, indx)
-   if (from_file4) &
+   if (from_file4 .and. comparing4 ) &
       filename_seq4(indx) = get_next_filename(filename_seq_list4, indx)
 
    ! a pair of empty names ends the list and we return with the count.
    ! (unless both lists are empty and then we're unhappy)
    if ((filename_seq1(indx) == '') .and. (filename_seq2(indx) == '')) then
       if (indx == 1) then
-         call error_handler(E_ERR,'obs_common_subset', &
+         call error_handler(E_ERR,'handle_filenames', &
              trim(source1)//' contains no filenames', &
              source,revision,revdate)
       endif
@@ -687,13 +674,13 @@ do indx = 1, max_num_input_files
 
    ! catch the cases where the lists aren't the same length, 2 longer than 1
    else if (filename_seq1(indx) == '') then
-         call error_handler(E_ERR,'obs_common_subset', &
+         call error_handler(E_ERR,'handle_filenames', &
              trim(source2)//' contains more filenames than '//trim(source1), &
              source,revision,revdate)
 
    ! catch the other case where the lists aren't the same length, 1 longer than 2
    else if (filename_seq2(indx) == '') then
-         call error_handler(E_ERR,'obs_common_subset', &
+         call error_handler(E_ERR,'handle_filenames', &
              trim(source1)//' contains more filenames than '//trim(source2), &
              source,revision,revdate)
    endif
@@ -704,7 +691,7 @@ do indx = 1, max_num_input_files
 enddo
 
 write(msgstring, *) 'cannot specify more than ',max_num_input_files,' files'
-call error_handler(E_ERR,'obs_common_subset', msgstring, source,revision,revdate)
+call error_handler(E_ERR,'handle_filenames', msgstring, source,revision,revdate)
 
 end subroutine handle_filenames
 
@@ -715,7 +702,7 @@ subroutine compare_metadata(seq1, seq2, fname1, fname2)
 ! This subroutine compares the metadata for two different observation
 ! sequences and terminates the program if they are not conformable.
 ! In order to be merged, the two observation sequences must have the same
-! number of qc values, the same number of copies ... 
+! number of qc values, the same number of copies ...
 !
 
  type(obs_sequence_type), intent(IN) :: seq1, seq2
@@ -746,7 +733,7 @@ endif
 
 if ( num_copies1 /= num_copies2 ) then
    write(msgstring2,*)'Different numbers of data copies found: ', &
-                      num_copies1, ' vs ', num_copies2 
+                      num_copies1, ' vs ', num_copies2
    num_copies = -1
 endif
 if ( num_qc1 /= num_qc2 ) then
@@ -755,7 +742,7 @@ if ( num_qc1 /= num_qc2 ) then
    num_qc = -1
 endif
 if ( num_copies < 0 .or. num_qc < 0 ) then
-   call error_handler(E_ERR, 'obs_common_subset', msgstring3, &
+   call error_handler(E_ERR, 'compare_metadata', msgstring3, &
                               source, revision, revdate, text2=msgstring2)
 endif
 
@@ -763,17 +750,17 @@ endif
 ! in both files.
 CopyMetaData : do i=1, num_copies
    str1 = get_copy_meta_data(seq1,i)
-   str2 = get_copy_meta_data(seq2,i) 
+   str2 = get_copy_meta_data(seq2,i)
 
    ! if they match, write out an informational message and continue.
    ! if they don't match, it's a fatal error.
    if( str1 == str2 ) then
       write(msgstring,*)'copy metadata ',trim(str1), ' in both.'
-      call error_handler(E_MSG, 'obs_common_subset', msgstring)
+      call error_handler(E_MSG, 'compare_metadata', msgstring)
    else
       write(msgstring1,*)'copy metadata value mismatch. seq1: ', trim(str1)
       write(msgstring2,*)'copy metadata value mismatch. seq2: ', trim(str2)
-      call error_handler(E_ERR, 'obs_common_subset', msgstring3, &
+      call error_handler(E_ERR, 'compare_metadata', msgstring3, &
               source, revision, revdate, text2=msgstring1, text3=msgstring2)
    endif
 
@@ -781,17 +768,17 @@ enddo CopyMetaData
 
 QCMetaData : do i=1, num_qc
    str1 = get_qc_meta_data(seq1,i)
-   str2 = get_qc_meta_data(seq2,i) 
+   str2 = get_qc_meta_data(seq2,i)
 
    ! if they match, write out an informational message and continue.
    ! if they don't match, it's a fatal error.
    if( str1 == str2 ) then
       write(msgstring,*)'  qc metadata ',trim(str1), ' in both.'
-      call error_handler(E_MSG, 'obs_common_subset', msgstring)
+      call error_handler(E_MSG, 'compare_metadata', msgstring)
    else
       write(msgstring1,*)'qc metadata value mismatch. seq1: ', trim(str1)
       write(msgstring2,*)'qc metadata value mismatch. seq2: ', trim(str2)
-      call error_handler(E_ERR, 'obs_common_subset', msgstring3, &
+      call error_handler(E_ERR, 'compare_metadata', msgstring3, &
               source, revision, revdate, text2=msgstring1, text3=msgstring2)
    endif
 
@@ -834,11 +821,11 @@ identity_count = 0
 size_seq_in = get_num_obs(seq_in)
 if (size_seq_in == 0) then
    msgstring = 'Obs_seq file '//trim(filename)//' is empty.'
-   call error_handler(E_MSG,'obs_common_subset',msgstring)
+   call error_handler(E_MSG,'print_obs_seq',msgstring)
    return
 endif
 
-! Initialize individual observation variables 
+! Initialize individual observation variables
 call init_obs(     obs, get_num_copies(seq_in), get_num_qc(seq_in))
 call init_obs(next_obs, get_num_copies(seq_in), get_num_qc(seq_in))
 
@@ -857,7 +844,7 @@ is_there_one = get_first_obs(seq_in, obs)
 
 if ( .not. is_there_one )  then
    write(msgstring,*)'no first observation in ',trim(filename)
-   call error_handler(E_MSG,'obs_common_subset', msgstring)
+   call error_handler(E_MSG,'print_obs_seq', msgstring)
 endif
 
 ! process it here
@@ -881,7 +868,7 @@ ObsLoop : do while ( .not. is_this_last)
 !   if(this_obs_kind > 0)print *, 'obs name = ', get_obs_kind_name(this_obs_kind)
 
    call get_next_obs(seq_in, obs, next_obs, is_this_last)
-   if (.not. is_this_last) then 
+   if (.not. is_this_last) then
       obs = next_obs
    else
       call print_time(get_obs_def_time(this_obs_def), '  Last timestamp: ')
@@ -896,13 +883,13 @@ call error_handler(E_MSG, '', msgstring)
 write(msgstring, *) '---------------------------------------------------------'
 call error_handler(E_MSG, '', msgstring)
 do i = 1, max_obs_kinds
-   if (type_count(i) > 0) then 
+   if (type_count(i) > 0) then
       write(msgstring, '(a32,i8,a)') trim(get_obs_kind_name(i)), &
                                      type_count(i), ' obs'
       call error_handler(E_MSG, '', msgstring)
    endif
 enddo
-if (identity_count > 0) then 
+if (identity_count > 0) then
    write(msgstring, '(a32,i8,a)') 'Identity observations', &
                                   identity_count, ' obs'
    call error_handler(E_MSG, '', msgstring)
@@ -942,14 +929,14 @@ type(time_type)         :: last_time, this_time
 
 
 ! make sure there are obs left to process before going on.
-size_seq = get_num_obs(seq) 
+size_seq = get_num_obs(seq)
 if (size_seq == 0) then
    msgstring = 'Obs_seq file '//trim(filename)//' is empty.'
-   call error_handler(E_MSG,'obs_common_subset:validate',msgstring)
+   call error_handler(E_MSG,'validate_obs_seq_time',msgstring)
    return
 endif
 
-! Initialize individual observation variables 
+! Initialize individual observation variables
 call init_obs(     obs, get_num_copies(seq), get_num_qc(seq))
 call init_obs(next_obs, get_num_copies(seq), get_num_qc(seq))
 
@@ -963,7 +950,7 @@ is_there_one = get_first_obs(seq, obs)
 ! we already tested for 0 obs above, so there should be a first obs here.
 if ( .not. is_there_one )  then
    write(msgstring,*)'no first obs in sequence ' // trim(filename)
-   call error_handler(E_ERR,'obs_common_subset:validate', &
+   call error_handler(E_ERR,'validate_obs_seq_time', &
                       msgstring, source, revision, revdate)
    return
 endif
@@ -985,7 +972,7 @@ ObsLoop : do while ( .not. is_this_last)
       key = get_obs_key(obs)
       write(msgstring1,*)'obs number ', key, ' has earlier time than previous obs'
       write(msgstring2,*)'observations must be in increasing time order, file ' // trim(filename)
-      call error_handler(E_ERR,'obs_common_subset:validate', msgstring2, &
+      call error_handler(E_ERR,'validate_obs_seq_time', msgstring2, &
                          source, revision, revdate, &
                          text2=msgstring1)
    endif
@@ -1003,25 +990,25 @@ call destroy_obs(     obs)
 call destroy_obs(next_obs)
 
 ! technically not a time validation, but easy to check.  obs_count should never
-! be larger than size_seq - that's a fatal error.  obs_count < size_seq would 
-! suggest there are obs in the file that aren't part of the linked list.  
-! this does not necessarily indicate a fatal error but it's not a common 
+! be larger than size_seq - that's a fatal error.  obs_count < size_seq would
+! suggest there are obs in the file that aren't part of the linked list.
+! this does not necessarily indicate a fatal error but it's not a common
 ! situation and might indicate someone should check on the file.
 if (obs_count /= size_seq) then
    write(msgstring,*) 'input sequence ', trim(filename)
-   call error_handler(E_MSG,'obs_common_subset:validate', msgstring)
+   call error_handler(E_MSG,'validate_obs_seq_time', msgstring)
 
    write(msgstring,*) 'total obs in file: ', size_seq, '  obs in linked list: ', obs_count
    if (obs_count > size_seq) then
       ! this is a fatal error
       write(msgstring1,*) 'linked list obs_count > total size_seq, should not happen'
-      call error_handler(E_ERR,'obs_common_subset:validate', msgstring, &
+      call error_handler(E_ERR,'validate_obs_seq_time', msgstring, &
                          source, revision, revdate, &
                          text2=msgstring1)
    else
       ! just warning msg
       write(msgstring1,*) 'only observations in linked list will be processed'
-      call error_handler(E_MSG,'obs_common_subset:validate', msgstring, &
+      call error_handler(E_MSG,'validate_obs_seq_time', msgstring, &
                          source, revision, revdate, text2=msgstring1)
    endif
 endif
@@ -1047,7 +1034,7 @@ num_qc     = get_num_qc(    seq1)
 
 if ( num_copies < 0 .or. num_qc < 0 ) then
    write(msgstring3,*)' illegal copy or obs count in file '//trim(fname1)
-   call error_handler(E_ERR, 'obs_common_subset', msgstring3, &
+   call error_handler(E_ERR, 'print_metadata', msgstring3, &
                       source, revision, revdate)
 endif
 
@@ -1181,8 +1168,12 @@ if ((test1_obs_loc /= test2_obs_loc) .or. &
    return
 endif
 
-! TJH FIXME left off here ...
-if (test1_qc /= test2_qc) then
+if ((test1_qc /= test2_qc) .or. &
+    (test1_qc /= test3_qc) .or. &
+    (test1_qc /= test4_qc) .or. &
+    (test2_qc /= test3_qc) .or. &
+    (test2_qc /= test4_qc) .or. &
+    (test3_qc /= test4_qc)) then
    num_rejected_diffqc = num_rejected_diffqc + 1
    return
 endif
