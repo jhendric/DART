@@ -685,6 +685,18 @@ do indx = 1, max_num_input_files
              source,revision,revdate)
    endif
 
+   if (comparing3 .and. filename_seq3(indx) == '') then
+         call error_handler(E_ERR,'handle_filenames', &
+             trim(source3)//' does not have as many filenames as '//trim(source1), &
+             source,revision,revdate)
+   endif
+
+   if (comparing4 .and. filename_seq4(indx) == '') then
+         call error_handler(E_ERR,'handle_filenames', &
+             trim(source4)//' does not have as many filenames as '//trim(source1), &
+             source,revision,revdate)
+   endif
+
    ! if both lists had filenames, we didn't match any of the if tests and
    ! we just loop, counting up the number of names.
 
