@@ -219,6 +219,8 @@ ncid  = netcdf.create(ofname, 'NC_NOCLOBBER');
 
      HeightDimID = netcdf.defDim(ncid,'Height',        bob.Height);
       WidthDimID = netcdf.defDim(ncid,'Width',         bob.Width);
+   HeightP1DimID = netcdf.defDim(ncid,'HeightP1',      bob.Height+1);
+    WidthP1DimID = netcdf.defDim(ncid,'WidthP1',       bob.Width+1);
  NPixelRowsDimID = netcdf.defDim(ncid,'PixelRows',     size(bob.PixelScale,1));
 NRefMatRowsDimID = netcdf.defDim(ncid,'RefMatrixRows', size(bob.RefMatrix,1));
 NRefMatColsDimID = netcdf.defDim(ncid,'RefMatrixCols', size(bob.RefMatrix,2));
@@ -250,7 +252,7 @@ netcdf.putAtt(ncid,VarID,'TiePoints.WorldPoints.X',bob.TiePoints.WorldPoints.X);
 netcdf.putAtt(ncid,VarID,'TiePoints.WorldPoints.Y',bob.TiePoints.WorldPoints.Y);
 
 VarID    = netcdf.defVar(ncid,'datmat'     ,'NC_BYTE', [WidthDimID HeightDimID]);
-VarIDps  = netcdf.defVar(ncid,'PixelScale' ,'NC_FLOAT',[NPixelRowsDimID]);
+VarIDps  = netcdf.defVar(ncid,'PixelScale' ,'NC_FLOAT',NPixelRowsDimID);
 VarIDref = netcdf.defVar(ncid,'RefMatrix'  ,'NC_FLOAT',[NRefMatColsDimID NRefMatRowsDimID]);
 VarIDbb  = netcdf.defVar(ncid,'BoundingBox','NC_FLOAT',[NBboxColsDimID NBboxRowsDimID]);
 
@@ -261,7 +263,30 @@ VarIDccCol = netcdf.defVar(ncid,'CornerCoords.Col','NC_FLOAT',NCCorLenDimID);
 VarIDccLat = netcdf.defVar(ncid,'CornerCoords.Lat','NC_FLOAT',NCCorLenDimID);
 VarIDccLon = netcdf.defVar(ncid,'CornerCoords.Lon','NC_FLOAT',NCCorLenDimID);
 
+VarIdLat   = netcdf.defVar(ncid,'Lat'      ,'NC_FLOAT',HeightDimID);
+VarIdLon   = netcdf.defVar(ncid,'Lon'      ,'NC_FLOAT', WidthDimID);
+VarIdLatE  = netcdf.defVar(ncid,'Lat_edges','NC_FLOAT',HeightP1DimID);
+VarIdLonE  = netcdf.defVar(ncid,'Lon_edges','NC_FLOAT', WidthP1DimID);
+
 netcdf.endDef(ncid)
+
+% Create some useful coordinate arrays.
+% Must decide if N-S or S-N, no convention.
+
+if ( bob.TiePoints.WorldPoints.Y > min(bob.CornerCoords.Lat) ) 
+   % Tie Point is the max lat ... we are going North-to-South
+   LatEdges = bob.TiePoints.WorldPoints.Y:-bob.PixelScale(1):min(bob.CornerCoords.Lat);
+else
+   % Tie Point is the min lat ... we are going South-to-North
+   LatEdges = bob.TiePoints.WorldPoints.Y: bob.PixelScale(1):max(bob.CornerCoords.Lat);
+end 
+LonEdges = bob.TiePoints.WorldPoints.X: bob.PixelScale(1):bob.CornerCoords.Lon(2);
+latdiff  = diff(LatEdges);
+londiff  = diff(LonEdges);
+Lats     = LatEdges(1:bob.Height) + latdiff/2;
+Lons     = LonEdges(1:bob.Width ) + londiff/2;
+
+% fill the variables
 
 netcdf.putVar(ncid,VarID     ,x')
 netcdf.putVar(ncid,VarIDps   ,bob.PixelScale)
@@ -273,6 +298,10 @@ netcdf.putVar(ncid,VarIDccRow,bob.CornerCoords.Row)
 netcdf.putVar(ncid,VarIDccCol,bob.CornerCoords.Col)
 netcdf.putVar(ncid,VarIDccLat,bob.CornerCoords.Lat)
 netcdf.putVar(ncid,VarIDccLon,bob.CornerCoords.Lon)
+netcdf.putVar(ncid,VarIdLat  ,Lats     );
+netcdf.putVar(ncid,VarIdLon  ,Lons     );
+netcdf.putVar(ncid,VarIdLatE ,LatEdges );
+netcdf.putVar(ncid,VarIdLonE ,LonEdges );
 
 netcdf.sync(ncid) 
 netcdf.close(ncid)
