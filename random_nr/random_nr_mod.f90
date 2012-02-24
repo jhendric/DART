@@ -120,7 +120,7 @@ end function ran1
 
 function gasdev(s)
 
-! Returns a N(0, 1) random number
+! Returns a N(-1, 1) random number draw from a gaussian distribution
 
 implicit none
 

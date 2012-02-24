@@ -6,8 +6,8 @@
 #
 # $Id$
 
-../mkmf/mkmf -p test_random_nr -t ../mkmf/mkmf.template -c"-Duse_netCDF" \
- -a "../" path_names_test_random_nr
+../../mkmf/mkmf -p test_random_nr -t ../../mkmf/mkmf.template -c"-Duse_netCDF" \
+ -a "../../" path_names_test_random_nr
 
 exit $status
 
