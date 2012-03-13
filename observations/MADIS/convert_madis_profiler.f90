@@ -25,7 +25,7 @@ program convert_madis_profiler
 !     increasing times)    nancy collins,  ncar/image   11 march 2010
 !     
 !     keep original obs times, make source for all converters as similar
-!     as possbile.   nancy collins,  ncar/image   26 march 2010
+!     as possible.   nancy collins,  ncar/image   26 march 2010
 !
 !     adapted June 2011, nancy collins, ncar/image, Glen Romine ncar/mmm
 !     - split from the satwind version

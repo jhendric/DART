@@ -302,6 +302,15 @@ obsloop: do n = 1, nobs
   if ( tair(n) /= tair_miss .and. qc_tair(n) == 0 .and. &
        tdew(n) /= tdew_miss .and. qc_tdew(n) == 0  ) then
 
+       ! before we start computing things based on the dewpoint,
+       ! make sure it isn't larger than the air temp.  if it is
+       ! more than a degree larger, skip it completely.  if it is
+       ! less, set them equal and continue.
+       if (tdew(n) > tair(n)) then
+          if (tdew(n) > tair(n) + 1.0_r8) goto 100
+          tdew(n) = tair(n)
+       endif
+
     ! add specific humidity to obs_seq
     if ( include_specific_humidity .and. &
          sfcp(n) /= sfcp_miss .and. qc_sfcp(n) == 0 ) then
@@ -373,6 +382,8 @@ obsloop: do n = 1, nobs
     endif
 
   endif  ! quality control/missing check on tair, tdew
+
+100 continue
 
   nused = nused + 1
   latu(nused) =  lat(n)

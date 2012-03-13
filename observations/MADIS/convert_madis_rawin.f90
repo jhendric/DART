@@ -310,6 +310,15 @@ sondeloop : do n = 1, nsound !  loop over all soundings in the file
       if ( tair(k) /= tair_miss .and. qc_tair(k) == 0 .and. &
            tdew(k) /= tdew_miss .and. qc_tdew(k) == 0  ) then
   
+        ! before we start computing things based on the dewpoint,
+        ! make sure it isn't larger than the air temp.  if it is
+        ! more than a degree larger, skip it completely.  if it is
+        ! less, set them equal and continue.
+        if (tdew(n) > tair(n)) then
+           if (tdew(n) > tair(n) + 1.0_r8) goto 100
+           tdew(n) = tair(n)
+        endif
+
         ! tdew is the dewpoint depression
         dptk = tair(k) - tdew(k)
   
@@ -376,6 +385,8 @@ sondeloop : do n = 1, nsound !  loop over all soundings in the file
     deallocate(pres, wdir, wspd, tair, tdew, qc_pres, qc_wdir, qc_wspd, qc_tair, qc_tdew)
   endif
 
+100 continue
+
   !  If desired, read the significant-level temperature data, write to obs_seq
   call getvar_int_1d_1val(ncid, "numSigT", n, nsig )
 
@@ -421,6 +432,15 @@ sondeloop : do n = 1, nsound !  loop over all soundings in the file
       ! three types of moisture obs to generate.
       if ( tair(k) /= tair_miss .and. qc_tair(k) == 0 .and. &
            tdew(k) /= tdew_miss .and. qc_tdew(k) == 0  ) then
+
+        ! before we start computing things based on the dewpoint,
+        ! make sure it isn't larger than the air temp.  if it is
+        ! more than a degree larger, skip it completely.  if it is
+        ! less, set them equal and continue.
+        if (tdew(n) > tair(n)) then
+           if (tdew(n) > tair(n) + 1.0_r8) goto 200
+           tdew(n) = tair(n)
+        endif
 
         ! tdew is the dewpoint depression
         dptk = tair(k) - tdew(k)
@@ -488,6 +508,8 @@ sondeloop : do n = 1, nsound !  loop over all soundings in the file
     deallocate(pres, tair, tdew, qc_pres, qc_tair, qc_tdew)
 
   endif
+
+200 continue
 
   !  If desired, read the significant-level wind data, write to obs_seq
   call getvar_int_1d_1val(ncid, "numSigW", n, nsig )
