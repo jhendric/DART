@@ -33,8 +33,7 @@ PROGRAM add_pert_where_high_refl
 
 use        types_mod, only : r8, gravity, t_kelvin, ps0, gas_constant, gas_constant_v
 use    utilities_mod, only : error_handler, E_ERR
-use    random_nr_mod, only : random_seq_type, init_ran1
-use   random_seq_mod, only : random_gaussian
+use   random_seq_mod, only : random_gaussian, random_seq_type, init_random_seq
 use    netcdf
 use    f2kcli
 
@@ -290,7 +289,7 @@ enddo
 ! portion of the current time.
 
 call date_and_time(crdate,crtime,crzone,values)
-call init_ran1(rs, -int(values(8)))
+call init_random_seq(rs, -int(values(8)))
 
 
 ! Add perturbations.
