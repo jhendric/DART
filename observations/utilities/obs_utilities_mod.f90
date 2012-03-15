@@ -12,7 +12,7 @@ module obs_utilities_mod
 
 
 use        types_mod, only : r8, MISSING_R8, MISSING_I
-use    utilities_mod, only : nc_check
+use    utilities_mod, only : nc_check, E_MSG, E_ERR, error_handler
 use obs_def_mod,      only : obs_def_type, set_obs_def_time, set_obs_def_kind, &
                              set_obs_def_error_variance, set_obs_def_location, &
                              get_obs_def_time, get_obs_def_location,           &
@@ -44,12 +44,18 @@ public :: create_3d_obs,    &
           getvar_int_1d_1val,      &
           getvar_real_2d_slice,    &
           get_or_fill_QC_2d_slice, &
+          query_varname,    &
           set_missing_name
 
 
 ! module global storage
 character(len=NF90_MAX_NAME) :: missing_name = ''
 
+! version controlled file description for error handling, do not edit
+character(len=128), parameter :: &
+   source   = "$URL$", &
+   revision = "$Revision$", &
+   revdate  = "$Date$"
 contains
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
@@ -236,14 +242,11 @@ end subroutine getdimlen
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-!   set_missing_name - subroutine that inquires, gets the variable, and fills 
-!            in the missing value attribute if that arg is present.
-!            gets the entire array, no start or count specified.
+!   set_missing_name - subroutine that sets the name of the attribute
+!            that describes missing values.  in some cases it is _FillValue
+!            but in others it is something nonstandard like 'missing_value'.
 !
-!      ncid - open netcdf file handle
-!      varname - string name of netcdf variable
-!      darray - output array.  real(r8)
-!      dmiss - value that signals a missing value   real(r8), optional
+!      name - string name of attribute that holds the missing value
 !
 !     created 11 Mar 2010,  nancy collins,  ncar/image
 !
@@ -850,6 +853,59 @@ else
 endif
 
 end subroutine get_or_fill_QC_2d_slice
+
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!
+!   query_varname - given a list of variable names, check the netcdf file
+!           for their existence.  if none of the given names are in the
+!           file, return -1 for index.  otherwise return the index of
+!           the first name found. an optional arg can be used to force
+!           it to fail if a match is not found. 
+!
+!      ncid - open netcdf file handle
+!      nname - number of names in the namelist array
+!      namelist - string array of netcdf variable names to test
+!      index - index of first name which matched an array.  -1 if none.
+!      force - if true, one of the names must match or it is a fatal error.
+!
+!     created Mar 15, 2012    nancy collins, ncar/image
+!
+!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+subroutine query_varname(ncid, nnames, namelist, index, force)
+ integer,             intent(in)    :: ncid, nnames
+ character(len = *),  intent(in)    :: namelist(:)
+ integer,             intent(out)   :: index
+ logical, optional,   intent(in)    :: force
+
+integer :: varid, nfrc, i
+character(128) :: msgstring
+
+! test to see if variable is present.  if yes, read it in.
+! otherwise, set to fill value, or 0 if none given.
+
+index = -1
+do i=1, nnames
+   nfrc = nf90_inq_varid(ncid, namelist(i), varid) 
+   if (nfrc == NF90_NOERR) then
+      index = i
+      return
+   endif
+enddo
+   
+if (present(force)) then
+   if (index == -1 .and. force) then
+      msgstring = 'trying to find one of the following arrays in the input netcdf file'
+      call error_handler(E_MSG, 'query_varname', msgstring)
+      do i=1, nnames
+         call error_handler(E_MSG, 'query_varname', namelist(i))
+      enddo
+      call error_handler(E_ERR, 'query_varname', 'fatal error, none are present', &
+                         source, revision, revdate)
+   
+   endif
+endif
+
+end subroutine query_varname
 
 
 end module obs_utilities_mod

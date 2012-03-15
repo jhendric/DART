@@ -45,7 +45,7 @@ use       obs_err_mod, only : prof_wind_error
 use      obs_kind_mod, only : PROFILER_U_WIND_COMPONENT, PROFILER_V_WIND_COMPONENT
 use obs_utilities_mod, only : getvar_real, get_or_fill_QC, add_obs_to_seq, &
                               create_3d_obs, getvar_int, getdimlen, getvar_real_2d, &
-                              getvar_int_2d
+                              getvar_int_2d, query_varname
 
 use           netcdf
 
@@ -60,7 +60,7 @@ integer, parameter :: num_copies = 1,   &   ! number of copies in sequence
                       num_qc     = 1        ! number of QC entries
 
 
-integer  :: ncid, nsta, nlev, n, i, oday, osec, nused, j, k
+integer  :: ncid, nsta, nlev, n, i, oday, osec, nused, j, k, index
 logical  :: file_exist, first_obs
 real(r8) :: uwnd_miss, vwnd_miss
 
@@ -75,6 +75,7 @@ type(obs_sequence_type) :: obs_seq
 type(obs_type)          :: obs, prev_obs
 type(time_type)         :: comp_day0, time_obs, prev_time
 
+character(len=NF90_MAX_NAME) :: namelist(5)
 
 !------------
 ! start of executable code
@@ -106,13 +107,35 @@ allocate(qc_uwnd(nlev,nsta)) ;  allocate(qc_vwnd(nlev,nsta))
 allocate(levs(nlev,nsta))  
 
 ! read in the data arrays
-call    getvar_real(ncid, "staLat",      lat            ) ! station latitude
-call    getvar_real(ncid, "staLon",      lon            ) ! station longitude
-call    getvar_real(ncid, "staElev",     elev           ) ! station elevation
+
+! we have profiler data files which have different names for the 
+! lat/lon/elev/obs arrays in the netcdf file.  there doesn't seem
+! to be a global attr to say which one is in use, so for now try
+! both options.  
+
+namelist(1) = 'staLat'
+namelist(2) = 'latitude'
+call query_varname(ncid, 2, namelist, index, force=.true.)
+call    getvar_real(ncid, namelist(index),  lat            ) ! station latitude
+
+namelist(1) = 'staLon'
+namelist(2) = 'longitude'
+call query_varname(ncid, 2, namelist, index, force=.true.)
+call    getvar_real(ncid, namelist(index),  lon            ) ! station longitude
+
+namelist(1) = 'staElev'
+namelist(2) = 'elevation'
+call query_varname(ncid, 2, namelist, index, force=.true.)
+call    getvar_real(ncid, namelist(index),  elev           ) ! station elevation
+
+namelist(1) = 'timeObs'
+namelist(2) = 'observationTime'
+call query_varname(ncid, 2, namelist, index, force=.true.)
+call    getvar_real(ncid, namelist(index),  tobs           ) ! observation time
+
 call getvar_real_2d(ncid, "levels",      levs           ) ! height above station in meters
 call getvar_real_2d(ncid, "uComponent",  uwnd, uwnd_miss) ! e-w component
 call getvar_real_2d(ncid, "vComponent",  vwnd, uwnd_miss) ! n-s component
-call    getvar_real(ncid, "timeObs",     tobs           ) ! observation time
 
 ! if user says to use them, read in QCs if present
 if (use_input_qc) then

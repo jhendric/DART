@@ -105,7 +105,7 @@ real(r8)             :: rh_deriv_t
 
 
 if ( ( dewpt > tmpk ) ) then
-  print*,'dewpt_error_from_rh_and_temp:  bad dewpt ',dewpt, tmpk
+  print*,'rh_error_from_dewpt_and_temp:  bad dewpt ',dewpt, tmpk
   stop
 end if
 
