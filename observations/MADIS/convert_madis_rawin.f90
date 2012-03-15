@@ -315,15 +315,12 @@ sondeloop : do n = 1, nsound !  loop over all soundings in the file
         ! more than a degree larger, skip it completely.  if it is
         ! less, set them equal and continue.
         if (tdew(k) > tair(k)) then
- print *, 'mand dew case', k, tdew(k), tair(k)
- print *, 'lat/lon/pres ', lat, lon, prespa
            if (tdew(k) > tair(k) + 1.0_r8) goto 100
            tdew(k) = tair(k)
         endif
 
         ! tdew is the dewpoint depression
         dptk = tair(k) - tdew(k)
- if (dptk <= 0.0) print *, dptk
   
         if ( include_specific_humidity ) then
   
@@ -443,14 +440,12 @@ sondeloop : do n = 1, nsound !  loop over all soundings in the file
         ! more than a degree larger, skip it completely.  if it is
         ! less, set them equal and continue.
         if (tdew(k) > tair(k)) then
- print *, 'sign dew case', k, tdew(k), tair(k)
            if (tdew(k) > tair(k) + 1.0_r8) goto 200
            tdew(k) = tair(k)
         endif
 
         ! tdew is the dewpoint depression
         dptk = tair(k) - tdew(k)
- if (dptk <= 0.0) print *, dptk
 
         if ( include_specific_humidity ) then
 
