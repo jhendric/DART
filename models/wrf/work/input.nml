@@ -114,6 +114,7 @@
                               '../../../obs_def/obs_def_altimeter_mod.f90',
                               '../../../obs_def/obs_def_gps_mod.f90',
                               '../../../obs_def/obs_def_vortex_mod.f90',
+                              '../../../obs_def/obs_def_gts_mod.f90',
    /
 
 &obs_kind_nml
