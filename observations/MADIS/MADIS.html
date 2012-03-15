@@ -140,9 +140,12 @@ Check the source code for more details.
 
 <P>The expected usage pattern is that a script will copy,
 rename, or make a symbolic link from the actual input file
-(which usually contains a timestamp) to the fixed input 
+(which often contains a timestamp in the name) to the fixed input 
 name before conversion, and move the output file to an
-appropriately name before the next invocation of the converter.  
+appropriate filename before the next invocation of the converter.  
+If an existing observation sequence file of the same output name is 
+found when the converter is run again, it will open that file and append
+the next set of observations to it.
 </P>
 
 <!--==================================================================-->
