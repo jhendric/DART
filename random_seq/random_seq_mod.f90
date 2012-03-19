@@ -13,7 +13,7 @@ module random_seq_mod
 ! $Revision$
 ! $Date$
 
-use     types_mod, only : r8, digits12, i8
+use     types_mod, only : digits12, i8, r8
 use utilities_mod, only : register_module, error_handler, E_ERR
 
 implicit none
@@ -45,9 +45,10 @@ integer, parameter :: N = 624   ! period parameters
 integer, parameter :: M = 397
 
 ! hexadecimal constants
-integer(i8), parameter :: UPPER_MASK = z'80000000'
-integer(i8), parameter :: LOWER_MASK = z'7FFFFFFF'
-integer(i8), parameter :: magic      = z'9908b0df'
+integer(i8), parameter :: UPPER_MASK  = z'80000000'
+integer(i8), parameter :: LOWER_MASK  = z'7FFFFFFF'
+integer(i8), parameter :: FULL32_MASK = z'FFFFFFFF'
+integer(i8), parameter :: magic       = z'9908b0df'
 
 type random_seq_type
    private
@@ -194,15 +195,15 @@ if ( .not. module_initialized ) call initialize_module
 sd = seed
 if (sd == 0) sd = 4357   ! do not allow seed to be 0, use default
 
-s%mt(0) = iand(sd, z'FFFFFFFF')
+s%mt(0) = iand(sd, FULL32_MASK)
 
 ! See Knuth's "Art of Computer Programming" Vol. 2, 3rd Ed. p.106 
 ! for multiplier.
 
 do i=1, N-1
-   s%mt(i) = 1812433253_i8 * (ieor(s%mt(i-1), ishft(s%mt(i-1), -30)) + i)
+   s%mt(i) = 1812433253_i8 * ieor(s%mt(i-1), ishft(s%mt(i-1), -30)) + i
 
-   s%mt(i) = iand(s%mt(i), z'FFFFFFFF')
+   s%mt(i) = iand(s%mt(i), FULL32_MASK)
 end do
 
 s%mti = N
@@ -230,7 +231,7 @@ if ( .not. module_initialized ) call initialize_module
 
 if (s%mti >= N) then
    ! generate N words at a time
-   do kk = 0, N-M
+   do kk = 0, N-M-1
       y = ior(iand(s%mt(kk), UPPER_MASK), iand(s%mt(kk + 1), LOWER_MASK))
       if (iand(y,1_i8) == 1_i8) then
          m1 = magic
@@ -245,7 +246,7 @@ if (s%mti >= N) then
 
    enddo
 
-   do kk = N-M, N-1
+   do kk = N-M, N-2
       y = ior(iand(s%mt(kk), UPPER_MASK), iand(s%mt(kk + 1), LOWER_MASK))
       if (iand(y,1_i8) == 1_i8) then
          m1 = magic
@@ -297,7 +298,7 @@ s%mti = s%mti + 1
 ! so divide here.  i do not know if the expected
 ! range is [0,1) (0,1] (0,1) or [0,1].  will search docs.
 
-ran_unif = real(k, r8) / 4294967296.0_r8
+ran_unif = real(real(k, digits12) / 4294967296.0_digits12, r8)
 
 end function ran_unif
 
@@ -316,24 +317,29 @@ real(digits12) :: x, y, r2, t
 
 if ( .not. module_initialized ) call initialize_module
 
-10 continue
-
-! choose x,y in uniform square (-1,-1) to (+1,+1) 
-x = -1.0_digits12 + 2.0_digits12 * ran_unif(s)
-y = -1.0_digits12 + 2.0_digits12 * ran_unif(s)
-
-! repeat if it is outside the unit circle or at origin
-r2 = x*x + y*y
-if (r2 > 1.0_digits12 .or. r2 == 0.0_digits12) goto 10
+! each pass through this code generates 2 values.  if we have one
+! saved from a previous call, return it without doing any new work.
+! otherwise, generate 2 new values; return one and save the other.
 
 if (s%gset) then
    ran_gauss = s%lastg
    s%gset = .false.
 else
+
+   10 continue
+   
+   ! choose x,y in uniform square (-1,-1) to (+1,+1) 
+   x = -1.0_digits12 + 2.0_digits12 * ran_unif(s)
+   y = -1.0_digits12 + 2.0_digits12 * ran_unif(s)
+   
+   ! repeat if it is outside the unit circle or at origin
+   r2 = x*x + y*y
+   if (r2 >= 1.0_digits12 .or. r2 == 0.0_digits12) goto 10
+
    t = sqrt(-2.0_digits12 * log(r2) / r2)
-   s%lastg   = x * t
+   s%lastg   = real(x * t, r8)
    s%gset    = .true.
-   ran_gauss = y * t
+   ran_gauss = real(y * t, r8)
 endif
 
 end function ran_gauss
