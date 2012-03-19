@@ -1,5 +1,12 @@
+&test_reseed_nml
+   time_days         = 148000,
+   time_seconds      = 0,
+   time_step_seconds = 21600
+  /
+
 &utilities_nml
-   TERMLEVEL = 1,
-   module_details = .false.
-   logfilename = 'dart_log.out'  /
+   TERMLEVEL      = 1,
+   module_details = .false.,
+   logfilename    = 'dart_log.out'
+  /
 
