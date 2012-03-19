@@ -6,8 +6,8 @@
 #
 # $Id$
 
-../mkmf/mkmf -p test_diff -t ../mkmf/mkmf.template -c"-Duse_netCDF" \
- -a "../" path_names_test_diff
+../../mkmf/mkmf -p test_corr -t ../../mkmf/mkmf.template -c"-Duse_netCDF" \
+ -a "../../" path_names_test_corr
 
 exit $status
 
