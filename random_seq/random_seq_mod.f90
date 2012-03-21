@@ -207,6 +207,7 @@ do i=1, N-1
 end do
 
 s%mti = N
+s%lastg = 0.0_r8
 s%gset = .false.
 
 end subroutine init_ran
@@ -294,9 +295,8 @@ k = ieor(k, ishft(k, -18))
 s%mti = s%mti + 1
 
 ! at this point we have an integer value for k
-! this routine wants a real between 0 and 1.0, 
-! so divide here.  i do not know if the expected
-! range is [0,1) (0,1] (0,1) or [0,1].  will search docs.
+! this routine returns 0.0 <= real < 1.0, so do
+! the divide here.  return range:  [0,1).
 
 ran_unif = real(real(k, digits12) / 4294967296.0_digits12, r8)
 
