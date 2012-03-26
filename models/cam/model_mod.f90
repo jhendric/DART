@@ -257,7 +257,6 @@ use     obs_kind_mod, only : KIND_U_WIND_COMPONENT, KIND_V_WIND_COMPONENT, KIND_
 ! Examples are EFGWORO, FRACLDV from the gravity wave drag parameterization study
 !-----------------------------------------------------------------------------
 
-use    random_nr_mod, only : init_ran1
 use   random_seq_mod, only : random_seq_type, init_random_seq, random_gaussian
 
 ! end of use statements
@@ -500,11 +499,6 @@ type(time_type) :: Time_step_atmos
 ! Random sequence and init for pert_model_state
 logical                 :: first_pert_call = .true.
 type(random_seq_type)   :: random_seq
-! Variable for keeping track of which ensemble member is to be perturbed
-! by pert_model_state, which is called by filter for each ensemble member
-! for a cold start.
-integer                 :: num_tasks
-integer                 :: my_task
 integer                 :: ens_member = 0
 logical                 :: do_out
 
@@ -642,13 +636,8 @@ if (file_exist('element')) then
 else
    do_out = do_output()
    !write(*,*) 'do_out = ',do_out
-   ! static_init_model is called once(?) for each task(?).
+   ! static_init_model is called once for each MPI task.
    ! There may be more or fewer ensemble members than tasks.
-   ! No problem if there are fewer.
-   ! In pert_model_state generate a unique ens_member from my_task and globally stored info 
-   !    about previous calls to pert_model_state.
-   num_tasks = task_count()
-   my_task = my_task_id()
 end if
 
 ! Record the namelist values 
@@ -4014,8 +4003,6 @@ end subroutine convert_vert
 ! listed in pert_names is set to a different constant value for each 
 ! ensemble member.  Those values come from 'pert_base_vals'.
 
-! added to give each ens member a different sequence when perturbing model parameter fields
-
 real(r8), intent(in)    :: state(:)
 real(r8), intent(out)   :: pert_state(:)
 logical,  intent(out)   :: interf_provided
@@ -4025,44 +4012,35 @@ type(model_type)        :: var_temp
 integer                 :: i, j, k, m, pert_fld, mode, field_num
 integer                 :: dim1, dim2, dim3, member
 real(r8)                :: pert_val
+integer, save           :: seed
 
 ! FIX for 1D 0D  fields?
 
-! perturb model parameters for the filter_ics.
-! Use the (single) state value as the "ens_mean" here.
+! perturb model state vector values for the filter initial conditions.
+! the input is a single model state vector that has (different) gaussian 
+! noise added to each member to generate an initial ensemble.
 
 interf_provided = .true.
 
 call init_model_instance(var_temp)
 call vector_to_prog_var(state,var_temp)
 
-! If first call, then initialize random sequence for perturbations.
-! init_random_seq only needed for documentation; initializing the module.
+! If first call, then initialize a seed to use for initializing random sequences.
 if (first_pert_call) then 
-   call init_random_seq(random_seq)
+   ! this line generates a unique base number, and subsequent calls add 1
+   ! each time (which happens if there are multiple ensemble members/task).  
+   ! it is assuming there are no more than 1000 ensembles/task, which seems safe 
+   ! given the current sizes of state vecs and hardware memory.  this will make
+   ! the results reproduce for runs with the same number of MPI tasks.  it will
+   ! NOT give the same random sequence if you change the task count.
+   seed = (my_task_id()+1) * 1000
    first_pert_call = .false.
 end if
 
-! init_random_seq calls init_ran1, but I need to call init_ran1 with a different seed/temp 
-! for each ens_member.  Get a new seed by keeping track of the previous seed.
-
-! Not needed; ens_member is read into static_init_model, after incrementing by the calling
-! script/program.
-!    ens_member = ens_member + 1
-
-! init_ran1 wants negative seeds for some reason.  The algorithm subtracts seed from some
-!           large number, divides by a smaller number, and uses the remainder for other calcs.
-!           The rest of DART also increments by -1, so I'll trust that this gives a different
-!           random sequence for each seed.
-if (ens_member == 0) then
-   ! Change ens_member from 0 for first time pert_model_state is called for by a process.
-   ens_member = my_task + 1
-else
-   ! Subsequent calls from the same process need unique ensemble member #s.
-   ! Adding num_tasks to the previous value should yield the right total set of ens_members.
-   ens_member = ens_member + num_tasks
-endif
-call init_ran1(random_seq,-1*ens_member)
+! After using the seed, increment by one so if this routine is called again
+! for a different ensemble member it will generate a different set of nums. 
+call init_random_seq(random_seq, seed)
+seed = seed + 1
 
 pert_fld = 1
 do while (pert_names(pert_fld) /= '        ')
