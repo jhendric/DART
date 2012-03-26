@@ -18,7 +18,8 @@ use    utilities_mod,     only : initialize_utilities, register_module, error_ha
                                  E_ERR, E_MSG, E_DBG, nmlfileunit, timestamp,          &
                                  do_nml_file, do_nml_term, logfileunit, &
                                  open_file, close_file, finalize_utilities
-use time_manager_mod,     only : time_type, get_time, set_time, operator(/=), print_time
+use time_manager_mod,     only : time_type, get_time, set_time, operator(/=), print_time,   &
+                                 generate_seed
 use obs_sequence_mod,     only : read_obs_seq, obs_type, obs_sequence_type,                 &
                                  get_obs_from_key, set_copy_meta_data, get_obs_def,         &
                                  get_time_range_keys, set_obs_values, set_qc, set_obs,      &
@@ -123,6 +124,7 @@ integer                 :: cnum_copies, cnum_qc, cnum_obs, cnum_max
 integer                 :: additional_qc, additional_copies, forward_unit
 integer                 :: ierr, io, istatus, num_obs_in_set, nth_obs
 integer                 :: model_size, key_bounds(2), num_qc, last_key_used
+integer                 :: seed
 
 real(r8)                :: true_obs(1), obs_value(1), qc(1)
 
@@ -216,9 +218,6 @@ state_meta(1) = 'true state'
 StateUnit = init_diag_output('True_State', 'true state from control', 1, state_meta)
 call trace_message('After  initializing output diagnostic file')
 
-! Initialize a repeatable random sequence for perturbations
-call init_random_seq(random_seq)
-
 ! Get the time of the first observation in the sequence
 write(msgstring, *) 'total number of obs in sequence is ', get_num_obs(seq)
 call error_handler(E_MSG,'perfect_main',msgstring)
@@ -277,7 +276,7 @@ AdvanceTime: do
       call trace_message('No more obs to evaluate, exiting main loop', 'perfect_model_obs:', -1)
       exit AdvanceTime
    endif
- 
+
    call trace_message('After  move_ahead checks time of data and next obs')
 
    if (curr_ens_time /= next_ens_time) then
@@ -295,6 +294,10 @@ AdvanceTime: do
    else
       call trace_message('Model does not need to run; data already at required time', 'perfect_model_obs:', -1)
    endif
+
+   ! Initialize a repeatable random sequence for perturbations
+   seed = generate_seed(next_ens_time)
+   call init_random_seq(random_seq,seed)
 
    call trace_message('Before setup for next group of observations')
    write(msgstring, '(A,I7)') 'Number of observations to be evaluated', &
@@ -626,5 +629,6 @@ call destroy_obs(obs)
 end subroutine print_obs_time
 
 !-------------------------------------------------------------------------
+
 
 end program perfect_model_obs
