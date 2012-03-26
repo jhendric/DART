@@ -87,6 +87,8 @@ foreach TARGET ( mkmf_* )
    endsw
 end
 
+cp ./input.workshop.nml input.nml
+
 @ n = $n + 1
 ./perfect_model_obs || exit $n
 
