@@ -1072,11 +1072,18 @@ else
    new_mean  = obs
 endif
 
-! Now, just form a random sample from the updated distribution
+! This will reproduce exactly for multiple runs with the same task count,
+! but WILL NOT reproduce for a different number of MPI tasks.
+! To make it independent of the number of MPI tasks, it would need to
+! use the global ensemble number or something else that remains constant
+! as the processor count changes.  this is not currently an argument to
+! this function and so we are not trying to make it task-count invariant.
+
+! Form a random sample from the updated distribution
 ! Then adjust the mean (what about adjusting the variance?)!
 ! Definitely need to sort with this; sort is done in main obs_increment
 if(first_inc_ran_call) then
-   call init_random_seq(inc_ran_seq)
+   call init_random_seq(inc_ran_seq, my_task_id() + 1)
    first_inc_ran_call = .false.
 endif
 
@@ -1299,9 +1306,15 @@ obs_var_inv = 1.0_r8 / obs_var
 prior_var_inv = 1.0_r8 / prior_var
 new_var       = 1.0_r8 / (prior_var_inv + obs_var_inv)
 
-! If this is first time through, need to initialize the random sequence
+! If this is first time through, need to initialize the random sequence.
+! This will reproduce exactly for multiple runs with the same task count,
+! but WILL NOT reproduce for a different number of MPI tasks.
+! To make it independent of the number of MPI tasks, it would need to
+! use the global ensemble number or something else that remains constant
+! as the processor count changes.  this is not currently an argument to
+! this function and so we are not trying to make it task-count invariant.
 if(first_inc_ran_call) then
-   call init_random_seq(inc_ran_seq)
+   call init_random_seq(inc_ran_seq, my_task_id() + 1)
    first_inc_ran_call = .false.
 endif
 
@@ -1383,9 +1396,15 @@ do i = 1, ens_size
    cum_frac(i) = cum_weight / total_weight
 end do
 
-! If this is first time through, need to initialize the random sequence
+! If this is first time through, need to initialize the random sequence.
+! This will reproduce exactly for multiple runs with the same task count,
+! but WILL NOT reproduce for a different number of MPI tasks.
+! To make it independent of the number of MPI tasks, it would need to
+! use the global ensemble number or something else that remains constant
+! as the processor count changes.  this is not currently an argument to
+! this function and so we are not trying to make it task-count invariant.
 if(first_inc_ran_call) then
-   call init_random_seq(inc_ran_seq)
+   call init_random_seq(inc_ran_seq, my_task_id() + 1)
    first_inc_ran_call = .false.
 endif
 
