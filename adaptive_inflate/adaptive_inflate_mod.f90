@@ -16,10 +16,10 @@ use types_mod,            only : r8, PI
 use time_manager_mod,     only : time_type, get_time, set_time
 use utilities_mod,        only : file_exist, get_unit, register_module, &
                                  error_handler, E_ERR, E_MSG
-use random_seq_mod,       only : random_seq_type, random_gaussian, init_random_seq, &
-                                 random_uniform
+use random_seq_mod,       only : random_seq_type, random_gaussian, init_random_seq
 use ensemble_manager_mod, only : ensemble_type, all_vars_to_all_copies, all_copies_to_all_vars, &
                                  read_ensemble_restart, write_ensemble_restart
+use    mpi_utilities_mod, only : my_task_id
 
 implicit none
 private
@@ -94,6 +94,17 @@ character(len = *),          intent(in)    :: label
 character(len = 128) :: det, tadapt, sadapt, akind, rsread, nmread
 integer :: restart_unit, io
 
+! Record the module version if this is first initialize call
+if(.not. initialized) then
+   initialized = .true.
+   call register_module(source, revision, revdate)
+
+   ! If non-deterministic inflation is being done, need to initialize random sequence.
+   ! use the task id number (plus 1 since they start at 0) to set the initial seed.
+   ! NOTE: non-deterministic inflation does NOT reproduce as process count is varied!
+   if(.not. deterministic) call init_random_seq(inflate_handle%ran_seq, my_task_id()+1)
+endif
+
 ! Write to log file what kind of inflation is being used.
 if(deterministic) then
   det = 'deterministic,'
@@ -131,6 +142,7 @@ select case(inf_flavor)
       write(errstring, *) 'Illegal inflation value for ', label
       call error_handler(E_ERR, 'adaptive_inflate_init', errstring, source, revision, revdate)
 end select
+
 ! say in plain english what kind of inflation was selected.
 write(errstring, '(4A)') &
    trim(det), trim(tadapt), trim(sadapt), trim(akind)
@@ -182,16 +194,6 @@ inflate_handle%sd_lower_bound     = sd_lower_bound
 
 ! Set obs_diag unit to -1 indicating it has not been opened yet
 inflate_handle%obs_diag_unit = -1
-
-! Record the module version if this is first initialize call
-if(.not. initialized) then
-   initialized = .true.
-   call register_module(source, revision, revdate)
-endif
-
-! If non-deterministic inflation is being done, need to initialize random sequence
-! NOTE: non-deterministic inflation does NOT reproduce as process count is varied!
-if(.not. deterministic) call init_random_seq(inflate_handle%ran_seq)
 
 ! Cannot support non-determistic inflation and an inf_lower_bound < 1
 if(.not. deterministic .and. inf_lower_bound < 1.0_r8) then
