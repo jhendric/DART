@@ -68,9 +68,6 @@ end type ensemble_type
 ! Logical flag for initialization of module
 logical              :: module_initialized = .false.
 
-! Module storage for a random sequence for perturbing a single initial state
-type(random_seq_type) :: random_seq
-
 ! Module storage for writing error messages
 character(len = 129) :: errstring
 
@@ -164,9 +161,8 @@ logical,              intent(in),    optional :: force_single_file
 ! goes in copy 6, the second in copy 7, etc. This lets higher level determine
 ! where other copies like mean, inflation, etc., are stored.
 
-! Would like to avoid num_vars size storage
-! LARGE ARRAY ON STACK -- make this a pointer and allocate it from heap?
-real(r8)                            :: ens(ens_handle%num_vars)
+! Avoid num_vars size storage on stack; make this allocatable from heap
+real(r8), allocatable               :: ens(:)
 integer                             :: iunit, i, j
 character(len = LEN(file_name) + 5) :: this_file_name
 character(len = 4)                  :: extension
@@ -174,6 +170,7 @@ type(time_type)                     :: ens_time
 integer                             :: global_copy_index
 logical                             :: interf_provided
 logical                             :: single_file_override
+type(random_seq_type)               :: random_seq
 
 ! Does not make sense to have start_from_restart and single_restart_file_in BOTH false
 if(.not. start_from_restart .and. .not. single_restart_file_in) then
@@ -200,6 +197,7 @@ if(single_restart_file_in .or. .not. start_from_restart .or. &
    single_file_override) then 
    ! Single restart file is read only by master_pe and then distributed
    if(my_pe == 0) iunit = open_restart_read(file_name)
+   allocate(ens(ens_handle%num_vars))   ! used to be on stack.
 
    ! Loop through the total number of copies
    do i = start_copy, end_copy
@@ -216,7 +214,8 @@ if(single_restart_file_in .or. .not. start_from_restart .or. &
       call put_copy(0, ens_handle, i, ens, ens_time)
 
    end do
-
+   
+   deallocate(ens)
    ! Master pe must close the file it's been reading
    if(my_pe == 0) call close_restart(iunit)
 
@@ -277,7 +276,7 @@ integer,              intent(in)    :: start_copy, end_copy
 logical, optional,    intent(in)    :: force_single_file
 
 ! Large temporary storage to be avoided if possible
-real(r8), pointer                   :: ens(:)
+real(r8), allocatable               :: ens(:)
 type(time_type)                     :: ens_time
 integer                             :: iunit, i, global_index
 integer                             :: owner, owners_index
