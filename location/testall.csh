@@ -9,7 +9,7 @@
 # this script runs the location test code for each of the
 # possible location modules.
 
-set LIST = 'annulus column oned threed_sphere twod twod_sphere'
+set LIST = 'annulus column oned threed_sphere twod twod_sphere threed threed_cartesian'
 
 # clean up from before
 foreach i ( $LIST )
