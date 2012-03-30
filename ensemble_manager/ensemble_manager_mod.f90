@@ -49,7 +49,7 @@ public :: init_ensemble_manager,      end_ensemble_manager,     get_ensemble_tim
           get_my_vars,                compute_copy_mean,        compute_copy_mean_sd,   &
           get_copy,                   put_copy,                 all_vars_to_all_copies, &
           all_copies_to_all_vars,     read_ensemble_restart,    write_ensemble_restart, &
-          compute_copy_mean_var,      get_copy_owner_index
+          compute_copy_mean_var,      get_copy_owner_index,     set_ensemble_time
 
 type ensemble_type
    !DIRECT ACCESS INTO STORAGE IS USED TO REDUCE COPYING: BE CAREFUL
@@ -474,6 +474,25 @@ if(my_pe == owner) then
 endif
 
 end subroutine put_copy
+
+!-----------------------------------------------------------------
+
+subroutine set_ensemble_time(ens_handle, indx, mtime)
+
+! Sets the time of an ensemble member indexed by local storage on this pe.
+
+type(ensemble_type), intent(inout) :: ens_handle
+integer,             intent(in)    :: indx
+type(time_type),     intent(in)    :: mtime
+
+if(indx < 1 .or. indx > ens_handle%my_num_copies) then
+   write(errstring, *) 'indx: ', indx, ' cannot exceed ', ens_handle%my_num_copies
+   call error_handler(E_ERR,'get_ensemble_time', errstring, source, revision, revdate)
+endif
+
+ens_handle%time(indx) = mtime
+
+end subroutine set_ensemble_time
 
 !-----------------------------------------------------------------
 

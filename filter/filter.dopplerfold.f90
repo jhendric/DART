@@ -40,7 +40,7 @@ use ensemble_manager_mod, only : init_ensemble_manager, end_ensemble_manager,   
                                  read_ensemble_restart, write_ensemble_restart,              &
                                  compute_copy_mean, compute_copy_mean_sd,                    &
                                  compute_copy_mean_var, duplicate_ens, get_copy_owner_index, &
-                                 get_ensemble_time
+                                 get_ensemble_time, set_ensemble_time
 use adaptive_inflate_mod, only : adaptive_inflate_end, do_varying_ss_inflate,                &
                                  do_single_ss_inflate, inflate_ens, adaptive_inflate_init,   &
                                  do_obs_inflate, adaptive_inflate_type,                      &
@@ -400,7 +400,9 @@ AdvanceTime : do
    ! these cases, we must not advance the times on the lags.
 
    ! Figure out how far model needs to move data to make the window
-   ! include the next available observation.
+   ! include the next available observation.  recent change is 
+   ! curr_ens_time in move_ahead() is intent(inout) and doesn't get changed 
+   ! even if there are no more obs.
    call trace_message('Before move_ahead checks time of data and next obs')
 
    call move_ahead(ens_handle, ens_size, seq, last_key_used, window_time, &
@@ -416,7 +418,6 @@ AdvanceTime : do
    call filter_sync_keys_time(key_bounds, num_obs_in_set, curr_ens_time, next_ens_time)
    if(key_bounds(1) < 0) then 
       call trace_message('No more obs to assimilate, exiting main loop', 'filter:', -1)
-      !call trace_message('No more obs to assimilate, exiting main loop')
       exit AdvanceTime
    endif
 
@@ -440,6 +441,9 @@ AdvanceTime : do
       call advance_state(ens_handle, ens_size, next_ens_time, async, &
                          adv_ens_command, tasks_per_model_advance)
    
+      ! update so curr time is accurate.
+      curr_ens_time = next_ens_time
+
       ! only need to sync here since we want to wait for the
       ! slowest task to finish before outputting the time.
       call timestamp_message('After  running model', sync=.true.)
@@ -511,11 +515,12 @@ AdvanceTime : do
    call put_copy(0, obs_ens_handle, OBS_KEY_COPY, keys * 1.0_r8)
 
    ! Ship the ensemble mean to the model; some models need this for 
-   ! computing distances
-   ! Who stores the ensemble mean copy
+   ! computing distances.  find out who stores the ensemble mean copy.
    call get_copy_owner_index(ENS_MEAN_COPY, mean_owner, mean_owners_index)
    ! Broadcast it to everybody else
    if(my_task_id() == mean_owner) then
+      ! Make sure the timestamp for the mean is the current time.
+      call set_ensemble_time(ens_handle, mean_owners_index, curr_ens_time)
       ens_mean = ens_handle%vars(:, mean_owners_index)
       call broadcast_send(mean_owner, ens_mean)
    else
@@ -1619,6 +1624,8 @@ real(r8) :: rkey_bounds(2), rnum_obs_in_set(1)
 real(r8) :: rtime(4)
 integer  :: days, secs
 
+! this should be 'do i own member 1' and not assume that task 0 gets
+! member 1.
 if(my_task_id() == 0) then
    rkey_bounds = key_bounds
    rnum_obs_in_set(1) = num_obs_in_set
