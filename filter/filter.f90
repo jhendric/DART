@@ -211,6 +211,10 @@ if(ens_size < 2) then
    call error_handler(E_ERR,'filter_main', msgstring, source, revision, revdate)
 endif
 
+! informational message to log
+write(msgstring, *) 'running with an ensemble size of ', ens_size
+call error_handler(E_MSG,'filter:', msgstring)
+
 ! See if smoothing is turned on
 ds = do_smoothing()
 
