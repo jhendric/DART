@@ -195,7 +195,7 @@ if ( .not. module_initialized ) call initialize_module
 sd = seed
 if (sd == 0) sd = 4357   ! do not allow seed to be 0, use default
 
-s%mt(0) = iand(sd, FULL32_MASK)
+s%mt(0) = iand(int(sd,i8), FULL32_MASK)
 
 ! See Knuth's "Art of Computer Programming" Vol. 2, 3rd Ed. p.106 
 ! for multiplier.
