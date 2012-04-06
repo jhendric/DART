@@ -161,8 +161,8 @@ endif
 
 ! give this an initial value which defaults to time-constant inflation
 ! change it below if the value(s) are > 0
-minmax_mean = 0.0_r8
-minmax_sd   = 0.0_r8
+minmax_mean(:) = 0.0_r8
+minmax_sd(:)   = 0.0_r8
 
 !------ Block for state space inflation initialization ------
 
@@ -183,9 +183,12 @@ if(inf_flavor >= 2) then
    ! and send the value to PE0 if not already there.
    minmax_sd = sd_initial
 
-   ! Read in initial values from file OR get from subroutine arguments
+   ! Read in initial values from file OR get from namelist arguments
+
    ! If either mean, sd, or both are to be read from the restart file, read them in.
-   ! Then test to see if either are to be overwritten, and do it.
+   ! There is no option to read only one; to get either you have to read both.
+   ! If one is to be set from the namelist, it gets overwritten in the block below
+   ! this one.
    if(mean_from_restart .or. sd_from_restart) then
       ! the .true. below is 'start_from_restart', which tells the read routine to
       ! read in the full number of ensemble members requested (as opposed to reading
@@ -193,15 +196,10 @@ if(inf_flavor >= 2) then
       call read_ensemble_restart(ens_handle, ss_inflate_index, ss_inflate_sd_index, &
          .true., in_file_name, force_single_file = .true.)
    endif
-   ! If one or both are false, we need to set the array values from the namelist item
+   ! Now, if one or both values come from the namelist (i.e. is a single static
+   ! value), write or overwrite the arrays here.
    if (.not. mean_from_restart .or. .not. sd_from_restart) then
-! original code requires an expensive transpose which is not necessary.
-!      ! Get initial values from higher level; requires pe's to have all copies of some vars
-!      call all_vars_to_all_copies(ens_handle)
-!      if (.not. mean_from_restart) ens_handle%copies(ss_inflate_index, :)    = inf_initial
-!      if (.not.   sd_from_restart) ens_handle%copies(ss_inflate_sd_index, :) = sd_initial
-!      call all_copies_to_all_vars(ens_handle)
-! proposed alternate:
+      ! original code required an expensive transpose which is not necessary.
       ! if setting initial values from the namelist, find out which task has the
       ! inflation and inf sd values and set them only on that task.  this saves us
       ! a transpose.
@@ -263,15 +261,12 @@ if(inf_flavor >= 2) then
    endif
    
    ! Inflation type 3 is spatially-constant.  Make sure the entire array is set to that
-   ! value; the computation only uses index 1, but the diagnostics write out the entire
+   ! value. the computation only uses index 1, but the diagnostics write out the entire
    ! array and it will be misleading if not constant.  the inf values were set above.  
    ! if they were set by namelist, this code changes nothing.  but if they were read in
    ! from a file, then it is possible the values vary across the array.  these lines
    ! ensure the entire array contains a single constant value to match what the code uses.
    if(inf_flavor == 3) then
-! this was wrong - we are var complete at this point...
-!      ens_handle%copies(ss_inflate_index, :)    = ens_handle%copies(ss_inflate_index, 1) 
-!      ens_handle%copies(ss_inflate_sd_index, :) = ens_handle%copies(ss_inflate_sd_index, 1) 
       call get_copy_owner_index(ss_inflate_index, owner, owners_index)
       if (owner == my_task_id()) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index)
       call get_copy_owner_index(ss_inflate_sd_index, owner, owners_index)
