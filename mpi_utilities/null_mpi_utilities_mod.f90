@@ -516,9 +516,8 @@ if (from /= myrank) then
    call error_handler(E_ERR,'broadcast_send', errstring, source, revision, revdate)
 endif
 
-! this must be paired with broadcast_recv() on all other tasks. 
-! it will not return until all tasks in the communications group have
-! made the call.
+! this does nothing, because the array already has the data.
+! the subroutine does validate 'from' to be sure it's a valid task id.
 call array_broadcast(array1, from)
 
 end subroutine broadcast_send
@@ -546,9 +545,8 @@ if (from == myrank) then
    call error_handler(E_ERR,'broadcast_recv', errstring, source, revision, revdate)
 endif
 
-! this must be paired with a single broadcast_send() on the 'from' task.
-! it will not return until all tasks in the communications group have
-! made the call.
+! this does nothing, because the array already has the data.
+! the subroutine does validate 'from' to be sure it's a valid task id.
 call array_broadcast(array1, from)
 
 end subroutine broadcast_recv
