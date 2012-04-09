@@ -41,6 +41,7 @@ For other uses, there are also:
  'twod', a periodic 2d domain with x,y coordinates between 0 and 1.
  'twod_sphere', a 2d shell with latitude, longitude pairs.
  'threed', a periodic 3d domain with x,y,z coordinates between 0 and 1.
+ 'channel', a 3d domain periodic in x, limited in y, and unlimited z.
 
 Other schemes can be added, as needed by the models.
 Possible ideas are a non-periodic version of the 1d, 2d
