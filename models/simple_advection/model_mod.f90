@@ -185,6 +185,13 @@ source_random_amp = source_random_amp_frac * mean_source
 ! Compute the width of the domain in meters
 domain_width_meters = num_grid_points * grid_spacing_meters
 
+! For any routines that want to use the random number
+! generator later on, initialize it.
+if(.not. random_seq_init) then
+   call init_random_seq(random_seq, 1)
+   random_seq_init = .true.
+endif
+
 end subroutine static_init_model
 
 
@@ -989,11 +996,6 @@ real(r8) :: avg_wind
 interf_provided = .true.
 
 write(*, *) 'in pert_model_state'
-! Initialize my random number sequence
-if(.not. random_seq_init) then
-   call init_random_seq(random_seq, 1)
-   random_seq_init = .true.
-endif
 
 ! Need to make sure perturbed states are not centered on true value
 ! This model is too forgiving in such circumstances
