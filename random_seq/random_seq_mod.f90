@@ -59,6 +59,7 @@ type random_seq_type
 end type random_seq_type
 
 logical, save :: module_initialized = .false.
+character(len=128) :: errstring
 
 
 contains
@@ -314,6 +315,7 @@ type(random_seq_type), intent(inout) :: s
 real(r8) :: ran_gauss
 
 real(digits12) :: x, y, r2, t
+integer :: lc
 
 if ( .not. module_initialized ) call initialize_module
 
@@ -326,7 +328,9 @@ if (s%gset) then
    s%gset = .false.
 else
 
-   10 continue
+   lc = 0
+10 continue
+   lc = lc + 1
    
    ! choose x,y in uniform square (-1,-1) to (+1,+1) 
    x = -1.0_digits12 + 2.0_digits12 * ran_unif(s)
@@ -334,7 +338,16 @@ else
    
    ! repeat if it is outside the unit circle or at origin
    r2 = x*x + y*y
-   if (r2 >= 1.0_digits12 .or. r2 == 0.0_digits12) goto 10
+   if (r2 >= 1.0_digits12 .or. r2 == 0.0_digits12) then
+      if (lc > 100) then
+         write(errstring, *) 'x, y = ', x, y
+         call error_handler(E_ERR, 'ran_gauss', &
+                            'if both x and y are -1, random number generator probably not initialized', &
+                            source, revision, revdate, &
+                            text2 = errstring);
+      endif
+      goto 10
+   endif
 
    t = sqrt(-2.0_digits12 * log(r2) / r2)
    s%lastg   = real(x * t, r8)
