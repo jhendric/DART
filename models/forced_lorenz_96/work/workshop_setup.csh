@@ -87,23 +87,37 @@ foreach TARGET ( mkmf_* )
    endsw
 end
 
+#----------------------------------------------------------------------
+# Tutorial section 20 states that perfect_model_obs has forcing 
+# fixed at 8.0, and can vary after that.
+#----------------------------------------------------------------------
+
+echo '/model_nml/'      >! ex_script
+echo '/ forcing '       >> ex_script
+echo 's;=.*;= 8.0,;'    >> ex_script
+echo '/reset_forcing/'  >> ex_script
+echo 's;=.*;= .true.,;' >> ex_script
+echo 'wq'               >> ex_script
+
+cat ex_script | ex input.nml || exit 30
+
 @ n = $n + 1
 ./perfect_model_obs || exit $n
 
 #----------------------------------------------------------------------
 # For forced L96, we want to allow filter to assimilate forcing.
-# Use vi to change value of reset_forcing in namelist.
+# Use ex to change value of reset_forcing in namelist.
 #----------------------------------------------------------------------
 
-echo ':0'                        >! vi_script
-echo '/reset_forcing'            >> vi_script
-echo ':s/true/false/'            >> vi_script
-echo ':wq'                       >> vi_script
-(vi -s vi_script -e input.nml > /dev/null) || exit 98
+echo '/model_nml/'         >! ex_script
+echo '/reset_forcing/'     >> ex_script
+echo 's;=.*;= .false.,;'   >> ex_script
+echo 'wq'                  >> ex_script
+cat ex_script | ex input.nml || exit 31
 
 @ n = $n + 1
 ./filter || exit $n
-\rm -f vi_script
+\rm -f ex_script
 
 exit 0
 
