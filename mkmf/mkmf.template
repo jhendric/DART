@@ -71,9 +71,15 @@ MPIFC = mpif90
 MPILD = mpif90
 FC = gfortran
 LD = gfortran
-NETCDF = /contrib
+
+# if $NETCDF in your environment is set to the location of the
+# include and lib directories, you are ok.  otherwise set the
+# next line to the location and uncomment it.
+# NETCDF = /usr/local
+
 INCS = ${NETCDF}/include
-FFLAGS = -O2 -I$(INCS) 
-LIBS = -L${NETCDF}/lib -lnetcdf
+FFLAGS = -O2 -I$(INCS) -ffree-line-length-none
+
+LIBS = -L${NETCDF}/lib -lnetcdf -lnetcdff
 LDFLAGS = -I$(INCS) $(LIBS)
 
