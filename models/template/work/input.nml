@@ -186,6 +186,17 @@
    gregorian_cal                = .true.
 /
 
+&model_to_dart_nml
+   model_to_dart_output_file = 'filter_ics'
+   model_restart_filename    = 'modelfile'
+/
+
+&dart_to_model_nml 
+   dart_to_model_input_file = 'filter_restart'
+   advance_time_present     = .false.
+   model_restart_filename   = 'modelfile'
+/
+
 
 &obs_diag_nml
    obs_sequence_name  = 'obs_seq.final',

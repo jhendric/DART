@@ -27,14 +27,14 @@ program dart_to_model
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8
-use    utilities_mod, only : initialize_utilities, timestamp, &
+use    utilities_mod, only : initialize_utilities, finalize_utilities, &
                              find_namelist_in_file, check_namelist_read, &
                              logfileunit, open_file, close_file
 use  assim_model_mod, only : open_restart_read, aread_state_restart, close_restart
 use time_manager_mod, only : time_type, print_time, print_date, operator(-), &
                              get_time, get_date
-use        model_mod, only : static_init_model, sv_to_restart_file, &
-                             get_model_size, get_base_time, get_model_restart_dirname
+use        model_mod, only : static_init_model, dart_vector_to_model_file, &
+                             get_model_size
 
 implicit none
 
@@ -49,12 +49,12 @@ character(len=128), parameter :: &
 !------------------------------------------------------------------
 
 character (len = 128) :: dart_to_model_input_file = 'dart.ic'
-logical               :: advance_time_present    = .false.
-character(len=256)    :: model_restart_dirname    = 'model_restartdir'
+logical               :: advance_time_present     = .false.
+character(len=256)    :: model_restart_filename   = 'model_restartfile'
 
 namelist /dart_to_model_nml/ dart_to_model_input_file, &
                             advance_time_present,    &
-                            model_restart_dirname
+                            model_restart_filename
 
 !----------------------------------------------------------------------
 
@@ -77,7 +77,7 @@ call static_init_model()
 x_size = get_model_size()
 allocate(statevector(x_size))
 
-! Read the namelist to get the input dirname. 
+! Read the namelist to get the input filename. 
 
 call find_namelist_in_file("input.nml", "dart_to_model_nml", iunit)
 read(iunit, nml = dart_to_model_nml, iostat = io)
@@ -85,7 +85,7 @@ call check_namelist_read(iunit, io, "dart_to_model_nml")
 
 write(*,*)
 write(*,*) 'dart_to_model: converting DART file ', "'"//trim(dart_to_model_input_file)//"'"
-write(*,*) 'to model restart files in directory ', "'"//trim(model_restart_dirname)//"'" 
+write(*,*) 'to model restart files named        ', "'"//trim(model_restart_filename)//"'" 
 
 !----------------------------------------------------------------------
 ! Reads the valid time, the state, and the target time.
@@ -108,7 +108,7 @@ print *, 'read state vector'
 !----------------------------------------------------------------------
 
 print *, 'calling sv to restart file'
-call sv_to_restart_file(statevector, model_restart_dirname, model_time)
+call dart_vector_to_model_file(statevector, model_restart_filename, model_time)
 
 if ( advance_time_present ) then
    call write_model_time_control(model_time, adv_to_time)
@@ -130,15 +130,17 @@ call print_time(adv_to_time,'dart_to_model:advance_to time',logfileunit)
 call print_date(adv_to_time,'dart_to_model:advance_to date',logfileunit)
 endif
 
-! When called with 'end', timestamp will call finalize_utilities()
-call timestamp(string1=source, pos='end')
+call finalize_utilities()
 
 !======================================================================
 contains
 !======================================================================
 
 subroutine write_model_time_control(model_time, adv_to_time)
-! The idea is to write a text file with the following structure:
+! Write a text file that the model can use to figure out how
+! far to run until.  Could be as simple as a text file containing: 
+!    YYYYMMDD hh:mm:ss
+! or for something a bit more complicated, here's another example:
 !
 !#TIMESTART
 !2003            year

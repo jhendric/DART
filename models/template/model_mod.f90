@@ -30,6 +30,9 @@ use    utilities_mod, only : register_module, error_handler, nc_check, &
 implicit none
 private
 
+! required by DART code - will be called from filter and other
+! DART executables.  interfaces to these routines are fixed and
+! cannot be changed in any way.
 public :: get_model_size,         &
           adv_1step,              &
           get_state_meta_data,    &
@@ -46,6 +49,12 @@ public :: get_model_size,         &
           get_close_obs_init,     &
           get_close_obs,          &
           ens_mean_for_model
+
+! not required by DART but for larger models can be useful for
+! utility programs that are tightly tied to the other parts of
+! the model_mod code.
+public :: model_file_to_dart_vector, &
+          dart_vector_to_model_file
 
 
 ! version controlled file description for error handling, do not edit
@@ -598,6 +607,41 @@ real(r8), intent(in) :: ens_mean(:)
 
 end subroutine ens_mean_for_model
 
+
+!==================================================================
+! PUBLIC interfaces that aren't required by the DART code but are
+! generally useful for other related utility programs.
+! (less necessary for small models; generally used for larger models
+! with predefined file formats and control structures.)
+!==================================================================
+
+
+subroutine model_file_to_dart_vector(filename, state_vector, model_time)
+!------------------------------------------------------------------
+! Reads the current time and state variables from a model data
+! file and packs them into a dart state vector.
+
+character(len=*), intent(in)    :: filename
+real(r8),         intent(inout) :: state_vector(:)
+type(time_type),  intent(out)   :: model_time
+
+! code goes here
+
+end subroutine model_file_to_dart_vector
+
+
+subroutine dart_vector_to_model_file(state_vector, filename, statedate)
+!------------------------------------------------------------------
+! Writes the current time and state variables from a dart state
+! vector (1d array) into a ncommas netcdf restart file.
+!
+real(r8),         intent(in) :: state_vector(:)
+character(len=*), intent(in) :: filename
+type(time_type),  intent(in) :: statedate
+
+! code goes here
+
+end subroutine dart_vector_to_model_file
 
 
 !===================================================================
