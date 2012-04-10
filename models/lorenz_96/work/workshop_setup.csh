@@ -6,18 +6,19 @@
 #
 # $Id$
 #
-# Script to manage the compilation of all components for this model;
-# executes a known "perfect model" experiment using an existing
+# This script builds only perfect_model_obs and filter.  to build the rest
+# of the executables, run './quickbuild.csh'.
+#
+# Executes a known "perfect model" experiment using an existing
 # observation sequence file (obs_seq.in) and initial conditions appropriate 
 # for both 'perfect_model_obs' (perfect_ics) and 'filter' (filter_ics).
-# There are enough initial conditions for 80 ensemble members in filter.
-# Use ens_size = 81 and it WILL bomb. Guaranteed.
+# There are enough initial conditions for up to 80 ensemble members in filter.
 # The 'input.nml' file controls all facets of this execution.
 #
 # 'create_obs_sequence' and 'create_fixed_network_sequence' were used to
 # create the observation sequence file 'obs_seq.in' - this defines 
-# what/where/when we want observations. This script does not run these 
-# programs - intentionally. 
+# what/where/when we want observations. This script does not build these 
+# programs.
 #
 # 'perfect_model_obs' results in a True_State.nc file that contains 
 # the true state, and obs_seq.out - a file that contains the "observations"
@@ -43,7 +44,7 @@
 # 'preprocess' is a program that culls the appropriate sections of the
 # observation module for the observations types in 'input.nml'; the 
 # resulting source file is used by all the remaining programs, 
-# so this MUST be run first.
+# so it MUST be run first.
 #----------------------------------------------------------------------
 
 \rm -f preprocess *.o *.mod
@@ -52,48 +53,28 @@
 
 set MODEL = "lorenz_96"
 
-@ n = 1
-
-echo
-echo
-echo "---------------------------------------------------------------"
-echo "${MODEL} build number ${n} is preprocess"
+echo 'building and running preprocess'
 
 csh  mkmf_preprocess
 make || exit $n
 
 ./preprocess || exit 99
 
-#----------------------------------------------------------------------
-# Build all the single-threaded targets
-#----------------------------------------------------------------------
+echo 'copying the workshop version of the input.nml into place'
+cp -f input.workshop.nml input.nml
 
-foreach TARGET ( mkmf_* )
+echo 'building perfect_model_obs and filter'
+csh mkmf_perfect_model_obs
+make || exit 1
 
-   set PROG = `echo $TARGET | sed -e 's#mkmf_##'`
+csh mkmf_filter
+make || exit 1
 
-   switch ( $TARGET )
-   case mkmf_preprocess:
-      breaksw
-   default:
-      @ n = $n + 1
-      echo
-      echo "---------------------------------------------------"
-      echo "${MODEL} build number ${n} is ${PROG}" 
-      \rm -f ${PROG}
-      csh $TARGET || exit $n
-      make        || exit $n
-      breaksw
-   endsw
-end
+echo 'running perfect_model_obs'
+./perfect_model_obs || exit 2
 
-cp ./input.workshop.nml input.nml
-
-@ n = $n + 1
-./perfect_model_obs || exit $n
-
-@ n = $n + 1
-./filter            || exit $n
+echo 'running filter'
+./filter            || exit 3
 
 exit 0
 
