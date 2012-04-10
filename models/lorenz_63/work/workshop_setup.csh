@@ -6,13 +6,8 @@
 #
 # $Id$
 #
-# Script to manage the compilation of all components for this model;
-# executes a known "perfect model" experiment using an existing
-# observation sequence file (obs_seq.in) and initial conditions appropriate 
-# for both 'perfect_model_obs' (perfect_ics) and 'filter' (filter_ics).
-# There are enough initial conditions for 80 ensemble members in filter.
-# Use ens_size = 81 and it WILL bomb. Guaranteed.
-# The 'input.nml' file controls all facets of this execution.
+# this script builds only perfect_model_obs and filter.  to build the rest
+# of the executables, run './quickbuild.csh'.
 #
 # 'create_obs_sequence' and 'create_fixed_network_sequence' were used to
 # create the observation sequence file 'obs_seq.in' - this defines 
@@ -52,46 +47,28 @@
 
 set MODEL = "lorenz_63"
 
-@ n = 1
-
-echo
-echo
-echo "---------------------------------------------------------------"
-echo "${MODEL} build number ${n} is preprocess"
+echo 'building and running preprocess'
 
 csh  mkmf_preprocess
-make || exit $n
+make || exit 1
 
 ./preprocess || exit 99
 
-#----------------------------------------------------------------------
-# Build all the single-threaded targets
-#----------------------------------------------------------------------
+echo 'copying the workshop version of the input.nml into place'
+cp -f input.workshop.nml input.nml
 
-foreach TARGET ( mkmf_* )
+echo 'building perfect_model_obs and filter'
+csh mkmf_perfect_model_obs
+make || exit 1
 
-   set PROG = `echo $TARGET | sed -e 's#mkmf_##'`
+csh mkmf_filter
+make || exit 1
 
-   switch ( $TARGET )
-   case mkmf_preprocess:
-      breaksw
-   default:
-      @ n = $n + 1
-      echo
-      echo "---------------------------------------------------"
-      echo "${MODEL} build number ${n} is ${PROG}" 
-      \rm -f ${PROG}
-      csh $TARGET || exit $n
-      make        || exit $n
-      breaksw
-   endsw
-end
+echo 'running perfect_model_obs'
+./perfect_model_obs || exit 2
 
-@ n = $n + 1
-./perfect_model_obs || exit $n
-
-@ n = $n + 1
-./filter            || exit $n
+echo 'running filter'
+./filter            || exit 3
 
 exit 0
 
