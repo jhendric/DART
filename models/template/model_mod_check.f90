@@ -24,7 +24,7 @@ use     obs_kind_mod, only : get_raw_obs_kind_name, get_raw_obs_kind_index
 use  assim_model_mod, only : open_restart_read, open_restart_write, close_restart, &
                              aread_state_restart, awrite_state_restart, &
                              netcdf_file_type, aoutput_diagnostics, &
-                             init_diag_output, finalize_diag_output
+                             init_diag_output, finalize_diag_output, static_init_assim_model
 use time_manager_mod, only : time_type, set_calendar_type, NO_CALENDAR, &
                              read_time, get_time, set_time,  &
                              print_time, write_time, operator(-)
@@ -87,7 +87,7 @@ read(iunit, nml = model_mod_check_nml, iostat = io)
 call check_namelist_read(iunit, io, "model_mod_check_nml")
 
 ! This harvests all kinds of initialization information
-call static_init_model()
+call static_init_assim_model()
 
 x_size = get_model_size()
 write(*,'(''state vector has length'',i10)') x_size
@@ -103,7 +103,7 @@ write(*,*)
 write(*,*)'Writing a trivial restart file.'
 
 statevector = 1.0_r8;
-model_time  = set_time(21600, 149446)   ! 06Z 4 March 2010
+model_time  = set_time(0, 10)
 
 iunit = open_restart_write('allones.ics')
 call awrite_state_restart(model_time, statevector, iunit)
@@ -114,7 +114,7 @@ call close_restart(iunit)
 !----------------------------------------------------------------------
 
 !model_time = get_state_time('../testdata1')
-model_time = set_time(0,0)
+model_time = set_time(0, 10)
 call print_time( model_time,'model_mod_check:model time')
 
 !----------------------------------------------------------------------
@@ -154,7 +154,7 @@ call aoutput_diagnostics(ncFileID, model_time, statevector, 1)
 
 call nc_check( finalize_diag_output(ncFileID), 'model_mod_check:main', 'finalize')
 
-if ( x_ind > 0 .and. x_ind <= x_size ) call check_meta_data( x_ind )
+!if ( x_ind > 0 .and. x_ind <= x_size ) call check_meta_data( x_ind )
 
 !----------------------------------------------------------------------
 ! Trying to find the state vector index closest to a particular ...
@@ -198,7 +198,7 @@ write(*,*)'Checking metadata routines.'
 
 call get_state_meta_data( iloc, loc, var_type)
 
-call write_location(42, loc, fform='formatted', charstring=string1)
+call write_location(0, loc, charstring=string1)
 write(*,*)' indx ',iloc,' is type ',var_type,trim(string1)
 
 end subroutine check_meta_data
@@ -216,16 +216,17 @@ real(r8) :: closest
 character(len=129)  :: string1
 real(r8), allocatable, dimension(:) :: thisdist
 
+loc0 = set_location(loc_of_interest)
+
 write(*,*)
-write(*,'(''Checking for the indices into the state vector that are at'')')
-call write_location(42, loc, fform='formatted', charstring=string1)
+write(*,'(''Checking for the index in the state vector that is closest to '')')
+call write_location(0, loc0, charstring=string1)
 write(*,*) trim(string1)
 
 allocate( thisdist(get_model_size()) )
 thisdist  = 9999999999.9_r8         ! really far away 
 
 
-loc0 = set_location(loc_of_interest)
 
 ! Since there can be multiple variables with
 ! identical distances, we will just cruise once through 

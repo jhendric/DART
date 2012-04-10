@@ -197,6 +197,15 @@
    model_restart_filename   = 'modelfile'
 /
 
+&model_mod_check_nml
+   input_file            = 'allones.ics'
+   output_file           = 'check_me'
+   advance_time_present  = .false.
+   x_ind                 = 1
+   loc_of_interest       = 0.42
+   kind_of_interest      = 'ANY'
+   verbose               = .false.
+/
 
 &obs_diag_nml
    obs_sequence_name  = 'obs_seq.final',
