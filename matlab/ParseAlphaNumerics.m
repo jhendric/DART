@@ -1,4 +1,4 @@
-function [vrbl, vrbl_inds] = ParseAlphaNumeric(IDstring)
+function [vrbl, vrbl_inds] = ParseAlphaNumerics(IDstring)
 %% ParseAlphaNumerics -  extricates a variable name from subsequent IDs 
 % str1 = ' X 1 3 4 89'
 % [alpha, numerics] = ParseAlphaNumerics(str1)
@@ -21,6 +21,8 @@ words      = strread(IDstring,'%s');
 nwords     = length(words);
 vrbl       = words{1};
 
+vrbl_inds = cast(zeros(1,nwords-1),'int32');
 for i = 2:nwords
    vrbl_inds(i-1) = sscanf(words{i},'%d');
 end
+

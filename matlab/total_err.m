@@ -28,16 +28,14 @@ elseif ( nargin == 3 )
    %--------------------------------------------------
 
    if (length(w) ~= num_vars)
-      error(sprintf('wrong sizes %d and %d',length(w),num_vars))
+      error('wrong sizes %d and %d',length(w),num_vars)
    end
 
    err = zeros(num_times,1);
 
    for i = 1:num_times,
-
       d  = (pred(i,:) - verif(i,:)).^2;
-
-      err(i) = sqrt( sum( d .* w ) );
+      err(i) = sqrt(sum(dot(d,w)));
    end
 
 else

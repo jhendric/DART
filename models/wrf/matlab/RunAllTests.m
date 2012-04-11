@@ -6,10 +6,10 @@ function RunAllTests(dummy)
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
 % <next few lines under version control, do not edit>
-% $URL$
-% $Id$
-% $Revision$
-% $Date$
+% $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/models/wrf/matlab/RunAllTests.m $
+% $Id: RunAllTests.m 5686 2012-04-11 00:01:13Z thoar $
+% $Revision: 5686 $
+% $Date: 2012-04-10 18:01:13 -0600 (Tue, 10 Apr 2012) $
 
 if (nargin() > 0)
    interactive = 1;
@@ -36,11 +36,25 @@ end
  fprintf('Starting %s\n','PlotBins');
  clear pinfo; close all;
 
- pinfo          = CheckModelCompatibility('True_State.nc','Prior_Diag.nc');
- pinfo.var      = 'state';
- pinfo.var_inds = [1 2 3 4 5 6 7 8 9];
-[pinfo.num_ens_members, pinfo.ensemble_indices] = get_ensemble_indices(pinfo.diagn_file);
-
+ truth_file = 'True_State.nc';
+ diagn_file = 'Prior_Diag.nc';
+ vars1 = CheckModel(diagn_file);
+ vars1 = rmfield(vars1,{'time','time_series_length','fname'});
+ vars2 = CheckModelCompatibility(truth_file,diagn_file);
+ pinfo = CombineStructs(vars1,vars2);
+ pinfo.lonmat     = nc_varget(pinfo.truth_file, 'XLONG_d01');
+ pinfo.latmat     = nc_varget(pinfo.truth_file, 'XLAT_d01');
+ [nlats, nlons]   = size(pinfo.lonmat);
+ pinfo.var        = 'T_d01';
+ pinfo.levelindex = 1;
+ pinfo.lonindex   = nlons;
+ pinfo.latindex   = nlats;
+ pinfo.level      = 2;
+ pinfo.longitude  = pinfo.lonmat(pinfo.latindex,pinfo.lonindex);
+ pinfo.latitude   = pinfo.latmat(pinfo.latindex,pinfo.lonindex);
+ pinfo.fname      = pinfo.diagn_file;
+ clear vars1 vars2
+ 
  PlotBins(pinfo)
  fprintf('Finished %s ... pausing, hit any key\n','PlotBins'); pause
 
@@ -69,11 +83,23 @@ end
  clear pinfo; clf
 
  pinfo                    = CheckModel('Prior_Diag.nc');
- pinfo.base_var           = 'state';
- pinfo.base_var_index     = 4;
- pinfo.base_time          = 34;
  pinfo.time               = nc_varget(pinfo.fname,'time');
  pinfo.time_series_length = length(pinfo.time);
+ pinfo.lonmat             = nc_varget(pinfo.fname, 'XLONG_d01');
+ pinfo.latmat             = nc_varget(pinfo.fname, 'XLAT_d01');
+ [nlats, nlons]           = size(pinfo.lonmat);
+ pinfo.base_var           = 'T_d01';
+ pinfo.comp_var           = 'T_d01';
+ pinfo.base_tmeind        =   3;
+ pinfo.base_lvlind        =  40;
+ pinfo.base_lonind        =  round(nlons/2);
+ pinfo.base_latind        =  round(nlats/2);
+ pinfo.base_time          = pinfo.time(pinfo.base_tmeind);
+ pinfo.base_lvl           = pinfo.base_lvlind;
+ pinfo.base_lon           = pinfo.lonmat(pinfo.base_latind,pinfo.base_lonind);
+ pinfo.base_lat           = pinfo.latmat(pinfo.base_latind,pinfo.base_lonind);
+ pinfo.comp_lvlind        = pinfo.base_lvlind;
+ pinfo.comp_lvl           = pinfo.base_lvl;
 [pinfo.num_ens_members, pinfo.ensemble_indices] = get_ensemble_indices(pinfo.fname);
 
  PlotCorrel(pinfo)
@@ -91,17 +117,34 @@ end
  fprintf('Starting %s\n','PlotPhaseSpace');
  clear pinfo; clf
 
- pinfo.fname    = 'True_State.nc';
- pinfo.model    = '9var';
- pinfo.var1name = 'state';
- pinfo.var2name = 'state';
- pinfo.var3name = 'state';
- pinfo.var1ind  = 1;
- pinfo.var2ind  = 2;
- pinfo.var3ind  = 3;
- pinfo.ens_mem  = 'true state';
- pinfo.ltype    = 'k-';
+ pinfo              = CheckModel('Prior_Diag.nc');
 [pinfo.num_ens_members, pinfo.ensemble_indices] = get_ensemble_indices(pinfo.fname);
+ pinfo.var1name     = 'T_d01';
+ pinfo.var2name     = 'PH_d01';
+ pinfo.var3name     = 'W_d01';
+ pinfo.lonmat       = nc_varget(pinfo.fname, 'XLONG_d01');
+ pinfo.latmat       = nc_varget(pinfo.fname, 'XLAT_d01');
+ [nlats, nlons]     = size(pinfo.lonmat);
+ pinfo.var1_lvlind  = 1;
+ pinfo.var2_lvlind  = 1;
+ pinfo.var3_lvlind  = 1;
+ pinfo.var1_lvl     = 1;
+ pinfo.var2_lvl     = 1;
+ pinfo.var3_lvl     = 1;
+ pinfo.var1_latind  = round(nlats/2);
+ pinfo.var2_latind  = round(nlats/2);
+ pinfo.var3_latind  = round(nlats/2);
+ pinfo.var1_lonind  = round(nlons/2);
+ pinfo.var2_lonind  = round(nlons/2);
+ pinfo.var3_lonind  = round(nlons/2);
+ pinfo.var1_lat     = pinfo.latmat(pinfo.var1_latind, pinfo.var1_lonind);
+ pinfo.var2_lat     = pinfo.latmat(pinfo.var2_latind, pinfo.var2_lonind);
+ pinfo.var3_lat     = pinfo.latmat(pinfo.var3_latind, pinfo.var3_lonind);
+ pinfo.var1_lon     = pinfo.lonmat(pinfo.var1_latind, pinfo.var1_lonind);
+ pinfo.var2_lon     = pinfo.lonmat(pinfo.var2_latind, pinfo.var2_lonind);
+ pinfo.var3_lon     = pinfo.lonmat(pinfo.var3_latind, pinfo.var3_lonind);
+ pinfo.ens_mem      = 'ensemble mean';
+ pinfo.ltype        = 'k-';
 
  PlotPhaseSpace(pinfo)
  fprintf('Finished %s ... pausing, hit any key\n','PlotPhaseSpace'); pause
@@ -123,26 +166,29 @@ end
  fprintf('Starting %s\n','PlotSawtooth');
  clear pinfo; close all
 
- pinfo.model              = '9var';
- pinfo.def_var            = 'state';
- pinfo.num_state_vars     = 9;
- pinfo.min_state_var      = 1;
- pinfo.max_state_var      = 9;
- pinfo.def_state_vars     = [1 2 3 4 5 6 7 8 9];
- pinfo.prior_file         = 'Prior_Diag.nc';
- pinfo.posterior_file     = 'Posterior_Diag.nc';
- pinfo.diagn_file         = 'Prior_Diag.nc';
- pinfo.diagn_time         = [-1 -1];
- pinfo.truth_file         = 'True_State.nc';
- pinfo.truth_time         = [-1 -1];
- pinfo.var                = 'state';
- pinfo.var_inds           = [1 2 3 4 5 6 7 8 9];
- pinfo.copyindices        = [7 12 17];
- pinfo.time               = nc_varget(pinfo.truth_file,'time');
- pinfo.time_series_length = length(pinfo.time);
- pinfo.prior_time         = [1 pinfo.time_series_length];
- pinfo.posterior_time     = [1 pinfo.time_series_length];
-[pinfo.num_ens_members, pinfo.ensemble_indices] = get_ensemble_indices(pinfo.prior_file);
+ truth_file     = 'True_State.nc';
+ prior_file     = 'Prior_Diag.nc';
+ posterior_file = 'Posterior_Diag.nc';
+ pinfo = CheckModelCompatibility(prior_file,posterior_file);
+ pinfo.prior_time     = pinfo.truth_time;
+ pinfo.posterior_time = pinfo.diagn_time;
+ pinfo.truth_file     = truth_file;
+ pinfo.prior_file     = prior_file;
+ pinfo.posterior_file = posterior_file;
+ pinfo = rmfield(pinfo,{'diagn_file','truth_time','diagn_time'});
+[pinfo.num_ens_members, pinfo.ensemble_indices] = get_ensemble_indices(prior_file);
+ pinfo.var_names      = 'U_d01';
+ pinfo.latmat         = nc_varget(pinfo.prior_file, 'XLAT_U_d01');
+ pinfo.lonmat         = nc_varget(pinfo.prior_file, 'XLONG_U_d01');
+[nlats, nlons]        = size(pinfo.lonmat);
+ pinfo.levelindex     = 1;
+ pinfo.latindex       = round(nlats/2);
+ pinfo.lonindex       = round(nlons/2);
+ pinfo.level          = 1;
+ pinfo.latitude       = pinfo.latmat(pinfo.latindex, pinfo.lonindex);
+ pinfo.longitude      = pinfo.lonmat(pinfo.latindex, pinfo.lonindex);
+ pinfo.copies         = 3;
+ pinfo.copyindices    = [1 10 20];
 
  PlotSawtooth(pinfo)
  fprintf('Finished %s ... pausing, hit any key\n','PlotSawtooth'); pause
@@ -164,19 +210,13 @@ end
  fprintf('Starting %s\n','PlotTotalErr');
  clear pinfo; clf
 
- pinfo.model              = '9var';
- pinfo.def_var            = 'state';
- pinfo.num_state_vars     = 9;
- pinfo.min_state_var      = 1;
- pinfo.max_state_var      = 9;
- pinfo.def_state_vars     = [1 2 3 4 5 6 7 8 9];
- pinfo.truth_file         = 'True_State.nc';
- pinfo.diagn_file         = 'Prior_Diag.nc';
- pinfo.time               = nc_varget(pinfo.truth_file,'time');
- pinfo.time_series_length = length(pinfo.time);
- pinfo.truth_time         = [1 pinfo.time_series_length];
- pinfo.diagn_time         = [1 pinfo.time_series_length];
-[pinfo.num_ens_members, pinfo.ensemble_indices] = get_ensemble_indices(pinfo.diagn_file);
+ truth_file = 'True_State.nc';
+ diagn_file = 'Prior_Diag.nc';
+ vars1 = CheckModel(diagn_file);
+ rmfield(vars1,{'time','time_series_length','fname'});
+ vars2 = CheckModelCompatibility(truth_file,diagn_file);
+ pinfo = CombineStructs(vars1,vars2);
+ pinfo.num_state_vars = 2; % just do the first two
 
  PlotTotalErr(pinfo)
  fprintf('Finished %s ... pausing, hit any key\n','PlotTotalErr'); pause
@@ -193,16 +233,28 @@ end
  fprintf('Starting %s\n','PlotVarVarCorrel');
  clear pinfo; clf
 
- pinfo.fname              = 'Prior_Diag.nc';
- pinfo.model              = '9var';
- pinfo.base_var           = 'state';
- pinfo.state_var          = 'state';
- pinfo.base_var_index     = 4;
- pinfo.base_time          = 235;
- pinfo.state_var_index    = 8;
- pinfo.time               = nc_varget(pinfo.fname,'time');
- pinfo.time_series_length = length(pinfo.time);
+ diagn_file = 'Prior_Diag.nc';
+ pinfo = CheckModel(diagn_file);
 [pinfo.num_ens_members, pinfo.ensemble_indices] = get_ensemble_indices(pinfo.fname);
+ pinfo.base_var     = 'T_d01';
+ pinfo.comp_var     = 'PH_d01';
+ pinfo.base_tmeind  = 3;
+ pinfo.base_time    = pinfo.time(pinfo.base_tmeind);
+ pinfo.lonmat       = nc_varget(pinfo.fname, 'XLONG_d01');
+ pinfo.latmat       = nc_varget(pinfo.fname, 'XLAT_d01');
+ [nlats, nlons]     = size(pinfo.lonmat);
+ pinfo.base_lvlind  = 1;
+ pinfo.base_lvl     = 1;
+ pinfo.base_latind  = round(nlats/3);
+ pinfo.base_lonind  = round(nlons/2);
+ pinfo.base_lat     = pinfo.latmat(pinfo.base_latind, pinfo.base_lonind);
+ pinfo.base_lon     = pinfo.lonmat(pinfo.base_latind, pinfo.base_lonind);
+ pinfo.comp_lvlind  = 2;
+ pinfo.comp_lvl     = 2;
+ pinfo.comp_latind  = round(nlats/6);
+ pinfo.comp_lonind  = round(nlons/2);
+ pinfo.comp_lat     = pinfo.latmat(pinfo.comp_latind, pinfo.comp_lonind);
+ pinfo.comp_lon     = pinfo.lonmat(pinfo.comp_latind, pinfo.comp_lonind);
 
  PlotVarVarCorrel(pinfo)
  fprintf('Finished %s ... pausing, hit any key\n','PlotVarVarCorrel'); pause
@@ -217,6 +269,7 @@ if (interactive)
 end
 
  fprintf('Starting %s\n','PlotJeffCorrel');
+ clf
  PlotJeffCorrel(pinfo)
  fprintf('Finished %s\n','PlotJeffCorrel')
 

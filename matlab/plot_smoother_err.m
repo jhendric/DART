@@ -24,7 +24,7 @@ else
    def_true = 'True_State.nc';
 end
 
-disp('Input name of True State file;')
+disp('Input name of True State file:')
 truth_file = input(sprintf('<cr> for %s\n',def_true),'s');
 if isempty(truth_file)
    truth_file = def_true;
@@ -39,7 +39,7 @@ for lag=1:num_lags
 
   def_diag = sprintf(lag_file, lag);
   
-  disp('Input name of smoother lag diagnostics file;')
+  disp('Input name of smoother lag diagnostics file:')
   diagn_file = input(sprintf('<cr> for %s\n', def_diag),'s');
   if isempty(diagn_file)
      diagn_file = def_diag;

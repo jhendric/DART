@@ -37,20 +37,19 @@
 % $Date$
 
 if (exist('fname','var') ~=1)
-   fname = input('Input name of netCDF file; <cr> for True_State.nc  ','s');
+   fname = input('Input name of netCDF file:\n<cr> for True_State.nc\n','s');
    if isempty(fname)
       fname = 'True_State.nc';
    end                                                                          
 else
    if isempty(fname), fname = 'True_State.nc'; end
-   s1 = input(sprintf('Input name of netCDF file. <cr> for  %s ',fname),'s');
+   s1 = input(sprintf('Input name of netCDF file:\n<cr> for %s\n',fname),'s');
    if ~isempty(s1), fname = s1; end
 end 
 
 if ( exist(fname,'file') ~= 2 ), error('%s does not exist.',fname); end
 
 pinfo = CheckModel(fname);   % also gets default values for this model.
-pinfo.fname = fname;
 
 switch lower(pinfo.model)
 
@@ -60,22 +59,22 @@ switch lower(pinfo.model)
 
       str1 = sprintf('[%d - %d]',pinfo.min_state_var, pinfo.max_state_var);
 
-      if (exist('var1') ~=1)
-         s1 = input(sprintf('Input variable index for ''X'' variable %s. <cr> for 1.  ',str1),'s');
+      if (exist('var1','var') ~=1)
+         s1 = input(sprintf('Input variable index for ''X'' variable %s. <cr> for 1.\n',str1),'s');
          if isempty(s1), var1 = 1; else var1 = str2num(deblank(s1)); end
       end 
 
-      if (exist('var2') ~=1)
-         s1 = input(sprintf('Input variable index for ''Y'' variable %s. <cr> for 2.  ',str1),'s');
+      if (exist('var2','var') ~=1)
+         s1 = input(sprintf('Input variable index for ''Y'' variable %s. <cr> for 2.\n',str1),'s');
          if isempty(s1), var2 = 2; else var2 = str2num(deblank(s1)); end
       end 
 
-      if (exist('var3') ~=1)
-         s1 = input(sprintf('Input variable index for ''Z'' variable %s. <cr> for 3.  ',str1),'s');
+      if (exist('var3','var') ~=1)
+         s1 = input(sprintf('Input variable index for ''Z'' variable %s. <cr> for 3.\n',str1),'s');
          if isempty(s1), var3 = 3; else var3 = str2num(deblank(s1)); end
       end 
 
-      if (exist('ens_mem') ~=1)
+      if (exist('ens_mem','var') ~=1)
          % Set a viable default ensemble member string
          metadata = nc_varget(fname,'CopyMetaData');
          [N,M]    = size(metadata);
@@ -84,13 +83,13 @@ switch lower(pinfo.model)
          disp('It is necessary to pick an ensemble member to plot.')
          disp('Since we pick it based on the metadata string, it could be:')
          disp('''true_state'', ''ensemble mean'', ''ensemble member10'' ... you get it.')
-         str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''   ',ens_mem);
+         str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''\n',ens_mem);
          s1 = input(str1,'s');
          if ~ isempty(s1), ens_mem = s1; end
       end 
 
-      if (exist('ltype') ~=1)
-         s1 = input('Input line type string. <cr> for ''k-''  ','s');
+      if (exist('ltype','var') ~=1)
+         s1 = input('Input line type string. <cr> for ''k-''\n','s');
          if isempty(s1), ltype = 'k-'; else ltype = s1; end
       end 
 
@@ -120,7 +119,7 @@ switch lower(pinfo.model)
       inputstring = input('Input variable and index for axis 3 i.e.  X 24\n','s');
       [var3name, var3] = ParseAlphaNumerics(inputstring);
 
-      if (exist('ens_mem') ~=1)
+      if (exist('ens_mem','var') ~=1)
          % Set a viable default ensemble member string
          metadata = nc_varget(fname,'CopyMetaData');
          [N,M]    = size(metadata);
@@ -129,13 +128,13 @@ switch lower(pinfo.model)
          disp('It is necessary to pick an ensemble member to plot.')
          disp('Since we pick it based on the metadata string, it could be:')
          disp('''true_state'', ''ensemble mean'', ''ensemble member10'' ... you get it.')
-         str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''   ',ens_mem);
+         str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''\n',ens_mem);
          s1 = input(str1,'s');
          if ~ isempty(s1), ens_mem = s1; end
       end 
 
-      if (exist('ltype') ~=1)
-         s1 = input('Input line type string. <cr> for ''k-''  ','s');
+      if (exist('ltype','var') ~=1)
+         s1 = input('Input line type string. <cr> for ''k-''\n','s');
          if isempty(s1), ltype = 'k-'; else ltype = s1; end
       end 
 
@@ -187,7 +186,7 @@ switch lower(pinfo.model)
          [var3name, var3] = ParseAlphaNumerics(s1);
       end
 
-      if (exist('ens_mem') ~=1)
+      if (exist('ens_mem','var') ~=1)
          % Set a viable default ensemble member string
          metadata = nc_varget(fname,'CopyMetaData');
          [N,M]    = size(metadata);
@@ -196,13 +195,13 @@ switch lower(pinfo.model)
          disp('It is necessary to pick an ensemble member to plot.')
          disp('Since we pick it based on the metadata string, it could be:')
          disp('''true_state'', ''ensemble mean'', ''ensemble member10'' ... you get it.')
-         str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''   ',ens_mem);
+         str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''\n',ens_mem);
          s1 = input(str1,'s');
          if ~ isempty(s1), ens_mem = s1; end
       end 
 
-      if (exist('ltype') ~=1)
-         s1 = input('Input line type string. <cr> for ''k-''  ','s');
+      if (exist('ltype','var') ~=1)
+         s1 = input('Input line type string. <cr> for ''k-''\n','s');
          if isempty(s1), ltype = 'k-'; else ltype = s1; end
       end 
 
@@ -234,23 +233,27 @@ switch lower(pinfo.model)
 
       pinfo = GetMITgcm_oceanInfo(pinfo, fname, 'PlotPhaseSpace');
 
+   case 'mpas_atm'
+
+      pinfo = GetMPAS_ATMInfo(pinfo, fname, 'PlotPhaseSpace');
+
    case {'ikeda'}
 
       if (ishold), clear var1 var2 var3 ens_mem ltype; end
 
       str1 = sprintf('[%d - %d]',pinfo.min_state_var, pinfo.max_state_var);
 
-      if (exist('var1') ~=1)
-         s1 = input(sprintf('Input variable index for ''X'' variable %s. <cr> for 1.  ',str1),'s');
+      if (exist('var1','var') ~=1)
+         s1 = input(sprintf('Input variable index for ''X'' variable %s. <cr> for 1.\n',str1),'s');
          if isempty(s1), var1 = 1; else var1 = str2num(deblank(s1)); end
       end 
 
-      if (exist('var2') ~=1)
-         s1 = input(sprintf('Input variable index for ''Y'' variable %s. <cr> for 2.  ',str1),'s');
+      if (exist('var2','var') ~=1)
+         s1 = input(sprintf('Input variable index for ''Y'' variable %s. <cr> for 2.\n',str1),'s');
          if isempty(s1), var2 = 2; else var2 = str2num(deblank(s1)); end
       end 
 
-      if (exist('ens_mem') ~=1)
+      if (exist('ens_mem','var') ~=1)
          % Set a viable default ensemble member string
          metadata = nc_varget(fname,'CopyMetaData');
          [N,M]    = size(metadata);
@@ -259,13 +262,13 @@ switch lower(pinfo.model)
          disp('It is necessary to pick an ensemble member to plot.')
          disp('Since we pick it based on the metadata string, it could be:')
          disp('''true_state'', ''ensemble mean'', ''ensemble member10'' ... you get it.')
-         str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''   ',ens_mem);
+         str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''\n',ens_mem);
          s1 = input(str1,'s');
          if ~ isempty(s1), ens_mem = s1; end
       end 
 
-      if (exist('ltype') ~=1)
-         s1 = input('Input line type string. <cr> for ''k-''  ','s');
+      if (exist('ltype','var') ~=1)
+         s1 = input('Input line type string. <cr> for ''k-''\n','s');
          if isempty(s1), ltype = 'k-'; else ltype = s1; end
       end 
 

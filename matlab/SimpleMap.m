@@ -66,7 +66,7 @@ h0 = subplot('position',[0.1 0.3 0.8 0.6]); set(h0,'FontSize',14)
 h = imagesc(plotdat.lons,plotdat.lats,datmat);
 set(gca,'YDir','normal');
 axis image;
-worldmap;
+continents;
 h1 = colorbar;
 set(h1,'FontSize',14)
 set(get(h1,'Ylabel'),'String',plotdat.varunits,'FontSize',14)

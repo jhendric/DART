@@ -115,6 +115,10 @@ switch lower(pinfo.model)
 
       pinfo = GetMITgcm_oceanInfo(pinfo, fname, 'PlotVarVarCorrel');
 
+   case 'mpas_atm'
+
+      pinfo = GetMPAS_ATMInfo(pinfo, fname, 'PlotVarVarCorrel');
+
    otherwise
 
       error('model %s not implemented yet', pinfo.model)

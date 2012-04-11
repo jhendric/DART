@@ -35,23 +35,23 @@ function PlotVarVarCorrel( pinfo )
 
 if (exist(pinfo.fname,'file') ~= 2), error('%s does not exist.',pinfo.fname), end
 
-% Get some file-specific information.
+[num_times, ~, num_vars] = parse_varshape(pinfo.fname, pinfo.base_var);
 
-model      = nc_attget(pinfo.fname, nc_global, 'model');
-timeunits  = nc_attget(pinfo.fname, 'time',    'units');
-
-[num_times, num_copies, num_vars] = parse_varshape(pinfo.fname, pinfo.base_var);
-
-switch lower(model)
+switch lower(pinfo.model)
 
    case {'fms_bgrid','pe2lyr','wrf','cam'}
 
       clf;
 
-      base_mem = GetEns( pinfo.fname, pinfo.base_var, ...
-                    pinfo.base_lvlind, pinfo.base_latind, pinfo.base_lonind );
-      comp_mem = GetEns( pinfo.fname, pinfo.comp_var, ...
-                    pinfo.comp_lvlind, pinfo.comp_latind, pinfo.comp_lonind );
+      base_mem = get_hyperslab('fname', pinfo.fname, ...
+                     'varname',pinfo.base_var, 'levelindex',pinfo.base_lvlind, ...
+                     'copyindex1',pinfo.ensemble_indices(1), 'copycount',pinfo.num_ens_members, ...
+                     'latindex',pinfo.base_latind, 'lonindex',pinfo.base_lonind );
+      comp_mem = get_hyperslab('fname', pinfo.fname, ...
+                     'varname',pinfo.comp_var, 'levelindex',pinfo.comp_lvlind, ...
+                     'copyindex1',pinfo.ensemble_indices(1), 'copycount',pinfo.num_ens_members, ...
+                     'latindex',pinfo.comp_latind, 'lonindex',pinfo.comp_lonind );
+
       nmembers = size(comp_mem,2);
 
       correl = ens_correl(base_mem, pinfo.base_tmeind, comp_mem);
@@ -60,17 +60,17 @@ switch lower(model)
          PlotLocator(pinfo)
 
       subplot(2,1,2)
-         plot(pinfo.times,correl);
+         plot(pinfo.time,correl);
 
       s1 = sprintf('%s Correlation of ''%s'', T = %d, lvl = %d, lat = %.2f, lon=%.2f', ...
-          model, pinfo.base_var, pinfo.base_time, pinfo.base_lvl, ...
+          pinfo.model, pinfo.base_var, pinfo.base_time, pinfo.base_lvl, ...
           pinfo.base_lat, pinfo.base_lon);
 
       s2 = sprintf('with ''%s'', lvl = %d, lat = %.2f, lon= %.2f, %d ensemble members', ...
           pinfo.comp_var, pinfo.comp_lvl, pinfo.comp_lat, pinfo.comp_lon, nmembers); 
 
       title({s1,s2,pinfo.fname},'interpreter','none','fontweight','bold')
-      datetick('x','yyyymmmdd HH:MM')
+      xdates(pinfo.time)
       ylabel('correlation')
       
       % call out the time index in question, and put a corr==0 reference line.
@@ -79,6 +79,42 @@ switch lower(model)
       plot([pinfo.base_time pinfo.base_time],[ -1 1 ],'k:', ...
            [ax(1)         ax(2)],[  0 0 ],'k:')
 
+   case {'mpas_atm'}
+
+      clf;
+
+      base_mem = get_hyperslab('fname', pinfo.fname, 'varname',pinfo.base_var, ...
+                     'copyindex1',pinfo.ensemble_indices(1), 'copycount',pinfo.num_ens_members, ...
+                     'levelindex',pinfo.base_lvlind, 'cellindex',pinfo.base_cellindex);
+      comp_mem = get_hyperslab('fname', pinfo.fname, 'varname',pinfo.comp_var, ...
+                     'copyindex1',pinfo.ensemble_indices(1), 'copycount',pinfo.num_ens_members, ...
+                     'levelindex',pinfo.comp_lvlind, 'cellindex',pinfo.comp_cellindex);
+      nmembers = size(comp_mem,2);
+
+      correl = ens_correl(base_mem, pinfo.base_tmeind, comp_mem);
+
+      subplot(2,1,1)
+         PlotLocator(pinfo)
+
+      subplot(2,1,2)
+         plot(pinfo.time,correl);
+
+      s1 = sprintf('%s Correlation of ''%s'', T = %d, lvl = %d, lat = %.2f, lon=%.2f', ...
+          pinfo.model, pinfo.base_var, pinfo.base_time, pinfo.base_lvl, ...
+          pinfo.base_lat, pinfo.base_lon);
+
+      s2 = sprintf('with ''%s'', lvl = %d, lat = %.2f, lon= %.2f, %d ensemble members', ...
+          pinfo.comp_var, pinfo.comp_lvl, pinfo.comp_lat, pinfo.comp_lon, nmembers); 
+
+      title({s1,s2,pinfo.fname},'interpreter','none','fontweight','bold')
+      xdates(pinfo.time)
+      ylabel('correlation')
+      
+      % call out the time index in question, and put a corr==0 reference line.
+      ax = axis;
+      hold on;
+      plot([pinfo.base_time pinfo.base_time],[ -1 1 ],'k:', ...
+           [ax(1)                     ax(2)],[  0 0 ],'k:')
 
    otherwise
 
@@ -106,27 +142,32 @@ switch lower(model)
       end
       
       % Get 'standard' ensemble series 
-       base_var = get_ens_series(pinfo.fname, pinfo.base_var,  pinfo.base_var_index);
-      state_var = get_ens_series(pinfo.fname, pinfo.state_var, pinfo.state_var_index);
+      base_var  = get_hyperslab('fname',pinfo.fname, ...
+                      'varname',pinfo.base_var,  'stateindex',pinfo.base_var_index, ...
+                      'copyindex1',pinfo.ensemble_indices(1), 'copycount',pinfo.num_ens_members);
+      state_var = get_hyperslab('fname',pinfo.fname, ...
+                      'varname',pinfo.state_var, 'stateindex',pinfo.state_var_index, ...
+                      'copyindex1',pinfo.ensemble_indices(1), 'copycount',pinfo.num_ens_members);
+
       nmembers  = size(state_var,2);
 
       % perform a single correlation
       correl = ens_correl(base_var, pinfo.base_time, state_var);
       
-      clf; plot(correl);
+      clf; plot(pinfo.time,correl);
       
-      s1 = sprintf('%s Correlation of variable %s %d, T = %d, with variable %s %d', ...
-               model, pinfo.base_var, pinfo.base_var_index, pinfo.base_time, ...
+      s1 = sprintf('%s Correlation of variable %s %d, timestep = %d, with variable %s %d', ...
+               pinfo.model, pinfo.base_var, pinfo.base_var_index, pinfo.base_time, ...
                       pinfo.state_var, pinfo.state_var_index);
       s2 = sprintf('%d ensemble members -- %s', nmembers, pinfo.fname); 
       title({s1,s2},'interpreter','none','fontweight','bold')
-      xlabel('time (timestep #)')
+      xlabel(sprintf('model "days" (%d timesteps)',pinfo.time_series_length))
       ylabel('correlation')
       
       % call out the time index in question, and put a corr==0 reference line.
       ax = axis;
       hold on;
-      plot([pinfo.base_time pinfo.base_time],[ -1 1 ],'k:', ...
+      plot([pinfo.time(pinfo.base_time) pinfo.time(pinfo.base_time)],[ -1 1 ],'k:', ...
            [ax(1)         ax(2)],[  0 0 ],'k:')
       
       %axis(ax)
@@ -166,45 +207,33 @@ end
 
 
 
-function var = GetEns( fname, varname, lvlind, latind, lonind)
-% Gets a time-series of all copies of a prognostic variable 
-% at a particular 3D location (level, lat, lon).
-% Determining just the ensemble members (and not mean, spread ...)
-% is the hard part.
-
-% find which are actual ensemble members
-metadata    = nc_varget(fname,'CopyMetaData');       % get all the metadata
-copyindices = strmatch('ensemble member',metadata);  % find all 'member's
-
-if ( isempty(copyindices) )
-   fprintf('%s has no valid ensemble members\n',fname)
-   disp('To be a valid ensemble member, the CopyMetaData for the member')
-   disp('must start with the character string ''ensemble member''')
-   disp('None of them in do in your file.')
-   fprintf('%s claims to have %d copies\n',fname, num_copies)
-   error('netcdf file has no ensemble members.')
-end
-ens_num     = length(copyindices);
-
-% Get all ensemble members, just return desired ones.
-myinfo.diagn_file = fname;
-myinfo.levelindex = lvlind;
-myinfo.latindex   = latind;
-myinfo.lonindex   = lonind;
-[start, count]    = GetNCindices(myinfo,'diagn',varname);
-
-bob = nc_varget(fname, varname, start, count); % 'bob' is only 2D 
-var = bob(:,copyindices);
-
-
-
 function PlotLocator(pinfo)
+
    plot(pinfo.base_lon, pinfo.base_lat,'pb','MarkerSize',12,'MarkerFaceColor','b');
    hold on;
    plot(pinfo.comp_lon, pinfo.comp_lat,'pr','MarkerSize',12,'MarkerFaceColor','r');
    hold off;
-   axis([0 360 -90 90]);
-   worldmap;
-   axis image
+   axlims = axis;
+   axlims = axlims + [-20 20 -20 20];
    grid on
+   axis image
+   axis(axlims)
+   if (axlims(2) < 0)
+       continents('hollow','dateline');
+   else
+       continents('hollow','greenwich');
+   end
 
+
+
+function xdates(dates)
+if (length(get(gca,'XTick')) > 6)
+   datetick('x','mm.dd.HH','keeplimits','keepticks'); % 'mm/dd'
+   monstr = datestr(dates(1),31);
+   xlabelstring = sprintf('month/day/HH - %s start',monstr);
+else
+   datetick('x',31,'keeplimits','keepticks'); %'yyyy-mm-dd HH:MM:SS'
+   monstr = datestr(dates(1),31);
+   xlabelstring = sprintf('%s start',monstr);
+end
+xlabel(xlabelstring)

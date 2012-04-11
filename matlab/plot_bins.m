@@ -29,14 +29,15 @@
 %                     the value of the variable is checked later.
 
 if (exist('truth_file','var') ~= 1) 
-   truth_file = input('Input name of True State file; <cr> for True_State.nc\n','s');
+   disp('Input name of True State file:') 
+   truth_file = input('<cr> for True_State.nc\n','s');
    if isempty(truth_file)
       truth_file = 'True_State.nc';
    end
 end
 
 if (exist('diagn_file','var') ~=1)
-   disp('Input name of prior or posterior diagnostics file;') 
+   disp('Input name of prior or posterior diagnostics file:') 
    diagn_file = input('<cr> for Prior_Diag.nc\n','s');
    if isempty(diagn_file)
       diagn_file = 'Prior_Diag.nc';
@@ -46,17 +47,18 @@ end
 if ( exist(truth_file,'file') ~= 2 ), error('%s does not exist.',truth_file); end
 if ( exist(diagn_file,'file') ~= 2 ), error('%s does not exist.',diagn_file); end
 
+vars  = CheckModel(diagn_file);   % also gets default values for this model.
+vars  = rmfield(vars,{'time_series_length','time','fname'});
 pinfo = CheckModelCompatibility(truth_file,diagn_file);
-vars  = CheckModel(truth_file);   % also gets default values for this model.
+pinfo = CombineStructs(pinfo,vars);
+clear vars
 
-switch lower(vars.model)
+switch lower(pinfo.model)
 
    case {'9var','lorenz_63','lorenz_84','lorenz_96','lorenz_96_2scale', ...
 	 'lorenz_04', 'forced_lorenz_96','ikeda','simple_advection'}
 
-      varid = SetVariableID(vars);      % queries for variable IDs
-      pinfo.truth_file = truth_file;
-      pinfo.diagn_file = diagn_file;
+      varid = SetVariableID(pinfo);      % queries for variable IDs
       pinfo.var        = varid.var;
       pinfo.var_inds   = varid.var_inds;
       clear varid
@@ -67,8 +69,11 @@ switch lower(vars.model)
 
    case 'cam'
 
-      pinfo = CombineStructs(pinfo,vars);
       pinfo = GetCamInfo(pinfo, diagn_file, 'PlotBins');
+
+   case 'wrf'
+
+      pinfo = GetWRFInfo(pinfo, diagn_file, 'PlotBins');
 
    case 'pe2lyr'
 
@@ -78,6 +83,10 @@ switch lower(vars.model)
 
       pinfo = GetMITgcm_oceanInfo(pinfo, diagn_file, 'PlotBins');
 
+   case 'mpas_atm'
+       
+      pinfo = GetMPAS_ATMInfo(pinfo, diagn_file, 'PlotBins');
+
    otherwise
 
       error('model %s not implemented yet', vars.model)
@@ -85,4 +94,4 @@ switch lower(vars.model)
 end
 
 PlotBins(pinfo);
-clear vars
+

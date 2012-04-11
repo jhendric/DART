@@ -20,17 +20,9 @@ timeunits = nc_attget(pinfo.truth_file,'time','units');
 nvars = 4;
 
 % Since the models are "compatible", get the info from either one.
-levels   = nc_varget(pinfo.truth_file, 'level'); num_levels = length(levels);
-ens_mems = nc_varget(pinfo.diagn_file,  'copy'); ens_size   = length(ens_mems);
-
-num_times     = pinfo.truth_time(2) - pinfo.truth_time(1) + 1;
-num_ens_times = pinfo.diagn_time(2) - pinfo.diagn_time(1) + 1;
-if num_ens_times ~= num_times
-   error('CheckModelCompatibility returned incompatible time indices')
-end
-
-times     = nc_varget(pinfo.truth_file, 'time', pinfo.truth_time(1)-1, num_times);
-ens_times = nc_varget(pinfo.diagn_file, 'time', pinfo.diagn_time(1)-1, num_times);
+levels    = nc_varget(pinfo.truth_file, 'level'); num_levels = length(levels);
+ens_mems  = nc_varget(pinfo.diagn_file,  'copy'); ens_size   = length(ens_mems);
+num_times = pinfo.time_series_length;
 
 % Initialize storage for error averaging
 rms      = zeros(num_times, nvars, num_levels);
@@ -145,7 +137,7 @@ clear field ens sd ens_err
 %----------------------------------------------------------------------
 figure(1); clf;
       ivar = 1;
-      plot(times, rms(:, ivar, 1), '-', times, sd_final(:, ivar, 1), '--');
+      plot(pinfo.time, rms(:, ivar, 1), '-', pinfo.time, sd_final(:, ivar, 1), '--');
 
       s1 = sprintf('%s model ''ps'' Ensemble Mean for %s', model,pinfo.diagn_file);
       title(s1,'interpreter','none','fontweight','bold')
@@ -164,8 +156,8 @@ figure(2); clf;
       ivar = 2;
       plot_temp = reshape(rms(:, ivar, :), [num_times num_levels]);
 
-      h1 = plot(times, squeeze(     rms(:, ivar, :)),'-'); hold on;
-      h2 = plot(times, squeeze(sd_final(:, ivar, :)),'--');
+      h1 = plot(pinfo.time, squeeze(     rms(:, ivar, :)),'-'); hold on;
+      h2 = plot(pinfo.time, squeeze(sd_final(:, ivar, :)),'--');
       s1 = sprintf('%s model ''temperature'' Ensemble Mean for %s', model,pinfo.diagn_file);
       title(s1,'interpreter','none','fontweight','bold')
 
@@ -185,8 +177,8 @@ figure(3); clf;
       ivar = 3;
       plot_temp = reshape(rms(:, ivar, :), [num_times num_levels]);
 
-      h1 = plot(times, squeeze(     rms(:, ivar, :)),'-'); hold on;
-      h2 = plot(times, squeeze(sd_final(:, ivar, :)),'--');
+      h1 = plot(pinfo.time, squeeze(     rms(:, ivar, :)),'-'); hold on;
+      h2 = plot(pinfo.time, squeeze(sd_final(:, ivar, :)),'--');
       s1 = sprintf('%s model ''U'' Ensemble Mean for %s', model,pinfo.diagn_file);
       title(s1,'interpreter','none','fontweight','bold')
 
@@ -206,8 +198,8 @@ figure(4); clf;
       ivar = 4;
       plot_temp = reshape(rms(:, ivar, :), [num_times num_levels]);
 
-      h1 = plot(times, squeeze(     rms(:, ivar, :)),'-'); hold on;
-      h2 = plot(times, squeeze(sd_final(:, ivar, :)),'--');
+      h1 = plot(pinfo.time, squeeze(     rms(:, ivar, :)),'-'); hold on;
+      h2 = plot(pinfo.time, squeeze(sd_final(:, ivar, :)),'--');
       s1 = sprintf('%s model ''V'' Ensemble Mean for %s', model,pinfo.diagn_file);
       title(s1,'interpreter','none','fontweight','bold')
 

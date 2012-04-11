@@ -24,25 +24,17 @@ function pinfo = GetWRFInfo(pinfo_in,fname,routine)
 if ( exist(fname,'file') ~= 2 ), error('%s does not exist.',fname); end
 
 pinfo = pinfo_in;
-model = nc_attget(fname, nc_global, 'model');
 
-if strcmpi(model,'wrf') ~= 1
+if strcmpi(pinfo.model,'wrf') ~= 1
    error('Not so fast, this is not a WRF model.')
 end
 
 %% Get the domain-independent information.
 
-varexist(fname, {'copy','time'})
-
+varexist(fname, {'copy'});
 copy       = nc_varget(fname,'copy');
-times      = nc_varget(fname,'time');
 
-% Coordinate between time types and dates
-
-timeunits  = nc_attget(fname,'time','units');
-timebase   = sscanf(timeunits,'%*s%*s%d%*c%d%*c%d'); % YYYY MM DD
-timeorigin = datenum(timebase(1),timebase(2),timebase(3));
-dates      = times + timeorigin;
+%% Get 'optional' variables.
 
 dx         = varget(fname,        'DX');
 dy         = varget(fname,        'DY');
@@ -91,9 +83,7 @@ switch lower(deblank(routine))
       [level, lvlind] = GetLevel(fname,pgvar);           % Determine level and index
       [lat, lon, latind, lonind] = GetLatLon(fname, pgvar);
 
-      pinfo.model      = model;
       pinfo.fname      = fname;
-      pinfo.times      = dates;
       pinfo.var        = pgvar;
       pinfo.level      = level;
       pinfo.levelindex = lvlind;
@@ -106,7 +96,7 @@ switch lower(deblank(routine))
 
       disp('Getting information for the ''base'' variable.')
        base_var                  = GetVarString(pinfo_in.vars);
-      [base_time, base_tmeind]   = GetTime(dates);
+      [base_time, base_tmeind]   = GetTime(pinfo.time);
       [base_lvl,  base_lvlind]   = GetLevel(fname, base_var);
       [base_lat, base_lon, base_latind, base_lonind] = GetLatLon(fname, base_var);
 
@@ -114,9 +104,7 @@ switch lower(deblank(routine))
        comp_var               = GetVarString(pinfo_in.vars, base_var);
       [comp_lvl, comp_lvlind] = GetLevel(fname, comp_var, base_lvl);
 
-      pinfo.model       = model;
       pinfo.fname       = fname;
-      pinfo.times       = dates;
       pinfo.base_var    = base_var;
       pinfo.comp_var    = comp_var;
       pinfo.base_time   = base_time;
@@ -134,7 +122,7 @@ switch lower(deblank(routine))
 
       disp('Getting information for the ''base'' variable.')
        base_var                = GetVarString(pinfo_in.vars);
-      [base_time, base_tmeind] = GetTime(dates);
+      [base_time, base_tmeind] = GetTime(pinfo.time);
       [base_lvl , base_lvlind] = GetLevel(fname, base_var);
       [base_lat, base_lon, base_latind, base_lonind] = GetLatLon(fname, base_var);
 
@@ -143,9 +131,7 @@ switch lower(deblank(routine))
       [comp_lvl, comp_lvlind] = GetLevel(fname, comp_var, base_lvl);
       [comp_lat, comp_lon, comp_latind, comp_lonind] = GetLatLon(fname, comp_var, base_latind, base_lonind);
 
-      pinfo.model       = model;
       pinfo.fname       = fname;
-      pinfo.times       = dates;
       pinfo.base_var    = base_var;
       pinfo.comp_var    = comp_var;
       pinfo.base_time   = base_time;
@@ -171,11 +157,9 @@ switch lower(deblank(routine))
       [copyindices, copymetadata]= SetCopyID2(pinfo_in.prior_file);
       copy            = length(copyindices);
 
-      pinfo.model          = model;
       pinfo.truth_file     = pinfo_in.truth_file;
       pinfo.prior_file     = pinfo_in.prior_file;
       pinfo.posterior_file = pinfo_in.posterior_file;
-      pinfo.times          = dates;
       pinfo.var_names      = pgvar;
       pinfo.level          = level;
       pinfo.levelindex     = lvlind;
@@ -229,9 +213,7 @@ switch lower(deblank(routine))
       s1 = input('Input line type string. <cr> for ''k-''  ','s');
       if isempty(s1), ltype = 'k-'; else ltype = s1; end
 
-      pinfo.model       = model;
       pinfo.fname       = fname;
-      pinfo.times       = dates;
       pinfo.var1name    = var1;
       pinfo.var2name    = var2;
       pinfo.var3name    = var3;
@@ -256,7 +238,7 @@ switch lower(deblank(routine))
       pinfo.ens_mem     = ens_mem;
       pinfo.ltype       = ltype;
 
-   otherwise
+    otherwise
 
 end
 

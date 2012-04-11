@@ -12,19 +12,19 @@
 % $Date$
 
 if (exist('fname','var') ~= 1)
-   fname = input('Input name of reg diagnostics file; <cr> for reg_diagnostics\n','s');
+   fname = input('Input name of reg diagnostics file:\n<cr> for reg_diagnostics\n','s');
    if isempty(fname)
       fname = 'reg_diagnostics';
    end
 else
-   s1 = input(sprintf('Input name of reg_diagnostics file. <cr> for  %s ',fname),'s');
+   s1 = input(sprintf('Input name of reg_diagnostics file:\n<cr> for  %s ',fname),'s');
    if ~isempty(s1), fname = deblank(s1); end
 end
 
 if ( exist(fname,'file') ~= 2 ), error('%s does not exist.',fname); end
 
 
-obs_index = input('Input observation index \n');
+obs_index = input('Input observation index: \n');
 
 disp('loading usually takes a while ... please be patient ...')
 load(fname)

@@ -1,4 +1,4 @@
-function varid = SetVariableID(vars);
+function varid = SetVariableID(vars)
 %% SetVariableID   queries the user to override default variable ID's 
 %                 (i.e. model state variable indices) for different model types. 
 %
@@ -22,16 +22,9 @@ function varid = SetVariableID(vars);
 % $Revision$
 % $Date$
 
+varid = vars;
+
 switch lower(vars.model)
-
-   case 'fms_bgrid'
-
-      varid = [1 2 3 4];
-
-   case 'pe2lyr'
-
-      %  model has no choice.
-      varid = vars.vars;
 
    case 'forced_lorenz_96'
 
@@ -47,17 +40,20 @@ switch lower(vars.model)
       IDstring = input('(no intervening syntax required)\n','s');
 
       if isempty(IDstring) 
-         varid = struct('var',vars.def_var,'var_inds',vars.def_state_vars); 
+         varid.var      = vars.def_var;
+         varid.var_inds = vars.def_state_vars;
+
       else 
          [vrbl, vrbl_inds] = ParseAlphaNumerics(IDstring);
-
-	 % Must shift the 'forcing' variables by the number of state variables.
+         % Must shift the 'forcing' variables by the number of state variables.
          switch lower(vrbl)
-	 case 'f'
-            varid = struct('var','state','var_inds',vrbl_inds+vars.num_model_vars); 
-	 otherwise
-            varid = struct('var','state','var_inds',vrbl_inds); 
-	 end
+             case 'f'
+                 varid.var      = 'state';
+                 varid.var_inds = vrbl_inds + vars.num_model_vars;
+             otherwise
+                 varid.var      = 'state';
+                 varid.var_inds = vrbl_inds;
+         end
       end 
 
    case 'lorenz_96_2scale'
@@ -73,10 +69,12 @@ switch lower(vars.model)
       IDstring = input('(no intervening syntax required)\n','s');
 
       if isempty(IDstring) 
-         varid = struct('var',vars.def_var,'var_inds',vars.def_state_vars); 
+         varid.var      = vars.def_var;
+         varid.var_inds = vars.def_state_vars; 
       else 
          [vrbl, vrbl_inds] = ParseAlphaNumerics(IDstring);
-         varid = struct('var',upper(vrbl),'var_inds',vrbl_inds); 
+         varid.var      = upper(vrbl);
+         varid.var_inds = vrbl_inds; 
       end 
 
    case 'simple_advection'
@@ -98,10 +96,12 @@ switch lower(vars.model)
       IDstring = input('(no intervening syntax required)\n','s');
 
       if isempty(IDstring) 
-         varid = struct('var',vars.def_var,'var_inds',vars.def_state_vars); 
+         varid.var      = vars.def_var;
+         varid.var_inds = vars.def_state_vars;
       else 
          [vrbl, vrbl_inds] = ParseAlphaNumerics(IDstring);
-         varid = struct('var',vrbl,'var_inds',vrbl_inds); 
+         varid.var      = vrbl;
+         varid.var_inds = vrbl_inds;
       end 
 
    case {'lorenz_96','lorenz_04'}
@@ -114,14 +114,20 @@ switch lower(vars.model)
       fprintf('If not, please enter array of state variable ID''s (between %d and %d)\n',vars.min_state_var, vars.max_state_var)
       IDstring = input('(no syntax required)\n','s');
       if isempty(IDstring)
-         varid = struct('var',vars.def_var,'var_inds',vars.def_state_vars); 
+         varid.var      = vars.def_var;
+         varid.var_inds = vars.def_state_vars;
       else
-         varid = struct('var',vars.def_var,'var_inds',str2num(IDstring)); 
+         varid.var      = vars.def_var;
+         varid.var_inds = str2num(IDstring);
       end 
+
+   case {'9var','lorenz_63','lorenz_84','ikeda'}
+
+      % ultra low-order models have no choice.
+      varid.var      = vars.def_var;
+      varid.var_inds = vars.def_state_vars;
 
    otherwise
 
-      % ultra low-order models have no choice.
-      varid = struct('var',vars.def_var,'var_inds',vars.def_state_vars); 
-
+      error('%s is not configured for use with SetVariableID',vars.model)
 end

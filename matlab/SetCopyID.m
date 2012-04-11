@@ -13,21 +13,21 @@ function varid = SetCopyID(fname);
 
 if (exist(fname,'file') ~= 2), error('%s does not exist.',fname); end
 
-metadata    = nc_varget(fname,'CopyMetaData');       % get all the metadata
-copyindices = strmatch('ensemble member',metadata);  % find all 'ensemble member's
+[ncopies,copyindices] = get_ensemble_indices(fname);
 
 if ( isempty(copyindices) )
-   fprintf('%s has no valid ensemble members\n',fname)
+   fprintf('%s has no ensemble members\n',fname)
    disp('To be a valid ensemble member, the CopyMetaData for the member')
    disp('must start with the character string ''ensemble member''')
-   disp('None of them in do in your file.')
-   fprintf('%s claims to have %d copies\n',fname, num_copies)
-   error('netcdf file has no ensemble members.')
+   error('%s has no ensemble members.',fname)
 end
 
-ncopies    = length(copyindices);
-def_copies = round([1*ncopies/4 , 2*ncopies/4 , 3*ncopies/4 ]);
-def_string = sprintf(' %d ',def_copies);
+metastrings = nc_varget(fname,'CopyMetaData');
+if(size(metastrings,2) == 1), metastrings = metastrings'; end
+metadata    = cellstr(metastrings);
+
+def_copies  = round([1*ncopies/4 , 2*ncopies/4 , 3*ncopies/4 ]);
+def_string  = sprintf(' %d ',def_copies);
 
 disp('Enter any individual ensemble members IDs to plot.')
 fprintf('2 4 13 (between 1 and %d)    ... or ...\n',ncopies)

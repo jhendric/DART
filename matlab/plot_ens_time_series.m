@@ -22,7 +22,7 @@
 
 if (exist('diagn_file','var') ~=1)
    disp(' ')
-   disp('Input name of prior or posterior diagnostics file;')
+   disp('Input name of prior or posterior diagnostics file:')
    diagn_file = input('<cr> for Prior_Diag.nc\n','s');
    if isempty(diagn_file)
       diagn_file = 'Prior_Diag.nc';
@@ -33,7 +33,8 @@ if (exist('truth_file','var') ~= 1)
    disp(' ')
    disp('OPTIONAL: if you have the true state and want it superimposed, provide')
    disp('        : the name of the input file. If not, enter a dummy filename.')
-   truth_file = input('Input name of True State file; <cr> for True_State.nc\n','s');
+   disp('        : Input name of True State file:')
+   truth_file = input('<cr> for True_State.nc\n','s');
    if isempty(truth_file)
       truth_file = 'True_State.nc';
    end
@@ -42,17 +43,9 @@ end
 pinfo = CheckModel(diagn_file); % also gets default values for this model.
 
 if (exist(truth_file,'file')==2)
-
+   pinfo  = rmfield(pinfo,{'time','time_series_length'});
    MyInfo = CheckModelCompatibility(truth_file, diagn_file);
-
-   % Combine the information from CheckModel and CheckModelCompatibility
-   mynames = fieldnames(MyInfo);
-
-   for ifield = 1:length(mynames)
-      myname = mynames{ifield};
-      if ( isfield(pinfo,myname) ), warning('plot_ens_time_series: pinfo.%s already exists\n',myname); end
-      eval(sprintf('pinfo.%s = MyInfo.%s;',myname,myname));
-   end
+   pinfo  = CombineStructs(pinfo,MyInfo);
 else
    truth_file = [];
 end
@@ -97,6 +90,10 @@ switch lower(pinfo.model)
    case 'mitgcm_ocean'
 
       pinfo = GetMITgcm_oceanInfo(pinfo, diagn_file, 'PlotEnsTimeSeries');
+
+   case 'mpas_atm'
+
+      pinfo = GetMPAS_ATMInfo(pinfo, diagn_file, 'PlotEnsTimeSeries');
 
    otherwise
 

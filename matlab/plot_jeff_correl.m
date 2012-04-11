@@ -13,7 +13,7 @@
 % $Date$
 
 if (exist('fname','var') ~=1)
-   disp('Input name of file;')
+   disp('Input name of file:')
    fname = input('<cr> for Prior_Diag.nc\n','s');
    if isempty(fname)
       fname = 'Prior_Diag.nc';
@@ -32,7 +32,6 @@ if (num_copies <= 3)
 end 
 
 pinfo = CheckModel(fname); % also gets default values for this file.
-pinfo.fname = fname;
 
 switch lower(pinfo.model) 
    case {'9var','lorenz_63','lorenz_84','lorenz_96','lorenz_04', ...
@@ -114,6 +113,10 @@ switch lower(pinfo.model)
    case 'mitgcm_ocean'
 
       pinfo = GetMITgcm_oceanInfo(pinfo, fname, 'PlotVarVarCorrel');
+
+   case 'mpas_atm'
+
+      pinfo = GetMPAS_ATMInfo(pinfo, fname, 'PlotVarVarCorrel');
 
    otherwise
 

@@ -7,7 +7,7 @@ function pinfo = GetMITgcm_oceanInfo(pstruct,fname,routine);
 % fname     Name of the DART netcdf file
 % routine   name of subsequent plot routine.
 
-%% DART software - Copyright © 2004 - 2010 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2010 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
@@ -19,19 +19,28 @@ function pinfo = GetMITgcm_oceanInfo(pstruct,fname,routine);
 
 if ( exist(fname,'file') ~= 2 ), error('%s does not exist.',fname); end
 
-model = nc_attget(fname, nc_global, 'model');
-
-if strcmp(lower(model),'mitgcm_ocean') ~= 1
+if strcmp(lower(pstruct.model),'mitgcm_ocean') ~= 1
    error('Not so fast, this is not an MITgcm_ocean model.')
 end
 
 copy   = nc_varget(fname,'copy');
-times  = nc_varget(fname,'time');
 levels = nc_varget(fname,  'ZG');
 XG     = nc_varget(fname,  'XG');
 XC     = nc_varget(fname,  'XC');
 YG     = nc_varget(fname,  'YG');
 YC     = nc_varget(fname,  'YC');
+
+times      = nc_varget(fname,'time');
+timeunits  = nc_attget(fname,'time','units');
+timebase   = sscanf(timeunits,'%*s%*s%d%*c%d%*c%d'); % YYYY MM DD
+timeorigin = datenum(timebase(1),timebase(2),timebase(3));
+dates      = times + timeorigin;
+num_times  = length(dates);
+
+disp('GetMITgcm_oceanInfo: pstruct should have time/dates already ...')
+
+clear times timeunits timebase timeorigin
+
 
 % A more robust way would be to use the netcdf low-level ops:
 % bob = var(f);     % bob is a cell array of ncvars
@@ -54,7 +63,6 @@ switch lower(deblank(routine))
       [lat  , latind] = GetLatitude( pgvar,YG,YC);
       [lon  , lonind] = GetLongitude(pgvar,XG,XC);
 
-      pinfo.model      = model;
       pinfo.fname      = fname;
       pinfo.var        = pgvar;
       pinfo.level      = level;
@@ -77,7 +85,7 @@ switch lower(deblank(routine))
        comp_var               = GetVar(prognostic_vars,          base_var);
       [comp_lvl, comp_lvlind] = GetLevel(    comp_var,levels,    base_lvl);
 
-      pinfo.model     = model    ; pinfo.fname       = fname      ;
+      pinfo.fname     = fname      ;
       pinfo.base_var  = base_var ; pinfo.comp_var    = comp_var   ;
       pinfo.base_time = base_time; pinfo.base_tmeind = base_tmeind;
       pinfo.base_lvl  = base_lvl ; pinfo.base_lvlind = base_lvlind;
@@ -100,7 +108,7 @@ switch lower(deblank(routine))
       [comp_lat, comp_latind] = GetLatitude( comp_var,YG,YC);
       [comp_lon, comp_lonind] = GetLongitude(comp_var,XG,XC);
 
-      pinfo.model     = model    ; pinfo.fname       = fname      ;
+      pinfo.fname     = fname      ;
       pinfo.base_var  = base_var ; pinfo.comp_var    = comp_var   ;
       pinfo.base_time = base_time; pinfo.base_tmeind = base_tmeind;
       pinfo.base_lvl  = base_lvl ; pinfo.base_lvlind = base_lvlind;
@@ -119,7 +127,6 @@ switch lower(deblank(routine))
       copyindices     = SetCopyID(fname);
       copy            = length(copyindices);
 
-      pinfo.model          = model;
       pinfo.var_names      = pgvar;
       pinfo.truth_file     = [];
       pinfo.prior_file     = pstruct.prior_file;
@@ -161,7 +168,6 @@ switch lower(deblank(routine))
       s1 = input('Input line type string. <cr> for ''k-''  ','s');
       if isempty(s1), ltype = 'k-'; else ltype = s1; end
 
-      pinfo.model    =model;
       pinfo.fname    =fname;
       pinfo.var1name = var1;
       pinfo.var2name = var2;
