@@ -222,7 +222,7 @@ if (do_nml_term()) write(    *      , nml=obs_seq_coverage_nml)
 if (temporal_coverage_percent < 100.0_r8) then
    write(string1,*)'namelist: temporal_coverage_percent (',temporal_coverage_percent,&
                    ') must be == 100.0 for now.)' 
-   call error_handler(E_ERR, 'obs_seq_coverage', string1, source, revision, revdate)
+!  call error_handler(E_ERR, 'obs_seq_coverage', string1, source, revision, revdate)
 endif
 
 if ((obs_sequence_name /= '') .and. (obs_sequence_list /= '')) then
@@ -267,12 +267,22 @@ call set_required_times(first_analysis, last_analysis, &
           verification_interval_seconds, temporal_coverage_percent)
 
 if (verbose) then
+
    write(*,*) ! whitespace
-   write(*,*)'At least',nT_minimum,' observations times are required at:'
+   write(*,*)'The analysis times (the start of the forecasts) are:'
+   do i=1,size(verification_times,1)
+      write(string1,*)'analysis # ',i,' at '
+      call print_date(verification_times(i,1),trim(string1))
+   enddo
+
+   write(*,*) ! whitespace
+   write(*,*)'At least',nT_minimum,' observations times are required during:'
    do i=1,num_verification_times
       write(string1,*)'verification # ',i,' at '
       call print_date(all_verif_times(i),trim(string1))
    enddo
+
+
    write(*,*) ! whitespace
 endif
 
@@ -493,7 +503,7 @@ ObsFileLoop : do ifile=1, size(obs_seq_filenames)
             station_id = add_new_station(flavor, obs_loc, stations)
       endif
 
-      if ( is_time_wanted( obs_time, station_id, stations, timeindex) ) &
+      if ( time_is_wanted( obs_time, station_id, stations, timeindex) ) &
          call update_time( obs_time, station_id, stations, timeindex)
 
  100  continue
@@ -530,6 +540,8 @@ do i = 1,num_stations
       num_out_stat  = num_out_stat + 1
       num_out_total = num_out_total + stations(i)%ntimes
    endif
+
+   if (debug) write(*,*) 'Station ID ',i,' has ',stations(i)%ntimes, ' reports.'
 
 enddo
 
@@ -717,7 +729,7 @@ end function add_new_station
 !============================================================================
 
 
-function is_time_wanted(ObsTime, stationid, stationlist, timeindex)
+function time_is_wanted(ObsTime, stationid, stationlist, timeindex)
 
 ! The station has a list of the observation times closest to the
 ! verification times. Determine if the observation time is closer to
@@ -727,13 +739,13 @@ type(time_type),             intent(in)  :: ObsTime
 integer,                     intent(in)  :: stationid
 type(station), dimension(:), intent(in)  :: stationlist
 integer,                     intent(out) :: timeindex
-logical                                  :: is_time_wanted
+logical                                  :: time_is_wanted
 
 type(time_type) :: stndelta, obdelta
 integer :: i
 
 timeindex = 0
-is_time_wanted = .FALSE.
+time_is_wanted = .FALSE.
 
 ! the time_minus function always returns a positive difference
 
@@ -742,9 +754,10 @@ TimeLoop : do i = 1,num_verification_times
    obdelta = ObsTime - all_verif_times(i)
 
    ! If observation is not within half a verification step,
-   ! try the next one. 
+   ! try the next verification time. 
    if (obdelta >= half_stride) cycle TimeLoop 
 
+   ! we must be close now ...
    stndelta = stationlist(stationid)%times(i) - all_verif_times(i)
 
    ! Check to see if the observation is closer to the verification time
@@ -752,14 +765,14 @@ TimeLoop : do i = 1,num_verification_times
    if (obdelta < stndelta) then
       if (debug) call print_time(stationlist(stationid)%times(i),'replacing ')
       if (debug) call print_time(ObsTime,'with this observation time')
-      timeindex = i
-      is_time_wanted = .TRUE.
+      timeindex      = i
+      time_is_wanted = .TRUE.
       exit TimeLoop
    endif
 
 enddo TimeLoop
 
-end function is_time_wanted
+end function time_is_wanted
 
 
 !============================================================================
@@ -793,7 +806,7 @@ if (debug) write(*,*)'Stuffing time into station ',stationid,' at timestep ', ti
 ! as long as ntimes /= 0 we are OK.
 ! When the stations get written to the netCDF file, count the
 ! number of non-zero times in the times array for a real count.
-stationlist(stationid)%ntimes = timeindex
+stationlist(stationid)%ntimes = stationlist(stationid)%ntimes + 1 
 
 ! Stuff the time in the appropriate slot ... finally.
 stationlist(stationid)%times(timeindex) = ObsTime
@@ -1226,7 +1239,6 @@ allocate(mytimes(ntimes))
 
 WriteObs : do stationindex = 1,num_stations
 
-   ntimes    = stations(stationindex)%ntimes
    istart(1) = stationindex
    icount(1) = 1
 
@@ -1261,7 +1273,7 @@ WriteObs : do stationindex = 1,num_stations
    ! time : fill, write
    !----------------------------------------------------------------------------
    mytimes = 0.0_digits12
-   do i = 1,stations(stationindex)%ntimes
+   do i = 1,ntimes
       call get_time(stations(stationindex)%times(i), secs, days)
       mytimes(i) = days + secs/(60.0_digits12 * 60.0_digits12 * 24.0_digits12)
    enddo
