@@ -1417,9 +1417,12 @@ Summary : do i = 1,num_stations
 
    call set_obs_def_kind(    obs_def, stations(i)%obs_type)
    call set_obs_def_location(obs_def, stations(i)%location)
-   TimeLoop : do j = 1,stations(i)%ntimes
-      call set_obs_def_time( obs_def, stations(i)%times(j))
-      call write_obs_def(iunit, obs_def, i, 'formatted')
+
+   TimeLoop : do j = 1,num_verification_times
+      if (stations(i)%times(j) /= no_time) then
+         call set_obs_def_time( obs_def, stations(i)%times(j))
+         call write_obs_def(iunit, obs_def, i, 'formatted')
+      endif
    enddo TimeLoop
 
    if (verbose) then
