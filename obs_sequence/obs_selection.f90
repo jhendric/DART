@@ -483,7 +483,7 @@ do index = 1, max_num_input_files
    if (filename_seq(index) == '') then
       if (index == 1) then
          call error_handler(E_ERR,'obs_selection', &
-             'namelist item ', trim(fsource)//' contains no filenames', &
+             'namelist item '//trim(fsource)//' contains no filenames', &
              source,revision,revdate)
       endif
       ! leaving num_input_files unspecified (or set to 0) means use

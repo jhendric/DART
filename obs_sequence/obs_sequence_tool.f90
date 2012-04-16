@@ -1533,7 +1533,7 @@ integer,          intent(inout) :: num_input_files
 
 integer :: index
 logical :: from_file
-character(len=32) :: source
+character(len=32) :: fsource
 
 ! ok, here's the new logic:
 ! if the user specifies neither filename_seq nor filename_seq_list, we
@@ -1571,10 +1571,10 @@ endif
 ! if they have specified a file which contains a list, read it into
 ! the filename_seq array and set the count.
 if (filename_seq_list /= '') then
-   source = 'filename_seq_list'
+   fsource = 'filename_seq_list'
    from_file = .true.
 else
-   source = 'filename_seq'
+   fsource = 'filename_seq'
    from_file = .false.
 endif
 
@@ -1585,7 +1585,7 @@ do index = 1, max_num_input_files
    if (filename_seq(index) == '') then
       if (index == 1) then
          call error_handler(E_ERR,'obs_sequence_tool', &
-             trim(source)//' contains no filenames', &
+             'namelist item '//trim(fsource)//' contains no filenames', &
              source,revision,revdate)
       endif
       ! leaving num_input_files unspecified (or set to 0) means use
@@ -1602,7 +1602,7 @@ do index = 1, max_num_input_files
          write(msgstring, *) 'if num_input_files is not 0, it must match the number of filenames specified'
          call error_handler(E_MSG,'obs_sequence_tool', msgstring)
          write(msgstring, *) 'num_input_files is ', num_input_files, &
-                     ' but '//trim(source)//' has filecount ', index - 1
+                     ' but namelist item '//trim(fsource)//' has filecount ', index - 1
          call error_handler(E_ERR,'obs_sequence_tool', msgstring, &
             source,revision,revdate)
          
