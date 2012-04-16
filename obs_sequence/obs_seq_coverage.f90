@@ -1266,7 +1266,7 @@ WriteObs : do stationindex = 1,num_stations
                 start=(/ stationindex /), count=(/ 1 /) ), &
                 'WriteNetCDF', 'put_var:last_time')
 
-   call nc_check(nf90_put_var(ncid, NTimesVarId, (/ ntimes /), &
+   call nc_check(nf90_put_var(ncid, NTimesVarId, (/ stations(stationindex)%ntimes /), &
                 start=istart, count=icount), 'WriteNetCDF', 'put_var:ntimes')
 
    !----------------------------------------------------------------------------
