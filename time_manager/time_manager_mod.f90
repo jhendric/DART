@@ -50,7 +50,7 @@ public :: operator(+),  operator(-),   operator(*),   operator(/),  &
 
 ! Subroutines and functions operating on time_type
 public :: set_time, set_time_missing, increment_time, decrement_time, get_time
-public :: interval_alarm, repeat_alarm, generate_seed
+public :: interval_alarm, repeat_alarm, generate_seed, time_index_sort
 
 ! List of available calendar types
 public :: THIRTY_DAY_MONTHS,    JULIAN,    GREGORIAN,  NOLEAP,   NO_CALENDAR, &
@@ -3155,6 +3155,79 @@ call get_time(timestamp, seconds, days)
 generate_seed = iand((secs_day * days) + seconds, z'FFFFFFFF')
 
 end function generate_seed
+
+!-------------------------------------------------------------------------
+
+subroutine time_index_sort(t, index, num)
+
+! Uses a heap sort alogrithm on t, returns array of sorted indices
+! Sorts from earliest (smallest value) time to latest (largest value);
+! uses time > and < operators to do the compare.  When index = 1
+! that's the earliest time. 
+
+integer,  intent(in)         :: num
+type(time_type), intent(in)  :: t(num)
+integer,  intent(out)        :: index(num)
+
+integer :: ind, i, j, l_val_index, level 
+type(time_type) :: l_val
+
+
+if ( .not. module_initialized ) call time_manager_init
+
+!  INITIALIZE THE INDEX ARRAY TO INPUT ORDER
+do i = 1, num
+   index(i) = i
+end do
+
+! Only one element, just send it back
+if(num <= 1) return
+
+level = num / 2 + 1
+ind = num
+
+! Keep looping until finished
+do
+   ! Keep going down levels until bottom
+   if(level > 1) then
+      level = level - 1
+      l_val = t(index(level))
+      l_val_index = index(level)
+   else
+      l_val = t(index(ind))
+      l_val_index = index(ind)
+
+
+      index(ind) = index(1)
+      ind = ind - 1
+      if(ind == 1) then
+         index(1) = l_val_index
+         return
+      endif
+   endif
+
+   i = level
+   j = 2 * level
+
+   do while(j <= ind)
+      if(j < ind) then
+         if(t(index(j)) < t(index(j + 1))) j = j + 1
+      endif
+      if(l_val < t(index(j))) then
+         index(i) = index(j)
+         i = j
+         j = 2 * j
+      else
+         j = ind + 1
+      endif
+      
+   end do
+   index(i) = l_val_index
+
+end do
+
+end subroutine time_index_sort
+
 
 !-------------------------------------------------------------------------
 
