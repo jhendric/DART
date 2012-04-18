@@ -297,6 +297,7 @@ TYPE wrf_static_data_for_dart
    integer, dimension(:,:), pointer :: var_size
    integer, dimension(:),   pointer :: var_type
    integer, dimension(:),   pointer :: var_index_list
+   logical, dimension(:),   pointer :: var_update_list
    integer, dimension(:),   pointer :: dart_kind
    integer, dimension(:,:), pointer :: land
    real(r8), dimension(:), pointer  :: lower_bound,upper_bound
@@ -319,7 +320,7 @@ real(r8) :: stdlon,truelat1,truelat2 !,latinc,loninc
 
 ! have a single, module global error string (rather than 
 ! replicate it in each subroutine and use up more stack space)
-character(len=129) :: errstring
+character(len=129) :: errstring, msgstring2, msgstring3
 
 contains
 
@@ -337,6 +338,7 @@ logical, parameter    :: debug = .false.
 integer               :: ind, i, j, k, id, dart_index
 integer               :: my_index
 integer               :: var_element_list(max_state_variables)
+logical               :: var_update_list(max_state_variables)
 
 
 !----------------------------------------------------------------------
@@ -355,12 +357,10 @@ if (do_nml_term()) write(     *     , nml=model_nml)
 
 ! Temporary warning until this namelist item is removed.
 if (adv_mod_command /= '') then
-   call error_handler(E_MSG, 'static_init_model:', "WARNING")
+   msgstring2 = "Set the model advance command in the &dart_to_wrf_nml namelist"
    call error_handler(E_MSG, 'static_init_model:', &
-                      "WARNING: adv_mod_command ignored in &model_mod namelist")
-   call error_handler(E_MSG, 'static_init_model:', &
-                      "WARNING: Set the model advance command in &dart_to_wrf_nml")
-   call error_handler(E_MSG, 'static_init_model:', "WARNING")
+         "WARNING: adv_mod_command ignored in &model_mod namelist", &
+          text2=msgstring2)
 endif
 
 allocate(wrf%dom(num_domains))
@@ -369,12 +369,11 @@ allocate(wrf%dom(num_domains))
 if ( default_state_variables ) then
   wrf_state_variables = 'NULL'
   call fill_default_state_table(wrf_state_variables)
+  msgstring2 = 'Set "default_state_variables" to .false. in the namelist'
+  msgstring3 = 'to use the "wrf_state_variables" list instead.'
   call error_handler(E_MSG, 'static_init_model:', &
-      'Using predefined wrf variable list for dart state vector.')
-  call error_handler(E_MSG, 'static_init_model:', &
-      'Set "default_state_variables" to .false. in the namelist')
-  call error_handler(E_MSG, 'static_init_model:', &
-      'to use the "wrf_state_variables" list instead.')
+                  'Using predefined wrf variable list for dart state vector.', &
+                   text2=msgstring2, text3=msgstring3)
 
 endif
 
@@ -418,11 +417,11 @@ elseif (vert_localization_coord == VERTISHEIGHT) then
 elseif (vert_localization_coord == VERTISSCALEHEIGHT) then
    wrf%dom(:)%localization_coord = VERTISSCALEHEIGHT
 else
-   write(errstring,*)'vert_localization_coord must be one of ', &
+   write(msgstring2,*)'vert_localization_coord must be one of ', &
                      VERTISLEVEL, VERTISPRESSURE, VERTISHEIGHT, VERTISSCALEHEIGHT
-   call error_handler(E_MSG,'static_init_model', errstring, source, revision,revdate)
    write(errstring,*)'vert_localization_coord is ', vert_localization_coord
-   call error_handler(E_ERR,'static_init_model', errstring, source, revision,revdate)
+   call error_handler(E_ERR,'static_init_model', errstring, source, revision,revdate, &
+                      text2=msgstring2)
 endif
 
 ! the agreement amongst the dart/wrf users was that there was no need to
@@ -494,7 +493,7 @@ WRFDomains : do id=1,num_domains
 !-------------------------------------------------------
 
 ! get the number of wrf variables wanted in this domain's state
-   wrf%dom(id)%number_of_wrf_variables = get_number_of_wrf_variables(id,wrf_state_variables,var_element_list)
+   wrf%dom(id)%number_of_wrf_variables = get_number_of_wrf_variables(id,wrf_state_variables,var_element_list, var_update_list)
 
 ! allocate and store the table locations of the variables valid on this domain
    allocate(wrf%dom(id)%var_index_list(wrf%dom(id)%number_of_wrf_variables))
@@ -502,6 +501,10 @@ WRFDomains : do id=1,num_domains
 
 ! allocation for wrf variable types 
    allocate(wrf%dom(id)%var_type(wrf%dom(id)%number_of_wrf_variables))
+
+! allocation for update/nocopyback/noupdate
+   allocate(wrf%dom(id)%var_update_list(wrf%dom(id)%number_of_wrf_variables))
+   wrf%dom(id)%var_update_list = var_update_list(1:wrf%dom(id)%number_of_wrf_variables)
 
 ! allocation for dart kinds
    allocate(wrf%dom(id)%dart_kind(wrf%dom(id)%number_of_wrf_variables))
@@ -4990,13 +4993,12 @@ subroutine init_conditions(x)
 ! Following changed to intent(inout) for ifc compiler;should be like this
   real(r8), intent(inout) :: x(:)
 
-call error_handler(E_MSG,'init_conditions:', &
-                  'WARNING!!  WRF model has no built-in default state')
-call error_handler(E_MSG,'init_conditions:', &
-                  "cannot run with 'start_from_restart = .false.' ")
+msgstring2 = "cannot run with 'start_from_restart = .false.' "
+msgstring3 = 'use ensemble_init in the WRF utils dir, or use wrf_to_dart'
 call error_handler(E_ERR,'init_conditions', &
-                  'use ensemble_init in the WRF utils dir, or use wrf_to_dart', &
-                  source, revision, revdate)
+                  'WARNING!!  WRF model has no built-in default state', &
+                  source, revision, revdate, &
+                  text2=msgstring2, text3=msgstring3)
 
 end subroutine init_conditions
 
@@ -6590,12 +6592,13 @@ do while (.not. dom_found)
 
    ! Checking for exact equality on real variable types is generally a bad idea.
 
-   if( (wrf%dom(id)%proj%hemi ==  1.0_r8 .and. obslat == -90.0_r8) .or. &
-       (wrf%dom(id)%proj%hemi == -1.0_r8 .and. obslat ==  90.0_r8) .or. &
-       (wrf%dom(id)%proj%code == PROJ_MERC .and. abs(obslat) >= 90.0_r8) ) then
+   if( (wrf%dom(id)%proj%hemi ==  1.0_r8 .and. obslat < -90.0_r8) .or. &
+       (wrf%dom(id)%proj%hemi == -1.0_r8 .and. obslat >  90.0_r8) .or. &
+       (wrf%dom(id)%proj%code == PROJ_MERC .and. abs(obslat) > 90.0_r8) ) then
 
-!nc -- strange that there is nothing in this if-case structure
-print*, 'model_mod.f90 :: subroutine get_domain_info :: in empty if-case'
+      ! catch latitudes that are out of range - ignore them but print out a warning.
+      write(errstring, *) 'obs with latitude out of range: ', obslat
+      call error_handler(E_MSG, 'model_mod', errstring)
 
    else
       call latlon_to_ij(wrf%dom(id)%proj,min(max(obslat,-89.9999999_r8),89.9999999_r8),obslon,iloc,jloc)
@@ -7899,14 +7902,14 @@ end subroutine fill_dart_kinds_table
 !--------------------------------------------
 !--------------------------------------------
 
-integer function get_number_of_wrf_variables(id, state_table, var_element_list)
+integer function get_number_of_wrf_variables(id, state_table, var_element_list, var_update_list)
 
 integer, intent(in) :: id
 character(len=*), intent(in) :: state_table(num_state_table_columns,max_state_variables) 
 integer, intent(out), optional :: var_element_list(max_state_variables)
+logical, intent(out), optional :: var_update_list(max_state_variables)
+
 integer :: ivar, num_vars
-! was this for debugging?  seems unused.
-!character(len=129) :: my_string
 logical :: debug = .false.
 
 if ( present(var_element_list) ) var_element_list = -1
@@ -7915,11 +7918,18 @@ ivar = 1
 num_vars = 0
 do while ( trim(state_table(5,ivar)) /= 'NULL' ) 
 
-   !my_string = state_table(5,ivar)
-
    if ( variable_is_on_domain(state_table(5,ivar),id) ) then
       num_vars = num_vars + 1
       if ( present(var_element_list) ) var_element_list(num_vars) = ivar
+
+      if (present(var_update_list)) then
+         if (state_table(4,ivar) == 'NO_COPY_BACK') then
+            var_update_list(num_vars) = .false.
+         else
+            var_update_list(num_vars) = .true.
+         endif
+      endif
+
    endif
 
    ivar = ivar + 1

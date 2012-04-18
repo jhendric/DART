@@ -168,6 +168,8 @@
 # otherwise it uses a hardcoded default list: U, V, W, PH, T, MU, QV only.
 # see ../wrf_state_variables_table for a full list of what wrf fields are
 # supported in the DART state vector, and what settings should be used here.
+# 'UPDATE' and 'NO_COPY_BACK' are supported in the 4th column; 'NO_UPDATE' is
+# not yet supported.
 
 &model_nml
    default_state_variables = .true.,

@@ -193,6 +193,12 @@ WRFDomains2 : do id = 1,num_domains
       my_field = trim(wrf_state_variables(1, my_index))
       if (debug) print*, 'field: ', trim(my_field)
 
+      if (.not. wrf%var_update_list(my_index)) then
+         write(*,*) ''
+         write(*,*)'skipping update of ', trim(my_field), ' because of namelist control'
+         cycle
+      endif
+
       ! get stagger and variable size
       call nc_check( nf90_inq_varid(ncid(id),wrf_state_variables(1,my_index), &
                      var_id), 'dart_to_wrf', &
