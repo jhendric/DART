@@ -37,14 +37,16 @@
 <H2>Overview</H2>
 
 <P>
-This module provides subroutines that implement the 'parallel' versions
+This module provides subroutines that implement the parallel versions
 of the sequential scalar filter algorithms. These include the standard 
-sequential filter as described in Anderson (2003) along with systematic 
+sequential filter as described in
+<a href="#References"> Anderson 2001, 2003 </a> along with systematic 
 correction algorithms for both mean and spread. In addition, algorithms 
 to do a variety of flavors of filters including the EAKF, ENKF, particle 
 filter, and kernel filters are included. The parallel implementation 
 that allows each observation to update all state variables that are close
-to it at the same time is described in Anderson and Collins (2007).
+to it at the same time is described in 
+<a href="#References">Anderson and Collins, 2007</a>.
 </P>
 
 <A NAME="FilterTypes"></A>
@@ -53,17 +55,24 @@ to it at the same time is described in Anderson and Collins (2007).
 Available observation space filter types include:
 </P>
 <ul>
-<li> 1 = EAKF (Ensemble Adjustment Kalman Filter)
+<li> 1 = EAKF (Ensemble Adjustment Kalman Filter, see 
+<a href="#References"> Anderson 2001</a>)
 <li> 2 = ENKF (Ensemble Kalman Filter)
 <li> 3 = Kernel filter
 <li> 4 = Particle filter
 <li> 5 = Random draw from posterior  (talk to Jeff before using)
 <li> 6 = Deterministic draw from posterior with fixed kurtosis (ditto)
 <li> 7 = Boxcar kernel filter
-<li> 8 = Rank histogram filter (see Anderson 2010)
+<li> 8 = Rank histogram filter (see 
+<a href="#References"> Anderson 2010</a>)
 </ul>
 <P>
-Most users use type 1, the EAKF.
+We recommend using type=1, the EAKF.
+Note that although the algorithm
+is expressed in a slightly different form, 
+the EAKF is identical to the
+EnSRF (Ensemble Square Root Filter) 
+described by Whitaker and Hamill in 2002.
 </P>
 
 
@@ -588,7 +597,7 @@ An Ensemble Adjustment Kalman Filter for Data Assimilation.
 <a href="http://dx.doi.org/10.1175/1520-0493%282001%29129%3C2884%3AAEAKFF%3E2.0.CO%3B2"
 target="_blank" >
 doi: 10.1175/1520-0493(2001)129&lt;2884:AEAKFF&gt;2.0.CO;2</a> 
-<br />
+<br /> <br />
 </li>
 <li>Anderson, J. L., 2003:
 A Local Least Squares Framework for Ensemble Filtering.
@@ -597,7 +606,7 @@ A Local Least Squares Framework for Ensemble Filtering.
 <a href="http://dx.doi.org/10.1175/1520-0493%282003%29131%3C0634%3AALLSFF%3E2.0.CO%3B2"
 target="_blank" >
 doi: 10.1175/1520-0493(2003)131&lt;0634:ALLSFF&gt;2.0.CO;2</a>
-<br />
+<br /> <br />
 </li>
 <li>Anderson, J., Collins, N., 2007:
 Scalable Implementations of Ensemble Filter Algorithms for Data Assimilation.
@@ -605,7 +614,7 @@ Scalable Implementations of Ensemble Filter Algorithms for Data Assimilation.
 <span style="font-weight: bold;">24</span>, 1452-1463.<br />
 <a href="http://dx.doi.org/10.1175/JTECH2049.1"
 target="_blank" >doi: 10.1175/JTECH2049.1</a>
-<br />
+<br /> <br />
 </li>
 <li>Anderson, J. L., 2010:
 A Non-Gaussian Ensemble Filter Update for Data Assimilation.
@@ -614,7 +623,7 @@ A Non-Gaussian Ensemble Filter Update for Data Assimilation.
 <a href="http://dx.doi.org/10.1175/2010MWR3253.1"
 target="_blank" >
 doi: 10.1175/2010MWR3253.1</a>
-<br />
+<br /> <br />
 </li>
 <li>Anderson, J. L., 2011:,
 Localization and Sampling Error Correction
