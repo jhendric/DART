@@ -65,7 +65,7 @@ The workflow is usually:
     This is done by running <em class=program>preprocess</em> with 
     <em class=file>obs_def_tower_mod.f90</em> in the list of <em class=code>input_files</em>
     for <em class=code>preprocess_nml</em>.
-<li>provide basic tower information via the <em class=code>level4_to_obs_nml</em> namelist 
+<li>provide basic tower information via the <em class=program>level4_to_obs_nml</em> namelist 
     since this information is not contained in the Level 4 data file</li>
 <li>convert each Level 4 data file individually using <em class=program>level4_to_obs</em></li>
 <li>combine all output files for the region and timeframe of interest into one file 
@@ -137,7 +137,7 @@ This can be achieved with the <a href="makedaily.sh">makedaily.sh</a> script.
     <!--  type  --><TD valign=top> real       </TD>
     <!--descript--><TD>Longitude (in degrees E) of the tower.
             For internal consistency, DART uses longitudes in the range [0,360].
-            An input value of -90 will be converted to 270.<br />
+            An input value of -90 will be converted to 270, for example.<br />
             Default: none</TD></TR>
 
 <TR><!--contents--><TD valign=top> elevation  </TD>
@@ -161,7 +161,8 @@ This can be achieved with the <a href="makedaily.sh">makedaily.sh</a> script.
 
 <TR><!--contents--><TD valign=top> verbose   </TD>
     <!--  type  --><TD valign=top> logical   </TD>
-    <!--descript--><TD>Print extra information about the level4_to_obs run.<br />
+    <!--descript--><TD>Print extra information during the <em class=program>level4_to_obs</em> 
+            execution.<br />
             Default: .false. </TD></TR>
 
 </TABLE>
@@ -367,7 +368,7 @@ http://www.image.ucar.edu/DAReS/DART/DART_download</a>
 </P>
 
 <TABLE border=0 cellpadding=0 width=100% summary="">
-<TR><TD valign=top>Contact:       </TD><TD> nancy collins </TD></TR>
+<TR><TD valign=top>Contact:       </TD><TD> Tim Hoar </TD></TR>
 <TR><TD valign=top>Revision:      </TD><TD> $Revision$ </TD></TR>
 <TR><TD valign=top>Source:        </TD><TD> $URL$ </TD></TR>
 <TR><TD valign=top>Change Date:   </TD><TD> $Date$ </TD></TR>
