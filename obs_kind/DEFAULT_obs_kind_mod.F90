@@ -50,13 +50,13 @@ public :: do_obs_form_pair, add_wind_names
 ! generate this table automatically.
 
 ! F90 currently has a maximum length of 32 characters for the NAME of
-! any Fortran PARAMETER. 
+! any Fortran PARAMETER.
 
 integer, parameter, public :: paramname_length = 32
 
 ! Definition and public access to the observation types/kinds
-! Unique index values associated with each observation type and 
-! kind strings are defined here. 
+! Unique index values associated with each observation type and
+! kind strings are defined here.
 
 integer, parameter, public :: &
     KIND_RAW_STATE_VARIABLE          = 0, &
@@ -85,26 +85,26 @@ integer, parameter, public :: &
     KIND_POTENTIAL_TEMPERATURE       = 23, &
     KIND_SOIL_MOISTURE               = 24, &
     KIND_SURFACE_ELEVATION           = 25
-                       
+
 ! kinds for Gravity Wave Drag (CAM - kevin)
 integer, parameter, public :: &
     KIND_GRAV_WAVE_DRAG_EFFIC        = 26, &
     KIND_GRAV_WAVE_STRESS_FRACTION   = 27
-                       
+
 ! kinds for simple advection model
 integer, parameter, public :: &
     KIND_TRACER_SOURCE               = 28, &
     KIND_TRACER_CONCENTRATION        = 29, &
     KIND_MEAN_SOURCE                 = 30, &
     KIND_SOURCE_PHASE                = 31
- 
+
 ! kind for power-weighted precipitation fall speed
 ! and a few other kinds that were missing from the
 ! collection of fractions and mixing ratio definitions.
 ! (CONCENTRATION -> CONCENTR because the max len of
 ! these strings is still 32 chars.)
 
-! WARNING: the current models use 
+! WARNING: the current models use
 ! KIND_CLOUD_LIQUID_WATER and KIND_CLOUD_ICE
 ! for mixing ratios.  because current models are
 ! using them, we can't make them consistent with
@@ -115,7 +115,7 @@ integer, parameter, public :: &
     KIND_POWER_WEIGHTED_FALL_SPEED   = 32, &
     KIND_CLOUDWATER_MIXING_RATIO     = 33, &
     KIND_ICE_MIXING_RATIO            = 34, &
-    KIND_DROPLET_NUMBER_CONCENTR     = 35, & 
+    KIND_DROPLET_NUMBER_CONCENTR     = 35, &
     KIND_SNOW_NUMBER_CONCENTR        = 36, &
     KIND_RAIN_NUMBER_CONCENTR        = 37, &
     KIND_GRAUPEL_NUMBER_CONCENTR     = 38, &
@@ -123,10 +123,10 @@ integer, parameter, public :: &
     KIND_ICE_FRACTION                = 40, &
     KIND_RELATIVE_HUMIDITY           = 41
 
-! kinds for TIEgcm 
+! kinds for TIEgcm
 integer, parameter, public :: &
     KIND_ELECTRON_DENSITY            = 42
-   
+
 ! kinds for generic parameters that aren't going to be
 ! directly observed but are going to be adjusted by the
 ! assimilation.
@@ -153,7 +153,7 @@ integer, parameter, public :: &
     KIND_DRY_LAND                    = 54, &
     KIND_SEA_SURFACE_PRESSURE        = 55, &
     KIND_W_CURRENT_COMPONENT         = 56
- 
+
 ! proposed new kinds for COSMIC GPS/RO obs
 ! (currently unused)
 integer, parameter, public :: &
@@ -165,11 +165,11 @@ integer, parameter, public :: &
     KIND_INFRARED_RADIANCE           = 60, &
     KIND_INFRARED_BRIGHT_TEMP        = 61, &
     KIND_LANDMASK                    = 62
-                                     
-! kind for unstructured grids 
+
+! kind for unstructured grids
 integer, parameter, public :: &
     KIND_EDGE_NORMAL_SPEED           = 63
- 
+
 ! kinds for planetary remote sensing (wglawson, c.lee)
 integer, parameter, public :: &
     KIND_SKIN_TEMPERATURE            = 70, &
@@ -198,7 +198,7 @@ integer, parameter, public :: &
     KIND_VORTEX_LAT                  = 82, &
     KIND_VORTEX_PMIN                 = 83, &
     KIND_VORTEX_WMAX                 = 84
- 
+
 ! kinds for COAMPS (Tim Whitcomb)
 integer, parameter, public :: &
     KIND_EXNER_FUNCTION              = 85, &
@@ -207,15 +207,15 @@ integer, parameter, public :: &
     KIND_VERTLEVEL                   = 88, &
     KIND_MICROWAVE_BRIGHT_TEMP       = 89
 
-! kinds for NAAPS (Walter R. Sessions) 
+! kinds for NAAPS (Walter R. Sessions)
 integer, parameter, public :: &
-    KIND_INTEGRATED_SULFATE          = 90, & 
+    KIND_INTEGRATED_SULFATE          = 90, &
     KIND_INTEGRATED_DUST             = 91, &
     KIND_INTEGRATED_SMOKE            = 92, &
     KIND_INTEGRATED_SEASALT          = 93, &
     KIND_INTEGRATED_AOD              = 94, &
-    KIND_SO2                         = 95, & 
-    KIND_SULFATE                     = 96, & 
+    KIND_SO2                         = 95, &
+    KIND_SULFATE                     = 96, &
     KIND_DUST                        = 97, &
     KIND_SMOKE                       = 98, &
     KIND_SEASALT                     = 99
@@ -228,16 +228,31 @@ integer, parameter, public ::&
     KIND_HAIL_VOLUME                 = 103, &
     KIND_DIFFERENTIAL_REFLECTIVITY   = 104, &
     KIND_SPECIFIC_DIFFERENTIAL_PHASE = 105, &
-    KIND_FLASH_RATE_2D               = 106 
+    KIND_FLASH_RATE_2D               = 106
+
+! kinds for CLM - Community Land Model (Tim Hoar)
+integer, parameter, public :: &
+    KIND_SNOW_THICKNESS              = 107, &
+    KIND_SNOW_WATER                  = 108, &
+    KIND_SNOWCOVER_FRAC              = 109, &
+    KIND_LIQUID_WATER                = 110, &
+    KIND_ICE                         = 111, &
+    KIND_LEAF_CARBON                 = 112, &
+    KIND_LEAF_AREA_INDEX             = 113, &
+    KIND_NET_CARBON_FLUX             = 114, &
+    KIND_LATENT_HEAT_FLUX            = 115, &
+    KIND_SENSIBLE_HEAT_FLUX          = 116, &
+    KIND_RADIATION                   = 117, &
+    KIND_NET_CARBON_PRODUCTION       = 118
 
 !! PRIVATE ONLY TO THIS MODULE. see comment below near the max_obs_specific
 !! declaration.
-integer, parameter :: max_obs_generic = 106
+integer, parameter :: max_obs_generic = 118
 
 !----------------------------------------------------------------------------
-! This list is autogenerated by the 'preprocess' program.  To add new 
+! This list is autogenerated by the 'preprocess' program.  To add new
 ! observation types (e.g. AIRS_U_WIND_COMPONENT), edit the obs_def_x_mod.f90
-! files and also add (or remove) them from the 'input_files' variable of 
+! files and also add (or remove) them from the 'input_files' variable of
 ! the &preprocess_nml namelist in the model-specific work/input.nml file.
 
 ! Unique index values associated with each observation type string are
@@ -264,7 +279,7 @@ logical, save :: module_initialized = .false.
 !! being non-backwards compatible.  for now, punt on both type and kind
 !! and start trying to use specific and generic (ok, which do map to type
 !! and kind, respectively).  using intermediate names might make the transition
-!! less painful.  right now, many(most) of the subroutine names or args 
+!! less painful.  right now, many(most) of the subroutine names or args
 !! which are public are using 'kind' where it needs to be 'type'.
 integer, parameter :: max_obs_specific = max_obs_kinds
 
@@ -305,7 +320,7 @@ type obs_kind_type
    character(len = paramname_length) :: name
 end type obs_kind_type
 
-! An obs_kind_name_type is defined by the preprocess program to store 
+! An obs_kind_name_type is defined by the preprocess program to store
 ! the association between obs_kind index numbers and string names.
 ! raw is index 0, so this needs to match.  revisit the direct indexing
 ! since we have an index in the table -- redundant info?
@@ -458,8 +473,20 @@ obs_kind_names(104) = obs_kind_type(KIND_DIFFERENTIAL_REFLECTIVITY, 'KIND_DIFFER
 obs_kind_names(105) = obs_kind_type(KIND_SPECIFIC_DIFFERENTIAL_PHASE, 'KIND_SPECIFIC_DIFFERENTIAL_PHASE')
 obs_kind_names(106) = obs_kind_type(KIND_FLASH_RATE_2D, 'KIND_FLASH_RATE_2D')
 
+obs_kind_names(107) = obs_kind_type(KIND_SNOW_THICKNESS        ,'KIND_SNOW_THICKNESS')
+obs_kind_names(108) = obs_kind_type(KIND_SNOW_WATER            ,'KIND_SNOW_WATER')
+obs_kind_names(109) = obs_kind_type(KIND_SNOWCOVER_FRAC        ,'KIND_SNOWCOVER_FRAC')
+obs_kind_names(110) = obs_kind_type(KIND_LIQUID_WATER          ,'KIND_LIQUID_WATER')
+obs_kind_names(111) = obs_kind_type(KIND_ICE                   ,'KIND_ICE')
+obs_kind_names(112) = obs_kind_type(KIND_LEAF_CARBON           ,'KIND_LEAF_CARBON')
+obs_kind_names(113) = obs_kind_type(KIND_LEAF_AREA_INDEX       ,'KIND_LEAF_AREA_INDEX')
+obs_kind_names(114) = obs_kind_type(KIND_NET_CARBON_FLUX       ,'KIND_NET_CARBON_FLUX')
+obs_kind_names(115) = obs_kind_type(KIND_LATENT_HEAT_FLUX      ,'KIND_LATENT_HEAT_FLUX')
+obs_kind_names(116) = obs_kind_type(KIND_SENSIBLE_HEAT_FLUX    ,'KIND_SENSIBLE_HEAT_FLUX')
+obs_kind_names(117) = obs_kind_type(KIND_RADIATION             ,'KIND_RADIATION')
+obs_kind_names(118) = obs_kind_type(KIND_NET_CARBON_PRODUCTION ,'KIND_NET_CARBON_PRODUCTION')
 
-! count here, then output below 
+! count here, then output below
 
 num_kind_assimilate = 0
 do i = 1, max_obs_specific
@@ -561,7 +588,7 @@ integer :: i
 if ( .not. module_initialized ) call initialize_module
 
 ! Need to search through the first map column to find this obs_def_index value
-! Then return the index into table in this module from corresponding row in 
+! Then return the index into table in this module from corresponding row in
 ! second column.
 do i = 1, max_obs_specific
    if(map(1, i) == obs_def_index) then
@@ -606,7 +633,7 @@ end function get_obs_kind_name
 ! handling more readable.
 
 function get_raw_obs_kind_name(obs_kind_ind)
-  
+
 ! Returns observation kind name
 
 integer, intent(in) :: obs_kind_ind
@@ -666,7 +693,7 @@ integer                       :: get_raw_obs_kind_index
 
 integer :: i
 character(len=len(obs_kind_name)) :: string1
-  
+
 if (.not. module_initialized) call initialize_module
 
 string1 = adjustl(obs_kind_name)
@@ -699,7 +726,7 @@ end function get_num_obs_kinds
 !----------------------------------------------------------------------------
 
 function get_num_raw_obs_kinds()
-  
+
 ! Accessor function to return observation *kind* count
 
 integer :: get_num_raw_obs_kinds
@@ -774,8 +801,8 @@ if ( .not. module_initialized ) call initialize_module
 is_ascii = ascii_file_format(fform)
 
 ! Write the 20 character identifier to indicate the start of a kind table.
-! To maintain complete backwards compatibility with the original read 
-! code this string must start in column 1.  
+! To maintain complete backwards compatibility with the original read
+! code this string must start in column 1.
 ! you cannot use: write(ifile, *) 'string'  because the output string
 ! will start in col 2.  the string either has to be part of the format
 ! argument to write(), or you have to use a separate format statement.
@@ -858,7 +885,7 @@ endif
 
 is_ascii = ascii_file_format(fform)
 
-! Read the 20 character identifier which identifies the start 
+! Read the 20 character identifier which identifies the start
 ! of the obstype number/name table for this sequence file.
 if (is_ascii) then
    read(ifile, *) header
@@ -926,7 +953,7 @@ do i = 1, max_obs_specific
       write(*, *) '     ',  obs_type_info(i)%index, trim(obs_type_info(i)%name)
 end do
 
-! Read the input as a string, convert to integers as appropriate 
+! Read the input as a string, convert to integers as appropriate
 read(*, '(A)') in
 
 ! If string is a positive or negative number, convert it to integer
@@ -946,7 +973,7 @@ else
    endif
 endif
 
-! Make sure 
+! Make sure
 
 end function get_kind_from_menu
 
@@ -954,11 +981,11 @@ end function get_kind_from_menu
 
 function add_wind_names(my_names)
 !----------------------------------------------------------------------
-! Define/Append the 'horizontal wind' obs_kinds to supplant the list 
+! Define/Append the 'horizontal wind' obs_kinds to supplant the list
 ! of names for scalar observations in obs_kind_names()
 ! i.e. if there is a RADIOSONDE_U_WIND_COMPONENT and
-!                  a RADIOSONDE_V_WIND_COMPONENT, there must be 
-!  
+!                  a RADIOSONDE_V_WIND_COMPONENT, there must be
+!
 !                  a RADIOSONDE_HORIZONTAL_WIND
 ! Replace calls to 'get_obs_kind_name' with variable 'my_obs_kind_names'
 !----------------------------------------------------------------------
@@ -984,7 +1011,7 @@ logical :: DEBUG = .false.
 nwinds = 0
 
 ! Copy all the known obs kinds to a local list that is SURELY too BIG
-! as we find wind pairs, we insert the new name at the end of the known 
+! as we find wind pairs, we insert the new name at the end of the known
 ! names.
 
 do ivar = 1,max_obs_kinds
@@ -1051,7 +1078,7 @@ enddo
 if ( DEBUG ) write(*,*)'There are ',nwinds,' pairs of winds.'
 
 ! Now that we know how many wind pairs there are, we return the
-! exact number and new array of observation kind names  
+! exact number and new array of observation kind names
 
 add_wind_names = max_obs_kinds + nwinds
 
@@ -1079,7 +1106,7 @@ function do_obs_form_pair(obs1type, obs2type, obskey, all_obs_typenames, flavor 
 !
 ! obstype1           The (specific) 'type' of a candidate observation
 ! obstype2           The (specific) 'type' of a candidate observation
-! obskey             The observation number (from the obs sequence file - 
+! obskey             The observation number (from the obs sequence file -
 !                    used for error messages only)
 ! all_obs_typenames  The 'extended' list of observation types - declared
 !                    by grok_observation_names()
@@ -1132,7 +1159,7 @@ if (len_trim(str1) /= len_trim(str2)) then
    return
 endif
 
-! Focus on getting the platform name 
+! Focus on getting the platform name
 ! There are only two viable wind component strings (see obs_def_mod.f90):
 ! '_?_WIND_COMPONENT' and '_?_10_METER_WIND'
 
@@ -1158,7 +1185,7 @@ endif
 
 ! So now we have the platform name for one of the observations
 ! and that (1:indx1) defines the platform name in a matching scenario.
-! str1(1:indx1) and str2(1:indx1) should be the wind name - 
+! str1(1:indx1) and str2(1:indx1) should be the wind name -
 ! 'RADIOSONDE_' or 'SHIP_' or 'AIREP_' or ...
 
 if ( str1(1:indx1) /= str2(1:indx1) ) then
@@ -1182,7 +1209,7 @@ MyKind : do ivar = 1,num_obs_kinds
    endif
 enddo MyKind
 
-! If we have checked all the types and not found a match ... 
+! If we have checked all the types and not found a match ...
 
 if (.not. do_obs_form_pair ) then
    write(     *     ,*) trim(str1),' ',trim(str2)
