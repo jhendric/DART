@@ -20,7 +20,7 @@ module model_mod
 
 
 ! Modules that are absolutely required for use are listed
-use        types_mod, only : r4, r8, SECPERDAY, MISSING_R8, NAN,     &
+use        types_mod, only : r4, r8, SECPERDAY, MISSING_R8,                    &
                              MISSING_I, MISSING_R4, rad2deg, deg2rad, PI,      &
                              obstypelength
 use time_manager_mod, only : time_type, set_time, set_date, get_date, get_time,&
