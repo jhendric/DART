@@ -1,7 +1,7 @@
 function h = GetCalendarDate(seconds,days,calendartype)
 %% h = GetCalendarDate(seconds,days [,calendartype] )
 %
-% seconds, days are the DART times 
+% seconds, days are the DART times
 %
 % EXAMPLE:
 %
@@ -17,7 +17,7 @@ function h = GetCalendarDate(seconds,days,calendartype)
 % $Revision$
 % $Date$
 
-if (nargin < 2) 
+if (nargin < 2)
    error('Must supply at least two arguments, seconds and days')
 elseif (nargin ==2)
    calendartype = 'Gregorian';

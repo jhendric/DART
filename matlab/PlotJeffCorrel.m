@@ -1,14 +1,14 @@
 function PlotJeffCorrel( pinfo )
 %% Plots exploratory correlation plots. Don't use without talking to J. Anderson.
 %
-% Plots time series of correlations between two given variables. 
+% Plots time series of correlations between two given variables.
 % The correlation is done across ensemble members.
 %
 % PlotJeffCorrel is intended to be called by 'plot_jeff_correl'
 %
 % USAGE: PlotJeffCorrel(pinfo)
 %
-% pinfo is a model-dependent structure. 
+% pinfo is a model-dependent structure.
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -51,12 +51,12 @@ switch lower(pinfo.model)
 
       s2 = sprintf('with ''%s'', lvl = %d, lat = %.2f, lon= %.2f, %d ensemble members', ...
           pinfo.comp_var, pinfo.comp_lvl, pinfo.comp_lat, pinfo.comp_lon, ...
-          pinfo.num_ens_members); 
+          pinfo.num_ens_members);
 
       title({s1,s2,pinfo.fname},'interpreter','none','fontweight','bold')
       xdates(pinfo.time)
       ylabel('correlation')
-      
+
    case {'mpas_atm'}
 
       clf;
@@ -84,32 +84,32 @@ switch lower(pinfo.model)
 
       s2 = sprintf('with ''%s'', lvl = %d, lat = %.2f, lon= %.2f, %d ensemble members', ...
           pinfo.comp_var, pinfo.comp_lvl, pinfo.comp_lat, pinfo.comp_lon, ...
-          pinfo.num_ens_members); 
+          pinfo.num_ens_members);
 
       title({s1,s2,pinfo.fname},'interpreter','none','fontweight','bold')
       datetick('x','yyyymmmdd HH:MM')
       ylabel('correlation')
-      
+
    otherwise
 
       num_vars   = dim_length(pinfo.fname,'StateVariable');
       fprintf('PlotJeffCorrel: num_vars is %d\n',num_vars)
-      
+
       % The Base Variable Index must be a valid state variable
-      
-      if ( pinfo.base_var_index > num_vars )
-         fprintf('%s only has %d state variables\n', pinfo.fname, num_vars)
-         error('you wanted variable # %d ', pinfo.base_var_index)
-      end
-      
-      % The State Variable Index must also be a valid state variable
-      
+
       if ( pinfo.base_var_index > num_vars )
          fprintf('%s only has %d state variables\n', pinfo.fname, num_vars)
          error('you wanted variable # %d ', pinfo.base_var_index)
       end
 
-      % Get 'standard' ensemble series 
+      % The State Variable Index must also be a valid state variable
+
+      if ( pinfo.base_var_index > num_vars )
+         fprintf('%s only has %d state variables\n', pinfo.fname, num_vars)
+         error('you wanted variable # %d ', pinfo.base_var_index)
+      end
+
+      % Get 'standard' ensemble series
       base_var  = get_hyperslab('fname',pinfo.fname, ...
                       'varname',pinfo.base_var, 'stateindex',pinfo.base_var_index, ...
                       'copyindex1',pinfo.ensemble_indices(1), 'copycount',pinfo.num_ens_members);
@@ -120,17 +120,17 @@ switch lower(pinfo.model)
 
       % perform correlation
       correl = jeff_correl(base_var, state_var);
-      
+
       clf; plot(pinfo.time,correl);
-      
+
       s1 = sprintf('%s Correlation of variable %s %d, with variable %s %d', ...
                pinfo.model, pinfo.base_var, pinfo.base_var_index, ...
                       pinfo.state_var, pinfo.state_var_index);
-      s2 = sprintf('%d ensemble members', pinfo.num_ens_members); 
+      s2 = sprintf('%d ensemble members', pinfo.num_ens_members);
       title({s1,s2,pinfo.fname},'interpreter','none','fontweight','bold')
       xlabel(sprintf('model "days" (%d timesteps)',pinfo.time_series_length))
       ylabel('correlation')
-      
+
 end
 
 

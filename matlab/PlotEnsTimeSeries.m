@@ -97,7 +97,7 @@ switch lower(pinfo.model)
             title(sprintf('%s Variable %d Ensemble Members of %s',...
                      pinfo.model, ivar, pinfo.diagn_file), ...
                      'interpreter','none','fontweight','bold');
-            xlabel(sprintf('model "days" (%d timesteps)',pinfo.time_series_length)) 
+            xlabel(sprintf('model "days" (%d timesteps)',pinfo.time_series_length))
             legend(h,legendstr)
             legend boxoff
             hold off;
@@ -138,7 +138,7 @@ switch lower(pinfo.model)
             title(sprintf('%s Variable %d Ensemble Members of %s', ...
                   pinfo.model, ivar, pinfo.diagn_file), ...
                   'interpreter','none','fontweight','bold');
-            xlabel(sprintf('model "days" (%d timesteps)',pinfo.time_series_length)) 
+            xlabel(sprintf('model "days" (%d timesteps)',pinfo.time_series_length))
             legend(h,legendstr)
             legend boxoff
             hold off;
@@ -203,7 +203,7 @@ switch lower(pinfo.model)
             title(sprintf('%s %s varnum %d Ensemble Members of %s',...
                      pinfo.model, pinfo.var, ivar, pinfo.diagn_file), ...
                      'interpreter','none','fontweight','bold')
-            xlabel(sprintf('model "days" (%d timesteps)',pinfo.time_series_length)) 
+            xlabel(sprintf('model "days" (%d timesteps)',pinfo.time_series_length))
             legend(h,legendstr)
             legend boxoff
             hold off;
@@ -231,8 +231,8 @@ switch lower(pinfo.model)
                        'copyindex1',pinfo.ensemble_indices(1), 'copycount',pinfo.num_ens_members, ...
                        'latindex',pinfo.latindex, 'lonindex',pinfo.lonindex, ...
                        'tindex1',pinfo.diagn_time(1), 'tcount',pinfo.diagn_time(2));
-                   
-         hmems = plot(pinfo.time, ens_members,'g-'); hold on;                 
+
+         hmems = plot(pinfo.time, ens_members,'g-'); hold on;
          hmean = plot(pinfo.time, ens_mean,   'r-','LineWidth',2);
          legendstr = {sprintf('Ensemble Members (%d)',pinfo.num_ens_members),'Ensemble Mean'};
          h = [hmems(1), hmean];
@@ -257,7 +257,7 @@ switch lower(pinfo.model)
          legend(h,legendstr);
          legend boxoff
          hold off;
-    
+
     case {'mpas_atm'}
 
       clf;
@@ -280,19 +280,19 @@ switch lower(pinfo.model)
                        'copyindex1',pinfo.ensemble_indices(1), 'copycount',pinfo.num_ens_members, ...
                        'cellindex',pinfo.cellindex, ...
                        'tindex1',pinfo.diagn_time(1), 'tcount',pinfo.diagn_time(2));
-                   
-         hmems = plot(pinfo.time, ens_members,'g-'); hold on;                 
+
+         hmems = plot(pinfo.time, ens_members,'g-'); hold on;
          hmean = plot(pinfo.time, ens_mean,   'r-','LineWidth',2);
          legendstr = {sprintf('Ensemble Members (%d)',pinfo.num_ens_members),'Ensemble Mean'};
          h = [hmems(1) hmean];
-         
+
          if ( have_truth )
             truth    = get_hyperslab('fname',pinfo.truth_file, ...
                        'varname',pinfo.var, 'levelindex',pinfo.levelindex, ...
                        'copyindex',truth_index, ...
                        'cellindex',pinfo.cellindex, ...
                        'tindex1',pinfo.truth_time(1), 'tcount',pinfo.truth_time(2));
-                  
+
             h(3) = plot(pinfo.time, truth, 'b-','LineWidth',2);
             legendstr{3} = 'True State';
          end
@@ -306,7 +306,7 @@ switch lower(pinfo.model)
          ylabel(varunits);
          legend(h,legendstr);
          legend boxoff
-         
+
    otherwise
 
       error('model %s unknown.',pinfo.model)

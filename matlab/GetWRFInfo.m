@@ -48,14 +48,14 @@ periodic_x = varget(fname,'PERIODIC_X');
 polar      = varget(fname,     'POLAR');
 
 %% Get the global metadata from a WRF DART diagnostic netCDF file.
-% If there is only one domain, we know what to do. 
+% If there is only one domain, we know what to do.
 % otherwise, ask which domain is of interest.
 
 dinfo       = nc_getdiminfo(fname,'domain');  % no graceful error
 num_domains = dinfo.Length;
 
 dID    = 1;
-if (num_domains > 1) 
+if (num_domains > 1)
    dID = GetDomain(num_domains);
 end
 
@@ -175,7 +175,7 @@ switch lower(deblank(routine))
       % So now I have to figure out if the posterior and prior copy metadata match.
 
       for i = 1:copy,
-         copyi = get_copy_index(pinfo_in.posterior_file,copymetadata{i}); 
+         copyi = get_copy_index(pinfo_in.posterior_file,copymetadata{i});
          pstruct.postcopyindices = copyi;
       end
 
@@ -245,13 +245,13 @@ end
 function domainid = GetDomainID(ndomains)
 %----------------------------------------------------------------------
 
-fprintf('There are %d domains. Default is to use domain %d.\n.',ndomains,ndomains)  
+fprintf('There are %d domains. Default is to use domain %d.\n.',ndomains,ndomains)
 fprintf('If this is OK, <cr>; If not, enter domain of interest:\n')
 domainid = input('(no syntax required)\n');
 
-if ~isempty(domainid), domainid = ndomains; end 
+if ~isempty(domainid), domainid = ndomains; end
 
-if ( (domainid > 0) && (domainid <= ndomains)) 
+if ( (domainid > 0) && (domainid <= ndomains))
    error('domain must be between 1 and %d, you entered %d',ndomains,domainid)
 end
 
@@ -265,11 +265,11 @@ str = sprintf(' %s ',prognostic_vars{1});
 for i = 2:length(prognostic_vars),
    str = sprintf(' %s %s ',str,prognostic_vars{i});
 end
-fprintf('Default variable is ''%s'', if this is OK, <cr>;\n',pgvar)  
+fprintf('Default variable is ''%s'', if this is OK, <cr>;\n',pgvar)
 fprintf('If not, please enter one of: %s\n',str)
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), pgvar = deblank(varstring); end 
+if ~isempty(varstring), pgvar = deblank(varstring); end
 
 
 
@@ -284,7 +284,7 @@ if (nargin == 2),
    time = deftime;
    tindex = find(times == deftime);
 else
-   if (ntimes < 2) 
+   if (ntimes < 2)
       tindex = round(ntimes/2);
    else
       tindex = 1;
@@ -297,11 +297,11 @@ fprintf('If not, enter an index between %d and %d \n',1,ntimes)
 fprintf('Pertaining to %s and %s \n',datestr(times(1)),datestr(times(ntimes)))
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), tindex = str2num(varstring); end 
+if ~isempty(varstring), tindex = str2num(varstring); end
 
 timeinds = 1:ntimes;
 d        = abs(tindex - timeinds); % crude distance
-ind      = find(min(d) == d);      % multiple minima possible 
+ind      = find(min(d) == d);      % multiple minima possible
 timeind  = ind(1);                 % use the first one
 time     = times(timeind);
 
@@ -324,7 +324,7 @@ if (isempty(leveldim))
 else
 
    levelvar = varinfo.Dimension{leveldim};
-   dinfo    = nc_getdiminfo(fname,levelvar); 
+   dinfo    = nc_getdiminfo(fname,levelvar);
    levels   = 1:dinfo.Length;
 
    if (isempty(level)), level = levels(1); end
@@ -334,10 +334,10 @@ else
                          min(levels),max(levels))
    varstring = input('we''ll use the closest (no syntax required)\n','s');
 
-   if ~isempty(varstring), level = str2num(varstring); end 
+   if ~isempty(varstring), level = str2num(varstring); end
 
    d      = abs(level - levels);  % crude distance
-   ind    = find(min(d) == d);    % multiple minima possible 
+   ind    = find(min(d) == d);    % multiple minima possible
    lvlind = ind(1);               % use the first one
    level  = levels(lvlind);
 
@@ -409,7 +409,7 @@ varstring = input('we''ll use the closest (no syntax required)\n','s');
 
 if ~isempty(varstring)
    nums = str2num(varstring);
-   if (length(nums) ~= 2) 
+   if (length(nums) ~= 2)
       error('Did not get two indices for the lat lon pair.')
    end
    latind = nums(1);
@@ -431,11 +431,11 @@ latinds = 1:nlat;
 loninds = 1:nlon;
 
 d      = abs(latind - latinds);  % crude distance
-ind    = find(min(d) == d);   % multiple minima possible 
+ind    = find(min(d) == d);   % multiple minima possible
 latind = ind(1);              % use the first one
 
 d      = abs(lonind - loninds);  % crude distance
-ind    = find(min(d) == d);   % multiple minima possible 
+ind    = find(min(d) == d);   % multiple minima possible
 lonind = ind(1);              % use the first one
 
 lat    = latmat(latind,lonind);
@@ -448,10 +448,10 @@ function dist = arcdist(lat,lon,lat2,lon2)
 %
 % function dist = arcdist(lat,lon,latvec,lonvec)
 %
-% lat,lon    MUST be scalars 
+% lat,lon    MUST be scalars
 % lat1,lon1  lat1,lon1 can be any shape (but must match each other)
 %
-% enter: 
+% enter:
 %       lat1,lon1 = lat, lon (in degrees)
 %       lat2,lon2 = lat, lon (for loc 2)
 % returns:
@@ -459,7 +459,7 @@ function dist = arcdist(lat,lon,lat2,lon2)
 %
 % Assumes a spherical earth and fractional lat/lon coords
 %
-% Example (1 degree at the equator):  
+% Example (1 degree at the equator):
 % dist = arcdist(0.0,0.0,0.0,1.0)	% 1 degree longitude
 % dist = arcdist(0.0,0.0,1.0,0.0)       % 1 degree latitude
 % dist = arcdist(60.0,0.0,60.0,1.0)     % 1 degree longitude at a high latitude
@@ -480,7 +480,7 @@ colat2 =    (90   - lat)*pi/180;
 ang1   = cos(colat2).*cos(colat1);
 ang2   = sin(colat2).*sin(colat1).*cos(alpha);
 
-if ( prod(Dlat1) == 1 ) 
+if ( prod(Dlat1) == 1 )
    dist   = acos(ang1 + ang2)*r;
 else
    dist   = reshape(acos(ang1 + ang2)*r,Dlat2);
@@ -509,7 +509,7 @@ end
 
 
 function x = varget(filename,varname)
-%% get a varible from the netcdf file, if it does not exist, 
+%% get a varible from the netcdf file, if it does not exist,
 % do not die such a theatrical death ... return an empty.
 
 if ( nc_isvar(filename,varname) )

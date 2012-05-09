@@ -53,7 +53,7 @@ state = zeros(num_times, copies_per_time, model_size);
 
 for j = 1:num_times,
 % Start reading the output for each copy at current time
-   for i = 1:copies_per_time, 
+   for i = 1:copies_per_time,
       time = fscanf(fid, '%d', 2);
       header = fgetl(fid);
 

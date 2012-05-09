@@ -4,7 +4,7 @@ function x = parse(mystring)
 % Example:
 % mystring = 'This has several words 1.234';
 % x = parse(mystring)
-% x = 
+% x =
 %
 %    'This'    'has'    'several'    'words'    '1.234'
 %

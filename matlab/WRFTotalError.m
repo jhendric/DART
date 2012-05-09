@@ -31,17 +31,17 @@ for ivar=1:pinfo.num_state_vars,
    sprd = zeros(pinfo.time_series_length,1);
 
    for itime=1:pinfo.time_series_length,
-   
+
       fprintf('Processing %s timestep %d of %d ...\n', ...
                 varname, itime, pinfo.time_series_length)
-   
+
       truth  = get_hyperslab('fname',pinfo.truth_file, 'varname',varname, ...
                    'copyindex',truth_index, 'timeindex',pinfo.truth_time(1)+itime-1);
       ens    = get_hyperslab('fname',pinfo.diagn_file, 'varname',varname, ...
                    'copyindex',ens_mean_index, 'timeindex',pinfo.diagn_time(1)+itime-1);
       spread = get_hyperslab('fname',pinfo.diagn_file, 'varname',varname, ...
                    'copyindex',ens_spread_index, 'timeindex',pinfo.diagn_time(1)+itime-1);
-   
+
       %% Calculate the mean squared error for each level. By construction,
       %  the WRF grid is close enough to equal area for each grid cell.
       %  The simple mean of each level is OK.
@@ -52,7 +52,7 @@ for ivar=1:pinfo.num_state_vars,
       %% Take the square root of the mean of all levels
       rmse(itime) = sqrt(msqe);
       sprd(itime) = sqrt(msqs);
-      
+
    end % loop over time
 
    %-------------------------------------------------------------------
@@ -73,7 +73,7 @@ for ivar=1:pinfo.num_state_vars,
       s1 = sprintf('%s %s Ensemble Mean', pinfo.model,pinfo.vars{ivar});
       title({s1,pinfo.diagn_file},'interpreter','none','fontweight','bold')
 
-end % loop around variables 
+end % loop around variables
 
 clear truth ens spread err XY_spread
 

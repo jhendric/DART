@@ -1,7 +1,7 @@
 %% DART: plot_ens_err_spread - summary plots of the ensemble error and ensemble spread.
 %                        Interactively queries for the needed information.
-%                        Since different models potentially need different 
-%                        pieces of information ... the model types are 
+%                        Since different models potentially need different
+%                        pieces of information ... the model types are
 %                        determined and additional user input may be queried.
 %
 % Ultimately, plot_ens_err_spread will be replaced by a GUI.
@@ -40,7 +40,7 @@ if (exist('diagn_file','var') ~=1)
 end
 
 vars  = CheckModel(diagn_file);   % also gets default values for this model.
-vars  = rmfield(vars,{'fname','time','time_series_length'}); 
+vars  = rmfield(vars,{'fname','time','time_series_length'});
 pinfo = CheckModelCompatibility(truth_file, diagn_file);
 pinfo = CombineStructs(pinfo,vars);
 clear vars

@@ -45,7 +45,7 @@ timeorigin = datenum(timebase(1),timebase(2),timebase(3));
 timearr    = nc_varget(fname,'time');
 timestring = datestr(timearr(1) + timeorigin);
 
-% create the hyperslab indices ... 
+% create the hyperslab indices ...
 
 copyindex = get_copy_index(fname,copystring);
 
@@ -58,7 +58,7 @@ myinfo.timeindex  = time;
 datmat = nc_varget(fname, varname, start, count);
 
 % Create the plot.
-% The figure window is partitioned into two parts ... one has 
+% The figure window is partitioned into two parts ... one has
 % the actual graphic ... the other (the bottom part) is a text
 % table of all the attributes of interest for the graphic.
 
@@ -171,7 +171,7 @@ function annotate(plotdat)
 
 nlevels = length(plotdat.levels);
 
-if (nlevels == 1) 
+if (nlevels == 1)
    return
 end
 

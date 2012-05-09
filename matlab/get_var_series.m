@@ -33,11 +33,11 @@ end
 num_copies  = dim_length(fname,'copy');
 num_vars    = dim_length(fname,'StateVariable');
 
-if (copyindex > num_copies ) 
+if (copyindex > num_copies )
     fprintf('%s only has %d ''copies/Ensemble members''\n',fname,num_copies)
     error('you wanted copy %d ', copyindex)
 end
-if (state_var > num_vars) 
+if (state_var > num_vars)
    fprintf('%s only has %d %s variables\n',fname,num_vars,varname)
    error('you wanted variable %d ', state_var)
 end
@@ -53,7 +53,7 @@ myinfo.tcount     = tcount;
 
 var_vec = nc_varget(fname, varname, start, count);
 
-if (sum(isfinite(var_vec(:))) == 0) 
+if (sum(isfinite(var_vec(:))) == 0)
    error('%s %s copy %d index %d has all missing values ... exiting.', ...
         fname,varname,copyindex,state_var)
 end

@@ -277,12 +277,12 @@ switch lower(pinfo.model)
       %% MIT general circulation ocean model
 
       MITGCMOceanTotalError( pinfo )
-      
+
    case 'cam'
       %% community (global) general circulation atmosphere model
 
       CAMTotalError( pinfo )
-      
+
    case 'wrf'
       %% weather and research forecasting model
 
@@ -518,7 +518,7 @@ for ivar=1:pinfo.num_state_vars,
    % all vars organized     num_levels x num_lats x num_lons
    %-------------------------------------------------------------------
    for itime = 1:pinfo.time_series_length,
-       
+
       truth  = get_hyperslab('fname',pinfo.truth_file, ...
                'varname',pinfo.vars{ivar}, 'copyindex',truth_index, ...
                'timeindex',pinfo.truth_time(1)+itime-1);
@@ -540,7 +540,7 @@ for ivar=1:pinfo.num_state_vars,
       rmse(itime) = sqrt(ms_err);
       sprd(itime) = sqrt(ms_spread);
    end
-   
+
    clear truth ens spread sqerr sqsprd flatsqerr flatsqsprd ms_err ms_spread
 
    %-------------------------------------------------------------------
@@ -548,9 +548,9 @@ for ivar=1:pinfo.num_state_vars,
    %-------------------------------------------------------------------
 
    figure(ivar); clf;
-   
+
    plot(pinfo.time, rmse,'-', pinfo.time, sprd,'--');
-      
+
    s1   = sprintf('%s Ensemble Mean for %s', pinfo.model,pinfo.vars{ivar});
    s{1} = sprintf('time-mean Ensemble Mean Total Error  = %f', mean(rmse));
    s{2} = sprintf('time-mean Ensemble Spread = %f',      mean(sprd));

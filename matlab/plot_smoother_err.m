@@ -18,7 +18,7 @@
 lag_file   = 'Lag_%05d_Diag.nc'; % pattern for lag file names
 
 if (exist('num_lags','var')   ~= 1), num_lags = 10000; end
-if (exist('truth_file','var') == 1), 
+if (exist('truth_file','var') == 1),
    def_true = truth_file;
 else
    def_true = 'True_State.nc';
@@ -32,13 +32,13 @@ end
 
 if ( exist(truth_file,'file') ~= 2 ), error('%s does not exist.',truth_file); end
 
-% Loop over all possible lags, if the corresponding etCDF file 
+% Loop over all possible lags, if the corresponding etCDF file
 % does not exist, we automatically terminate.
 
 for lag=1:num_lags
 
   def_diag = sprintf(lag_file, lag);
-  
+
   disp('Input name of smoother lag diagnostics file:')
   diagn_file = input(sprintf('<cr> for %s\n', def_diag),'s');
   if isempty(diagn_file)
@@ -62,7 +62,7 @@ for lag=1:num_lags
 
   fprintf('Comparing %s and \n          %s\n', ...
                 pinfo.truth_file, pinfo.diagn_file)
-  
+
   PlotTotalErr( pinfo );
 
   disp(' ')

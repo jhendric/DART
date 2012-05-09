@@ -4,9 +4,9 @@ function pinfo_out = CheckModelCompatibility(arg1, arg2)
 % pinfo struct (with 2 filenames and 2 2-vector arrays for start/stop times).
 % This routine fills in the 2-vectors with the time overlap region in a
 % pinfo struct.
-% If the time indices are common between the 2 files it returns the 
+% If the time indices are common between the 2 files it returns the
 % [start,count] indices for each array (indexing starts at 1,N).
-% It is an error situation if there is no overlap ([-1,-1] for both). 
+% It is an error situation if there is no overlap ([-1,-1] for both).
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -41,7 +41,7 @@ pinfo_out.diagn_time = [-1,-1];
 %% Get some information from the file1
 tmodel  = nc_attget(file1,nc_global,'model');
 
-if (isempty(tmodel)) 
+if (isempty(tmodel))
    error('%s has no ''model'' global attribute.',file1)
 end
 
@@ -61,7 +61,7 @@ end
 %% Get some information from the file2
 dmodel  = nc_attget(file1,nc_global,'model');
 
-if (isempty(dmodel)) 
+if (isempty(dmodel))
    error('%s has no ''model'' global attribute.',file2)
 end
 
@@ -185,15 +185,15 @@ if (abs(minA - minB) < epsilon) , minB = minA; end
 if (abs(maxA - minB) < epsilon) , minB = maxA; end
 if (abs(maxA - maxB) < epsilon) , maxB = maxA; end
 
-%% case 1: disjoint regions; simply return here because 
+%% case 1: disjoint regions; simply return here because
 %  return struct was initialized to the 'no intersection' case.
-if ((minA < minB) && (maxA < minB))  
+if ((minA < minB) && (maxA < minB))
   return
 end
 
 %% case 2: B fully contained in A; return corresponding index nums of overlap
 %  include equal start & end points in this case.
-if ((minA <= minB) && (maxB <= maxA)) 
+if ((minA <= minB) && (maxB <= maxA))
   minI = find(abs(A - minB) < epsilon);
   maxI = find(abs(A - maxB) < epsilon);
   minJ = 1;
@@ -230,7 +230,7 @@ pret.time       = times1(min1:max1);     % the common times in datenum-compatibl
 
 function x = dim_length(fname,dimname)
 %% Check for the existence of the named dimension and return it
-% if it exists. If it does not, error out with a useful message. 
+% if it exists. If it does not, error out with a useful message.
 
 info = nc_info(fname);
 n    = length(dimname);
@@ -242,7 +242,7 @@ for i = 1:length(info.Dimension),
    end
 end
 
-if isempty(x)   
+if isempty(x)
    error('%s has no dimension named %s',fname,dimname)
 end
 

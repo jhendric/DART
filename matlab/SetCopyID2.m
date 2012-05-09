@@ -41,7 +41,7 @@ IDstring = input(sprintf('<cr> for %d %d \n',def_copies(1),def_copies(2)),'s');
 
 if isempty(IDstring)                 % take the default
    varid = def_copies;
-else 
+else
    ensmems = sscanf(IDstring,'%d');  % convert text to numbers
    if ( ensmems(1) < 0 )             % dont want any
       varid = [];

@@ -201,7 +201,7 @@ fprintf('Default variable is ''%s'', if this is OK, <cr>;\n',pgvar)
 fprintf('If not, please enter one of: %s\n',str)
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), pgvar = deblank(varstring); end 
+if ~isempty(varstring), pgvar = deblank(varstring); end
 
 
 function [time, timeind] = GetTime(times, deftime)
@@ -213,10 +213,10 @@ fprintf('If not, enter a time between %.4f and %.4f, we use the closest.\n', ...
                          min(times),max(times))
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), time  = str2num(varstring); end 
+if ~isempty(varstring), time  = str2num(varstring); end
 
 d       = abs(time - times);  % crude distance
-ind     = find(min(d) == d);  % multiple minima possible 
+ind     = find(min(d) == d);  % multiple minima possible
 timeind = ind(1);             % use the first one
 time    = times(timeind);
 
@@ -232,10 +232,10 @@ fprintf('If not, enter a level between %d and %d, inclusive ...\n', ...
                          min(levels),max(levels))
 varstring = input('we''ll use the closest (no syntax required)\n','s');
 
-if ~isempty(varstring), level = str2num(varstring); end 
+if ~isempty(varstring), level = str2num(varstring); end
 
 d      = abs(level - levels);  % crude distance
-ind    = find(min(d) == d);    % multiple minima possible 
+ind    = find(min(d) == d);    % multiple minima possible
 lvlind = ind(1);               % use the first one
 level  = levels(lvlind);
 
@@ -244,15 +244,15 @@ function [lon, lonind] = GetLongitude(lons, deflon)
 %----------------------------------------------------------------------
 if (nargin == 2), lon = deflon; else lon = 255.0; end
 
-fprintf('Default longitude is %f, if this is OK, <cr>;\n',lon)  
+fprintf('Default longitude is %f, if this is OK, <cr>;\n',lon)
 fprintf('If not, enter a longitude between %.2f and %.2f, we use the closest.\n', ...
                          min(lons),max(lons))
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), lon  = str2num(varstring); end 
+if ~isempty(varstring), lon  = str2num(varstring); end
 
 d      = abs(lon - lons);    % crude distance
-ind    = find(min(d) == d);  % multiple minima possible 
+ind    = find(min(d) == d);  % multiple minima possible
 lonind = ind(1);             % use the first one
 lon    = lons(lonind);
 
@@ -266,10 +266,10 @@ fprintf('If not, enter a latitude between %.2f and %.2f, we use the closest.\n',
                          min(lats),max(lats))
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), lat = str2num(varstring); end 
+if ~isempty(varstring), lat = str2num(varstring); end
 
 d      = abs(lat - lats);    % crude distance
-ind    = find(min(d) == d);  % multiple minima possible 
+ind    = find(min(d) == d);  % multiple minima possible
 latind = ind(1);             % use the first one
 lat    = lats(latind);
 

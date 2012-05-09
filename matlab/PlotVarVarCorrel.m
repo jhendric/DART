@@ -9,7 +9,7 @@ function PlotVarVarCorrel( pinfo )
 %
 % pinfo is a structure with the following necessary components:
 % fname
-% base_var_index    index of one of the state variables to correlate  
+% base_var_index    index of one of the state variables to correlate
 % base_time         index of the time of interest (timestep)
 % state_var_index   index of the other state variable of interest.
 %
@@ -67,12 +67,12 @@ switch lower(pinfo.model)
           pinfo.base_lat, pinfo.base_lon);
 
       s2 = sprintf('with ''%s'', lvl = %d, lat = %.2f, lon= %.2f, %d ensemble members', ...
-          pinfo.comp_var, pinfo.comp_lvl, pinfo.comp_lat, pinfo.comp_lon, nmembers); 
+          pinfo.comp_var, pinfo.comp_lvl, pinfo.comp_lat, pinfo.comp_lon, nmembers);
 
       title({s1,s2,pinfo.fname},'interpreter','none','fontweight','bold')
       xdates(pinfo.time)
       ylabel('correlation')
-      
+
       % call out the time index in question, and put a corr==0 reference line.
       ax = axis;
       hold on;
@@ -104,12 +104,12 @@ switch lower(pinfo.model)
           pinfo.base_lat, pinfo.base_lon);
 
       s2 = sprintf('with ''%s'', lvl = %d, lat = %.2f, lon= %.2f, %d ensemble members', ...
-          pinfo.comp_var, pinfo.comp_lvl, pinfo.comp_lat, pinfo.comp_lon, nmembers); 
+          pinfo.comp_var, pinfo.comp_lvl, pinfo.comp_lat, pinfo.comp_lon, nmembers);
 
       title({s1,s2,pinfo.fname},'interpreter','none','fontweight','bold')
       xdates(pinfo.time)
       ylabel('correlation')
-      
+
       % call out the time index in question, and put a corr==0 reference line.
       ax = axis;
       hold on;
@@ -119,29 +119,29 @@ switch lower(pinfo.model)
    otherwise
 
       fprintf('PlotVarVarCorrel: num_vars is %d\n',num_vars)
-      
+
       % The Base Variable Index must be a valid state variable
-      
+
       if ( pinfo.base_var_index > num_vars )
          fprintf('%s only has %d state variables\n', pinfo.fname, num_vars)
          error('you wanted variable # %d ', pinfo.base_var_index)
       end
-      
+
       % The Time must be within range also.
-      
+
       if ( pinfo.base_time > num_times )
          fprintf('%s only has %d output times\n', pinfo.fname, num_times)
          error('you wanted time # %d ', pinfo.base_time)
       end
-      
+
       % The State Variable Index must also be a valid state variable
-      
+
       if ( pinfo.base_var_index > num_vars )
          fprintf('%s only has %d state variables\n', pinfo.fname, num_vars)
          error('you wanted variable # %d ', pinfo.base_var_index)
       end
-      
-      % Get 'standard' ensemble series 
+
+      % Get 'standard' ensemble series
       base_var  = get_hyperslab('fname',pinfo.fname, ...
                       'varname',pinfo.base_var,  'stateindex',pinfo.base_var_index, ...
                       'copyindex1',pinfo.ensemble_indices(1), 'copycount',pinfo.num_ens_members);
@@ -153,23 +153,23 @@ switch lower(pinfo.model)
 
       % perform a single correlation
       correl = ens_correl(base_var, pinfo.base_time, state_var);
-      
+
       clf; plot(pinfo.time,correl);
-      
+
       s1 = sprintf('%s Correlation of variable %s %d, timestep = %d, with variable %s %d', ...
                pinfo.model, pinfo.base_var, pinfo.base_var_index, pinfo.base_time, ...
                       pinfo.state_var, pinfo.state_var_index);
-      s2 = sprintf('%d ensemble members -- %s', nmembers, pinfo.fname); 
+      s2 = sprintf('%d ensemble members -- %s', nmembers, pinfo.fname);
       title({s1,s2},'interpreter','none','fontweight','bold')
       xlabel(sprintf('model "days" (%d timesteps)',pinfo.time_series_length))
       ylabel('correlation')
-      
+
       % call out the time index in question, and put a corr==0 reference line.
       ax = axis;
       hold on;
       plot([pinfo.time(pinfo.base_time) pinfo.time(pinfo.base_time)],[ -1 1 ],'k:', ...
            [ax(1)         ax(2)],[  0 0 ],'k:')
-      
+
       %axis(ax)
 end
 

@@ -1,6 +1,6 @@
 function x = ChecknetCDFuse(fname)
-%% ChecknetCDFuse  checks to see if the netcdf pieces are available. 
-% 
+%% ChecknetCDFuse  checks to see if the netcdf pieces are available.
+%
 % x = ChecknetCDFuse(fname);
 %
 % fname ... a filename that contains diagnostic information.

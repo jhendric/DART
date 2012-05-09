@@ -1,6 +1,6 @@
 function DiffnetCDFstate(file1,file2,outfile)
-%% DiffnetCDFstate  checks to see if the netcdf pieces are available. 
-% 
+%% DiffnetCDFstate  checks to see if the netcdf pieces are available.
+%
 % DiffnetCDFstate(nc1, nc2, outfile);
 %
 % fname ... a filename that contains diagnostic information.
@@ -57,7 +57,7 @@ c = b(:) - a(:);
 
 a = min(c);
 b = max(c);
-clear c 
+clear c
 
 % Write the min and max of the differences to a file
 

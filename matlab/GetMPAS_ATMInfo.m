@@ -7,7 +7,7 @@ function pinfo = GetMPAS_ATMInfo(pinfo_in,fname,routine)
 %
 % pinfo_in  Name of existing pinfo struct, e.g. output from CheckModelCompatibility
 % fname     Name of the DART netcdf file - usually [Prior,Posterior]_Diag.nc
-% routine   name of subsequent plot routine. 
+% routine   name of subsequent plot routine.
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -48,7 +48,7 @@ switch lower(deblank(routine))
     case {'plottotalerr'}
 
       pinfo.fname      = fname;
-      
+
    case {'plotbins','plotenserrspread','plotensmeantimeseries','plotenstimeseries'}
 
       pgvar            = GetVarString(pinfo_in.vars);
@@ -142,7 +142,7 @@ switch lower(deblank(routine))
       % So now I have to figure out if the posterior and prior copy metadata match.
 
       for i = 1:copy,
-         copyi = get_copy_index(pinfo_in.posterior_file,copymetadata{i}); 
+         copyi = get_copy_index(pinfo_in.posterior_file,copymetadata{i});
          pstruct.postcopyindices = copyi;
       end
 
@@ -203,7 +203,7 @@ switch lower(deblank(routine))
       pinfo.ltype          = ltype;
 
     otherwise
-       
+
         error('%s unsupported for %s',routine, pinfo.model)
 
 end
@@ -219,11 +219,11 @@ str = sprintf(' %s ',prognostic_vars{1});
 for i = 2:length(prognostic_vars),
    str = sprintf(' %s %s ',str,prognostic_vars{i});
 end
-fprintf('Default variable is ''%s'', if this is OK, <cr>;\n',pgvar)  
+fprintf('Default variable is ''%s'', if this is OK, <cr>;\n',pgvar)
 fprintf('If not, please enter one of: %s\n',str)
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), pgvar = deblank(varstring); end 
+if ~isempty(varstring), pgvar = deblank(varstring); end
 
 
 
@@ -238,7 +238,7 @@ if (nargin == 2),
    time = deftime;
    tindex = find(times == deftime);
 else
-   if (ntimes < 2) 
+   if (ntimes < 2)
       tindex = round(ntimes/2);
    else
       tindex = 1;
@@ -251,11 +251,11 @@ fprintf('If not, enter an index between %d and %d \n',1,ntimes)
 fprintf('Pertaining to %s and %s \n',datestr(times(1)),datestr(times(ntimes)))
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), tindex = str2num(varstring); end 
+if ~isempty(varstring), tindex = str2num(varstring); end
 
 timeinds = 1:ntimes;
 d        = abs(tindex - timeinds); % crude distance
-ind      = find(min(d) == d);      % multiple minima possible 
+ind      = find(min(d) == d);      % multiple minima possible
 timeind  = ind(1);                 % use the first one
 time     = times(timeind);
 
@@ -282,7 +282,7 @@ if (isempty(vertdim))
    lvlind = 1;
 
 else
-    
+
    nlevels = varinfo.Size(vertdim);
    levels  = 1:nlevels;
    if (nargin == 3)
@@ -295,10 +295,10 @@ else
    fprintf('If not, enter a level index between 1 and %d, inclusive ...\n',nlevels)
    varstring = input('we''ll use the closest (no syntax required)\n','s');
 
-   if ~isempty(varstring), level = str2num(varstring); end 
+   if ~isempty(varstring), level = str2num(varstring); end
 
    d      = abs(level - levels);  % crude distance
-   ind    = find(min(d) == d);    % multiple minima possible 
+   ind    = find(min(d) == d);    % multiple minima possible
    lvlind = ind(1);               % use the first one
    level  = levels(lvlind);
 
@@ -332,14 +332,14 @@ varstring = input('we''ll use the closest (no syntax required)\n','s');
 
 if ~isempty(varstring)
    nums = str2num(varstring);
-   if (length(nums) ~= 2) 
+   if (length(nums) ~= 2)
       error('Did not get two indices for the lat lon pair.')
    end
    lat = nums(1);
    lon = nums(2);
 end
 
-% For simplicity I will pick the grid cell whose center is closest 
+% For simplicity I will pick the grid cell whose center is closest
 % to the point of interest. This is not a perfect solution, should really
 % check the neighboring cells to see if it is INSIDE the cell,
 % but if you are interested in that level of accuracy, you're on your own.

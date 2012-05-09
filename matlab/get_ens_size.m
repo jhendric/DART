@@ -1,5 +1,5 @@
 function ens_size = get_ens_size(fname)
-%% GET_ENS_SIZE  returns the number of ensemble members in the netCDF file. 
+%% GET_ENS_SIZE  returns the number of ensemble members in the netCDF file.
 %
 % Example:
 % fname = 'Prior_Diag.nc';

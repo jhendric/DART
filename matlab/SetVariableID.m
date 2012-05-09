@@ -1,6 +1,6 @@
 function varid = SetVariableID(vars)
-%% SetVariableID   queries the user to override default variable ID's 
-%                 (i.e. model state variable indices) for different model types. 
+%% SetVariableID   queries the user to override default variable ID's
+%                 (i.e. model state variable indices) for different model types.
 %
 % varid = SetVariableID(vars);
 %
@@ -10,7 +10,7 @@ function varid = SetVariableID(vars)
 % vars.model = 'lorenz_96';
 % vars.def_var = 'state';
 % vars.def_state_vars = [2 4 5];
-% varid = SetVariableID(vars) 
+% varid = SetVariableID(vars)
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -39,11 +39,11 @@ switch lower(vars.model)
       fprintf('To choose forcing estimates enter F 2 12 22 (between %d and %d)\n',vars.min_force_var,vars.max_force_var)
       IDstring = input('(no intervening syntax required)\n','s');
 
-      if isempty(IDstring) 
+      if isempty(IDstring)
          varid.var      = vars.def_var;
          varid.var_inds = vars.def_state_vars;
 
-      else 
+      else
          [vrbl, vrbl_inds] = ParseAlphaNumerics(IDstring);
          % Must shift the 'forcing' variables by the number of state variables.
          switch lower(vrbl)
@@ -54,7 +54,7 @@ switch lower(vars.model)
                  varid.var      = 'state';
                  varid.var_inds = vrbl_inds;
          end
-      end 
+      end
 
    case 'lorenz_96_2scale'
 
@@ -68,14 +68,14 @@ switch lower(vars.model)
       fprintf('To choose Y (fast) variables enter Y 23 34 89 (between %d and %d)\n',vars.min_Y_var,vars.max_Y_var)
       IDstring = input('(no intervening syntax required)\n','s');
 
-      if isempty(IDstring) 
+      if isempty(IDstring)
          varid.var      = vars.def_var;
-         varid.var_inds = vars.def_state_vars; 
-      else 
+         varid.var_inds = vars.def_state_vars;
+      else
          [vrbl, vrbl_inds] = ParseAlphaNumerics(IDstring);
          varid.var      = upper(vrbl);
-         varid.var_inds = vrbl_inds; 
-      end 
+         varid.var_inds = vrbl_inds;
+      end
 
    case 'simple_advection'
 
@@ -95,14 +95,14 @@ switch lower(vars.model)
 
       IDstring = input('(no intervening syntax required)\n','s');
 
-      if isempty(IDstring) 
+      if isempty(IDstring)
          varid.var      = vars.def_var;
          varid.var_inds = vars.def_state_vars;
-      else 
+      else
          [vrbl, vrbl_inds] = ParseAlphaNumerics(IDstring);
          varid.var      = vrbl;
          varid.var_inds = vrbl_inds;
-      end 
+      end
 
    case {'lorenz_96','lorenz_04'}
 
@@ -119,7 +119,7 @@ switch lower(vars.model)
       else
          varid.var      = vars.def_var;
          varid.var_inds = str2num(IDstring);
-      end 
+      end
 
    case {'9var','lorenz_63','lorenz_84','ikeda'}
 

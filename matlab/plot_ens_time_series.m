@@ -1,8 +1,8 @@
 %% DART:plot_ens_time_series - time series of ensemble and truth (if available)
-%                                                                               
+%
 % plot_ens_time_series    interactively queries for the needed information.
-%              Since different models potentially need different pieces of 
-%              information ... the model types are determined and additional 
+%              Since different models potentially need different pieces of
+%              information ... the model types are determined and additional
 %              user input may be queried.
 %
 % Example 2

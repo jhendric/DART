@@ -43,7 +43,7 @@ if isempty(IDstring)                 % take the default
       copystring = sprintf('ensemble member %d',ensmems(i));
       varid(i) = get_copy_index(fname,copystring);
    end
-else 
+else
    ensmems = sscanf(IDstring,'%d');  % convert text to numbers
    if ( ensmems(1) < 0 )             % dont want any
       varid = [];

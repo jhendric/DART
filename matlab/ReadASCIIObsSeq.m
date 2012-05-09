@@ -1,10 +1,10 @@
 function a = ReadASCIIObsSeq(fname)
 %% ReadASCIIObsSeq       reads the diagnostic output observation sequence file.
 %
-% 
+%
 % a = ReadASCIIObsSeq('obs_seq.final');
 %
-% This is pretty slow -- lots of logic and nested loops -- hard to vectorize. 
+% This is pretty slow -- lots of logic and nested loops -- hard to vectorize.
 % The best thing is probably to turn it into a '.mex' file.
 %
 % The file contains a linked list which we are reading sequentially.
@@ -46,7 +46,7 @@ aline      = fgetl(fid);
 values     = sscanf(aline,'%s %*');   % Just concerned with the first word.
 
 switch lower(values)
-   case 'obs_sequence'      % pre-I or newer format 
+   case 'obs_sequence'      % pre-I or newer format
 
       aline = fgetl(fid);   % skip line containing the word 'obs_kind_definitions'
       aline = fgetl(fid);
@@ -60,7 +60,7 @@ switch lower(values)
 
          tim = sscanf(aline,'%d %*s');
          tom = deblank(sscanf(aline,'%*s %s'));
-        
+
          obskindnumber(idef) = tim;
          obskindstring(idef) = {tom};
 
@@ -102,7 +102,7 @@ disp(sprintf('num_qc      is %d',num_qc))
 disp(sprintf('num_obs     is %d',num_obs))
 disp(sprintf('max_num_obs is %d',max_num_obs))
 
-% Read the metadata 
+% Read the metadata
 for i = 1:num_copies,
    metadata{i} = deblank(fgetl(fid));
 end
@@ -164,12 +164,12 @@ for i = 1:num_obs, % Read what was written by obs_sequence_mod:write_obs
    values     = sscanf(aline,'%*s %d');
    key        = values(1);
 
-   if ( key    ~= i ) 
+   if ( key    ~= i )
       error(sprintf('key %d is not %d -- and it should be ...',i,key))
    % else
    %    disp(sprintf('reading observation %d',i))
    end
- 
+
    for j = 1:num_copies,
       aline    = cvrtline(fgetl(fid));
       obs(j,i) = sscanf(aline,'%e');
@@ -179,7 +179,7 @@ for i = 1:num_obs, % Read what was written by obs_sequence_mod:write_obs
       aline    = cvrtline(fgetl(fid));
       qc(j,i)  = sscanf(aline,'%e');
    end
-    
+
    aline     = fgetl(fid);
    values    = sscanf(aline,'%d');
    prev_time(i) = values(1);
@@ -196,32 +196,32 @@ for i = 1:num_obs, % Read what was written by obs_sequence_mod:write_obs
    aline    = fgetl(fid);
    obdefstr = deblank(sscanf(aline,'%s'));
 
-   if ( ~ strcmp(obdefstr,'obdef') )  
+   if ( ~ strcmp(obdefstr,'obdef') )
       error(sprintf(' read %s instead of ''obdef''',obdefstr))
    end
 
    % Read what was written by location_mod:write_location
 
-   [loc(i,:) which_vert(i)] = read_location(fid,i); 
+   [loc(i,:) which_vert(i)] = read_location(fid,i);
    kind(i)                  = read_kind(fid,i);  % companion to obs_kind_mod:write_kind
 
    %------------------------------------------------------------
    % Specific kinds of observations have additional metadata.
-   % Basically, we have to troll through the obs_def* files to 
+   % Basically, we have to troll through the obs_def* files to
    % see what types need special attention.
    %------------------------------------------------------------
 
    if(kind(i) == DOPPLER_RADIAL_VELOCITY)
 
       read_platform(fid,i);
-      [radloc(i,:) radwhich_vert(i)] = read_location(fid,i); 
-      dir3d                          = read_orientation(fid,i); 
+      [radloc(i,:) radwhich_vert(i)] = read_location(fid,i);
+      dir3d                          = read_orientation(fid,i);
       aline      = fgetl(fid);     % read the line with the key
 
    elseif(kind(i) == RAW_STATE_1D_INTEGRAL )
 
       % Right now, I am throwing away the results.
-      if ( ~ oned_integral_already_read ) 
+      if ( ~ oned_integral_already_read )
 
          aline = fgetl(fid);  % the number of 1d_integral obs descriptions
          num_1d_integral_obs = sscanf(aline,'%d');
@@ -234,7 +234,7 @@ for i = 1:num_obs, % Read what was written by obs_sequence_mod:write_obs
 
       end
 
-      aline = fgetl(fid);  % get obs_def key 
+      aline = fgetl(fid);  % get obs_def key
 
    elseif( kind(i) == GPSRO_REFRACTIVITY )
 
@@ -246,7 +246,7 @@ for i = 1:num_obs, % Read what was written by obs_sequence_mod:write_obs
 
    % And finally: the error variance
 
-   aline    = cvrtline(fgetl(fid)); 
+   aline    = cvrtline(fgetl(fid));
    evar(i)  = sscanf(aline,'%e');
 
 end
@@ -272,13 +272,13 @@ fclose(fid);
 %-------------------------------------------------------------------------------
 
 function ostr = cvrtline(istring)
-% Try to replace all the stupid 'D's with 'E's 
+% Try to replace all the stupid 'D's with 'E's
 ostr = istring;
 inds = find(ostr == 'D');
-if ~ isempty(inds) 
+if ~ isempty(inds)
    ostr(inds) = 'E';
 end
-   
+
 
 function [days, secs] = read_time(fid)
    aline  = fgetl(fid);
@@ -291,7 +291,7 @@ function [days, secs] = read_time(fid)
 function kind = read_kind(fid,i)
    aline   = fgetl(fid);
    kindstr = deblank(sscanf(aline,'%s'));
-   if ( ~ strcmp(kindstr,'kind') )  
+   if ( ~ strcmp(kindstr,'kind') )
       error(sprintf(' read %s instead of ''kind'' at obs %d',kindstr,i))
    end
    aline   = fgetl(fid);
@@ -309,7 +309,7 @@ which_vert = 0;           % unless found to be otherwise
 locs       = zeros(1,3);
 
 aline    = fgetl(fid);
-locstr   = sscanf(aline,'%s'); 
+locstr   = sscanf(aline,'%s');
 
 switch lower(locstr)
       case 'loc1d'       % location/oned/location_mod.f90:write_location
@@ -350,7 +350,7 @@ function read_platform(fid,i)
 
 aline       = fgetl(fid);
 platformstr = deblank(sscanf(aline,'%s'));
-if ( ~ strcmp(platformstr,'platform') )  
+if ( ~ strcmp(platformstr,'platform') )
    error(sprintf(' read %s instead of ''platform'' at obs %d',platformstr,i))
 end
 
@@ -361,7 +361,7 @@ function dir3d = read_orientation(fid,i)
 
 aline    = fgetl(fid);
 platformstr = deblank(sscanf(aline,'%s'));
-if ( ~ strcmp(platformstr,'dir3d') )  
+if ( ~ strcmp(platformstr,'dir3d') )
     error(sprintf(' read %s instead of ''dir3d''',platformstr))
 end
 aline    = cvrtline(fgetl(fid));
@@ -386,13 +386,13 @@ function read_gpsro_ref(fid,i)
 
 aline  = fgetl(fid);
 gpskey = deblank(sscanf(aline,'%s %*d'));
-if ( ~ strcmp(gpskey,'gpsroref') )  
+if ( ~ strcmp(gpskey,'gpsroref') )
     error(sprintf(' read %s instead of ''gpsroref''',platformstr))
 end
 aline  = cvrtline(fgetl(fid));
 values = sscanf(aline,'%e %*s');
 form   = sscanf(aline,'%*e %s');
-if (length(values) ~= 6) 
+if (length(values) ~= 6)
    error(sprintf('read %d items instead of 6 for obs# %d',length(values),i))
 end
 rfict         = values(1);

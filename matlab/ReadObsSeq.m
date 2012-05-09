@@ -6,9 +6,9 @@ function a = ReadObsSeq(fname)
 %
 % a = ReadObsSeq('obs_seq.final');
 %
-% there are many returned components of 'a' ... 
+% there are many returned components of 'a' ...
 % >> fieldnames(a)
-%ans = 
+%ans =
 %   'filename'
 %   'num_copies'
 %   'num_qc'

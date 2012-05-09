@@ -26,7 +26,7 @@ ens_spread_index = get_copy_index(pinfo.diagn_file, 'ensemble spread');
 for ivar=1:pinfo.num_state_vars,
 
    fprintf('Processing %s ...\n', pinfo.vars{ivar} )
-    
+
    rmse     = zeros(pinfo.time_series_length,1);
    sprd     = zeros(pinfo.time_series_length,1);
    varunits = nc_attget(pinfo.truth_file, pinfo.vars{ivar}, 'units');
@@ -47,7 +47,7 @@ for ivar=1:pinfo.num_state_vars,
          case {'tmpi', 'veli'}
             longitudes  = nc_varget(pinfo.diagn_file, dimname);
          case {'lev'}
-            nlevels     = dimlength; 
+            nlevels     = dimlength;
       end
    end
 
@@ -55,7 +55,7 @@ for ivar=1:pinfo.num_state_vars,
    weights = SphereWeights(latitudes, longitudes);
 
    for itime=1:pinfo.time_series_length,
-   
+
       truth  = get_hyperslab('fname',pinfo.truth_file, 'varname',pinfo.vars{ivar}, ...
                    'copyindex',truth_index, 'timeindex',pinfo.truth_time(1)+itime-1);
       ens    = get_hyperslab('fname',pinfo.diagn_file, 'varname',pinfo.vars{ivar}, ...
@@ -82,7 +82,7 @@ for ivar=1:pinfo.num_state_vars,
       %% Take the square root of the mean squared error
       rmse(itime) = sqrt(ms_err);
       sprd(itime) = sqrt(ms_spread);
-      
+
    end % loop over time
 
    %-------------------------------------------------------------------
@@ -101,7 +101,7 @@ for ivar=1:pinfo.num_state_vars,
       s1 = sprintf('%s %s Ensemble Mean', pinfo.model,pinfo.vars{ivar});
       title({s1,pinfo.diagn_file},'interpreter','none','fontweight','bold')
 
-end % loop around variables 
+end % loop around variables
 
 clear truth ens spread err XY_spread
 

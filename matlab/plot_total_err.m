@@ -44,7 +44,7 @@ switch lower(pinfo.model)
 
     case{'fms_bgrid'}
         pinfo = GetBgridInfo(pinfo, diagn_file, 'PlotTotalErr');
-        
+
     case {'wrf'}
       pinfo = GetWRFInfo(pinfo, diagn_file, 'PlotTotalErr');
 

@@ -14,7 +14,7 @@ function PlotCEnsErrSpread( pinfo )
 % this sets start/stop time indices for both truth and diagn file now
 pinfo = CheckModelCompatibility(pinfo.truth_file, pinfo.diagn_file)
 
-model     = nc_attget(pinfo.truth_file, nc_global, 'model'); 
+model     = nc_attget(pinfo.truth_file, nc_global, 'model');
 timeunits = nc_attget(pinfo.truth_file,'time','units');
 
 nvars = 4;
@@ -28,9 +28,9 @@ num_times = pinfo.time_series_length;
 rms      = zeros(num_times, nvars, num_levels);
 sd_final = zeros(num_times, nvars, num_levels);
 
-% Get the indices for the true state, ensemble mean and spread                  
-% The metadata is queried to determine which "copy" is appropriate.             
-truth_index      = get_copy_index(pinfo.truth_file, 'true state' ); 
+% Get the indices for the true state, ensemble mean and spread
+% The metadata is queried to determine which "copy" is appropriate.
+truth_index      = get_copy_index(pinfo.truth_file, 'true state' );
 ens_mean_index   = get_copy_index(pinfo.diagn_file, 'ensemble mean');
 ens_spread_index = get_copy_index(pinfo.diagn_file, 'ensemble spread');
 
@@ -89,7 +89,7 @@ for ilevel = 1:num_levels,     % Loop through all levels
 
         rms(:, ivar, ilevel) = mean(abs(ens_err),2);
    sd_final(:, ivar, ilevel) = mean(sd,2);
-  
+
    %-------------------------------------------------------------------
    % u ...  num_times x num_levels x num_lats x num_lons
    %-------------------------------------------------------------------
@@ -108,7 +108,7 @@ for ilevel = 1:num_levels,     % Loop through all levels
 
         rms(:, ivar, ilevel) = mean(abs(ens_err),2);
    sd_final(:, ivar, ilevel) = mean(sd,2);
-  
+
    %-------------------------------------------------------------------
    % temperature ...  num_times x num_levels x num_lats x num_lons
    %-------------------------------------------------------------------
@@ -127,7 +127,7 @@ for ilevel = 1:num_levels,     % Loop through all levels
 
         rms(:, ivar, ilevel) = mean(abs(ens_err),2);
    sd_final(:, ivar, ilevel) = mean(sd,2);
-  
+
 end % End of level loop
 
 clear field ens sd ens_err
@@ -242,11 +242,11 @@ slice      = reshape(ted,[nt ny*nx]);
 
 
 function slice = GetLevel(fname,ivar,copyindex,ilevel,tstartind,tendind);
-if ivar == 2 
+if ivar == 2
    varstring = 't';
-elseif ivar == 3 
+elseif ivar == 3
    varstring = 'u';
-elseif ivar == 4 
+elseif ivar == 4
    varstring = 'v';
 else
    error(' variable id %d out of bounds',ivar)

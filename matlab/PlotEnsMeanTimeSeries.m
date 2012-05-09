@@ -194,7 +194,7 @@ switch lower(pinfo.model)
                       'copyindex',ens_mean_index, 'levelindex',pinfo.levelindex, ...
                       'latindex',pinfo.latindex, 'lonindex',pinfo.lonindex, ...
                       'tindex1',pinfo.diagn_time(1), 'tcount',pinfo.diagn_time(2));
-                  
+
       subplot(2,1,2)
          plot(pinfo.time, ens_mean, 'r');
          legend('Ensemble Mean',0)
@@ -211,7 +211,7 @@ switch lower(pinfo.model)
                       'copyindex',truth_index, 'levelindex',pinfo.levelindex, ...
                       'latindex',pinfo.latindex, 'lonindex',pinfo.lonindex, ...
                       'tindex1',pinfo.truth_time(1), 'tcount',pinfo.truth_time(2));
-                    
+
             hold on; plot(pinfo.time, truth,'b'); hold off;
             legend('Ensemble Mean','True State',0)
          end
@@ -241,7 +241,7 @@ switch lower(pinfo.model)
          legendstr = {'Ensemble mean'};
 
          h = hmean;
-         
+
          if ( have_truth )
             truth    = get_hyperslab('fname',pinfo.truth_file, ...
                        'varname',pinfo.var, 'levelindex',pinfo.levelindex, ...
@@ -264,7 +264,7 @@ switch lower(pinfo.model)
          ylabel(varunits);
          legend(h,legendstr);
          legend boxoff
-         
+
    otherwise
 
       error('model %s unknown.',pinfo.model)

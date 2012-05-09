@@ -2,7 +2,7 @@
 %
 % The netcdf toolbox is needed for any/all DART matlab diagnostics, so this
 % block tries to locate that particular startup script.
-% The beauty of addpath is that if the desired directory is already 
+% The beauty of addpath is that if the desired directory is already
 % in your path, nothing happens, so there is no harm trying.
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
@@ -15,17 +15,17 @@
 % $Revision$
 % $Date$
 
-if ( exist('/contrib/matlab/ncstartup.m') == 2 ) 
+if ( exist('/contrib/matlab/ncstartup.m') == 2 )
    addpath  /contrib/matlab
    ncstartup;                     % Adds the netCDF operators
-elseif ( exist('/usr/local/matlab/ncstartup.m') == 2 ) 
+elseif ( exist('/usr/local/matlab/ncstartup.m') == 2 )
    addpath      /usr/local/matlab
    ncstartup;                     % Adds the netCDF operators
 end
 
 % See if we have succeeded in adding the netcdf operators.
 
-if ( exist('nc_varget') ~= 2 ) 
+if ( exist('nc_varget') ~= 2 )
    disp('Sorry. Unable to locate the snctools matlab operators.')
    error('The DART diagnostics will not run.')
 end
@@ -63,7 +63,7 @@ if ( ~isempty(dartloc) )
 end
 
 % Try to intelligently add the DART model-specific tools.
-% If the cwd is a '<model>/work' directory, check to see if there is a 
+% If the cwd is a '<model>/work' directory, check to see if there is a
 % parallel '<model>/matlab' directory.
 
 mydir    = pwd;

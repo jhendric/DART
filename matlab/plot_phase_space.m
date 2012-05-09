@@ -6,7 +6,7 @@
 %
 % It is possible to overlay subsequent trajectories as follows:
 %
-% clf;                      % clears the current figure  
+% clf;                      % clears the current figure
 % fname = 'True_State.nc';
 % var1  = 1;                % variable ID to be used as 'X'
 % var2  = 2;                % variable ID to be used as 'Y'
@@ -17,11 +17,11 @@
 %
 % hold on
 % fname      = 'Posterior_Diag.nc';
-% ens_mem    = 'ensemble mean';           % ensemble member ID 
+% ens_mem    = 'ensemble mean';           % ensemble member ID
 % ltype      = 'r-';        % line type ('help plot' for details)
 % plot_phase_space
 %
-% ens_mem    = 'ensemble member4';        % ensemble member ID 
+% ens_mem    = 'ensemble member4';        % ensemble member ID
 % ltype      = 'c-';        % line type ('help plot' for details)
 % plot_phase_space
 %
@@ -40,12 +40,12 @@ if (exist('fname','var') ~=1)
    fname = input('Input name of netCDF file:\n<cr> for True_State.nc\n','s');
    if isempty(fname)
       fname = 'True_State.nc';
-   end                                                                          
+   end
 else
    if isempty(fname), fname = 'True_State.nc'; end
    s1 = input(sprintf('Input name of netCDF file:\n<cr> for %s\n',fname),'s');
    if ~isempty(s1), fname = s1; end
-end 
+end
 
 if ( exist(fname,'file') ~= 2 ), error('%s does not exist.',fname); end
 
@@ -62,17 +62,17 @@ switch lower(pinfo.model)
       if (exist('var1','var') ~=1)
          s1 = input(sprintf('Input variable index for ''X'' variable %s. <cr> for 1.\n',str1),'s');
          if isempty(s1), var1 = 1; else var1 = str2num(deblank(s1)); end
-      end 
+      end
 
       if (exist('var2','var') ~=1)
          s1 = input(sprintf('Input variable index for ''Y'' variable %s. <cr> for 2.\n',str1),'s');
          if isempty(s1), var2 = 2; else var2 = str2num(deblank(s1)); end
-      end 
+      end
 
       if (exist('var3','var') ~=1)
          s1 = input(sprintf('Input variable index for ''Z'' variable %s. <cr> for 3.\n',str1),'s');
          if isempty(s1), var3 = 3; else var3 = str2num(deblank(s1)); end
-      end 
+      end
 
       if (exist('ens_mem','var') ~=1)
          % Set a viable default ensemble member string
@@ -86,12 +86,12 @@ switch lower(pinfo.model)
          str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''\n',ens_mem);
          s1 = input(str1,'s');
          if ~ isempty(s1), ens_mem = s1; end
-      end 
+      end
 
       if (exist('ltype','var') ~=1)
          s1 = input('Input line type string. <cr> for ''k-''\n','s');
          if isempty(s1), ltype = 'k-'; else ltype = s1; end
-      end 
+      end
 
       pinfo = struct('fname'   , fname       , ...
                      'model'   , pinfo.model  , ...
@@ -131,12 +131,12 @@ switch lower(pinfo.model)
          str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''\n',ens_mem);
          s1 = input(str1,'s');
          if ~ isempty(s1), ens_mem = s1; end
-      end 
+      end
 
       if (exist('ltype','var') ~=1)
          s1 = input('Input line type string. <cr> for ''k-''\n','s');
          if isempty(s1), ltype = 'k-'; else ltype = s1; end
-      end 
+      end
 
       pinfo = struct('fname'   , fname    , ...
                      'model'   , pinfo.model  , ...
@@ -198,12 +198,12 @@ switch lower(pinfo.model)
          str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''\n',ens_mem);
          s1 = input(str1,'s');
          if ~ isempty(s1), ens_mem = s1; end
-      end 
+      end
 
       if (exist('ltype','var') ~=1)
          s1 = input('Input line type string. <cr> for ''k-''\n','s');
          if isempty(s1), ltype = 'k-'; else ltype = s1; end
-      end 
+      end
 
       pinfo = struct('fname'   , fname    , ...
                      'model'   , pinfo.model  , ...
@@ -246,12 +246,12 @@ switch lower(pinfo.model)
       if (exist('var1','var') ~=1)
          s1 = input(sprintf('Input variable index for ''X'' variable %s. <cr> for 1.\n',str1),'s');
          if isempty(s1), var1 = 1; else var1 = str2num(deblank(s1)); end
-      end 
+      end
 
       if (exist('var2','var') ~=1)
          s1 = input(sprintf('Input variable index for ''Y'' variable %s. <cr> for 2.\n',str1),'s');
          if isempty(s1), var2 = 2; else var2 = str2num(deblank(s1)); end
-      end 
+      end
 
       if (exist('ens_mem','var') ~=1)
          % Set a viable default ensemble member string
@@ -265,12 +265,12 @@ switch lower(pinfo.model)
          str1 = sprintf('Input ensemble member metadata STRING. <cr> for ''%s''\n',ens_mem);
          s1 = input(str1,'s');
          if ~ isempty(s1), ens_mem = s1; end
-      end 
+      end
 
       if (exist('ltype','var') ~=1)
          s1 = input('Input line type string. <cr> for ''k-''\n','s');
          if isempty(s1), ltype = 'k-'; else ltype = s1; end
-      end 
+      end
 
       pinfo = struct('fname'   , fname       , ...
                      'model'   , pinfo.model  , ...

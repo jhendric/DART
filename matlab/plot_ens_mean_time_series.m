@@ -1,8 +1,8 @@
 %% DART:plot_ens_mean_time_series  time series of ensemble mean and truth
-%                                                                               
+%
 % plot_ens_mean_time_series    interactively queries for the needed information.
-%              Since different models potentially need different pieces of 
-%              information ... the model types are determined and additional 
+%              Since different models potentially need different pieces of
+%              information ... the model types are determined and additional
 %              user input may be queried.
 %
 % Ultimately, plot_ens_mean_time_series will be replaced by a GUI.

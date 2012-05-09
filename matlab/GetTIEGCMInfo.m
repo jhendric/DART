@@ -74,7 +74,7 @@ switch lower(deblank(routine))
        comp_var               = GetVar(prognostic_vars,          base_var);
       [comp_lvl, comp_lvlind] = GetLevel(    comp_var,levels,    base_lvlind);
 
-      pinfo.model       = model; 
+      pinfo.model       = model;
       pinfo.base_var    = base_var;
       pinfo.comp_var    = comp_var;
       pinfo.base_time   = base_time;
@@ -148,7 +148,7 @@ switch lower(deblank(routine))
       if ( exist(pstruct.truth_file,'file') )
          pinfo.truth_file = pstruct.truth_file;
       end
-       
+
 
    case 'plotphasespace'
 
@@ -216,11 +216,11 @@ str = sprintf(' %s ',prognostic_vars{1});
 for i = 2:length(prognostic_vars),
    str = sprintf(' %s %s ',str,prognostic_vars{i});
 end
-fprintf('Default variable is ''%s'', if this is OK, <cr>;\n',pgvar)  
+fprintf('Default variable is ''%s'', if this is OK, <cr>;\n',pgvar)
 fprintf('If not, please enter one of: %s\n',str)
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), pgvar = strtrim(varstring); end 
+if ~isempty(varstring), pgvar = strtrim(varstring); end
 inds        = strfind(pgvar,',');
 pgvar(inds) = '';
 
@@ -254,7 +254,7 @@ if ~isempty(varstring), tindex = str2num(varstring); end
 
 timeinds = 1:ntimes;
 d        = abs(tindex - timeinds); % crude distance
-ind      = find(min(d) == d);      % multiple minima possible 
+ind      = find(min(d) == d);      % multiple minima possible
 timeind  = ind(1);                 % use the first one
 time     = times(timeind);
 
@@ -271,7 +271,7 @@ fprintf('If not, enter a level between %d and %d, inclusive ...\n', ...
                          1,length(levels))
 varstring = input('we''ll use the closest (no syntax required)\n','s');
 
-if ~isempty(varstring), lvlind = str2num(varstring); end 
+if ~isempty(varstring), lvlind = str2num(varstring); end
 
 level  = levels(lvlind);
 
@@ -281,15 +281,15 @@ function [lon, lonind] = GetLongitude(pgvar, lons, deflon)
 %----------------------------------------------------------------------
 if (nargin == 3), lon = deflon; else lon = 255.0-360.0; end
 
-fprintf('Default longitude is %f, if this is OK, <cr>;\n',lon)  
+fprintf('Default longitude is %f, if this is OK, <cr>;\n',lon)
 fprintf('If not, enter a longitude between %.2f and %.2f, we use the closest.\n', ...
                          min(lons),max(lons))
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), lon  = str2num(varstring); end 
+if ~isempty(varstring), lon  = str2num(varstring); end
 
 d      = abs(lon - lons);    % crude distance
-ind    = find(min(d) == d);  % multiple minima possible 
+ind    = find(min(d) == d);  % multiple minima possible
 lonind = ind(1);             % use the first one
 lon    = lons(lonind);
 
@@ -304,10 +304,10 @@ fprintf('If not, enter a latitude between %.2f and %.2f, we use the closest.\n',
                          min(lats),max(lats))
 varstring = input('(no syntax required)\n','s');
 
-if ~isempty(varstring), lat = str2num(varstring); end 
+if ~isempty(varstring), lat = str2num(varstring); end
 
 d      = abs(lat - lats);    % crude distance
-ind    = find(min(d) == d);  % multiple minima possible 
+ind    = find(min(d) == d);  % multiple minima possible
 latind = ind(1);             % use the first one
 lat    = lats(latind);
 

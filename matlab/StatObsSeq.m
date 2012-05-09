@@ -57,7 +57,7 @@ for i = 1:a.num_obs,
    if ( a.kind(i) == KIND_U )
 
      if (a.obs(1,i) == -888888.0)
-        
+
         bu(2*itime-1) = bu(2*itime-1) + 1;
         bu(2*itime)   = bu(2*itime)   + 1;
 
@@ -82,7 +82,7 @@ for i = 1:a.num_obs,
    elseif ( a.kind(i) == KIND_V )
 
      if (a.obs(1,i) == -888888.0)
-        
+
         bv(2*itime-1) = bv(2*itime-1) + 1;
         bv(2*itime)   = bv(2*itime)   + 1;
 
@@ -107,7 +107,7 @@ for i = 1:a.num_obs,
    elseif ( a.kind(i) == KIND_T )
 
      if (a.obs(1,i) == -888888.0)
-        
+
         bt(2*itime-1) = bt(2*itime-1) + 1;
         bt(2*itime)   = bt(2*itime  ) + 1;
 

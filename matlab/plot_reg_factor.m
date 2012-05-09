@@ -56,7 +56,7 @@ unique_states = state_ind_mat(:,1);   % matrix of state indices
 
 plotdat.data = reshape(reg_diagnostics(:,5),[num_state num_obs num_times]);
 
-subset = squeeze(plotdat.data(:,obs_index,:)); 
+subset = squeeze(plotdat.data(:,obs_index,:));
 
 plotdat.shapes = {'states','observations','times'};
 plotdat.x      = unique_states;

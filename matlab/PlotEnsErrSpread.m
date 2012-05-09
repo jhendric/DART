@@ -1,5 +1,5 @@
 function PlotEnsErrSpread( pinfo )
-%% PlotEnsErrSpread     Creates summary plots of error and spread 
+%% PlotEnsErrSpread     Creates summary plots of error and spread
 %
 % PlotEnsErrSpread is intended to be called by 'plot_ens_err_spread'.
 % The only input argument is a structure with model-dependent
@@ -7,12 +7,12 @@ function PlotEnsErrSpread( pinfo )
 %
 % USAGE: EnsErrSpread( pinfo )
 %
-% STRUCTURE COMPONENTS FOR low-order models 
+% STRUCTURE COMPONENTS FOR low-order models
 % truth_file      name of netCDF DART file with copy tagged 'true state'
 % diagn_file      name of netCDF DART file with copies tagged 'ensemble mean'
 %                 and 'ensemble spread'
 % var             name of netCDF variable of interest
-% var_inds        indices of variables of interest 
+% var_inds        indices of variables of interest
 %
 % Example 0   (9var  model)
 %%--------------------------------------------------------
@@ -87,7 +87,7 @@ switch lower(pinfo.model)
 
             ivar = (i - 1)*3 + j;
 
-            err         = total_err(ens_mean(:,ivar) , truth(:,ivar));  
+            err         = total_err(ens_mean(:,ivar) , truth(:,ivar));
             errTotal    = sum(err)                / pinfo.time_series_length;
             spreadTotal = sum(ens_spread(:,ivar)) / pinfo.time_series_length;
             string1 = ['time-mean Ensemble Mean Total Error = ' num2str(errTotal)];
@@ -108,7 +108,7 @@ switch lower(pinfo.model)
       end
 
    case {'lorenz_63','lorenz_84','lorenz_96','lorenz_96_2scale', ...
-	 'lorenz_04','forced_lorenz_96','ikeda','simple_advection'} 
+	 'lorenz_04','forced_lorenz_96','ikeda','simple_advection'}
 
       truth      = get_hyperslab('fname',pinfo.truth_file, ...
                        'varname',pinfo.var, 'copyindex',truth_index, ...
@@ -121,11 +121,11 @@ switch lower(pinfo.model)
       ens_spread = get_hyperslab('fname',pinfo.diagn_file, ...
                        'varname',pinfo.var, 'copyindex',ens_spread_index, ...
                        'tindex1',pinfo.diagn_time(1), 'tcount',pinfo.diagn_time(2)) ;
-                   
+
       clf; iplot = 0;
       for ivar = pinfo.var_inds,
             iplot = iplot + 1;
-            err         = total_err(ens_mean(:,ivar) , truth(:,ivar));  
+            err         = total_err(ens_mean(:,ivar) , truth(:,ivar));
             errTotal    = sum(err)                / pinfo.time_series_length;
             spreadTotal = sum(ens_spread(:,ivar)) / pinfo.time_series_length;
             string1 = ['time-mean Ensemble Mean Total Error = ' num2str(errTotal)];
@@ -165,7 +165,7 @@ switch lower(pinfo.model)
          PlotLocator(pinfo);
 
       subplot(2,1,2)
-         err         = total_err(ens_mean, truth);  
+         err         = total_err(ens_mean, truth);
          errTotal    = sum(err)        / pinfo.time_series_length;
          spreadTotal = sum(ens_spread) / pinfo.time_series_length;
          string1 = ['time-mean Ensemble Mean Total Error = ' num2str(errTotal)];
@@ -206,7 +206,7 @@ switch lower(pinfo.model)
          PlotLocator(pinfo);
 
       subplot(2,1,2)
-         err         = total_err(ens_mean, truth);  
+         err         = total_err(ens_mean, truth);
          errTotal    = sum(err)        / pinfo.time_series_length;
          spreadTotal = sum(ens_spread) / pinfo.time_series_length;
          string1 = ['time-mean Ensemble Mean Total Error = ' num2str(errTotal)];
@@ -246,8 +246,8 @@ function PlotLocator(pinfo)
        continents('hollow','greenwich');
    end
 
-   
-   
+
+
 function xdates(dates)
 if (length(dates) < 5)
    set(gca,'XTick',dates);

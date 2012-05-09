@@ -116,7 +116,7 @@ switch lower(pinfo.model)
       clf; iplot = 0;
       for ivar = pinfo.var_inds,
          iplot = iplot + 1;
-         
+
          truth = get_hyperslab('fname',pinfo.truth_file, 'varname',pinfo.var, ...
                      'copyindex',truth_index, 'stateindex',ivar, ...
                      'tindex1',pinfo.truth_time(1), 'tcount',pinfo.truth_time(2));
