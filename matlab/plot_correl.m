@@ -1,11 +1,11 @@
-%% DART:plot_correl Plots space-time series of correlation between a given variable 
-%               at a given time and other variables at all times in an 
+%% DART:plot_correl Plots space-time series of correlation between a given variable
+%               at a given time and other variables at all times in an
 %               ensemble time sequence.
 %
 % plot_correl  interactively queries for the information needed to create
 %              the desired correlations.
-%              Since different models potentially need different pieces 
-%              of information ... the model types are determined and 
+%              Since different models potentially need different pieces
+%              of information ... the model types are determined and
 %              additional user input may be queried.
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
@@ -24,7 +24,7 @@ if (exist('diagn_file','var') ~=1)
    if isempty(diagn_file)
       diagn_file = 'Prior_Diag.nc';
    end
-end 
+end
 
 if ( exist(diagn_file,'file') ~= 2 ), error('%s does not exist.',diagn_file); end
 
@@ -102,6 +102,10 @@ switch lower(pinfo.model)
    case 'cam'
 
       pinfo = GetCamInfo(pinfo, diagn_file, 'PlotCorrel');
+
+   case 'clm'
+
+      pinfo = GetClmInfo(pinfo, diagn_file, 'PlotCorrel');
 
    case 'wrf'
 

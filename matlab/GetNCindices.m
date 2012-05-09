@@ -17,7 +17,7 @@ function [start, count] = GetNCindices(pinfo, whichfile, varname)
 %                    pinfo.stateindex
 %                    pinfo.regionindex
 %
-% whichfile          is a character string specifying which 
+% whichfile          is a character string specifying which
 %                    filename component of 'pinfo' will be used.
 %                    ['prior','posterior','truth','diagn','fname']
 % varname            is the netcdf variable being extracted.
@@ -127,11 +127,11 @@ ndims   = length(varinfo.Dimension);
 start   = zeros(1,ndims);
 count   = zeros(1,ndims);
 
-% varinfo.Dimension is a cell array of the Dimension strings 
+% varinfo.Dimension is a cell array of the Dimension strings
 % varinfo.Size is an N-D array describing the variable shape
 % varinfo.Attribute is a struct holding the variable attribues
 
-% loop over all of the variables dimensions and 
+% loop over all of the variables dimensions and
 % build up the start/endpoint arrays
 
 for i = 1:ndims
@@ -146,10 +146,10 @@ for i = 1:ndims
    % ditto for lat, lon ... (on staggered grids, for example)
    % So the XG coordinate dimension has 'cartesian_axis = X',
    % for example.
-   
+
    [len, status, value] = is_dimension_cartesian(fname, diminfo.Name);
-   
-   if (status > 0) 
+
+   if (status > 0)
       dimname = value;
    else
       % Then there is no 'cartesian_axis' attribute and the best we can
@@ -164,7 +164,7 @@ for i = 1:ndims
            case 'copy'
                start(i) = copy1;
                count(i) = copyN;
-           case {'surf','unde','hlev','mlev','plev','heig','leve','bott','ilev','nver'}
+           case {'surf','unde','hlev','mlev','plev','heig','leve','bott','ilev','nver','levt','levs'}
                start(i) = level1;
                count(i) = levelN;
            case {'tmpj','sout'}
@@ -218,9 +218,9 @@ len      = 0;
 value    = [];
 
 if ( nc_isvar(fname,dimname) )
-    
+
     % Good - the coordinate variable exists.
-    
+
     Cvarinfo = nc_getvarinfo(fname, dimname);
 
    for j = 1:length(Cvarinfo.Attribute);
@@ -236,6 +236,6 @@ if ( nc_isvar(fname,dimname) )
    end
 
 else % there is no coordinate variable ... use something else
-    
+
 end
 

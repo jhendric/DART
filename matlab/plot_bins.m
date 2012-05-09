@@ -1,4 +1,4 @@
-%% DART:plot_bins Plots ensemble rank histograms 
+%% DART:plot_bins Plots ensemble rank histograms
 %
 % plot_bins    interactively queries for the information needed to create
 %              ensemble rank histograms. Since different models potentially
@@ -24,12 +24,12 @@
 % $Revision$
 % $Date$
 
-% error_checking ... 
-% exist('bob') == 1   means the variable exists. 
+% error_checking ...
+% exist('bob') == 1   means the variable exists.
 %                     the value of the variable is checked later.
 
-if (exist('truth_file','var') ~= 1) 
-   disp('Input name of True State file:') 
+if (exist('truth_file','var') ~= 1)
+   disp('Input name of True State file:')
    truth_file = input('<cr> for True_State.nc\n','s');
    if isempty(truth_file)
       truth_file = 'True_State.nc';
@@ -37,7 +37,7 @@ if (exist('truth_file','var') ~= 1)
 end
 
 if (exist('diagn_file','var') ~=1)
-   disp('Input name of prior or posterior diagnostics file:') 
+   disp('Input name of prior or posterior diagnostics file:')
    diagn_file = input('<cr> for Prior_Diag.nc\n','s');
    if isempty(diagn_file)
       diagn_file = 'Prior_Diag.nc';
@@ -71,6 +71,10 @@ switch lower(pinfo.model)
 
       pinfo = GetCamInfo(pinfo, diagn_file, 'PlotBins');
 
+   case 'clm'
+
+      pinfo = GetClmInfo(pinfo, diagn_file, 'PlotBins');
+
    case 'wrf'
 
       pinfo = GetWRFInfo(pinfo, diagn_file, 'PlotBins');
@@ -84,7 +88,7 @@ switch lower(pinfo.model)
       pinfo = GetMITgcm_oceanInfo(pinfo, diagn_file, 'PlotBins');
 
    case 'mpas_atm'
-       
+
       pinfo = GetMPAS_ATMInfo(pinfo, diagn_file, 'PlotBins');
 
    otherwise

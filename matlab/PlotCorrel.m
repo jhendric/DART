@@ -62,7 +62,7 @@ switch(lower(pinfo.model))
       state_var = get_hyperslab('fname',pinfo.fname, 'varname',pinfo.base_var, ...
                   'copyindex1',pinfo.ensemble_indices(1),'copycount',pinfo.num_ens_members, ...
                   'state1',pinfo.min_state_var,'statecount',pinfo.num_state_vars);
-      
+
       % It is efficient to preallocate correl storage ...
       correl = zeros(pinfo.num_state_vars,pinfo.time_series_length);
 
@@ -359,7 +359,7 @@ switch(lower(pinfo.model))
       axis image
       colorbar;
 
-   case {'tiegcm'}
+   case 'tiegcm'
 
       % We are going to correlate one var/time/lvl/lat/lon  with
       % all other lats/lons for a var/time/lvl
@@ -415,7 +415,7 @@ switch(lower(pinfo.model))
       axis image
       colorbar;
 
-   case {'mpas_atm'}
+   case 'mpas_atm'
 
       %% We are going to correlate one var/time/lvl/location  with
       %  all other locations for a var/time/lvl
@@ -461,6 +461,72 @@ switch(lower(pinfo.model))
       set(gca,'Clim',[-1 1])
       axis([-10 370 -Inf Inf])
       colorbar;
+
+   case 'clm'
+
+      % We are going to correlate one var/time/lvl/lat/lon  with
+      % all other lats/lons for a var/time/lvl
+
+      clf;
+
+      lats     = nc_varget(pinfo.fname,'lat'); ny = length(lats);
+      lons     = nc_varget(pinfo.fname,'lon'); nx = length(lons);
+      latunits = nc_attget(pinfo.fname,'lat','units');
+      lonunits = nc_attget(pinfo.fname,'lon','units');
+
+      nxny     = nx*ny;
+
+      %% CLM variables must be reconstituted into grid cell values for
+      %  each ensemble member.
+      %  Need all copies  ... base_mem has shape [1,nmembers]
+      %  Need all copies  ... comp_ens has shape [nmembers,nxny]
+
+      metadata    = nc_varget(pinfo.fname,'CopyMetaData');      % get all the metadata
+      copyindices = strmatch('ensemble member',metadata); % find all 'member's
+      nmembers    = length(copyindices);
+
+      base_mem = zeros(1,nmembers);
+      comp_ens = zeros(nmembers,nxny);
+      corr     = zeros(nxny,1);
+
+      for imem = 1:nmembers,
+
+         copystring = sprintf('ensemble member %d',imem);
+         base  = clm_get_var(pinfo.fname, pinfo.base_var, copystring, ...
+                                    pinfo.base_lvlind, pinfo.base_tmeind);
+         base_mem(imem) = base.datmat(pinfo.base_latind, pinfo.base_lonind);
+
+         comp  = clm_get_var(pinfo.fname, pinfo.comp_var, copystring, ...
+                                  pinfo.comp_lvlind, pinfo.base_tmeind);
+         comp_ens(imem,:) = comp.datmat(:);
+
+      end
+
+      for i = 1:nxny,
+         x = corrcoef(base_mem, comp_ens(:, i));
+         corr(i) = x(1, 2);
+      end
+
+      correl = reshape(corr,[ny nx]);
+
+%     contour(lons,lats,correl,[-1:0.2:-0.2 0.2:0.2:1.0]); hold on;
+      h3 = imagesc(lons,lats,correl); set(gca,'YDir','normal');
+      set(h3,'AlphaData',~isnan(correl))
+      hold on;
+      plot(pinfo.base_lon, pinfo.base_lat, 'pk', ...
+                 'MarkerSize',12,'MarkerFaceColor','k');
+      s1 = sprintf('%s Correlation of ''%s'', level %d, (%.2f,%.2f) T = %f', ...
+           model, pinfo.base_var, pinfo.base_lvl, ...
+             pinfo.base_lat, pinfo.base_lon, pinfo.base_time);
+
+      s2 = sprintf('against ''%s'', entire level %d, same time, %d ensemble members', ...
+               pinfo.comp_var, pinfo.comp_lvl, nmembers);
+      title({s1,s2,pinfo.fname},'interpreter','none','fontweight','bold')
+      xlabel(sprintf('longitude (%s)',lonunits),'interpreter','none')
+      ylabel(sprintf('latitude (%s)',latunits),'interpreter','none')
+      worldmap('hollow');
+      axis image
+      h = colorbar;
 
    otherwise
 

@@ -1,11 +1,11 @@
 function vars = CheckModel(fname)
-%% CheckModel   tries to ensure that a netcdf file has what we expect. 
+%% CheckModel   tries to ensure that a netcdf file has what we expect.
 %
 % vars is a structure containing a minimal amount of metadata about the netCDF file.
-% 
+%
 % EXAMPLE:
 % fname = 'Prior_Diag.nc';
-% vars = CheckModel(fname) 
+% vars = CheckModel(fname)
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -32,7 +32,7 @@ num_times  = length(dates);
 
 clear times timeunits timebase timeorigin
 
-if (isempty(model)) 
+if (isempty(model))
    error('%s has no ''model'' global attribute.',fname)
 end
 
@@ -43,7 +43,7 @@ switch lower(model)
       num_vars      = dim_length(fname,'StateVariable'); % determine # of state varbls
       StateVariable =  nc_varget(fname,'StateVariable');
 
-      def_state_vars = zeros(1,num_vars);    % for use as a subscript array, 
+      def_state_vars = zeros(1,num_vars);    % for use as a subscript array,
       def_state_vars(:) = StateVariable(:);  % def_state_vars must be a row vector.
 
       vars = struct('model',model, ...
@@ -65,7 +65,7 @@ switch lower(model)
       num_vars      = dim_length(fname,'StateVariable'); % determine # of state varbls
       StateVariable =  nc_varget(fname,'StateVariable');
 
-      % The only trick is to pick an equally-spaced subset of state 
+      % The only trick is to pick an equally-spaced subset of state
       % variables for the default.
 
       def_state_vars = round([1 , num_vars/3 , 2*num_vars/3]);
@@ -96,7 +96,7 @@ switch lower(model)
 
       num_vars = dim_length(fname,'StateVariable'); % determine # of state varbls
 
-      % The only trick is to pick an equally-spaced subset of state 
+      % The only trick is to pick an equally-spaced subset of state
       % variables for the default.
 
       def_state_vars = round([1 , num_model_vars/3 , 2*num_model_vars/3]);
@@ -132,7 +132,7 @@ switch lower(model)
       num_Y  = dim_length(fname,'Ydim'); % # of Y variables
       Ydim   =  nc_varget(fname,'Ydim');
 
-      % The only trick is to pick an equally-spaced subset of state 
+      % The only trick is to pick an equally-spaced subset of state
       % variables for the default.
 
       def_X_inds = round([1 , num_X/3 , 2*num_X/3]);
@@ -209,7 +209,24 @@ switch lower(model)
 
       vars.vars  = varnames;
       vars.fname = fname;
-     
+
+   case {'clm'}
+
+      varnames = get_DARTvars(fname);
+      num_vars = length(varnames);
+      dinfo    = nc_getdiminfo(fname,'levtot');
+      nlevels  = dinfo.Length;
+
+      vars = struct('model',model, ...
+              'num_state_vars',num_vars, ...
+              'num_ens_members',num_copies, ...
+              'time_series_length',num_times, ...
+              'min_ens_mem',min(copy), ...
+              'max_ens_mem',max(copy) );
+
+      vars.vars  = varnames;
+      vars.fname = fname;
+
    case {'cam','tiegcm','fms_bgrid','pe2lyr','mitgcm_ocean','pbl_1d','mpas_atm'}
 
       varnames = get_DARTvars(fname);
@@ -227,7 +244,7 @@ switch lower(model)
 
       vars.vars  = varnames;
       vars.fname = fname;
-      
+
    otherwise
 
       error('model %s unknown',model)
@@ -237,7 +254,7 @@ end
 
 function x = dim_length(fname,dimname)
 % Check for the existence of the named dimension and return it
-% if it exists. If it does not, error out with a useful message. 
+% if it exists. If it does not, error out with a useful message.
 
 info = nc_info(fname);
 n    = length(dimname);
