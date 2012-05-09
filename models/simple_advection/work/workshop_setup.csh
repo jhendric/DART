@@ -87,8 +87,6 @@ foreach TARGET ( mkmf_* )
    endsw
 end
 
-exit
-
 @ n = $n + 1
 ./perfect_model_obs || exit $n
 
