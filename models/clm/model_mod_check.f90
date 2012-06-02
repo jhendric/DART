@@ -20,7 +20,8 @@ use    utilities_mod, only : initialize_utilities, timestamp, nc_check, &
                              check_namelist_read
 use     location_mod, only : location_type, set_location, write_location, get_dist, &
                              query_location, LocationDims, get_location, VERTISHEIGHT
-use     obs_kind_mod, only : get_raw_obs_kind_name, get_raw_obs_kind_index
+use     obs_kind_mod, only : get_raw_obs_kind_name, get_raw_obs_kind_index, &
+                             KIND_SNOWCOVER_FRAC, KIND_SOIL_TEMPERATURE
 use  assim_model_mod, only : open_restart_read, open_restart_write, close_restart, &
                              aread_state_restart, awrite_state_restart, &
                              netcdf_file_type, aoutput_diagnostics, &
@@ -32,7 +33,7 @@ use time_manager_mod, only : time_type, set_calendar_type, GREGORIAN, &
                              operator(-)
 use        model_mod, only : static_init_model, get_model_size, get_state_meta_data, &
                              compute_gridcell_value, find_gridcell_Npft, model_interpolate, &
-                             DART_get_var
+                             DART_get_var, get_grid_vertval
 
 implicit none
 
@@ -217,17 +218,32 @@ endif
 
 if (test1thru > 8) then
    write(*,*)
-   write(*,*)'Testing compute_gridcell_value() ...'
+   write(*,*)'Testing compute_gridcell_value() with "frac_sno" ...'
 
    loc = set_location(loc_of_interest(1), loc_of_interest(2), loc_of_interest(3), VERTISHEIGHT)
 
-   call compute_gridcell_value(statevector, loc, kind_of_interest, interp_val, ios_out)
+   call compute_gridcell_value(statevector, loc, "frac_sno", interp_val, ios_out)
 
    if ( ios_out == 0 ) then 
       write(*,*)'compute_gridcell_value : value is ',interp_val
    else
       write(*,*)'compute_gridcell_value : value is ',interp_val,'with error code',ios_out
    endif
+
+
+   write(*,*)
+   write(*,*)'Testing get_grid_vertval() with "T_SOISNO" ...'
+
+   loc = set_location(loc_of_interest(1), loc_of_interest(2), loc_of_interest(3), VERTISHEIGHT)
+
+   call get_grid_vertval(statevector, loc, "T_SOISNO", interp_val, ios_out)
+
+   if ( ios_out == 0 ) then 
+      write(*,*)'get_grid_vertval : value is ',interp_val
+   else
+      write(*,*)'get_grid_vertval : value is ',interp_val,'with error code',ios_out
+   endif
+
 endif
 
 !----------------------------------------------------------------------
@@ -236,17 +252,28 @@ endif
 
 if (test1thru > 9) then
    write(*,*)
-   write(*,*)'Testing model_interpolate() with KIND == 90 ... KIND_SNOWCOVER_FRAC'
+   write(*,*)'Testing model_interpolate() with KIND_SNOWCOVER_FRAC'
 
-   ! KIND_SNOWCOVER_FRAC = 90, &   comes from the obs_kind_mod.f90
-
-   call model_interpolate(statevector, loc, 90, interp_val, ios_out)
+   call model_interpolate(statevector, loc, KIND_SNOWCOVER_FRAC, interp_val, ios_out)
 
    if ( ios_out == 0 ) then 
       write(*,*)'model_interpolate : value is ',interp_val
    else
       write(*,*)'model_interpolate : value is ',interp_val,'with error code',ios_out
    endif
+
+
+   write(*,*)
+   write(*,*)'Testing model_interpolate() with KIND_SOIL_TEMPERATURE'
+
+   call model_interpolate(statevector, loc, KIND_SOIL_TEMPERATURE, interp_val, ios_out)
+
+   if ( ios_out == 0 ) then 
+      write(*,*)'model_interpolate : value is ',interp_val
+   else
+      write(*,*)'model_interpolate : value is ',interp_val,'with error code',ios_out
+   endif
+
 endif
 
 !----------------------------------------------------------------------
