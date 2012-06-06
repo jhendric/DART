@@ -15,8 +15,8 @@ echo "starting assimilate script at "`date`
 switch ("`hostname`")
    case be*:
       # NCAR "bluefire"
-      # The FORCE options are not optional.
-      # the VERBOSE options are useful for debugging.
+# The FORCE options are not optional.
+# the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
       set   LINK = '/usr/local/bin/ln -fvs'
@@ -25,8 +25,8 @@ switch ("`hostname`")
       set BASEOBSDIR = /glade/proj3/image/Observations/land
       set DARTDIR    = ${HOME}/svn/DART/dev
       set LAUNCHCMD  = mpirun.lsf
-
    breaksw
+
    default:
       # NERSC "hopper"
       set   MOVE = 'mv -fv'
@@ -69,7 +69,6 @@ echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_SECONDS 
 echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (hours)"
 
 #-----------------------------------------------------------------------------
-# Set variables containing various directory names where we will GET things.
 # Get observation sequence file ... or die right away. Cannot specify -f on
 # the link command and still check status.
 #-----------------------------------------------------------------------------
@@ -96,8 +95,8 @@ endif
 if (  -e   ${CASEROOT}/input.nml ) then
    ${COPY} ${CASEROOT}/input.nml .
 else
-   echo "ERROR ... DART required file ${CASEROOT}/${FILE} not found ... ERROR"
-   echo "ERROR ... DART required file ${CASEROOT}/${FILE} not found ... ERROR"
+   echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
+   echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
    exit 1
 endif
 
@@ -115,8 +114,9 @@ ex_end
 #=========================================================================
 # Block 2: Stage the files needed for SAMPLING ERROR CORRECTION
 #
-# Each ensemble size has its own (static) file which does not need to be archived.
-# It is only needed if
+# The sampling error correction is a lookup table. The tables are stored
+# in the DART distribution. Each ensemble size has its own (static) file 
+# which does not need to be archived.  It is only needed if
 # input.nml:&assim_tools_nml:sampling_error_correction = .true.,
 #=========================================================================
 
@@ -226,9 +226,9 @@ if ( $PRIOR_INF > 0 ) then
       echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
       exit 4
    endif
-else
+   else
    echo "Prior Inflation not requested for this assimilation."
-endif
+   endif
 
 # POSTERIOR: We look for the 'newest' and use it - IFF we need it.
 
@@ -310,7 +310,7 @@ while ( ${member} <= ${ensemble_size} )
 
    cd ..
 
-   @ member ++
+   @ member++
 end
 
 wait
@@ -343,6 +343,7 @@ endif
 #=========================================================================
 
 # clm always needs a clm_restart.nc, clm_history.nc for geometry information, etc.
+
 set LND_RESTART_FILENAME = ../${MYCASE}.clm2_0001.r.${MODEL_DATE_EXT}.nc
 set LND_HISTORY_FILENAME = ../${MYCASE}.clm2_0001.h0.${MODEL_DATE_EXT}.nc
 
@@ -410,7 +411,7 @@ while ( ${member} <= ${ensemble_size} )
 
    cd ..
 
-   @ member ++
+   @ member++
 end
 
 wait
