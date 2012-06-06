@@ -174,7 +174,7 @@ gpskey = keycount
 
 if(gpskey > max_gpsro_obs) then
    write(string1, *) 'key (',gpskey,') exceeds max_gpsro_obs (',max_gpsro_obs,')'
-   string2 = 'Increase max_gpsro_obs in obs_def_gps_mod.f90 and rerun preprocess, recompile executables.'
+   string2 = 'Increase max_gpsro_obs in input.nml &obs_def_gps_nml namelist.'
    call error_handler(E_ERR,'read_gpsro_ref', string1, &
                       source, revision, revdate, text2=string2)
 endif
