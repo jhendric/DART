@@ -85,6 +85,7 @@ real(r8)                :: oerr, qc
 type(obs_sequence_type) :: obs_seq
 type(obs_type)          :: obs, prev_obs
 type(time_type)         :: time_obs, prev_time, offset
+integer, parameter      :: umol_to_gC = 12.0_r8 * -1000000.0_r8
 
 type towerdata
   type(time_type)   :: time_obs
@@ -235,7 +236,7 @@ obsloop: do iline = 2,nlines
    ! Increasingly larger QC values are more questionable quality data.
 
    if (tower%hQC <= maxgoodqc) then
-      oerr = tower%h * 0.1_r8  ! total guess
+      oerr = 2.5_r8  ! 10 percent of the 'nighttime' values  - total guess
       qc   = real(tower%hQC,r8)
       call create_3d_obs(latitude, longitude, flux_height, VERTISHEIGHT, tower%h, &
                          TOWER_LATENT_HEAT_FLUX, oerr, oday, osec, qc, obs)
@@ -243,16 +244,20 @@ obsloop: do iline = 2,nlines
    endif
 
    if (tower%leQC <= maxgoodqc) then
-      oerr = tower%le * 0.1_r8  ! total guess
+      oerr = 0.3_r8  ! 10 percent of the 'nighttime' values  - total guess
       qc   = real(tower%leQC,r8)
       call create_3d_obs(latitude, longitude, flux_height, VERTISHEIGHT, tower%le, &
                          TOWER_SENSIBLE_HEAT_FLUX, oerr, oday, osec, qc, obs)
       call add_obs_to_seq(obs_seq, obs, tower%time_obs, prev_obs, prev_time, first_obs)
    endif
 
+   ! A crude estimate of this would be something like 1+(0.25*|flux|) mumol m^2s^1 
+   ! which will give a range of ~1-5 at most of our sites. -- Andy Fox
    if (tower%neeQC <= maxgoodqc) then
-      oerr = tower%NEE * 0.1_r8  ! total guess
-      qc   = real(tower%neeQC,r8)
+      oerr      = 1.0_r8 + abs(tower%NEE)*0.25_r8
+      oerr      = oerr * umol_to_gC
+      tower%NEE = tower%NEE * umol_to_gC
+      qc        = real(tower%neeQC,r8)
       call create_3d_obs(latitude, longitude, flux_height, VERTISHEIGHT, tower%Nee, &
                          TOWER_NETC_ECO_EXCHANGE, oerr, oday, osec, qc, obs)
       call add_obs_to_seq(obs_seq, obs, tower%time_obs, prev_obs, prev_time, first_obs)
@@ -486,7 +491,7 @@ tower%month = nint(values(tower%monthindex))
 tower%day   = nint(values(tower%dayindex  ))
 tower%hour  =      values(tower%hourindex )
 tower%doy   =      values(tower%doyindex  )
-tower%nee   =      values(tower%neeindex  ) * 12.0_r8 * 1000000.0_r8
+tower%nee   =      values(tower%neeindex  )
 tower%neeQC = nint(values(tower%neeQCindex))
 tower%le    =      values(tower%leindex   )
 tower%leQC  = nint(values(tower%leQCindex ))
