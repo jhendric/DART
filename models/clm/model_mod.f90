@@ -138,7 +138,7 @@ type(random_seq_type) :: random_seq
 !------------------------------------------------------------------
 
 integer :: nfields
-integer, parameter :: max_state_variables = 20
+integer, parameter :: max_state_variables = 40
 integer, parameter :: num_state_table_columns = 2
 character(len=obstypelength) :: variable_table(max_state_variables, num_state_table_columns)
 
@@ -1644,6 +1644,8 @@ character(len=NF90_MAX_NAME) :: varname
 integer :: VarID, ncNdims, dimlen
 integer :: ncid
 character(len=256) :: myerrorstring
+integer :: fixme = 7000   ! intentionally declaring here so value
+                          ! persists across calls.
 
 integer, parameter :: LAKE = 3
 
@@ -1749,7 +1751,9 @@ do ivar=1, nfields
       ! MISSING values so we can test the block that aborts the update
       ! if some or any of the ensemble members have a missing value.
 
- !    data_1d_array(7000) = MISSING_R8
+ !    write(*,*)trim(progvar(ivar)%varname),'replacing ',data_1d_array(fixme),'with',MISSING_R8, 'element',fixme
+ !    data_1d_array(fixme) = MISSING_R8
+ !    fixme = fixme + 1
 
       do i = 1, ni
          state_vector(indx) = data_1d_array(i)
@@ -2106,12 +2110,10 @@ integer,             intent(out) :: istatus      ! error code (0 == good)
 
 integer  :: ivar, index1, indexN, indexi, counter
 integer  :: gridloni,gridlatj
-real(r8), dimension(3) :: loc
 real(r8) :: loc_lat, loc_lon
 real(r8) :: total, total_area
 real(r8), dimension(1) :: loninds,latinds
-
-real(r8), allocatable, dimension(:) :: contributors, depths, myarea
+real(r8), dimension(3) :: loc
 
 if ( .not. module_initialized ) call static_init_model
 
@@ -3145,13 +3147,14 @@ end function get_state_time_fname
 
 function set_model_time_step()
 !------------------------------------------------------------------
-! Since DART does not advance CLM, this is unimportant.
+! This defines the window used for assimilation.
+! all observations +/- half this timestep are assimilated.
 
 type(time_type) :: set_model_time_step
 
 if ( .not. module_initialized ) call static_init_model
 
-set_model_time_step = set_time(0, 1) ! (seconds, days)
+set_model_time_step = set_time(assimilation_period_seconds, assimilation_period_days)
 
 end function set_model_time_step
 
@@ -3193,9 +3196,8 @@ character(len=*),                 intent(in)  :: filename
 integer,                          intent(out) :: ngood
 character(len=*), dimension(:,:), intent(out) :: table
 
-integer :: nrows, ncols, i, j, VarID, numdims
-integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs
-character(len=NF90_MAX_NAME) :: varname, dimname
+integer :: nrows, ncols, i, VarID
+character(len=NF90_MAX_NAME) :: varname
 character(len=NF90_MAX_NAME) :: dartstr
 
 if ( .not. module_initialized ) call static_init_model
