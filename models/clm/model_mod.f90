@@ -32,7 +32,7 @@ module model_mod
 use        types_mod, only : r4, r8, SECPERDAY, MISSING_R8,                    &
                              MISSING_I, MISSING_R4, rad2deg, deg2rad, PI,      &
                              obstypelength
-use time_manager_mod, only : time_type, set_time, set_date, get_date, get_time,&
+use time_manager_mod, only : time_type, set_time, set_date, get_time,          &
                              print_time, print_date, set_calendar_type,        &
                              operator(*),  operator(+), operator(-),           &
                              operator(>),  operator(<), operator(/),           &
@@ -104,7 +104,8 @@ public :: get_gridsize,                 &
           get_grid_vertval,             &
           compute_gridcell_value,       &
           find_gridcell_Npft,           &
-          DART_get_var
+          DART_get_var,                 &
+          get_model_time
 
 ! version controlled file description for error handling, do not edit
 
@@ -454,6 +455,7 @@ if (do_output()) write(     *     , nml=model_nml)
 
 call set_calendar_type( calendar )   ! comes from model_mod_nml
 
+model_time     = get_state_time(clm_restart_filename)
 model_timestep = set_model_time_step()
 
 call get_time(model_timestep,ss,dd) ! set_time() assures the seconds [0,86400)
@@ -1623,7 +1625,7 @@ end subroutine get_gridsize
 
 
 
-subroutine restart_file_to_sv(filename, state_vector, model_time)
+subroutine restart_file_to_sv(filename, state_vector, restart_time)
 !------------------------------------------------------------------
 ! Reads the current time and state variables from a clm restart
 ! file and packs them into a dart state vector. This better happen
@@ -1631,7 +1633,7 @@ subroutine restart_file_to_sv(filename, state_vector, model_time)
 
 character(len=*), intent(in)    :: filename
 real(r8),         intent(inout) :: state_vector(:)
-type(time_type),  intent(out)   :: model_time
+type(time_type),  intent(out)   :: restart_time
 
 ! temp space to hold data while we are reading it
 integer  :: i, j, ni, nj, ivar, indx, numsnowlevels
@@ -1663,10 +1665,10 @@ endif
 call nc_check(nf90_open(trim(filename), NF90_NOWRITE, ncid), &
               'restart_file_to_sv','open '//trim(filename))
 
-model_time = get_state_time(ncid)
+restart_time = get_state_time(ncid)
 
-if (do_output()) call print_time(model_time,'time in restart file '//trim(filename))
-if (do_output()) call print_date(model_time,'date in restart file '//trim(filename))
+if (do_output()) call print_time(restart_time,'time in restart file '//trim(filename))
+if (do_output()) call print_date(restart_time,'date in restart file '//trim(filename))
 
 ! Must check anything with a dimension of 'levtot' or 'levsno' and manually
 ! set the values to DART missing. If only it were that easy ...
@@ -1860,14 +1862,14 @@ end subroutine restart_file_to_sv
 
 
 
-subroutine sv_to_restart_file(state_vector, filename, statedate)
+subroutine sv_to_restart_file(state_vector, filename, dart_time)
 !------------------------------------------------------------------
 ! Writes the current time and state variables from a dart state
 ! vector (1d array) into a clm netcdf restart file.
 !
 real(r8),         intent(in) :: state_vector(:)
 character(len=*), intent(in) :: filename
-type(time_type),  intent(in) :: statedate
+type(time_type),  intent(in) :: dart_time
 
 ! temp space to hold data while we are writing it
 integer :: i, ni, nj, ivar
@@ -1875,9 +1877,10 @@ real(r8), allocatable, dimension(:)         :: data_1d_array
 real(r8), allocatable, dimension(:,:)       :: data_2d_array
 
 integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs
-character(len=NF90_MAX_NAME) :: varname
-integer :: VarID, ncNdims, dimlen
-integer :: ncFileID
+character(len=NF90_MAX_NAME)          :: varname
+integer         :: VarID, ncNdims, dimlen
+integer         :: ncFileID
+type(time_type) :: file_time
 
 if ( .not. module_initialized ) call static_init_model
 
@@ -1896,21 +1899,21 @@ call nc_check(nf90_open(trim(filename), NF90_WRITE, ncFileID), &
 ! of the clm restart file, and state vector contents from a different
 ! time won't be consistent with the rest of the file.
 
-model_time = get_state_time(ncFileID)
+file_time = get_state_time(ncFileID)
 
-if ( model_time /= statedate ) then
-   call print_time( statedate,'DART current time',logfileunit)
-   call print_time(model_time,'clm  current time',logfileunit)
-   call print_time( statedate,'DART current time')
-   call print_time(model_time,'clm  current time')
+if ( file_time /= dart_time ) then
+   call print_time(dart_time,'DART current time',logfileunit)
+   call print_time(file_time,'clm  current time',logfileunit)
+   call print_time(dart_time,'DART current time')
+   call print_time(file_time,'clm  current time')
    write(string1,*)trim(filename),' current time /= model time. FATAL error.'
    call error_handler(E_ERR,'sv_to_restart_file',string1,source,revision,revdate)
 endif
 
 if (do_output()) &
-    call print_time(statedate,'time of restart file '//trim(filename))
+    call print_time(file_time,'time of restart file '//trim(filename))
 if (do_output()) &
-    call print_date(statedate,'date of restart file '//trim(filename))
+    call print_date(file_time,'date of restart file '//trim(filename))
 
 ! The DART prognostic variables are only defined for a single time.
 ! We already checked the assumption that variables are xy2d or xyz3d ...
@@ -2059,9 +2062,9 @@ lheight   = loc_array(3)
 
 if ((debug > 6) .and. do_output()) print *, 'requesting interpolation at ', llon, llat, lheight
 
-! FIXME may be better to check the %maxlevels and kick the interpolation to the 
+! FIXME may be better to check the %maxlevels and kick the interpolation to the
 ! appropriate routine based on that ... or check the dimnames for the
-! vertical coordinate  ... 
+! vertical coordinate  ...
 
 if (obs_kind == KIND_SOIL_TEMPERATURE) then
    call get_grid_vertval(x, location, 'T_SOISNO',  interp_val, istatus )
@@ -2215,7 +2218,7 @@ end subroutine compute_gridcell_value
 subroutine get_grid_vertval(x, location, varstring, interp_val, istatus)
 !
 ! Calculate the expected vertical value fort the gridcell.
-! Each gridcell value is an area-weighted value of an unknown number of 
+! Each gridcell value is an area-weighted value of an unknown number of
 ! column-based quantities.
 
 ! Passed variables
@@ -2288,7 +2291,7 @@ if ((debug > 6) .and. do_output()) then
    write(*,*)'get_grid_vertval:targetlat, lat, lat index, level is ',loc_lat,LAT(gridlatj),gridlatj,loc_lev
 endif
 
-! Determine the level 'above' and 'below' the desired vertical 
+! Determine the level 'above' and 'below' the desired vertical
 ! The above-ground 'depths' are calculated from ZISNO and are negative.
 ! The 'depths' are all positive numbers, increasingly positive is deeper.
 ! The variables currently supported use the subsurface definitions in
@@ -2319,7 +2322,7 @@ endif
 ! Determine how many elements can contribute to the gridcell value.
 ! There are multiple column-based contributors, each column has a
 ! separate area-based weight. There are multiple levels.
-! I believe I have to keep track of all of them to sort out how to 
+! I believe I have to keep track of all of them to sort out how to
 ! calculate the gridcell value at a particular depth.
 
 counter1 = 0
@@ -2371,7 +2374,7 @@ ELEMENTS : do indexi = index1, indexN
    else
       cycle ELEMENTS
    endif
-   
+
    if ((debug > 6) .and. do_output()) then
    write(*,*)
    write(*,*)'gridcell location match at statevector index',indexi
@@ -2386,7 +2389,6 @@ ELEMENTS : do indexi = index1, indexN
 
 enddo ELEMENTS
 
-! FIXME ... counter1 /= counter2
 ! could arise if the above or below was 'missing' ... but the mate was not.
 
 if ( counter1 /= counter2 ) then
@@ -2398,7 +2400,7 @@ if ( counter1 /= counter2 ) then
    return
 endif
 
-! Determine the value for the level above the depth of interest. 
+! Determine the value for the level above the depth of interest.
 
 total_area = sum(myarea(1:counter1,1))
 
@@ -2414,7 +2416,7 @@ else
                   source, revision, revdate, text2=string2,text3=string3)
 endif
 
-! Determine the value for the level below the depth of interest. 
+! Determine the value for the level below the depth of interest.
 
 total_area = sum(myarea(1:counter2,2))
 
@@ -3525,6 +3527,8 @@ real(r8) :: spvalR8
 integer,  allocatable, dimension(:) :: intarray
 real(r4), allocatable, dimension(:) :: r4array
 
+if ( .not. module_initialized ) call static_init_model
+
 call nc_check(nf90_inq_varid(ncid, trim(varname), VarID), 'get_var_1d', 'inq_varid')
 call nc_check(nf90_inquire_variable( ncid, VarID, dimids=dimIDs, ndims=numdims, xtype=xtype), 'get_var_1d', 'inquire_variable')
 call nc_check(nf90_inquire_dimension(ncid, dimIDs(1), len=dimlens(1)), 'get_var_1d', 'inquire_dimension')
@@ -3678,6 +3682,8 @@ real(r8) :: spvalR8
 integer,  allocatable, dimension(:,:) :: intarray
 real(r4), allocatable, dimension(:,:) :: r4array
 
+if ( .not. module_initialized ) call static_init_model
+
 call nc_check(nf90_inq_varid(ncid, trim(varname), VarID), 'get_var_2d', 'inq_varid')
 call nc_check(nf90_inquire_variable( ncid, VarID, dimids=dimIDs, ndims=numdims, xtype=xtype), 'get_var_2d', 'inquire_variable')
 
@@ -3799,6 +3805,17 @@ end subroutine get_var_2d
 
 
 
+function get_model_time()
+type(time_type) :: get_model_time
+
+if ( .not. module_initialized ) call static_init_model
+
+get_model_time = model_time
+
+end function get_model_time
+
+
+
 function findVarindex(varstring, caller)
 character(len=*), intent(in) :: varstring
 character(len=*), intent(in) :: caller
@@ -3810,12 +3827,12 @@ findVarindex = -1
 
 ! Skip to the right variable
 VARTYPES : do i = 1,nfields
-    findVarindex = i 
+    findVarindex = i
     if ( trim(progvar(i)%varname) == varstring) exit VARTYPES
 enddo VARTYPES
 
 if (findVarindex < 1) then
-   write(string1,*) trim(caller)//' cannot find '//trim(varstring) 
+   write(string1,*) trim(caller)//' cannot find '//trim(varstring)
    call error_handler(E_ERR,'findVarindex',string1,source,revision,revdate)
 endif
 
