@@ -63,10 +63,8 @@ namelist /model_mod_check_nml/ input_file, output_file, &
 !----------------------------------------------------------------------
 ! integer :: numlons, numlats, numlevs
 
-integer :: in_unit, out_unit, ios_out, iunit, io, offset
+integer :: ios_out, iunit, io
 integer :: x_size
-integer :: year, month, day, hour, minute, second
-integer :: secs, days
 
 type(time_type)       :: model_time, adv_to_time
 real(r8), allocatable :: statevector(:)
