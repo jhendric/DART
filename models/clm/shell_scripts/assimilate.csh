@@ -22,7 +22,7 @@ switch ("`hostname`")
       set   LINK = '/usr/local/bin/ln -fvs'
       set REMOVE = '/usr/local/bin/rm -fr'
 
-      set BASEOBSDIR = /glade/proj3/image/Observations/land
+      set BASEOBSDIR = /glade/proj3/image/Observations/FluxTower
       set DARTDIR    = ${HOME}/svn/DART/dev
       set LAUNCHCMD  = mpirun.lsf
    breaksw
@@ -70,11 +70,15 @@ echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (ho
 
 #-----------------------------------------------------------------------------
 # Get observation sequence file ... or die right away. Cannot specify -f on
-# the link command and still check status.
+# the link command and still check status. The observation file names have
+# a time that matches the stopping time of CLM. The contents of the file
+# must match the history file contents if one is using the obs_def_tower_mod
+# or could be the 'traditional' +/- 12Z ... or both. Since the history file
+# contains the previous days' history ... so must the obs file.
 #-----------------------------------------------------------------------------
 
 set OBSDIR   = ${BASEOBSDIR}/${MODEL_YEAR}${MODEL_MONTH}
-set OBSFNAME = obs_seq.0Z.${MODEL_YEAR}${MODEL_MONTH}${MODEL_DAY}
+set OBSFNAME = obs_seq.daybefore.${MODEL_YEAR}${MODEL_MONTH}${MODEL_DAY}
 set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 
 \rm -f              obs_seq.out

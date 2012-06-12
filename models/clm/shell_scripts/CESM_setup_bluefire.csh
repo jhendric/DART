@@ -15,7 +15,6 @@
 # and will use DART to assimilate observations at regular intervals.
 # This script does not build DART.
 
-
 # ---------------------
 # How to set up the script
 # ---------------------
@@ -84,13 +83,12 @@
 #    false; Remove $caseroot and $exeroot and rebuild
 #    true;  configure -cleannamelist
 
-setenv case                 clm_datm_norestart
 setenv case                 clm_tim
 setenv compset              I_2000_CN
 setenv cesmtag              cesm1_1_beta08
 setenv resolution           f19_f19
 setenv num_instances        4
-setenv reuse_existing_case  false
+setenv reuse_existing_case  true
 
 # ====================================================================
 # define machines and directories
@@ -100,7 +98,7 @@ setenv reuse_existing_case  false
 # cesmroot        Location of the cesm code base
 #                 For cesm1_1_beta04 on bluefire, MUST use 'thoar' value provided.
 # DARTroot        Location of DART code tree.
-#                    Executables, scripts and input in $DARTroot/models/clm/...
+#                    Executables, scripts and input in $DARTroot/models/dev/...
 # caseroot        Your (future) cesm case directory, where this CESM+DART will be built.
 #                    Preferably not a frequently scrubbed location.
 #                 caseroot will be deleted if reuse_existing_case is false (below)
@@ -114,7 +112,7 @@ setenv mach         bluefire
 setenv cesm_datadir /glade/proj3/cseg/inputdata
 setenv cesmroot     /glade/home/thoar/${cesmtag}
 
-setenv DARTroot     /glade/home/${USER}/svn/DART/clm
+setenv DARTroot     /glade/home/${USER}/svn/DART/dev
 
 setenv caseroot     /glade/user/${USER}/cases/${case}
 setenv exeroot      /ptmp/${USER}/${case}
@@ -124,9 +122,9 @@ setenv archdir      /ptmp/${USER}/archive/${case}
 # configure settings
 # ====================================================================
 
-setenv refyear 2002
-setenv refmon  11
-setenv refday  01
+setenv refyear 2000
+setenv refmon  01
+setenv refday  31
 setenv run_refdate $refyear-$refmon-$refday
 setenv run_reftod  00000
 
@@ -138,7 +136,7 @@ setenv run_reftod  00000
 # stop_n        Number of time units in the forecast
 # ====================================================================
 
-setenv resubmit      40
+setenv resubmit      0
 setenv stop_option   nhours
 setenv stop_n        24
 
@@ -152,7 +150,7 @@ setenv stop_n        24
 # ====================================================================
 
 setenv proj         93300315
-setenv timewall     0:45
+setenv timewall     0:29
 setenv queue        premium
 
 # ====================================================================
@@ -313,15 +311,17 @@ echo ""
 ./xmlchange -file env_conf.xml -id DATM_CPL_YR_START       -val $refyear
 ./xmlchange -file env_conf.xml -id DATM_CPL_YR_END         -val $refyear
 ./xmlchange -file env_conf.xml -id DATM_CPL_YR_ALIGN       -val $refyear
-./xmlchange -file env_conf.xml -id CLM_CONFIG_OPTS         -val '-rtm off'
+./xmlchange -file env_conf.xml -id CLM_CONFIG_OPTS         -val '-rtm off -bgc cn'
 # The river transport model ON is useful only when using an active ocean or
-# land surface diagnostics.
+# land surface diagnostics. The biogeochemistry should then also be turned (back) on.
+# If you have 'CN' in the compset name, CLM_CONFIG_OPTS will default to the right thing.
+# since we are turning off the RTM, we need to turn back on "the right thing".
 
 # Substantial archiving changes exist in the Tools/st_archive.sh script.
 # DOUT_S     is to turn on/off the short-term archiving
 # DOUT_L_MS  is to store to the HPSS (formerly "MSS")
 
-#./xmlchange -file env_run.xml -id CONTINUE_RUN               -val TRUE
+./xmlchange -file env_run.xml -id CONTINUE_RUN               -val FALSE
 ./xmlchange -file env_run.xml -id RESUBMIT                   -val $resubmit
 ./xmlchange -file env_run.xml -id STOP_OPTION                -val $stop_option
 ./xmlchange -file env_run.xml -id STOP_N                     -val $stop_n
@@ -351,10 +351,10 @@ echo ""
 cat <<EOF >! user_nl_clm
 &clm_inparm
  hist_empty_htapes = .true.
- hist_fincl1 = 'TG',
- hist_nhtfrq = -$stop_n,
- hist_mfilt  =  1,
- hist_avgflag_pertape = 'I'
+ hist_fincl1 = 'NEP'
+ hist_nhtfrq = 1,
+ hist_mfilt  = 48
+ hist_avgflag_pertape = 'A'
 /
 EOF
 
@@ -530,7 +530,7 @@ end
 set stagedir = /ptmp/afox/MD_40_PME/run
 
 # 20021101 ... /ptmp/yfzhang/inputdata_cam/lnd/clm2/initdata
-set stagedir = /ptmp/yfzhang/inputdata_cam/lnd/clm2/initdata
+# set stagedir = /ptmp/yfzhang/inputdata_cam/lnd/clm2/initdata
 
 echo ''
 echo "Copying the restart files from ${stagedir}"
@@ -541,7 +541,8 @@ while ($n <= $num_instances)
 
    echo "Staging restarts for instance $n of $num_instances"
 
-   set LANDFILE = `printf ${stagedir}/init1998.clm2_%04d.r.2002-11-01-00000.nc $n`
+#  set LANDFILE = `printf ${stagedir}/init1998.clm2_%04d.r.2002-11-01-00000.nc $n`
+   set LANDFILE = `printf ${stagedir}/MD_40_PME.clm2_%04d.r.2000-01-31-00000.nc $n`
    set LND_RESTART_FILENAME = `printf "${case}.clm2_%04d.r.%04d-%02d-%02d-%05d.nc" $n $refyear $refmon $refday $run_reftod`
 
    ${COPY} ${LANDFILE} ${exeroot}/run/${LND_RESTART_FILENAME}
