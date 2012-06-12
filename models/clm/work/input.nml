@@ -1,7 +1,7 @@
 &perfect_model_obs_nml
    start_from_restart    = .true.,
    output_restart        = .true.,
-   async                 = 2,
+   async                 = 0,
    init_time_days        = -1,
    init_time_seconds     = -1,
    first_obs_days        = -1,
@@ -14,10 +14,10 @@
    restart_out_file_name = "perfect_restart",
    obs_seq_in_file_name  = "obs_seq.in",
    obs_seq_out_file_name = "obs_seq.out",
-   adv_ens_command       = "./advance_model.csh"
+   adv_ens_command       = "./ha_ha_ha.csh"
    output_timestamps     = .false.,
    trace_execution       = .false.,
-   output_forward_op_errors = .false.,
+   output_forward_op_errors = .true.,
    print_every_nth_obs   = -1,
    silence               = .false.,
    /
@@ -120,14 +120,20 @@
    output_obs_kind_mod_file = '../../../obs_kind/obs_kind_mod.f90',
      input_obs_def_mod_file = '../../../obs_def/DEFAULT_obs_def_mod.F90',
     output_obs_def_mod_file = '../../../obs_def/obs_def_mod.f90',
-   input_files              = '../../../obs_def/obs_def_tower_mod.f90' 
+   input_files              = '../../../obs_def/obs_def_tower_mod.f90'
+   /
+
+
+&obs_def_tower_nml
+   casename = '../clm_tim',
+   verbose  = .true.,
+   debug    = .true.
    /
 
 
 &obs_kind_nml
    assimilate_these_obs_types = 'MODIS_SNOWCOVER_FRAC',
-                                'LEAF_CARBON',
-   evaluate_these_obs_types   = 'SNOW_THICKNESS'
+   evaluate_these_obs_types   = 'null'
    /
 
 
@@ -145,12 +151,12 @@
 &model_nml
    clm_restart_filename         = 'clm_restart.nc',
    clm_history_filename         = 'clm_history.nc',
-   assimilation_period_days     = 1,
+   assimilation_period_days     = 2,
    assimilation_period_seconds  = 0,
    model_perturbation_amplitude = 0.2,
    output_state_vector          = .false.,
    calendar                     = 'Gregorian',
-   debug                        = 5,
+   debug                        = 0,
    clm_state_variables          = 'frac_sno',    'KIND_SNOWCOVER_FRAC',
                                   'H2OSNO',      'KIND_SNOW_WATER',
                                   'SNOWDP',      'KIND_SNOW_THICKNESS',
@@ -161,7 +167,7 @@
 
                                   'leafc',       'KIND_LEAF_CARBON'
   frac_sno  is needed for the forward operator
-  H2OSNO is updated by the filter, 
+  H2OSNO is updated by the filter,
   update_snow() takes H2OSNO* and updates the four following:
                                   'SNOWDP',      'KIND_SNOW_THICKNESS',
                                   'H2OSOI_LIQ',  'KIND_LIQUID_WATER',
@@ -257,21 +263,23 @@
    print_mismatched_locs = .false.,
    print_obs_locations   = .false.,
    verbose               = .true.,
-   hlevel =  10.0,  20.0,   30.0,   40.0,  100.0,  
-            200.0, 500.0, 1000.0, 2000.0, 
+   hlevel =  10.0,  20.0,   30.0,   40.0,  100.0,
+            200.0, 500.0, 1000.0, 2000.0,
    /
+
 
 &obs_sequence_tool_nml
    filename_seq      = '../work/obs_seq.in',
    filename_seq_list = '',
-   filename_out      = '../YYYYMM/obs_seq.in.0Z.YYYYMMDD',
+   filename_out      = '../YYYYMM/obs_seq.daily.YYYYMMDD',
    print_only        = .false.,
    gregorian_cal     = .true.,
-   first_obs_days    = GREG0,
-   first_obs_seconds = 43201,
+   first_obs_days    = GREG1,
+   first_obs_seconds = 0,
    last_obs_days     = GREG1,
-   last_obs_seconds  = 43200,
+   last_obs_seconds  = 86399,
 /
+
 
 &schedule_nml
    calendar        = 'Gregorian',
