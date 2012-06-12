@@ -25,11 +25,13 @@ use         types_mod, only : r8, MISSING_R8
 use     utilities_mod, only : initialize_utilities, finalize_utilities, &
                               register_module, error_handler, E_MSG, E_ERR, &
                               open_file, close_file, do_nml_file, do_nml_term, &
-                              check_namelist_read, find_namelist_in_file
+                              check_namelist_read, find_namelist_in_file, &
+                              nmlfileunit
 
 use  time_manager_mod, only : time_type, set_calendar_type, GREGORIAN, &
                               set_date, set_time, get_time, print_time, &
-                              print_date, operator(-), operator(+)
+                              print_date, operator(-), operator(+), operator(>), &
+                              operator(<), operator(==), operator(<=), operator(>=)
 
 use      location_mod, only : VERTISHEIGHT
 
@@ -77,7 +79,7 @@ namelist /level4_to_obs_nml/ text_input_file, obs_out_file, year, &
 !-----------------------------------------------------------------------
 
 character(len=256)      :: input_line, string1, string2, string3
-integer                 :: nmlfileunit, iline, nlines
+integer                 :: iline, nlines
 logical                 :: file_exist, first_obs
 integer                 :: n, i, oday, osec, rcio, iunit
 integer                 :: num_copies, num_qc, max_obs
@@ -85,7 +87,7 @@ real(r8)                :: oerr, qc
 type(obs_sequence_type) :: obs_seq
 type(obs_type)          :: obs, prev_obs
 type(time_type)         :: time_obs, prev_time, offset
-integer, parameter      :: umol_to_gC = 12.0_r8 * -1000000.0_r8
+real(r8), parameter     :: umol_to_gC = 1.0_r8/(1000000.0_r8 * 12.0_r8)
 
 type towerdata
   type(time_type)   :: time_obs
@@ -143,7 +145,8 @@ if (do_nml_term()) write(     *     , nml=level4_to_obs_nml)
 
 ! time setup
 call set_calendar_type(GREGORIAN)
-offset = set_time(nint(abs(timezoneoffset)*3600.0_r8),0)
+offset    = set_time(nint(abs(timezoneoffset)*3600.0_r8),0)
+prev_time = set_time(0, 0)
 
 if (verbose) print *, 'tower located at lat, lon, elev  =', latitude, longitude, elevation
 if (verbose) print *, 'flux observations taken at       =', flux_height,'m'
@@ -204,11 +207,11 @@ obsloop: do iline = 2,nlines
    if (rcio > 0) then
       write (string1,'(''Cannot read (error '',i3,'') line '',i8,'' in '',A)') &
                     rcio, iline, trim(text_input_file)
-      call error_handler(E_ERR,'count_file_lines', string1, source, revision, revdate)
+      call error_handler(E_ERR,'main', string1, source, revision, revdate)
    endif
 
    ! parse the line into the tower structure (including the observation time)
-   call stringparse(input_line,iline)
+   call stringparse(input_line, iline)
 
    if (iline <= 2) then
       write(*,*)''
@@ -234,31 +237,34 @@ obsloop: do iline = 2,nlines
    ! make an obs derived type, and then add it to the sequence
    ! If the QC value is good, use the observation.
    ! Increasingly larger QC values are more questionable quality data.
+   ! The observation errors are from page 183, Table 7.1(A) in 
+   ! Chapter 7 of a book by A.D. Richardson et al. via Andy Fox.  
 
-   if (tower%hQC <= maxgoodqc) then
-      oerr = 2.5_r8  ! 10 percent of the 'nighttime' values  - total guess
+   if (tower%hQC <= maxgoodqc) then   ! Sensible Heat Flux [W m-2]
+      oerr = 10.0_r8 + abs(tower%h)*0.22_r8
       qc   = real(tower%hQC,r8)
       call create_3d_obs(latitude, longitude, flux_height, VERTISHEIGHT, tower%h, &
                          TOWER_LATENT_HEAT_FLUX, oerr, oday, osec, qc, obs)
       call add_obs_to_seq(obs_seq, obs, tower%time_obs, prev_obs, prev_time, first_obs)
    endif
 
-   if (tower%leQC <= maxgoodqc) then
-      oerr = 0.3_r8  ! 10 percent of the 'nighttime' values  - total guess
+   if (tower%leQC <= maxgoodqc) then   ! Latent Heat Flux [W m-2]
+      oerr = 10.0_r8 + abs(tower%le)*0.32_r8
       qc   = real(tower%leQC,r8)
       call create_3d_obs(latitude, longitude, flux_height, VERTISHEIGHT, tower%le, &
                          TOWER_SENSIBLE_HEAT_FLUX, oerr, oday, osec, qc, obs)
       call add_obs_to_seq(obs_seq, obs, tower%time_obs, prev_obs, prev_time, first_obs)
    endif
 
-   ! A crude estimate of this would be something like 1+(0.25*|flux|) mumol m^2s^1 
-   ! which will give a range of ~1-5 at most of our sites. -- Andy Fox
-   if (tower%neeQC <= maxgoodqc) then
-      oerr      = 1.0_r8 + abs(tower%NEE)*0.25_r8
-      oerr      = oerr * umol_to_gC
-      tower%NEE = tower%NEE * umol_to_gC
+   if (tower%neeQC <= maxgoodqc) then   ! Net Ecosystem Exchange  [umol m-2 s-1]
+      if (tower%nee <= 0) then
+         oerr = (2.0_r8 + abs(tower%nee)*0.1_r8) * umol_to_gC
+      else
+         oerr = (2.0_r8 + abs(tower%nee)*0.4_r8) * umol_to_gC
+      endif
+      tower%nee = -tower%nee * umol_to_gC ! to match convention in CLM [gC m-2 s-1]
       qc        = real(tower%neeQC,r8)
-      call create_3d_obs(latitude, longitude, flux_height, VERTISHEIGHT, tower%Nee, &
+      call create_3d_obs(latitude, longitude, flux_height, VERTISHEIGHT, tower%nee, &
                          TOWER_NETC_ECO_EXCHANGE, oerr, oday, osec, qc, obs)
       call add_obs_to_seq(obs_seq, obs, tower%time_obs, prev_obs, prev_time, first_obs)
    endif
@@ -293,7 +299,7 @@ contains
 !    vkind - kind of vertical coordinate (pressure, level, etc)
 !    obsv  - observation value
 !    okind - observation kind
-!    oerr  - observation error
+!    oerr  - observation error (in units of standard deviation)
 !    day   - gregorian day
 !    sec   - gregorian second
 !    qc    - quality control value
@@ -462,13 +468,14 @@ end subroutine decode_header
 
 
 subroutine stringparse(str1,linenum)
-! just declare everything as reals and see how it falls out
+! just declare everything as reals and chunk it
 
 character(len=*), intent(in) :: str1
 integer         , intent(in) :: linenum
 
 real(r8), dimension(34) :: values
-integer :: ihour, imin, isec, seconds
+integer :: iday, ihour, imin, isec, seconds
+type(time_type) :: time0, time1, time2
 
 values = MISSING_R8
 
@@ -480,7 +487,9 @@ endif
 
 ! Stuff what we want into the tower structure
 !
-! Convert to 'CLM-friendly' units.
+! Convert to 'CLM-friendly' units AFTER we determine observation error variance.
+! That happens in the main routine.
+!
 ! NEE_or_fMDS    has units     [umolCO2 m-2 s-1] 
 ! H_f            has units     [W m-2]
 ! LE_f           has units     [W m-2]
@@ -498,22 +507,65 @@ tower%leQC  = nint(values(tower%leQCindex ))
 tower%h     =      values(tower%hindex    )
 tower%hQC   = nint(values(tower%hQCindex  ))
 
-! put observation time/date into a dart time format 
+! decode the time pieces ... two times ...
+! The LAST line of these files is knackered ... and we have to check that
+! if the doy is greater than the ymd ...
+! 12,31,23.5,366.979    N-1
+!  1, 1, 0.0,367.000    N
 
+iday    = int(tower%doy)
 ihour   = int(tower%hour)
 seconds = nint((tower%hour - real(ihour,r8))*3600)
 imin    = seconds / 60
 isec    = seconds - imin * 60
+time0   = set_date(year, tower%month, tower%day, ihour, imin, isec)
 
-tower%time_obs = set_date(year, tower%month, tower%day, ihour, imin, isec)
+isec    = ihour*3600 + imin*60 + isec
+time1   = set_date(year,1,1,0,0,0) + set_time(isec, (iday-1))
+time2   = time0 - time1
 
+call get_time(time2, isec, iday)
+
+if ( iday > 0 ) then
+   ! we need to change the day ...
+
+   tower%time_obs = time1
+
+   if (verbose) then
+      write(string1,*)'converting ',tower%month,tower%day,tower%hour,tower%doy
+      write(string2,*)'the day-of-year indicates we should amend the month/day values.' 
+      call error_handler(E_MSG,'stringparse', string1, source, revision, &
+                      revdate, text2=string2)
+
+      call print_date(time0, 'stringparse: using ymd date is')
+      call print_date(time1, 'stringparse: using doy date is')
+      call print_time(time0, 'stringparse: using ymd time is')
+      call print_time(time1, 'stringparse: using doy time is')
+      call print_time(time2, 'stringparse: difference     is')
+   endif
+else
+
+   tower%time_obs = time0
+
+endif
+   
 if (timezoneoffset < 0.0_r8) then
    tower%time_obs = tower%time_obs - offset
 else
    tower%time_obs = tower%time_obs + offset
 endif
-   
 
+! The QC values can be 'missing' ... in which case the values are too
+
+if (tower%neeQC < 0) tower%neeQC = maxgoodqc + 1000 
+if (tower%leQC  < 0) tower%leQC  = maxgoodqc + 1000
+if (tower%hQC   < 0) tower%hQC   = maxgoodqc + 1000
+
+! if (tower%neeQC < maxgoodqc) then
+!    write(*,*)'nee umol m-2 s-1 ',tower%nee
+!    write(*,*)'nee   gC m-2 s-1 ',tower%nee*umol_to_gC
+! endif
+ 
 end subroutine stringparse
 
 

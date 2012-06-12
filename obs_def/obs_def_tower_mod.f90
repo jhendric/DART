@@ -33,11 +33,11 @@
 !-----------------------------------------------------------------------------
 ! BEGIN DART PREPROCESS GET_EXPECTED_OBS_FROM_DEF
 !  case(TOWER_LATENT_HEAT_FLUX)
-!     call get_expected_latent_heat_flux(state, state_time, ens_index, location, obs_def%key, obs_val, istatus)
+!     call get_expected_latent_heat_flux(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
 !  case(TOWER_SENSIBLE_HEAT_FLUX)
-!     call get_expected_sensible_heat_flux(state, state_time, ens_index, location, obs_def%key, obs_val, istatus)
+!     call get_expected_sensible_heat_flux(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
 !  case(TOWER_NETC_ECO_EXCHANGE)
-!     call get_expected_net_C_production(state, state_time, ens_index, location, obs_def%key, obs_val, istatus)
+!     call get_expected_net_C_production(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
 ! END DART PREPROCESS GET_EXPECTED_OBS_FROM_DEF
 !-----------------------------------------------------------------------------
 
@@ -72,13 +72,16 @@ module obs_def_tower_mod
 ! $Revision$
 ! $Date$
 
-use        types_mod, only : r4, r8, MISSING_R8, PI, deg2rad
+use        types_mod, only : r4, r8, digits12, MISSING_R8, PI, deg2rad
 use     location_mod, only : location_type, get_location
-use time_manager_mod, only : time_type
+use time_manager_mod, only : time_type, get_date, set_date, print_date, print_time, &
+                             get_time, set_time, operator(-)
+use        model_mod, only : get_model_time
 use    utilities_mod, only : register_module, E_ERR, E_MSG, error_handler, &
                              check_namelist_read, find_namelist_in_file,   &
                              nmlfileunit, do_output, do_nml_file, do_nml_term, &
-                             nc_check
+                             nc_check, file_exist
+
 use typesizes
 use netcdf
 
@@ -95,20 +98,22 @@ character(len=128), parameter :: &
    revision = "$Revision$", &
    revdate  = "$Date$"
 
-logical :: module_initialized = .false.
+logical            :: module_initialized = .false.
+character(len=129) :: string1, string2, string3
+integer            :: nlon, nlat, ntime, ens_size
 
-character(len=129) :: string1,string2,string3
-
-integer,            allocatable, dimension(:) :: ncid
 character(len=129), allocatable, dimension(:) :: fname
-real(r8),           allocatable, dimension(:) :: lon, lat, time
-integer :: nlon, nlat, ntime, ens_size
+integer,            allocatable, dimension(:) :: ncid
+real(r8),           allocatable, dimension(:) :: lon, lat
+real(digits12),     allocatable, dimension(:) :: rtime
+
 
 ! namelist items
 character(len=256) :: casename = 'clm_tim'
-logical            :: debug = .true.
+logical            :: verbose = .false.
+logical            :: debug = .false.
 
-namelist /obs_def_tower_nml/ casename, debug
+namelist /obs_def_tower_nml/ casename, verbose, debug
 
 contains
 
@@ -120,10 +125,14 @@ contains
 
 subroutine initialize_module
 
-! Called once to set values and allocate space
+! Called once to set values and allocate space, open all the CLM files
+! that have the observations, etc.
 
 integer :: iunit, io, rc, i
 integer :: dimid, varid
+integer :: year, month, day, hour, minute, second, leftover
+integer, allocatable, dimension(:) :: yyyymmdd,sssss
+type(time_type) :: model_time
 
 ! Prevent multiple calls from executing this code more than once.
 if (module_initialized) return
@@ -142,71 +151,148 @@ call check_namelist_read(iunit, io, "obs_def_tower_nml")
 if (do_nml_file()) write(nmlfileunit, nml=obs_def_tower_nml)
 if (do_nml_term()) write(     *     , nml=obs_def_tower_nml)
 
-! FIXME: Figure out how many files (i.e. ensemble size)
-ens_size = 4
+! Need to know what day we are trying to assimilate.
+! The model stops at midnight, we want all the observations for THE PREVIOUS DAY.
+! The CLM h0 files contain everything from 00:00 to 23:30 for the date in the filename.
+! The data for [23:30 -> 00:00] get put in the file for the next day.
+
+model_time = get_model_time()
+model_time = model_time - set_time(0,1)
+call   get_date(model_time, year, month, day, hour, minute, second)
+second = second + minute*60 + hour*3600
+
+! Figure out how many files (i.e. ensemble size) and construct their names.
+! The CLM h0 files are constructed such that the midnight that starts the
+! day is IN the file. The last time in the file is 23:30 ... 
+
+100 format (A,'.clm2_',I4.4,'.h0.',I4.4,'-',I2.2,'-',I2.2,'-',I5.5,'.nc')
+
+ens_size = 0
+ENSEMBLESIZE : do i = 1,200
+
+   write(string1,100) trim(casename),i,year,month,day,second
+
+   if( file_exist(string1) ) then
+      if(verbose .and. do_output()) write(*,*)'observation file "',trim(string1),'" exists.'
+      ens_size = ens_size + 1
+   else
+      if(verbose .and. do_output()) write(*,*)'WARNING observation file "',trim(string1),'" does not exist.'
+      exit ENSEMBLESIZE
+   endif
+enddo ENSEMBLESIZE
+
+if (ens_size < 2) then
+
+   write(string1,100) trim(casename),1,year,month,day,second
+   write(string2,*)'cannot find files to use for observation operator.'
+   write(string3,*)'trying files with names like "',trim(string1),'"'
+   call error_handler(E_ERR, 'initialize_routine', string2, &
+                  source, revision, revdate, text2=string3)
+
+elseif (ens_size >= 200) then
+
+   write(string2,*)'ensemble size (',ens_size,') is unnaturally large.'
+   write(string3,*)'trying files with names like "',trim(string1),'"'
+   call error_handler(E_ERR, 'initialize_routine', string2, &
+                  source, revision, revdate, text2=string3)
+
+else
+
+   if (verbose .and. do_output()) write(*,*)'Ensemble size is believed to be ',ens_size
+
+endif
 
 allocate(fname(ens_size),ncid(ens_size))
-
-ENSEMBLE : do i = 1,ens_size
-   write(fname(i),'(A,''.clm2_'',I4.4,''.h.nc'')')trim(casename),i
-enddo ENSEMBLE
-
 ncid = 0
 
+ENSEMBLE : do i = 1,ens_size
+   write(fname(i),100) trim(casename),i,year,month,day,second
+   call nc_check(nf90_open(trim(fname(i)), nf90_nowrite, ncid(i)), &
+       'initialize_routine','open '//trim(fname(i)))
+enddo ENSEMBLE
+
 i = 1
-if (debug) write(*,*)'Reading observations from ',trim(fname(i))
 
 ! Harvest information from the first observation file.
 ! FIXME All other files will be opened to make sure they have the same dimensions.
 
-if (ncid(i) == 0) then ! we need to open it
-   call nc_check(nf90_open(trim(fname(i)), nf90_nowrite, ncid(i)), &
-       'obs_def_tower_mod:initialize_routine','open '//trim(fname(i)))
-endif
-
 call nc_check(nf90_inq_dimid(ncid(i), 'lon', dimid), &
-       'obs_def_tower_mod:initialize_routine','inq_dimid lon '//trim(fname(i)))
+       'initialize_routine','inq_dimid lon '//trim(fname(i)))
 call nc_check(nf90_inquire_dimension(ncid(i), dimid, len=nlon), &
-       'obs_def_tower_mod:initialize_routine','inquire_dimension lon '//trim(fname(i)))
+       'initialize_routine','inquire_dimension lon '//trim(fname(i)))
 
 call nc_check(nf90_inq_dimid(ncid(i), 'lat', dimid), &
-       'obs_def_tower_mod:initialize_routine','inq_dimid lat '//trim(fname(i)))
+       'initialize_routine','inq_dimid lat '//trim(fname(i)))
 call nc_check(nf90_inquire_dimension(ncid(i), dimid, len=nlat), &
-       'obs_def_tower_mod:initialize_routine','inquire_dimension lat '//trim(fname(i)))
+       'initialize_routine','inquire_dimension lat '//trim(fname(i)))
 
 call nc_check(nf90_inq_dimid(ncid(i), 'time', dimid), &
-       'obs_def_tower_mod:initialize_routine','inq_dimid time '//trim(fname(i)))
+       'initialize_routine','inq_dimid time '//trim(fname(i)))
 call nc_check(nf90_inquire_dimension(ncid(i), dimid, len=ntime), &
-       'obs_def_tower_mod:initialize_routine','inquire_dimension lat '//trim(fname(i)))
+       'initialize_routine','inquire_dimension lat '//trim(fname(i)))
 
-allocate(lon(nlon),lat(nlat),time(ntime))
+allocate(lon(nlon),lat(nlat))
+allocate(rtime(ntime),yyyymmdd(ntime),sssss(ntime))
 
 call nc_check(nf90_inq_varid(ncid(i), 'lon', varid), &
-       'obs_def_tower_mod:initialize_routine','inq_varid lon '//trim(fname(i)))
-call nc_check(nf90_get_var(ncid(i), varid, lon),     &
-       'obs_def_tower_mod:initialize_routine', 'get_var')
+       'initialize_routine','inq_varid lon '//trim(fname(i)))
+call nc_check(nf90_get_var(ncid(i), varid, lon), 'initialize_routine', 'get_var lon')
 
 call nc_check(nf90_inq_varid(ncid(i), 'lat', varid), &
-       'obs_def_tower_mod:initialize_routine','inq_varid lat '//trim(fname(i)))
-call nc_check(nf90_get_var(ncid(i), varid, lat),     &
-       'obs_def_tower_mod:initialize_routine', 'get_var')
+       'initialize_routine','inq_varid lat '//trim(fname(i)))
+call nc_check(nf90_get_var(ncid(i), varid, lat), 'initialize_routine', 'get_var lat')
 
-call nc_check(nf90_inq_varid(ncid(i), 'time', varid), &
-       'obs_def_tower_mod:initialize_routine','inq_varid time '//trim(fname(i)))
-call nc_check(nf90_get_var(ncid(i), varid, time),     &
-       'obs_def_tower_mod:initialize_routine', 'get_var')
+call nc_check(nf90_inq_varid(ncid(i), 'mcdate', varid), &
+       'initialize_routine','inq_varid mcdate '//trim(fname(i)))
+call nc_check(nf90_get_var(ncid(i), varid, yyyymmdd), 'initialize_routine', 'get_var yyyymmdd')
 
-if (debug) write(*,*)'obs_def_tower  lon',lon
-if (debug) write(*,*)'obs_def_tower  lat',lat
-if (debug) write(*,*)'obs_def_tower time',time
+call nc_check(nf90_inq_varid(ncid(i), 'mcsec', varid), &
+       'initialize_routine','inq_varid mcsec '//trim(fname(i)))
+call nc_check(nf90_get_var(ncid(i), varid, sssss), 'initialize_routine', 'get_var sssss')
+
+! call nc_check(nf90_inq_varid(ncid(i), 'time', varid), &
+!        'initialize_routine','inq_varid time '//trim(fname(i)))
+! call nc_check(nf90_get_var(ncid(i), varid, time), 'initialize_routine', 'get_var time')
+
+! Convert time in file to a time compatible with the observation sequence file.
+do i = 1,ntime
+
+   year     = yyyymmdd(i)/10000
+   leftover = yyyymmdd(i) - year*10000
+   month    = leftover/100
+   day      = leftover - month*100
+
+   hour     = sssss(i)/3600
+   leftover = sssss(i) - hour*3600
+   minute   = leftover/60
+   second   = leftover - minute*60
+
+   model_time = set_date(year, month, day, hour, minute, second)
+   call get_time(model_time, second, day)
+
+   rtime(i) = real(day,digits12) + real(second,digits12)/86400.0_digits12
+
+   if (debug .and. do_output()) then
+      write(*,*)'timestep yyyymmdd sssss',i,yyyymmdd(i),sssss(i)
+      call print_date(model_time,'tower_mod date')
+      call print_time(model_time,'tower_mod time')
+      write(*,*)'tower_mod time as a real ',rtime(i)
+   endif
+
+enddo
+
+if (debug .and. do_output()) write(*,*)'obs_def_tower      lon',lon
+if (debug .and. do_output()) write(*,*)'obs_def_tower      lat',lat
 
 ! FIXME
 ! check all other ensemble member history files to make sure metadata is the same.
 
+deallocate(yyyymmdd, sssss)
+
 end subroutine initialize_module
 
 
-subroutine get_expected_latent_heat_flux(state, state_time, ens_index, location, obs_key, obs_val, istatus)
+subroutine get_expected_latent_heat_flux(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
 ! the routine must return values for:
 ! obs_val -- the computed forward operator value
 ! istatus -- return code: 0=ok, > 0 is error, < 0 reserved for system use
@@ -215,6 +301,7 @@ real(r8),            intent(in)  :: state(:)
 type(time_type),     intent(in)  :: state_time
 integer,             intent(in)  :: ens_index
 type(location_type), intent(in)  :: location
+type(time_type),     intent(in)  :: obs_time
 integer,             intent(in)  :: obs_key
 real(r8),            intent(out) :: obs_val
 integer,             intent(out) :: istatus
@@ -232,7 +319,7 @@ end subroutine get_expected_latent_heat_flux
 
 
 
-subroutine get_expected_sensible_heat_flux(state, state_time, ens_index, location, obs_key, obs_val, istatus)
+subroutine get_expected_sensible_heat_flux(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
 ! the routine must return values for:
 ! obs_val -- the computed forward operator value
 ! istatus -- return code: 0=ok, > 0 is error, < 0 reserved for system use
@@ -240,6 +327,7 @@ real(r8),            intent(in)  :: state(:)
 type(time_type),     intent(in)  :: state_time
 integer,             intent(in)  :: ens_index
 type(location_type), intent(in)  :: location
+type(time_type),     intent(in)  :: obs_time
 integer,             intent(in)  :: obs_key
 real(r8),            intent(out) :: obs_val
 integer,             intent(out) :: istatus
@@ -256,22 +344,23 @@ call error_handler(E_ERR, 'get_expected_sensible_heat_flux', &
 end subroutine get_expected_sensible_heat_flux
 
 
-subroutine get_expected_net_C_production(state, state_time, ens_index, location, obs_key, obs_val, istatus)
+subroutine get_expected_net_C_production(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
 ! the routine must return values for:
 ! obs_val -- the computed forward operator value
 ! istatus -- return code: 0=ok, > 0 is error, < 0 reserved for system use
 !
-! float NEE(time, lat, lon) ;
-!          NEE:long_name = "net ecosystem exchange of carbon, blah, blah, blah" ;
-!          NEE:units = "gC/m^2/s" ;
-!          NEE:cell_methods = "time: mean" ;
-!          NEE:_FillValue = 1.e+36f ;
-!          NEE:missing_value = 1.e+36f ;
+! float NEP(time, lat, lon) ;
+!          NEP:long_name = "net ecosystem production, blah, blah, blah" ;
+!          NEP:units = "gC/m^2/s" ;
+!          NEP:cell_methods = "time: mean" ;
+!          NEP:_FillValue = 1.e+36f ;
+!          NEP:missing_value = 1.e+36f ;
 
 real(r8),            intent(in)  :: state(:)
 type(time_type),     intent(in)  :: state_time
 integer,             intent(in)  :: ens_index
 type(location_type), intent(in)  :: location
+type(time_type),     intent(in)  :: obs_time
 integer,             intent(in)  :: obs_key
 real(r8),            intent(out) :: obs_val
 integer,             intent(out) :: istatus
@@ -279,19 +368,23 @@ integer,             intent(out) :: istatus
 integer,  dimension(NF90_MAX_VAR_DIMS) :: dimids
 real(r8), dimension(3) :: loc
 integer,  dimension(3) :: ncstart, nccount
-integer,  dimension(1) :: loninds, latinds
-integer                :: gridloni, gridlatj
+integer,  dimension(1) :: loninds, latinds, timeinds
+integer                :: gridloni, gridlatj, timei
 integer                :: varid, xtype, ndims, natts, dimlen
-integer                :: io1, io2
+integer                :: io1, io2, second, day
 real(r8)               :: loc_lon, loc_lat
 real(r4), dimension(1) :: hyperslab
 real(r4)               :: spvalR4
 real(r8)               :: scale_factor, add_offset
+real(digits12)         :: otime
+character(len=20)      :: strshort
 
 if ( .not. module_initialized ) call initialize_module
 
 obs_val = MISSING_R8
 istatus = 1
+
+write(strshort,'(''ens_index '',i4)')ens_index
 
 if (ens_index > ens_size) then
    write(string1,*)'believed to have ',ens_size,'ensemble members for observation operator.'
@@ -302,15 +395,19 @@ endif
 
 ! bombproofing ... make sure the netcdf file is open.
 
+write(*,*)'ncid(',ens_index,') is ',ncid(ens_index)
+call nc_check(nf90_inquire(ncid(ens_index)), &
+              'get_expected_net_C_production', 'inquire '//trim(strshort))
+
 ! bombproofing ... make sure the variable is the shape and size we expect
 
-call nc_check(nf90_inq_varid(ncid(ens_index), 'NEE', varid), &
-              'get_expected_net_C_production', 'inq_varid NEE ')
+call nc_check(nf90_inq_varid(ncid(ens_index), 'NEP', varid), &
+        'get_expected_net_C_production', 'inq_varid NEP '//trim(strshort))
 call nc_check(nf90_inquire_variable(ncid(ens_index), varid, xtype=xtype, ndims=ndims, &
-            dimids=dimids, natts=natts),'get_expected_net_C_production','inquire variable NEE ')
+        dimids=dimids, natts=natts),'get_expected_net_C_production','inquire variable NEP '//trim(strshort))
 
 if (ndims /= 3) then
-   write(string1,*)'NEE is supposed to have 3 dimensions, it has',ndims
+   write(string1,*)'NEP is supposed to have 3 dimensions, it has',ndims
    call error_handler(E_ERR, 'get_expected_net_C_production', &
               string1, source, revision, revdate)
 endif
@@ -318,59 +415,77 @@ endif
 ! If the variable is not a NF90_FLOAT, then the assumptions for processing
 ! the missing_value, _FillValue, etc., may not be correct.
 if (xtype /= NF90_FLOAT) then
-   write(string1,*)'NEE supposed to be a 32 bit real. xtype = ',NF90_FLOAT,' it is ',xtype 
+   write(string1,*)'NEP supposed to be a 32 bit real. xtype = ',NF90_FLOAT,' it is ',xtype 
    call error_handler(E_ERR, 'get_expected_net_C_production', &
               string1, source, revision, revdate)
 endif
 
 ! Dimension 1 is longitude
 call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(1), len=dimlen), &
-              'get_expected_net_C_production', 'inquire_dimension NEE 1')
+              'get_expected_net_C_production', 'inquire_dimension NEP 1'//trim(strshort))
 if (dimlen /= nlon) then
-   write(string1,*)'LON has length',nlon,'NEE has ',dimlen,'longitudes.'
+   write(string1,*)'LON has length',nlon,'NEP has ',dimlen,'longitudes.'
    call error_handler(E_ERR, 'get_expected_net_C_production', &
               string1, source, revision, revdate)
 endif
 
 ! Dimension 2 is latitude
 call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(2), len=dimlen), &
-              'get_expected_net_C_production', 'inquire_dimension NEE 2')
+              'get_expected_net_C_production', 'inquire_dimension NEP 2'//trim(strshort))
 if (dimlen /= nlat) then
-   write(string1,*)'LAT has length',nlat,'NEE has ',dimlen,'latitudes.'
+   write(string1,*)'LAT has length',nlat,'NEP has ',dimlen,'latitudes.'
    call error_handler(E_ERR, 'get_expected_net_C_production', &
               string1, source, revision, revdate)
 endif
 
 ! Dimension 3 is time
 call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(3), len=dimlen), &
-              'get_expected_net_C_production', 'inquire_dimension NEE 3')
+              'get_expected_net_C_production', 'inquire_dimension NEP 3'//trim(strshort))
 if (dimlen /= ntime) then
-   write(string1,*)'TIME has length',ntime,'NEE has ',dimlen,'times.'
+   write(string1,*)'TIME has length',ntime,'NEP has ',dimlen,'times.'
    call error_handler(E_ERR, 'get_expected_net_C_production', &
               string1, source, revision, revdate)
 endif
 
-! Find the grid cell of interest 
+! Find the grid cell and timestep of interest 
 ! Get the individual locations values
 
+call get_time(obs_time, second, day)
+otime    = real(day,digits12) + real(second,digits12)/86400.0_digits12
 loc      = get_location(location)       ! loc is in DEGREES
 loc_lon  = loc(1)
 loc_lat  = loc(2)
+
 latinds  = minloc(abs(lat - loc_lat))   ! these return 'arrays' ...
 loninds  = minloc(abs(lon - loc_lon))   ! these return 'arrays' ...
+timeinds = minloc(abs(rtime - otime))   ! these return 'arrays' ...
+
 gridlatj = latinds(1)
 gridloni = loninds(1)
+timei    = timeinds(1)
 
 if (debug .and. do_output()) then
    write(*,*)'get_expected_net_C_production:targetlon, lon, lon index is ', &
                                            loc_lon,lon(gridloni),gridloni
    write(*,*)'get_expected_net_C_production:targetlat, lat, lat index is ', &
                                            loc_lat,lat(gridlatj),gridlatj
+   write(*,*)'get_expected_net_C_production:  targetT,   T,   T index is ', &
+                                           otime,rtime(timei),timei
 endif
 
-! For now, just grab the last timestep ... 
+if ( abs(otime - rtime(timei)) > 30*60 ) then
+   if (debug .and. do_output()) then
+      write(*,*)'get_expected_net_C_production: no close time ... skipping observation'
+      call print_time(obs_time,'get_expected_net_C_production:observation time')
+      call print_date(obs_time,'get_expected_net_C_production:observation date')
+   endif
+   istatus = 2
+   return
+endif
 
-ncstart = (/ gridloni, gridlatj, ntime /)
+! Grab exactly the scalar we want.
+
+ncstart = (/ gridloni, gridlatj, timei /)
 nccount = (/        1,        1,     1 /)
 
 call nc_check(nf90_get_var(ncid(ens_index), varid, hyperslab, start=ncstart, count=nccount), &

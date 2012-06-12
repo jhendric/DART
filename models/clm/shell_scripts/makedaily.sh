@@ -1,8 +1,8 @@
 #!/bin/bash
 # BLUEFIRE /usr/local/bin/bash
 
-# split a yearly file into "daily" files which start at 12:01Z
-# the previous day and end at 12:00Z on the day that matches the
+# split a yearly file into "daily" files which start at 00:00Z
+# the previous day and end at 23:59Z on the day that matches the
 # day in the filename.
 
 # set the first and last days to be split.  can roll over
@@ -26,7 +26,7 @@ let end_day=31
 # to set the initial day while we are doing the total day calc.
 
 # make sure there is an initial input.nml for advance_time
-# cp -f input.nml.template input.nml
+cp -f ../work/input.nml.template input.nml || exit 1
 
 # these outputs from advance time (with the -g flag) are
 # 2 integers: gregorian_day_number seconds
@@ -35,46 +35,43 @@ let end_day=31
 mon2=`printf %02d $end_month`
 day2=`printf %02d $end_day`
 end_d=(`echo ${end_year}${mon2}${day2}00 0 -g | ../work/advance_time`)
- echo $end_d
+ echo last day is day $end_d
 
 mon2=`printf %02d $start_month`
 day2=`printf %02d $start_day`
 start_d=(`echo ${start_year}${mon2}${day2}00 0 -g | ../work/advance_time`)
- echo $start_d
+ echo first day is day $start_d
 
 # these are a string in the format YYYYMMDDHH
 # do them here to prime the loop below which first takes them apart.
+prevday=(`echo ${start_year}${mon2}${day2}00 -1d | ../work/advance_time`)
 currday=(`echo ${start_year}${mon2}${day2}00   0 | ../work/advance_time`)
 nextday=(`echo ${start_year}${mon2}${day2}00 +1d | ../work/advance_time`)
-prevday=(`echo ${start_year}${mon2}${day2}00 -1d | ../work/advance_time`)
 
 # how many total days are going to be split (for the loop counter)
 # (pull out the first of the 2 numbers which are output from advance_time)
 let totaldays=${end_d}-${start_d}+1
- echo $totaldays
 
 # loop over each day
 let d=1
 while (( d <= totaldays)) ; do
 
-echo "subsetting $d of $totaldays ..."
-#echo $currday $nextday
+  echo "subsetting $d of $totaldays ..."
+  #echo $currday $nextday
 
   # parse out the parts from a string which is YYYYMMDDHH
-  # both for the current day, yesterday, and tomorrow
-  cyear=${currday:0:4}
-  cmonth=${currday:4:2}
-  cday=${currday:6:2}
-  nyear=${nextday:0:4}
-  nmonth=${nextday:4:2}
-  nday=${nextday:6:2}
+  # for yesterday(previous), today(current), and tomorrow(next)
   pyear=${prevday:0:4}
   pmonth=${prevday:4:2}
   pday=${prevday:6:2}
 
-#echo curr $cyear $cmonth $cday
-#echo next $nyear $nmonth $nday
-#echo prev $pyear $pmonth $pday
+  cyear=${currday:0:4}
+  cmonth=${currday:4:2}
+  cday=${currday:6:2}
+
+  nyear=${nextday:0:4}
+  nmonth=${nextday:4:2}
+  nday=${nextday:6:2}
 
   # compute the equivalent gregorian days here.
   g=(`echo ${cyear}${cmonth}${cday}00 -1d -g | ../work/advance_time`)
@@ -84,20 +81,12 @@ echo "subsetting $d of $totaldays ..."
   g=(`echo ${cyear}${cmonth}${cday}00 +1d -g | ../work/advance_time`)
   greg2=${g[0]}
 
-  echo starting WOD obs for ${cyear}${cmonth}${cday} gregorian= $greg1
+  echo prev $pyear $pmonth $pday which is gregorian $greg0
+  echo curr $cyear $cmonth $cday which is gregorian $greg1
+  echo next $nyear $nmonth $nday which is gregorian $greg2
 
-# I have one whopping long obs_seq.in containing 3 obs per day for
-# 4000 days (all taken at midnight) for a perfect model experiment.
-# I don't need to try to determine the right input files - TJH
-#
-# # Determine the pertinent input files.
-# # last 12 hrs yesterdays data plus the first 12 hrs of todays
-# if [[ ${cmonth} == '01' && ${cday} == '01' ]] ; then
-#    echo "../yearly_files/obs_seq${pyear}.wod" > olist
-#    echo "../yearly_files/obs_seq${cyear}.wod" >> olist
-# else
-#    echo "../yearly_files/obs_seq${cyear}.wod" > olist
-# fi
+  # I have annual files  ...
+  # I'll need to revisit this when I wrap over year boundaries ... TJH
 
   sed -e "s/YYYY/${cyear}/g"    \
       -e "s/MM/${cmonth}/g"     \
@@ -106,8 +95,6 @@ echo "subsetting $d of $totaldays ..."
       -e "s/GREG0/${greg0}/g"  \
       -e "s/GREG1/${greg1}/g"  \
       -e "s/GREG2/${greg2}/g"    < ../work/input.nml.template > input.nml
-
-#  cat input.nml
 
   # make sure output dir exists
   if [[ ! -d ../${cyear}${cmonth} ]] ; then
@@ -121,11 +108,10 @@ echo "subsetting $d of $totaldays ..."
   prevday=$currday
   currday=$nextday
   nextday=(`echo ${nyear}${nmonth}${nday}00 +1d | ../work/advance_time`)
-#echo $currday $nextday $prevday
+  #echo $currday $nextday $prevday
 
   # advance the loop counter
   let d=d+1
-#echo d=$d
 
 done
 
