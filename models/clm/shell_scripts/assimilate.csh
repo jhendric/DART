@@ -112,6 +112,7 @@ ex input.nml <<ex_end
 g;ens_size ;s;= .*;= $ensemble_size;
 g;num_output_state_members ;s;= .*;= $ensemble_size;
 g;num_output_obs_members ;s;= .*;= $ensemble_size;
+g;casename ;s;= .*;= "../$MYCASE",;
 wq
 ex_end
 
