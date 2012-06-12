@@ -361,6 +361,18 @@ if(last_obs_seconds >= 0 .or. last_obs_days >= 0) then
 else
    trim_last = .false.
 endif
+
+if (trim_first) then
+   call print_time(first_obs_time,    'Excluding observations before: ')
+   if (gregorian_cal) &
+      call print_date(first_obs_time, '       which is Gregorian day: ')
+endif
+if (trim_last) then
+   call print_time(last_obs_time,     'Excluding observations  after: ')
+   if (gregorian_cal) &
+      call print_date(last_obs_time,  '       which is Gregorian day: ')
+endif
+
 if (trim_first .and. trim_last) then
    if (first_obs_time > last_obs_time) then
       call error_handler(E_ERR,'obs_sequence_tool', 'first time cannot be later than last time', &
@@ -1184,10 +1196,9 @@ endif
 is_this_last = .false.
 
 call get_obs_def(obs, this_obs_def)
-call print_time(get_obs_def_time(this_obs_def), ' First timestamp: ')
-if (gregorian_cal) then
+call print_time(get_obs_def_time(this_obs_def),    '  First obs time: ')
+if (gregorian_cal) &
    call print_date(get_obs_def_time(this_obs_def), '   Gregorian day: ')
-endif
 
 ObsLoop : do while ( .not. is_this_last)
 
@@ -1205,10 +1216,9 @@ ObsLoop : do while ( .not. is_this_last)
    if (.not. is_this_last) then 
       obs = next_obs
    else
-      call print_time(get_obs_def_time(this_obs_def), '  Last timestamp: ')
-      if (gregorian_cal) then
+      call print_time(get_obs_def_time(this_obs_def),    '   Last obs time: ')
+      if (gregorian_cal) &
          call print_date(get_obs_def_time(this_obs_def), '   Gregorian day: ')
-      endif
    endif
 
 enddo ObsLoop
