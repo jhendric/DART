@@ -61,6 +61,7 @@ use     obs_kind_mod, only : KIND_SOIL_TEMPERATURE,   &
                              KIND_SNOWCOVER_FRAC,     &
                              KIND_SNOW_THICKNESS,     &
                              KIND_LEAF_CARBON,        &
+                             KIND_WATER_TABLE_DEPTH,  &
                              paramname_length,        &
                              get_raw_obs_kind_index
 
@@ -2076,6 +2077,8 @@ elseif (obs_kind == KIND_SNOWCOVER_FRAC ) then
    call compute_gridcell_value(x, location, 'frac_sno', interp_val, istatus)
 elseif (obs_kind == KIND_LEAF_CARBON ) then
    call compute_gridcell_value(x, location, 'leafc',    interp_val, istatus)
+elseif (obs_kind == KIND_WATER_TABLE_DEPTH ) then
+   call compute_gridcell_value(x, location, 'ZWT',    interp_val, istatus)
 elseif (obs_kind == KIND_SNOW_THICKNESS ) then
    write(string1,*)'model_interpolate for DZSNO not written yet.'
    call error_handler(E_ERR,'compute_gridcell_value',string1,source,revision,revdate)

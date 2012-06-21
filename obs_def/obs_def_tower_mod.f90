@@ -3,6 +3,7 @@
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
 ! BEGIN DART PREPROCESS KIND LIST
+!WATER_TABLE_DEPTH,              KIND_WATER_TABLE_DEPTH,        COMMON_CODE
 !SOIL_TEMPERATURE,               KIND_SOIL_TEMPERATURE,         COMMON_CODE
 !LAYER_LIQUID_WATER,             KIND_LIQUID_WATER,             COMMON_CODE
 !LAYER_ICE,                      KIND_ICE,                      COMMON_CODE
