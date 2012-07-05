@@ -226,6 +226,7 @@ call set_qc_meta_data(obs_seq, 1, 'Data QC')
 ! we have to pick an error range.  since this is a snow cover fraction
 ! observation, the valid values should go from 0 to 1.0, so pick 0.1 for now.
 terr = 0.1_r8   ! FIXME - wild guess
+qc = 0.0_r8     ! we will reject anything with a bad qc
 
 
 alongloop:  do ialo = 1, coarse_along
