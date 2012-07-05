@@ -5647,7 +5647,7 @@ if (present(extrapolate)) then
    if (extrapolate) do_interp = .false.
 endif
 
-if (extrapolate .and. .not. present(edgep)) then
+if (.not. do_interp .and. .not. present(edgep)) then
   call error_handler(E_ERR, 'interp_4pressure:', &
       'edgep must be specified for extrapolation.  internal error.', &
        source, revision, revdate)
@@ -6733,6 +6733,8 @@ if (istatus1 == 0) then
             call vert_convert(ens_mean, local_obs_loc, obs_kind(t_ind), istatus2)
             ! Store the "new" location into the original full local array
             obs_loc(t_ind) = local_obs_loc
+         else
+            istatus2 = 0
          endif
       endif
 
