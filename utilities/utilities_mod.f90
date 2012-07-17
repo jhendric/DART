@@ -190,7 +190,6 @@ character(len=128), parameter :: &
    revision = "$Revision$", &
    revdate  = "$Date$"
 
-
 character(len = 169) :: msgstring
 
 !----------------------------------------------------------------
@@ -964,12 +963,8 @@ end subroutine error_handler
       endif
 
       if (rc /= 0) then
-         call error_handler(E_MSG,'open_file', &
-                            'Trying to open file "'//trim(fname)//'" for '//act)
-         call error_handler(E_ERR,'open_file', &
-                            'Cannot open file "' // trim(fname) // '"', &
-                            source, revision, revdate)
-
+         write(msgstring,*)'Cannot open file "'//trim(fname)//'" for '//trim(act)
+         call error_handler(E_ERR, msgstring, source, revision, revdate)
       endif
    endif
 
