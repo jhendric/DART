@@ -76,8 +76,7 @@ module obs_def_tower_mod
 use        types_mod, only : r4, r8, digits12, MISSING_R8, PI, deg2rad
 use     location_mod, only : location_type, get_location
 use time_manager_mod, only : time_type, get_date, set_date, print_date, print_time, &
-                             get_time, set_time, operator(-)
-use        model_mod, only : get_model_time
+                             get_time, set_time, operator(-), operator(/=)
 use    utilities_mod, only : register_module, E_ERR, E_MSG, error_handler, &
                              check_namelist_read, find_namelist_in_file,   &
                              nmlfileunit, do_output, do_nml_file, do_nml_term, &
@@ -102,12 +101,12 @@ character(len=128), parameter :: &
 logical            :: module_initialized = .false.
 character(len=129) :: string1, string2, string3
 integer            :: nlon, nlat, ntime, ens_size
+type(time_type)    :: initialization_time
 
 character(len=129), allocatable, dimension(:) :: fname
 integer,            allocatable, dimension(:) :: ncid
 real(r8),           allocatable, dimension(:) :: lon, lat
 real(digits12),     allocatable, dimension(:) :: rtime
-
 
 ! namelist items
 character(len=256) :: casename = 'clm_tim'
@@ -124,7 +123,8 @@ contains
 !----------------------------------------------------------------------
 !----------------------------------------------------------------------
 
-subroutine initialize_module
+subroutine initialize_module(model_time)
+type(time_type), intent(in) :: model_time
 
 ! Called once to set values and allocate space, open all the CLM files
 ! that have the observations, etc.
@@ -133,10 +133,21 @@ integer :: iunit, io, rc, i
 integer :: dimid, varid
 integer :: year, month, day, hour, minute, second, leftover
 integer, allocatable, dimension(:) :: yyyymmdd,sssss
-type(time_type) :: model_time
+type(time_type) :: tower_time
 
 ! Prevent multiple calls from executing this code more than once.
-if (module_initialized) return
+if (module_initialized) then
+   if (initialization_time /= model_time) then
+      string1 = 'model time does not match initialization time'
+      string2 = 'model time does not match initialization time'
+      string3 = 'model time does not match initialization time'
+      call error_handler(E_ERR, 'initialize_routine', string1, &
+                     source, revision, revdate, text2=string2,text3=string3)
+   endif
+   return
+else
+   initialization_time = model_time
+endif
 
 module_initialized = .true.
 
@@ -157,9 +168,8 @@ if (do_nml_term()) write(     *     , nml=obs_def_tower_nml)
 ! The CLM h0 files contain everything from 00:00 to 23:30 for the date in the filename.
 ! The data for [23:30 -> 00:00] get put in the file for the next day.
 
-model_time = get_model_time()
-model_time = model_time - set_time(0,1)
-call   get_date(model_time, year, month, day, hour, minute, second)
+tower_time = model_time - set_time(0,1)
+call get_date(tower_time, year, month, day, hour, minute, second)
 second = second + minute*60 + hour*3600
 
 ! Figure out how many files (i.e. ensemble size) and construct their names.
@@ -268,15 +278,15 @@ do i = 1,ntime
    minute   = leftover/60
    second   = leftover - minute*60
 
-   model_time = set_date(year, month, day, hour, minute, second)
-   call get_time(model_time, second, day)
+   tower_time = set_date(year, month, day, hour, minute, second)
+   call get_time(tower_time, second, day)
 
    rtime(i) = real(day,digits12) + real(second,digits12)/86400.0_digits12
 
    if (debug .and. do_output()) then
       write(*,*)'timestep yyyymmdd sssss',i,yyyymmdd(i),sssss(i)
-      call print_date(model_time,'tower_mod date')
-      call print_time(model_time,'tower_mod time')
+      call print_date(tower_time,'tower_mod date')
+      call print_time(tower_time,'tower_mod time')
       write(*,*)'tower_mod time as a real ',rtime(i)
    endif
 
@@ -307,7 +317,7 @@ integer,             intent(in)  :: obs_key
 real(r8),            intent(out) :: obs_val
 integer,             intent(out) :: istatus
 
-if ( .not. module_initialized ) call initialize_module
+if ( .not. module_initialized ) call initialize_module(state_time)
 
 obs_val = MISSING_R8
 istatus = 1
@@ -333,7 +343,7 @@ integer,             intent(in)  :: obs_key
 real(r8),            intent(out) :: obs_val
 integer,             intent(out) :: istatus
 
-if ( .not. module_initialized ) call initialize_module
+if ( .not. module_initialized ) call initialize_module(state_time)
 
 obs_val = MISSING_R8
 istatus = 1
@@ -380,7 +390,7 @@ real(r8)               :: scale_factor, add_offset
 real(digits12)         :: otime
 character(len=20)      :: strshort
 
-if ( .not. module_initialized ) call initialize_module
+if ( .not. module_initialized ) call initialize_module(state_time)
 
 obs_val = MISSING_R8
 istatus = 1
