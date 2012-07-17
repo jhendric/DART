@@ -632,6 +632,7 @@ if(handles.ready_to_advance)
 
    % Put on a legend
    legend('Error', 'Spread', 'Location', 'SouthWest');
+   legend boxoff
 
    % Want the lower y limit to stay 0 for error spread
    set(gca, 'YLimMode', 'Auto');
@@ -655,8 +656,9 @@ if(handles.ready_to_advance)
    % Update the rank data
    subplot(handles.r4);
    ens_rank = get_ens_rank(ens_new, 0);
-sort(ens_new)
-ens_rank
+   fprintf([sprintf('\ntimestep %d bin edges are ',handles.time_step), ...
+            num2str(sort([-Inf ens_new Inf]),'%10.4f'),'\n'])
+   fprintf('timestep %d bin/"rank" is %d\n',handles.time_step, ens_rank)
 
    % Plot the latest rank entry as a different color
    temp_rank(:, 1) = handles.prior_rank(1:handles.ens_size + 1);
