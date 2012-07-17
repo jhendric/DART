@@ -87,7 +87,7 @@ real(r8)                :: oerr, qc
 type(obs_sequence_type) :: obs_seq
 type(obs_type)          :: obs, prev_obs
 type(time_type)         :: time_obs, prev_time, offset
-real(r8), parameter     :: umol_to_gC = 1.0_r8/(1000000.0_r8 * 12.0_r8)
+real(r8), parameter     :: umol_to_gC = (1.0_r8/1000000.0_r8) * 12.0_r8
 
 type towerdata
   type(time_type)   :: time_obs
