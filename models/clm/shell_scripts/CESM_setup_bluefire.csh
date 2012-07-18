@@ -346,15 +346,20 @@ echo ""
 # hist_nhtfrq = -$stop_n,        create one every $stop_n HOURS
 # hist_mfilt  =  1,              with precisely one day in it
 # hist_avgflag_pertape = 'I'     use instantaneous values - no average
+#
+# The fincl2 history tape has the half-hourly flux tower observations.
+# The observation operators in obs_def_tower_mod.f90
+# are going to read from the .h1. history file for these values.
 # ====================================================================
 
 cat <<EOF >! user_nl_clm
 &clm_inparm
- hist_empty_htapes = .true.
+ hist_empty_htapes = .false.
  hist_fincl1 = 'NEP'
- hist_nhtfrq = 1,
- hist_mfilt  = 48
- hist_avgflag_pertape = 'A'
+ hist_fincl2 = 'NEP','FSH','EFLX_LH_TOT_R'
+ hist_nhtfrq = -$stop_n,1,
+ hist_mfilt  = 1,48
+ hist_avgflag_pertape = 'A','A'
 /
 EOF
 

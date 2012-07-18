@@ -133,6 +133,8 @@
 
 &obs_kind_nml
    assimilate_these_obs_types = 'TOWER_NETC_ECO_EXCHANGE',
+                                'TOWER_LATENT_HEAT_FLUX',
+                                'TOWER_SENSIBLE_HEAT_FLUX',
                                 'MODIS_SNOWCOVER_FRAC',
    evaluate_these_obs_types   = 'null'
    /
