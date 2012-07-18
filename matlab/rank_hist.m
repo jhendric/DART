@@ -9,7 +9,6 @@ function bins = rank_hist(ens, verif)
 % diagn_file = 'Prior_Diag.nc';
 % plot_bins
 
-
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
