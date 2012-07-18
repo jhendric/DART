@@ -19,7 +19,8 @@ switch ("`hostname`")
 # the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
-      set   LINK = '/usr/local/bin/ln -fvs'
+      set  FLINK = '/usr/local/bin/ln -fvs'
+      set   LINK = '/usr/local/bin/ln -vs'
       set REMOVE = '/usr/local/bin/rm -fr'
 
       set BASEOBSDIR = /glade/proj3/image/Observations/FluxTower
@@ -31,7 +32,8 @@ switch ("`hostname`")
       # NERSC "hopper"
       set   MOVE = 'mv -fv'
       set   COPY = 'cp -fv --preserve=timestamps'
-      set   LINK = 'ln -fvs'
+      set  FLINK = 'ln -fvs'
+      set   LINK = 'ln -vs'
       set REMOVE = 'rm -fr'
 
       set BASEOBSDIR = /scratch/scratchdirs/nscollin/ACARS
@@ -81,8 +83,8 @@ set OBSDIR   = ${BASEOBSDIR}/${MODEL_YEAR}${MODEL_MONTH}
 set OBSFNAME = obs_seq.daybefore.${MODEL_YEAR}${MODEL_MONTH}${MODEL_DAY}
 set OBS_FILE = ${OBSDIR}/${OBSFNAME}
 
-\rm -f              obs_seq.out
-\ln -vs ${OBS_FILE} obs_seq.out
+${REMOVE}           obs_seq.out
+${LINK} ${OBS_FILE} obs_seq.out
 
 set lnstat = $status
 if ($lnstat != 0) then
@@ -225,7 +227,7 @@ if ( $PRIOR_INF > 0 ) then
    # If one exists, use it as input for this assimilation
    if ( $nfiles > 0 ) then
       set latest = `cat latestfile`
-      ${LINK} $latest ${PRIOR_INF_IFNAME}
+      ${FLINK} $latest ${PRIOR_INF_IFNAME}
    else
       echo "ERROR: Requested prior inflation but specified no incoming prior inflation file."
       echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
@@ -252,7 +254,7 @@ if ( $POSTE_INF > 0 ) then
    # If one exists, use it as input for this assimilation
    if ( $nfiles > 0 ) then
       set latest = `cat latestfile`
-      ${LINK} $latest ${POSTE_INF_IFNAME}
+      ${FLINK} $latest ${POSTE_INF_IFNAME}
    else
       echo "ERROR: Requested POSTERIOR inflation but specified no incoming POSTERIOR inflation file."
       echo "ERROR: expected something like ../${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
@@ -290,9 +292,9 @@ while ( ${member} <= ${ensemble_size} )
    set LND_HISTORY_FILENAME = `printf ../../${MYCASE}.clm2_%04d.h0.${MODEL_DATE_EXT}.nc ${member}`
    set     DART_IC_FILENAME = `printf ../filter_ics.%04d ${member}`
 
-   ${LINK} $LND_RESTART_FILENAME clm_restart.nc
-   ${LINK} $LND_HISTORY_FILENAME clm_history.nc
-   ${LINK}     $DART_IC_FILENAME dart_ics
+   ${FLINK} $LND_RESTART_FILENAME clm_restart.nc
+   ${FLINK} $LND_HISTORY_FILENAME clm_history.nc
+   ${FLINK}     $DART_IC_FILENAME dart_ics
 
    # patch the CLM restart files to ensure they have the proper
    # _FillValue and missing_value attributes.
@@ -352,8 +354,8 @@ endif
 set LND_RESTART_FILENAME = ../${MYCASE}.clm2_0001.r.${MODEL_DATE_EXT}.nc
 set LND_HISTORY_FILENAME = ../${MYCASE}.clm2_0001.h0.${MODEL_DATE_EXT}.nc
 
-${LINK} $LND_RESTART_FILENAME clm_restart.nc
-${LINK} $LND_HISTORY_FILENAME clm_history.nc
+${FLINK} $LND_RESTART_FILENAME clm_restart.nc
+${FLINK} $LND_HISTORY_FILENAME clm_history.nc
 
 # FIXME: special for trying out non-monotonic task layouts.
 setenv ORG_PATH "${PATH}"
@@ -408,7 +410,7 @@ while ( ${member} <= ${ensemble_size} )
    cd member_${member}
 
    set DART_RESTART_FILE = `printf ../filter_restart.%04d ${member}`
-   ${LINK} $DART_RESTART_FILE dart_restart
+   ${FLINK} $DART_RESTART_FILE dart_restart
 
    echo "starting dart_to_clm for member ${member} at "`date`
    ${EXEROOT}/dart_to_clm >! output.${member}.dart_to_clm &
