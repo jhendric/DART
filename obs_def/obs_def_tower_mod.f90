@@ -176,7 +176,7 @@ second = second + minute*60 + hour*3600
 ! The CLM h0 files are constructed such that the midnight that starts the
 ! day is IN the file. The last time in the file is 23:30 ... 
 
-100 format (A,'.clm2_',I4.4,'.h0.',I4.4,'-',I2.2,'-',I2.2,'-',I5.5,'.nc')
+100 format (A,'.clm2_',I4.4,'.h1.',I4.4,'-',I2.2,'-',I2.2,'-',I5.5,'.nc')
 
 ens_size = 0
 ENSEMBLESIZE : do i = 1,200

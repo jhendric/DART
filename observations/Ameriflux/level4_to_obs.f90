@@ -441,6 +441,7 @@ end function count_file_lines
 
 subroutine decode_header(iunit)
 ! Reads the first line of the header and parses the information.
+! FIXME ... decode the header ... do not assume ...
 integer, intent(in) :: iunit
 
 read(iunit,'(A)',iostat=rcio) input_line
@@ -548,11 +549,12 @@ else
    tower%time_obs = time0
 
 endif
-   
+
+! 8AM East Coast is 1PM Greenwich 
 if (timezoneoffset < 0.0_r8) then
-   tower%time_obs = tower%time_obs - offset
-else
    tower%time_obs = tower%time_obs + offset
+else
+   tower%time_obs = tower%time_obs - offset
 endif
 
 ! The QC values can be 'missing' ... in which case the values are too
