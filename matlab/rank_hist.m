@@ -1,5 +1,14 @@
 function bins = rank_hist(ens, verif)
-%% RANK_HIST: Computes a rank histogram given time series of ensemble and verification 
+%% RANK_HIST: private function to compute a rank histogram given time series of ensemble and verification
+%
+% The function to create and plot the rank histogram is called "plot_bins".
+%
+% Example
+%
+% truth_file = 'True_State.nc';
+% diagn_file = 'Prior_Diag.nc';
+% plot_bins
+
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
