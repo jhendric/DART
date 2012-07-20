@@ -25,20 +25,18 @@
 
 !-----------------------------------------------------------------------------
 ! BEGIN DART PREPROCESS USE OF SPECIAL OBS_DEF MODULE
-!  use obs_def_tower_mod, only : get_expected_latent_heat_flux
-!  use obs_def_tower_mod, only : get_expected_sensible_heat_flux
-!  use obs_def_tower_mod, only : get_expected_net_C_production
+!  use obs_def_tower_mod, only : get_scalar_from_3Dhistory
 ! END DART PREPROCESS USE OF SPECIAL OBS_DEF MODULE
 !-----------------------------------------------------------------------------
 
 !-----------------------------------------------------------------------------
 ! BEGIN DART PREPROCESS GET_EXPECTED_OBS_FROM_DEF
 !  case(TOWER_LATENT_HEAT_FLUX)
-!     call get_expected_latent_heat_flux(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
+!     call get_scalar_from_3Dhistory('EFLX_LH_TOT_R', state_time, ens_index, location, obs_time, obs_val, istatus)
 !  case(TOWER_SENSIBLE_HEAT_FLUX)
-!     call get_expected_sensible_heat_flux(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
+!     call get_scalar_from_3Dhistory('FSH', state_time, ens_index, location, obs_time, obs_val, istatus)
 !  case(TOWER_NETC_ECO_EXCHANGE)
-!     call get_expected_net_C_production(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
+!     call get_scalar_from_3Dhistory('NEP', state_time, ens_index, location, obs_time, obs_val, istatus)
 ! END DART PREPROCESS GET_EXPECTED_OBS_FROM_DEF
 !-----------------------------------------------------------------------------
 
@@ -88,9 +86,7 @@ use netcdf
 implicit none
 private
 
-public :: get_expected_latent_heat_flux,   &
-          get_expected_sensible_heat_flux, &
-          get_expected_net_C_production
+public :: get_scalar_from_3Dhistory
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -129,7 +125,7 @@ type(time_type), intent(in) :: model_time
 ! Called once to set values and allocate space, open all the CLM files
 ! that have the observations, etc.
 
-integer :: iunit, io, rc, i
+integer :: iunit, io, i
 integer :: dimid, varid
 integer :: year, month, day, hour, minute, second, leftover
 integer, allocatable, dimension(:) :: yyyymmdd,sssss
@@ -303,341 +299,13 @@ deallocate(yyyymmdd, sssss)
 end subroutine initialize_module
 
 
-subroutine get_expected_latent_heat_flux(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
+
+subroutine get_scalar_from_3Dhistory(varstring, state_time, ens_index, location, obs_time, obs_val, istatus )
 ! the routine must return values for:
 ! obs_val -- the computed forward operator value
 ! istatus -- return code: 0=ok, > 0 is error, < 0 reserved for system use
-
-real(r8),            intent(in)  :: state(:)
-type(time_type),     intent(in)  :: state_time
-integer,             intent(in)  :: ens_index
-type(location_type), intent(in)  :: location
-type(time_type),     intent(in)  :: obs_time
-integer,             intent(in)  :: obs_key
-real(r8),            intent(out) :: obs_val
-integer,             intent(out) :: istatus
-
-integer,  dimension(NF90_MAX_VAR_DIMS) :: dimids
-real(r8), dimension(3) :: loc
-integer,  dimension(3) :: ncstart, nccount
-integer,  dimension(1) :: loninds, latinds, timeinds
-integer                :: gridloni, gridlatj, timei
-integer                :: varid, xtype, ndims, natts, dimlen
-integer                :: io1, io2, second, day
-real(r8)               :: loc_lon, loc_lat
-real(r4), dimension(1) :: hyperslab
-real(r4)               :: spvalR4
-real(r8)               :: scale_factor, add_offset
-real(digits12)         :: otime
-character(len=20)      :: strshort
-
-if ( .not. module_initialized ) call initialize_module(state_time)
-
-obs_val = MISSING_R8
-istatus = 1
-
-write(strshort,'(''ens_index '',i4)')ens_index
-
-if (ens_index > ens_size) then
-   write(string1,*)'believed to have ',ens_size,'ensemble members for observation operator.'
-   write(string2,*)'asking to use operator for ensemble member ',ens_index
-   call error_handler(E_ERR, 'get_expected_latent_heat_flux', &
-              string1, source, revision, revdate, text2=string2)
-endif
-
-! bombproofing ... make sure the netcdf file is open.
-
-write(*,*)'ncid(',ens_index,') is ',ncid(ens_index)
-call nc_check(nf90_inquire(ncid(ens_index)), &
-              'get_expected_latent_heat_flux', 'inquire '//trim(strshort))
-
-! bombproofing ... make sure the variable is the shape and size we expect
-
-call nc_check(nf90_inq_varid(ncid(ens_index), 'EFLX_LH_TOT_R', varid), &
-        'get_expected_latent_heat_flux', 'inq_varid EFLX_LH_TOT_R '//trim(strshort))
-call nc_check(nf90_inquire_variable(ncid(ens_index), varid, xtype=xtype, ndims=ndims, &
-        dimids=dimids, natts=natts),'get_expected_latent_heat_flux','inquire variable EFLX_LH_TOT_R '//trim(strshort))
-
-if (ndims /= 3) then
-   write(string1,*)'EFLX_LH_TOT_R is supposed to have 3 dimensions, it has',ndims
-   call error_handler(E_ERR, 'get_expected_latent_heat_flux', &
-              string1, source, revision, revdate)
-endif
-
-! If the variable is not a NF90_FLOAT, then the assumptions for processing
-! the missing_value, _FillValue, etc., may not be correct.
-if (xtype /= NF90_FLOAT) then
-   write(string1,*)'EFLX_LH_TOT_R supposed to be a 32 bit real. xtype = ',NF90_FLOAT,' it is ',xtype 
-   call error_handler(E_ERR, 'get_expected_latent_heat_flux', &
-              string1, source, revision, revdate)
-endif
-
-! Dimension 1 is longitude
-call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(1), len=dimlen), &
-              'get_expected_latent_heat_flux', 'inquire_dimension EFLX_LH_TOT_R 1'//trim(strshort))
-if (dimlen /= nlon) then
-   write(string1,*)'LON has length',nlon,'EFLX_LH_TOT_R has ',dimlen,'longitudes.'
-   call error_handler(E_ERR, 'get_expected_latent_heat_flux', &
-              string1, source, revision, revdate)
-endif
-
-! Dimension 2 is latitude
-call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(2), len=dimlen), &
-              'get_expected_latent_heat_flux', 'inquire_dimension EFLX_LH_TOT_R 2'//trim(strshort))
-if (dimlen /= nlat) then
-   write(string1,*)'LAT has length',nlat,'EFLX_LH_TOT_R has ',dimlen,'latitudes.'
-   call error_handler(E_ERR, 'get_expected_latent_heat_flux', &
-              string1, source, revision, revdate)
-endif
-
-! Dimension 3 is time
-call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(3), len=dimlen), &
-              'get_expected_latent_heat_flux', 'inquire_dimension EFLX_LH_TOT_R 3'//trim(strshort))
-if (dimlen /= ntime) then
-   write(string1,*)'TIME has length',ntime,'EFLX_LH_TOT_R has ',dimlen,'times.'
-   call error_handler(E_ERR, 'get_expected_latent_heat_flux', &
-              string1, source, revision, revdate)
-endif
-
-! Find the grid cell and timestep of interest 
-! Get the individual locations values
-
-call get_time(obs_time, second, day)
-otime    = real(day,digits12) + real(second,digits12)/86400.0_digits12
-loc      = get_location(location)       ! loc is in DEGREES
-loc_lon  = loc(1)
-loc_lat  = loc(2)
-
-latinds  = minloc(abs(lat - loc_lat))   ! these return 'arrays' ...
-loninds  = minloc(abs(lon - loc_lon))   ! these return 'arrays' ...
-timeinds = minloc(abs(rtime - otime))   ! these return 'arrays' ...
-
-gridlatj = latinds(1)
-gridloni = loninds(1)
-timei    = timeinds(1)
-
-if (debug .and. do_output()) then
-   write(*,*)'get_expected_latent_heat_flux:targetlon, lon, lon index is ', &
-                                           loc_lon,lon(gridloni),gridloni
-   write(*,*)'get_expected_latent_heat_flux:targetlat, lat, lat index is ', &
-                                           loc_lat,lat(gridlatj),gridlatj
-   write(*,*)'get_expected_latent_heat_flux:  targetT,   T,   T index is ', &
-                                           otime,rtime(timei),timei
-endif
-
-if ( abs(otime - rtime(timei)) > 30*60 ) then
-   if (debug .and. do_output()) then
-      write(*,*)'get_expected_latent_heat_flux: no close time ... skipping observation'
-      call print_time(obs_time,'get_expected_latent_heat_flux:observation time')
-      call print_date(obs_time,'get_expected_latent_heat_flux:observation date')
-   endif
-   istatus = 2
-   return
-endif
-
-! Grab exactly the scalar we want.
-
-ncstart = (/ gridloni, gridlatj, timei /)
-nccount = (/        1,        1,     1 /)
-
-call nc_check(nf90_get_var(ncid(ens_index), varid, hyperslab, start=ncstart, count=nccount), &
-     'get_expected_latent_heat_flux', 'get_var')
-
-obs_val = hyperslab(1)
-
-! Apply any netCDF attributes ...
-
-io1 = nf90_get_att(ncid(ens_index), varid, '_FillValue' , spvalR4)
-if ((io1 == NF90_NOERR) .and. (hyperslab(1) == spvalR4)) obs_val = MISSING_R8
-
-io2 = nf90_get_att(ncid(ens_index), varid, 'missing_value' , spvalR4)
-if ((io2 == NF90_NOERR) .and. (hyperslab(1) == spvalR4)) obs_val = MISSING_R8
-
-io1 = nf90_get_att(ncid(ens_index), varid, 'scale_factor', scale_factor)
-io2 = nf90_get_att(ncid(ens_index), varid, 'add_offset'  , add_offset)
-
-if ( (io1 == NF90_NOERR) .and. (io2 == NF90_NOERR) ) then
-   if (obs_val /= MISSING_R8) obs_val = obs_val * scale_factor + add_offset
-elseif (io1 == NF90_NOERR) then
-   if (obs_val /= MISSING_R8) obs_val = obs_val * scale_factor
-elseif (io2 == NF90_NOERR) then
-   if (obs_val /= MISSING_R8) obs_val = obs_val + add_offset
-endif
-
-if (obs_val /= MISSING_R8) istatus = 0
-end subroutine get_expected_latent_heat_flux
-
-
-
-subroutine get_expected_sensible_heat_flux(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
-! the routine must return values for:
-! obs_val -- the computed forward operator value
-! istatus -- return code: 0=ok, > 0 is error, < 0 reserved for system use
-real(r8),            intent(in)  :: state(:)
-type(time_type),     intent(in)  :: state_time
-integer,             intent(in)  :: ens_index
-type(location_type), intent(in)  :: location
-type(time_type),     intent(in)  :: obs_time
-integer,             intent(in)  :: obs_key
-real(r8),            intent(out) :: obs_val
-integer,             intent(out) :: istatus
-
-integer,  dimension(NF90_MAX_VAR_DIMS) :: dimids
-real(r8), dimension(3) :: loc
-integer,  dimension(3) :: ncstart, nccount
-integer,  dimension(1) :: loninds, latinds, timeinds
-integer                :: gridloni, gridlatj, timei
-integer                :: varid, xtype, ndims, natts, dimlen
-integer                :: io1, io2, second, day
-real(r8)               :: loc_lon, loc_lat
-real(r4), dimension(1) :: hyperslab
-real(r4)               :: spvalR4
-real(r8)               :: scale_factor, add_offset
-real(digits12)         :: otime
-character(len=20)      :: strshort
-
-if ( .not. module_initialized ) call initialize_module(state_time)
-
-obs_val = MISSING_R8
-istatus = 1
-
-write(strshort,'(''ens_index '',i4)')ens_index
-
-if (ens_index > ens_size) then
-   write(string1,*)'believed to have ',ens_size,'ensemble members for observation operator.'
-   write(string2,*)'asking to use operator for ensemble member ',ens_index
-   call error_handler(E_ERR, 'get_expected_sensible_heat_flux', &
-              string1, source, revision, revdate, text2=string2)
-endif
-
-! bombproofing ... make sure the netcdf file is open.
-
-write(*,*)'ncid(',ens_index,') is ',ncid(ens_index)
-call nc_check(nf90_inquire(ncid(ens_index)), &
-              'get_expected_sensible_heat_flux', 'inquire '//trim(strshort))
-
-! bombproofing ... make sure the variable is the shape and size we expect
-
-call nc_check(nf90_inq_varid(ncid(ens_index), 'FSH', varid), &
-        'get_expected_sensible_heat_flux', 'inq_varid FSH '//trim(strshort))
-call nc_check(nf90_inquire_variable(ncid(ens_index), varid, xtype=xtype, ndims=ndims, &
-        dimids=dimids, natts=natts),'get_expected_sensible_heat_flux','inquire variable FSH '//trim(strshort))
-
-if (ndims /= 3) then
-   write(string1,*)'FSH is supposed to have 3 dimensions, it has',ndims
-   call error_handler(E_ERR, 'get_expected_sensible_heat_flux', &
-              string1, source, revision, revdate)
-endif
-
-! If the variable is not a NF90_FLOAT, then the assumptions for processing
-! the missing_value, _FillValue, etc., may not be correct.
-if (xtype /= NF90_FLOAT) then
-   write(string1,*)'FSH supposed to be a 32 bit real. xtype = ',NF90_FLOAT,' it is ',xtype 
-   call error_handler(E_ERR, 'get_expected_sensible_heat_flux', &
-              string1, source, revision, revdate)
-endif
-
-! Dimension 1 is longitude
-call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(1), len=dimlen), &
-              'get_expected_sensible_heat_flux', 'inquire_dimension FSH 1'//trim(strshort))
-if (dimlen /= nlon) then
-   write(string1,*)'LON has length',nlon,'FSH has ',dimlen,'longitudes.'
-   call error_handler(E_ERR, 'get_expected_sensible_heat_flux', &
-              string1, source, revision, revdate)
-endif
-
-! Dimension 2 is latitude
-call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(2), len=dimlen), &
-              'get_expected_sensible_heat_flux', 'inquire_dimension FSH 2'//trim(strshort))
-if (dimlen /= nlat) then
-   write(string1,*)'LAT has length',nlat,'FSH has ',dimlen,'latitudes.'
-   call error_handler(E_ERR, 'get_expected_sensible_heat_flux', &
-              string1, source, revision, revdate)
-endif
-
-! Dimension 3 is time
-call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(3), len=dimlen), &
-              'get_expected_sensible_heat_flux', 'inquire_dimension FSH 3'//trim(strshort))
-if (dimlen /= ntime) then
-   write(string1,*)'TIME has length',ntime,'FSH has ',dimlen,'times.'
-   call error_handler(E_ERR, 'get_expected_sensible_heat_flux', &
-              string1, source, revision, revdate)
-endif
-
-! Find the grid cell and timestep of interest 
-! Get the individual locations values
-
-call get_time(obs_time, second, day)
-otime    = real(day,digits12) + real(second,digits12)/86400.0_digits12
-loc      = get_location(location)       ! loc is in DEGREES
-loc_lon  = loc(1)
-loc_lat  = loc(2)
-
-latinds  = minloc(abs(lat - loc_lat))   ! these return 'arrays' ...
-loninds  = minloc(abs(lon - loc_lon))   ! these return 'arrays' ...
-timeinds = minloc(abs(rtime - otime))   ! these return 'arrays' ...
-
-gridlatj = latinds(1)
-gridloni = loninds(1)
-timei    = timeinds(1)
-
-if (debug .and. do_output()) then
-   write(*,*)'get_expected_sensible_heat_flux:targetlon, lon, lon index is ', &
-                                           loc_lon,lon(gridloni),gridloni
-   write(*,*)'get_expected_sensible_heat_flux:targetlat, lat, lat index is ', &
-                                           loc_lat,lat(gridlatj),gridlatj
-   write(*,*)'get_expected_sensible_heat_flux:  targetT,   T,   T index is ', &
-                                           otime,rtime(timei),timei
-endif
-
-if ( abs(otime - rtime(timei)) > 30*60 ) then
-   if (debug .and. do_output()) then
-      write(*,*)'get_expected_sensible_heat_flux: no close time ... skipping observation'
-      call print_time(obs_time,'get_expected_sensible_heat_flux:observation time')
-      call print_date(obs_time,'get_expected_sensible_heat_flux:observation date')
-   endif
-   istatus = 2
-   return
-endif
-
-! Grab exactly the scalar we want.
-
-ncstart = (/ gridloni, gridlatj, timei /)
-nccount = (/        1,        1,     1 /)
-
-call nc_check(nf90_get_var(ncid(ens_index), varid, hyperslab, start=ncstart, count=nccount), &
-     'get_expected_sensible_heat_flux', 'get_var')
-
-obs_val = hyperslab(1)
-
-! Apply any netCDF attributes ...
-
-io1 = nf90_get_att(ncid(ens_index), varid, '_FillValue' , spvalR4)
-if ((io1 == NF90_NOERR) .and. (hyperslab(1) == spvalR4)) obs_val = MISSING_R8
-
-io2 = nf90_get_att(ncid(ens_index), varid, 'missing_value' , spvalR4)
-if ((io2 == NF90_NOERR) .and. (hyperslab(1) == spvalR4)) obs_val = MISSING_R8
-
-io1 = nf90_get_att(ncid(ens_index), varid, 'scale_factor', scale_factor)
-io2 = nf90_get_att(ncid(ens_index), varid, 'add_offset'  , add_offset)
-
-if ( (io1 == NF90_NOERR) .and. (io2 == NF90_NOERR) ) then
-   if (obs_val /= MISSING_R8) obs_val = obs_val * scale_factor + add_offset
-elseif (io1 == NF90_NOERR) then
-   if (obs_val /= MISSING_R8) obs_val = obs_val * scale_factor
-elseif (io2 == NF90_NOERR) then
-   if (obs_val /= MISSING_R8) obs_val = obs_val + add_offset
-endif
-
-if (obs_val /= MISSING_R8) istatus = 0
-
-end subroutine get_expected_sensible_heat_flux
-
-
-subroutine get_expected_net_C_production(state, state_time, ens_index, location, obs_time, obs_key, obs_val, istatus)
-! the routine must return values for:
-! obs_val -- the computed forward operator value
-! istatus -- return code: 0=ok, > 0 is error, < 0 reserved for system use
+!
+! The requirement is that the history file variable is a 3D variable shaped similarly:
 !
 ! float NEP(time, lat, lon) ;
 !          NEP:long_name = "net ecosystem production, blah, blah, blah" ;
@@ -646,12 +314,11 @@ subroutine get_expected_net_C_production(state, state_time, ens_index, location,
 !          NEP:_FillValue = 1.e+36f ;
 !          NEP:missing_value = 1.e+36f ;
 
-real(r8),            intent(in)  :: state(:)
+character(len=*),    intent(in)  :: varstring
 type(time_type),     intent(in)  :: state_time
 integer,             intent(in)  :: ens_index
 type(location_type), intent(in)  :: location
 type(time_type),     intent(in)  :: obs_time
-integer,             intent(in)  :: obs_key
 real(r8),            intent(out) :: obs_val
 integer,             intent(out) :: istatus
 
@@ -674,12 +341,12 @@ if ( .not. module_initialized ) call initialize_module(state_time)
 obs_val = MISSING_R8
 istatus = 1
 
-write(strshort,'(''ens_index '',i4)')ens_index
+write(strshort,'(''ens_index '',i4,1x,A)')ens_index,trim(varstring)
 
 if (ens_index > ens_size) then
    write(string1,*)'believed to have ',ens_size,'ensemble members for observation operator.'
    write(string2,*)'asking to use operator for ensemble member ',ens_index
-   call error_handler(E_ERR, 'get_expected_net_C_production', &
+   call error_handler(E_ERR, 'get_scalar_from_3Dhistory', &
               string1, source, revision, revdate, text2=string2)
 endif
 
@@ -687,53 +354,53 @@ endif
 
 write(*,*)'ncid(',ens_index,') is ',ncid(ens_index)
 call nc_check(nf90_inquire(ncid(ens_index)), &
-              'get_expected_net_C_production', 'inquire '//trim(strshort))
+              'get_scalar_from_3Dhistory', 'inquire '//trim(strshort))
 
 ! bombproofing ... make sure the variable is the shape and size we expect
 
-call nc_check(nf90_inq_varid(ncid(ens_index), 'NEP', varid), &
-        'get_expected_net_C_production', 'inq_varid NEP '//trim(strshort))
+call nc_check(nf90_inq_varid(ncid(ens_index), trim(varstring), varid), &
+        'get_scalar_from_3Dhistory', 'inq_varid '//trim(strshort))
 call nc_check(nf90_inquire_variable(ncid(ens_index), varid, xtype=xtype, ndims=ndims, &
-        dimids=dimids, natts=natts),'get_expected_net_C_production','inquire variable NEP '//trim(strshort))
+        dimids=dimids, natts=natts),'get_scalar_from_3Dhistory','inquire variable '//trim(strshort))
 
 if (ndims /= 3) then
-   write(string1,*)'NEP is supposed to have 3 dimensions, it has',ndims
-   call error_handler(E_ERR, 'get_expected_net_C_production', &
+   write(string1,*)trim(varstring),' is supposed to have 3 dimensions, it has',ndims
+   call error_handler(E_ERR, 'get_scalar_from_3Dhistory', &
               string1, source, revision, revdate)
 endif
 
 ! If the variable is not a NF90_FLOAT, then the assumptions for processing
 ! the missing_value, _FillValue, etc., may not be correct.
 if (xtype /= NF90_FLOAT) then
-   write(string1,*)'NEP supposed to be a 32 bit real. xtype = ',NF90_FLOAT,' it is ',xtype 
-   call error_handler(E_ERR, 'get_expected_net_C_production', &
+   write(string1,*)trim(varstring),' is supposed to be a 32 bit real. xtype = ',NF90_FLOAT,' it is ',xtype 
+   call error_handler(E_ERR, 'get_scalar_from_3Dhistory', &
               string1, source, revision, revdate)
 endif
 
 ! Dimension 1 is longitude
 call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(1), len=dimlen), &
-              'get_expected_net_C_production', 'inquire_dimension NEP 1'//trim(strshort))
+              'get_scalar_from_3Dhistory', 'inquire_dimension 1 '//trim(strshort))
 if (dimlen /= nlon) then
-   write(string1,*)'LON has length',nlon,'NEP has ',dimlen,'longitudes.'
-   call error_handler(E_ERR, 'get_expected_net_C_production', &
+   write(string1,*)'LON has length',nlon,trim(varstring),' has ',dimlen,'longitudes.'
+   call error_handler(E_ERR, 'get_scalar_from_3Dhistory', &
               string1, source, revision, revdate)
 endif
 
 ! Dimension 2 is latitude
 call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(2), len=dimlen), &
-              'get_expected_net_C_production', 'inquire_dimension NEP 2'//trim(strshort))
+              'get_scalar_from_3Dhistory', 'inquire_dimension 2 '//trim(strshort))
 if (dimlen /= nlat) then
-   write(string1,*)'LAT has length',nlat,'NEP has ',dimlen,'latitudes.'
-   call error_handler(E_ERR, 'get_expected_net_C_production', &
+   write(string1,*)'LAT has length',nlat,trim(varstring),' has ',dimlen,'latitudes.'
+   call error_handler(E_ERR, 'get_scalar_from_3Dhistory', &
               string1, source, revision, revdate)
 endif
 
 ! Dimension 3 is time
 call nc_check(nf90_inquire_dimension(ncid(ens_index), dimids(3), len=dimlen), &
-              'get_expected_net_C_production', 'inquire_dimension NEP 3'//trim(strshort))
+              'get_scalar_from_3Dhistory', 'inquire_dimension 3'//trim(strshort))
 if (dimlen /= ntime) then
-   write(string1,*)'TIME has length',ntime,'NEP has ',dimlen,'times.'
-   call error_handler(E_ERR, 'get_expected_net_C_production', &
+   write(string1,*)'TIME has length',ntime,trim(varstring),' has ',dimlen,'times.'
+   call error_handler(E_ERR, 'get_scalar_from_3Dhistory', &
               string1, source, revision, revdate)
 endif
 
@@ -755,19 +422,19 @@ gridloni = loninds(1)
 timei    = timeinds(1)
 
 if (debug .and. do_output()) then
-   write(*,*)'get_expected_net_C_production:targetlon, lon, lon index is ', &
+   write(*,*)'get_scalar_from_3Dhistory:targetlon, lon, lon index is ', &
                                            loc_lon,lon(gridloni),gridloni
-   write(*,*)'get_expected_net_C_production:targetlat, lat, lat index is ', &
+   write(*,*)'get_scalar_from_3Dhistory:targetlat, lat, lat index is ', &
                                            loc_lat,lat(gridlatj),gridlatj
-   write(*,*)'get_expected_net_C_production:  targetT,   T,   T index is ', &
+   write(*,*)'get_scalar_from_3Dhistory:  targetT,   T,   T index is ', &
                                            otime,rtime(timei),timei
 endif
 
 if ( abs(otime - rtime(timei)) > 30*60 ) then
    if (debug .and. do_output()) then
-      write(*,*)'get_expected_net_C_production: no close time ... skipping observation'
-      call print_time(obs_time,'get_expected_net_C_production:observation time')
-      call print_date(obs_time,'get_expected_net_C_production:observation date')
+      write(*,*)'get_scalar_from_3Dhistory: no close time ... skipping observation'
+      call print_time(obs_time,'get_scalar_from_3Dhistory:observation time')
+      call print_date(obs_time,'get_scalar_from_3Dhistory:observation date')
    endif
    istatus = 2
    return
@@ -779,7 +446,7 @@ ncstart = (/ gridloni, gridlatj, timei /)
 nccount = (/        1,        1,     1 /)
 
 call nc_check(nf90_get_var(ncid(ens_index), varid, hyperslab, start=ncstart, count=nccount), &
-     'get_expected_net_C_production', 'get_var')
+     'get_scalar_from_3Dhistory', 'get_var')
 
 obs_val = hyperslab(1)
 
@@ -804,8 +471,7 @@ endif
 
 if (obs_val /= MISSING_R8) istatus = 0
 
-end subroutine get_expected_net_C_production
-
+end subroutine get_scalar_from_3Dhistory
 
 
 end module obs_def_tower_mod
