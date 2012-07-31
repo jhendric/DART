@@ -78,7 +78,7 @@ use time_manager_mod, only : time_type, get_date, set_date, print_date, print_ti
 use    utilities_mod, only : register_module, E_ERR, E_MSG, error_handler, &
                              check_namelist_read, find_namelist_in_file,   &
                              nmlfileunit, do_output, do_nml_file, do_nml_term, &
-                             nc_check, file_exist
+                             nc_check, file_exist, is_longitude_between
 
 use typesizes
 use netcdf
@@ -365,7 +365,7 @@ loc      = get_location(location) ! loc is in DEGREES
 loc_lon  = loc(1)
 loc_lat  = loc(2)
 
-if ((loc_lon < edgeWest ) .or. (loc_lon > edgeEast )) return
+if ( .not. is_longitude_between(loc_lon, edgeWest, edgeEast, doradians=.FALSE.)) return
 if ((loc_lat < edgeSouth) .or. (loc_lat > edgeNorth)) return
 
 ! Now that we know the observation operator is possible, continue ...
