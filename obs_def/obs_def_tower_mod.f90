@@ -98,6 +98,7 @@ logical            :: module_initialized = .false.
 character(len=129) :: string1, string2, string3
 integer            :: nlon, nlat, ntime, ens_size
 type(time_type)    :: initialization_time
+real(r8)           :: edgeNorth,edgeEast,edgeSouth,edgeWest
 
 character(len=129), allocatable, dimension(:) :: fname
 integer,            allocatable, dimension(:) :: ncid
@@ -257,6 +258,24 @@ call nc_check(nf90_inq_varid(ncid(i), 'mcsec', varid), &
        'initialize_routine','inq_varid mcsec '//trim(fname(i)))
 call nc_check(nf90_get_var(ncid(i), varid, sssss), 'initialize_routine', 'get_var sssss')
 
+! Determine the geographic boundaries of the contents of the history file.
+
+call nc_check(nf90_inq_varid(ncid(i), 'edgen', varid), &
+       'initialize_routine','inq_varid edgen '//trim(fname(i)))
+call nc_check(nf90_get_var(ncid(i), varid, edgeNorth), 'initialize_routine', 'get_var edgeNorth')
+
+call nc_check(nf90_inq_varid(ncid(i), 'edgee', varid), &
+       'initialize_routine','inq_varid edgee '//trim(fname(i)))
+call nc_check(nf90_get_var(ncid(i), varid, edgeEast), 'initialize_routine', 'get_var edgeEast')
+
+call nc_check(nf90_inq_varid(ncid(i), 'edges', varid), &
+       'initialize_routine','inq_varid edges '//trim(fname(i)))
+call nc_check(nf90_get_var(ncid(i), varid, edgeSouth), 'initialize_routine', 'get_var edgeSouth')
+
+call nc_check(nf90_inq_varid(ncid(i), 'edgew', varid), &
+       'initialize_routine','inq_varid edgew '//trim(fname(i)))
+call nc_check(nf90_get_var(ncid(i), varid, edgeWest), 'initialize_routine', 'get_var edgeWest')
+
 ! call nc_check(nf90_inq_varid(ncid(i), 'time', varid), &
 !        'initialize_routine','inq_varid time '//trim(fname(i)))
 ! call nc_check(nf90_get_var(ncid(i), varid, time), 'initialize_routine', 'get_var time')
@@ -341,6 +360,16 @@ if ( .not. module_initialized ) call initialize_module(state_time)
 obs_val = MISSING_R8
 istatus = 1
 
+! if observation is outside region encompassed in the history file - fail
+loc      = get_location(location) ! loc is in DEGREES
+loc_lon  = loc(1)
+loc_lat  = loc(2)
+
+if ((loc_lon < edgeWest ) .or. (loc_lon > edgeEast )) return
+if ((loc_lat < edgeSouth) .or. (loc_lat > edgeNorth)) return
+
+! Now that we know the observation operator is possible, continue ...
+
 write(strshort,'(''ens_index '',i4,1x,A)')ens_index,trim(varstring)
 
 if (ens_index > ens_size) then
@@ -409,9 +438,6 @@ endif
 
 call get_time(obs_time, second, day)
 otime    = real(day,digits12) + real(second,digits12)/86400.0_digits12
-loc      = get_location(location)       ! loc is in DEGREES
-loc_lon  = loc(1)
-loc_lat  = loc(2)
 
 latinds  = minloc(abs(lat - loc_lat))   ! these return 'arrays' ...
 loninds  = minloc(abs(lon - loc_lon))   ! these return 'arrays' ...
