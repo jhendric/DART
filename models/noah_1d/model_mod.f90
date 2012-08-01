@@ -33,7 +33,7 @@ use     location_mod, only : location_type, get_dist, query_location,          &
                              vert_is_pressure, VERTISPRESSURE,                 &
                              vert_is_height,   VERTISHEIGHT,                   &
                              get_close_obs_init, get_close_obs,                &
-                             set_location_missing
+                             set_location_missing, write_location
 
 use    utilities_mod, only : register_module, error_handler, nc_check,         &
                              E_ERR, E_MSG, logfileunit, get_unit,              &
@@ -138,6 +138,8 @@ namelist /model_nml/ noah_netcdf_filename, noah_namelist_filename, &
 ! DART needs to write a NOAH-compatible namelist. 
 !------------------------------------------------------------------
 
+integer, parameter :: nSoilLayers = 4
+
 character(len=12) :: startdate
 character(len=12) :: enddate
 logical  :: loop_for_a_while
@@ -146,10 +148,10 @@ real(r8) :: Longitude
 integer  :: Forcing_Timestep
 integer  :: Noahlsm_Timestep
 logical  :: Sea_ice_point
-real(r8), dimension(4) :: Soil_layer_thickness
-real(r8), dimension(4) :: Soil_Temperature
-real(r8), dimension(4) :: Soil_Moisture
-real(r8), dimension(4) :: Soil_Liquid
+real(r8), dimension(nSoilLayers) :: Soil_layer_thickness
+real(r8), dimension(nSoilLayers) :: Soil_Temperature
+real(r8), dimension(nSoilLayers) :: Soil_Moisture
+real(r8), dimension(nSoilLayers) :: Soil_Liquid
 real(r8) :: Skin_Temperature
 real(r8) :: Canopy_water
 real(r8) :: Snow_depth
@@ -190,9 +192,9 @@ namelist /METADATA_NAMELIST/ startdate, enddate, loop_for_a_while,   &
 
 type noahtype
    private
-   real(r8), dimension(4) :: Soil_Temperature
-   real(r8), dimension(4) :: Soil_Moisture
-   real(r8), dimension(4) :: Soil_Liquid
+   real(r8), dimension(nSoilLayers) :: Soil_Temperature
+   real(r8), dimension(nSoilLayers) :: Soil_Moisture
+   real(r8), dimension(nSoilLayers) :: Soil_Liquid
    real(r8) :: Skin_Temperature
    real(r8) :: Canopy_water
    real(r8) :: Snow_depth
@@ -202,7 +204,7 @@ end type noahtype
 
 ! define model parameters here
 type(time_type)     :: time_step
-type(location_type) :: state_loc(17)
+type(location_type) :: state_loc(0:nSoilLayers)
 type(noahtype)      :: noah1d
 
 ! Everything needed to describe a variable
@@ -241,24 +243,28 @@ type(time_type)    :: model_time       ! valid time of the model state
 type(time_type)    :: model_time_step  ! smallest time to adv model
 character(len=256) :: string1, string2, string3
 logical, save      :: module_initialized = .false.
-
-contains
+real(r8), dimension(nSoilLayers) :: soil_depths
 
 !==================================================================
+contains
+!==================================================================
+
+
 
 subroutine static_init_model()
 !------------------------------------------------------------------
-!
-! Called to do one time initialization of the model. As examples,
-! might define information about the model size or model timestep.
-! In models that require pre-computed static data, for instance
-! spherical harmonic weights, these would also be computed here.
-! Can be a NULL INTERFACE for the simplest models.
+! one time initialization of the model
 
-real(r8) :: x_loc
-integer  :: i
-integer  :: iunit, io
-real(r8) :: soil_depths(4)
+! Local variables - all the important ones have module scope
+
+integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs
+character(len=NF90_MAX_NAME)          :: varname
+character(len=obstypelength)          :: dimname
+character(len=paramname_length)       :: kind_string
+
+integer  :: VarID, dimlen, varsize 
+integer  :: iunit, io, ivar
+integer  :: i, index1, nLayers
 
 if ( module_initialized ) return ! only need to do this once.
 
@@ -297,6 +303,10 @@ if ( .not. file_exist(noah_namelist_filename) ) then
    call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate)
 endif
 
+! convert the [-180,180] longitudes to [0,360)
+
+if (Longitude < 0.0_r8) Longitude = Longitude + 360.0_r8
+
 ! The time_step in terms of a time type must also be initialized.
 
 call set_calendar_type( calendar )
@@ -306,6 +316,40 @@ call nc_check(nf90_open(adjustl(noah_netcdf_filename), NF90_NOWRITE, iunit), &
 
 model_time      = get_state_time(iunit, trim(noah_netcdf_filename))
 model_time_step = set_time(assimilation_period_seconds, assimilation_period_days)
+
+if (debug > 0) then
+   call print_date(model_time     ,'static_init_model:model date')
+   call print_time(model_time     ,'static_init_model:model time')
+   call print_time(model_time_step,'static_init_model:model timestep')
+endif
+
+! Make sure the number of soil layers is as we expect
+
+call nc_check(nf90_inq_dimid(iunit, 'num_soil_layers', dimIDs(1)), &
+                  'static_init_model','inq_dimid num_soil_layers '//trim(noah_netcdf_filename))
+call nc_check(nf90_inquire_dimension(iunit, dimIDs(1), len=nLayers), &
+                  'static_init_model','inquire_dimension Time '//trim(noah_netcdf_filename))
+
+if (nSoilLayers /= nLayers) then
+   write(string1,*) 'Expected ',nSoilLayers,' soil layers ', &
+                       trim(noah_netcdf_filename),' has ',nLayers
+   call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate)
+endif
+
+! convert soil thicknesses to depths
+! closer to the center of the earth is an increasingly large negative number
+soil_depths(1) = Soil_layer_thickness(1) 
+do i = 2,nSoilLayers
+   soil_depths(i) = soil_depths(i-1) + Soil_layer_thickness(i)
+enddo
+soil_depths = -1.0_r8 * soil_depths
+
+! there are only nSoilLayers + 1 different locations
+
+state_loc(0) = set_location(Longitude, Latitude, 0.0_r8, VERTISHEIGHT)
+do i = 1,nSoilLayers
+   state_loc(i) = set_location(Longitude, Latitude, soil_depths(i), VERTISHEIGHT)
+enddo
 
 !---------------------------------------------------------------
 ! Compile the list of NOAH variables to use in the creation
@@ -318,33 +362,116 @@ model_time_step = set_time(assimilation_period_seconds, assimilation_period_days
 call verify_state_variables( noah_state_variables, iunit, noah_netcdf_filename, &
                              nfields, variable_table )
 
-! Define the location of the model state variables
-soil_depths(1) =                  Soil_layer_thickness(1) 
-soil_depths(2) = soil_depths(1) + Soil_layer_thickness(2)
-soil_depths(3) = soil_depths(2) + Soil_layer_thickness(3)
-soil_depths(4) = soil_depths(3) + Soil_layer_thickness(4)
-! Soil Temperature(4)
-state_loc( 1) = set_location(Longitude, Latitude, -soil_depths(1), VERTISHEIGHT)
-state_loc( 2) = set_location(Longitude, Latitude, -soil_depths(2), VERTISHEIGHT)
-state_loc( 3) = set_location(Longitude, Latitude, -soil_depths(3), VERTISHEIGHT)
-state_loc( 4) = set_location(Longitude, Latitude, -soil_depths(4), VERTISHEIGHT)
-! Soil Moisture(4)
-state_loc( 5) = set_location(Longitude, Latitude, -soil_depths(1), VERTISHEIGHT)
-state_loc( 6) = set_location(Longitude, Latitude, -soil_depths(2), VERTISHEIGHT)
-state_loc( 7) = set_location(Longitude, Latitude, -soil_depths(3), VERTISHEIGHT)
-state_loc( 8) = set_location(Longitude, Latitude, -soil_depths(4), VERTISHEIGHT)
-! Soil Liquid(4)
-state_loc( 9) = set_location(Longitude, Latitude, -soil_depths(1), VERTISHEIGHT)
-state_loc(10) = set_location(Longitude, Latitude, -soil_depths(2), VERTISHEIGHT)
-state_loc(11) = set_location(Longitude, Latitude, -soil_depths(3), VERTISHEIGHT)
-state_loc(12) = set_location(Longitude, Latitude, -soil_depths(4), VERTISHEIGHT)
-state_loc(13) = set_location(Longitude, Latitude, 0.0_r8, VERTISHEIGHT) ! Skin_Temperature
-state_loc(14) = set_location(Longitude, Latitude, 0.0_r8, VERTISHEIGHT) ! Canopy_water
-state_loc(15) = set_location(Longitude, Latitude, 0.0_r8, VERTISHEIGHT) ! Snow_depth
-state_loc(16) = set_location(Longitude, Latitude, 0.0_r8, VERTISHEIGHT) ! Snow_equivalent
-state_loc(17) = set_location(Longitude, Latitude, 0.0_r8, VERTISHEIGHT) ! Deep_Soil_Temperature
+index1  = 1
+FILL_PROGVAR : do ivar = 1, nfields
+
+   varname                   = trim(variable_table(ivar,1))
+   kind_string               = trim(variable_table(ivar,2))
+   progvar(ivar)%varname     = varname
+   progvar(ivar)%kind_string = kind_string
+   progvar(ivar)%dart_kind   = get_raw_obs_kind_index( progvar(ivar)%kind_string )
+   progvar(ivar)%dimlens     = 0
+   progvar(ivar)%dimnames    = ' '
+   progvar(ivar)%maxlevels   = 0
+
+   string2 = trim(noah_netcdf_filename)//' '//trim(varname)
+
+   call nc_check(nf90_inq_varid(iunit, trim(varname), VarID), &
+            'static_init_model', 'inq_varid '//trim(string2))
+
+   call nc_check(nf90_inquire_variable(iunit, VarID, dimids=dimIDs, &
+                 ndims=progvar(ivar)%numdims, xtype=progvar(ivar)%xtype), &
+            'static_init_model', 'inquire '//trim(string2))
+
+   ! If the long_name and/or units attributes are set, get them.
+   ! They are not REQUIRED to exist but are nice to use if they are present.
+
+   if( nf90_inquire_attribute(    iunit, VarID, 'long_name') == NF90_NOERR ) then
+      call nc_check( nf90_get_att(iunit, VarID, 'long_name' , progvar(ivar)%long_name), &
+                  'static_init_model', 'get_att long_name '//trim(string2))
+   else
+      progvar(ivar)%long_name = varname
+   endif
+
+   if( nf90_inquire_attribute(    iunit, VarID, 'units') == NF90_NOERR )  then
+      call nc_check( nf90_get_att(iunit, VarID, 'units' , progvar(ivar)%units), &
+                  'static_init_model', 'get_att units '//trim(string2))
+   else
+      progvar(ivar)%units = 'unknown'
+   endif
+
+   ! These variables have a Time dimension. We only want the most recent time.
+
+   varsize = 1
+   dimlen  = 1
+   DimensionLoop : do i = 1,progvar(ivar)%numdims
+
+      write(string1,'(''inquire dimension'',i2,A)') i,trim(string2)
+      call nc_check(nf90_inquire_dimension(iunit, dimIDs(i), name=dimname, len=dimlen), &
+                                          'static_init_model', string1)
+
+      if ((trim(dimname) == 'Time') .or. (trim(dimname) == 'time')) dimlen = 1
+      progvar(ivar)%dimlens( i) = dimlen
+      progvar(ivar)%dimnames(i) = dimname
+      varsize = varsize * dimlen
+
+   enddo DimensionLoop
+
+   progvar(ivar)%varsize     = varsize
+   progvar(ivar)%index1      = index1
+   progvar(ivar)%indexN      = index1 + varsize - 1
+   index1                    = index1 + varsize      ! sets up for next variable
+
+   if ((debug > 8) .and. do_output()) then
+      write(logfileunit,*)
+      write(logfileunit,*) trim(progvar(ivar)%varname),' variable number ',ivar
+      write(logfileunit,*) '  long_name   ',trim(progvar(ivar)%long_name)
+      write(logfileunit,*) '  units       ',trim(progvar(ivar)%units)
+      write(logfileunit,*) '  xtype       ',progvar(ivar)%xtype
+      write(logfileunit,*) '  dimnames    ',progvar(ivar)%dimnames(1:progvar(ivar)%numdims)
+      write(logfileunit,*) '  dimlens     ',progvar(ivar)%dimlens( 1:progvar(ivar)%numdims)
+      write(logfileunit,*) '  numdims     ',progvar(ivar)%numdims
+      write(logfileunit,*) '  varsize     ',progvar(ivar)%varsize
+      write(logfileunit,*) '  index1      ',progvar(ivar)%index1
+      write(logfileunit,*) '  indexN      ',progvar(ivar)%indexN
+      write(logfileunit,*) '  dart_kind   ',progvar(ivar)%dart_kind
+      write(logfileunit,*) '  kind_string ',progvar(ivar)%kind_string
+
+      write(     *     ,*)
+      write(     *     ,*) trim(progvar(ivar)%varname),' variable number ',ivar
+      write(     *     ,*) '  long_name   ',trim(progvar(ivar)%long_name)
+      write(     *     ,*) '  units       ',trim(progvar(ivar)%units)
+      write(     *     ,*) '  xtype       ',progvar(ivar)%xtype
+      write(     *     ,*) '  dimnames    ',progvar(ivar)%dimnames(1:progvar(ivar)%numdims)
+      write(     *     ,*) '  dimlens     ',progvar(ivar)%dimlens( 1:progvar(ivar)%numdims)
+      write(     *     ,*) '  numdims     ',progvar(ivar)%numdims
+      write(     *     ,*) '  varsize     ',progvar(ivar)%varsize
+      write(     *     ,*) '  index1      ',progvar(ivar)%index1
+      write(     *     ,*) '  indexN      ',progvar(ivar)%indexN
+      write(     *     ,*) '  dart_kind   ',progvar(ivar)%dart_kind
+      write(     *     ,*) '  kind_string ',progvar(ivar)%kind_string
+   endif
+
+enddo FILL_PROGVAR
 
 call nc_check(nf90_close(iunit), 'static_init_model', 'close '//trim(noah_netcdf_filename))
+
+model_size = progvar(nfields)%indexN
+
+if ((debug > 8) .and. do_output()) then
+
+   write(*,*)
+   do i=1,nSoilLayers
+      write(*,*)'soil layer',i,soil_depths(i)
+   enddo
+
+   write(*,*)
+   do i=0,nSoilLayers
+      call write_location(iunit,state_loc(i),charstring=string1)
+      write(*,*)'location ',i,' is ',trim(string1)
+   enddo
+
+endif
 
 end subroutine static_init_model
 
@@ -429,8 +556,7 @@ type(time_type), intent(out) :: time
 
 if ( .not. module_initialized ) call static_init_model
 
-! for now, just set to 0
-time = set_time(0,0)
+time = model_time
 
 end subroutine init_time
 
@@ -505,13 +631,35 @@ integer,             intent(in)            :: index_in
 type(location_type), intent(out)           :: location
 integer,             intent(out), optional :: var_type
 
+integer :: n, layer, ivar
+
 if ( .not. module_initialized ) call static_init_model
 
-! these should be set to the actual location and obs kind
-location = set_location_missing()
-if (present(var_type)) var_type = 0  
+layer = -1
 
-location = state_loc(index_in)
+FindIndex : do n = 1,nfields
+   if( (progvar(n)%index1 <= index_in) .and. (index_in <= progvar(n)%indexN) ) then
+      layer    = index_in - progvar(n)%index1 + 1
+      var_type = progvar(n)%dart_kind
+      ivar     = n
+      exit FindIndex
+   endif
+enddo FindIndex
+
+if ((debug > 0) .and. do_output()) then
+   write(*,*)'get_state_meta_data: index_in is ',index_in
+   write(*,*)'get_state_meta_data: ivar     is ',ivar
+   write(*,*)'get_state_meta_data: layer    is ',layer
+endif
+
+if( layer == -1 ) then
+     write(string1,*) 'Problem, cannot find base_offset, index_in is: ', index_in
+     call error_handler(E_ERR,'get_state_meta_data',string1,source,revision,revdate)
+endif
+
+if (progvar(ivar)%varsize == 1) layer = 0
+
+location = state_loc(layer)
 
 end subroutine get_state_meta_data
 
@@ -911,8 +1059,8 @@ MyLoop : do i = 1, nrows
    ! Record the contents of the DART state vector
 
    if ((debug > 3) .and. do_output()) then
-      write(logfileunit,*)'variable ',i,' is ',trim(table(i,1)), ' ', trim(table(i,2))
-      write(     *     ,*)'variable ',i,' is ',trim(table(i,1)), ' ', trim(table(i,2))
+      write(logfileunit,*)'variable ',i,' is ',trim(table(i,1)), '   ', trim(table(i,2))
+      write(     *     ,*)'variable ',i,' is ',trim(table(i,1)), '   ', trim(table(i,2))
    endif
 
    ngood = ngood + 1
@@ -929,7 +1077,6 @@ end subroutine verify_state_variables
 
 
 
-
 subroutine get_noah1D_restart_filename( noah1D_restart_filename )
 !------------------------------------------------------------------
 character(len=*), intent(out) :: noah1d_restart_filename
@@ -942,33 +1089,155 @@ end subroutine get_noah1D_restart_filename
 
 
 
-subroutine noah1d_to_dart_vector(state_vector, model_time)
+
+subroutine noah1d_to_dart_vector(filename, state_vector, restart_time)
 !------------------------------------------------------------------
 ! Reads the current time and state variables from a model data
 ! file and packs them into a dart state vector.
 
+character(len=*), intent(in)    :: filename
 real(r8),         intent(inout) :: state_vector(:)
-type(time_type),  intent(out)   :: model_time
+type(time_type),  intent(out)   :: restart_time
 
-integer :: year,month,day,hours,minutes
+integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, ncstart, nccount
+character(len=NF90_MAX_NAME) :: varname
+
+integer  :: year,month,day,hours,minutes
+integer  :: ncid, ncNdims, dimlen, VarID
+integer  :: i, j, indx, ivar, ntimes
+
+real(r8), allocatable, dimension(:)   :: data_1d_array
+real(r8), allocatable, dimension(:,:) :: data_2d_array
 
 if ( .not. module_initialized ) call static_init_model
 
-! The noah namelist (read in static_init_model) provided the model state
-! state_vector(1: 4) = Soil_Temperature
-! state_vector(5: 8) = Soil_Moisture
-! state_vector(9:12) = Soil_Liquid
-! state_vector(13)   = Skin_Temperature
-! state_vector(14)   = Canopy_water
-! state_vector(15)   = Snow_depth
-! state_vector(16)   = Snow_equivalent
-! state_vector(17)   = Deep_Soil_Temperature
+state_vector(:) = MISSING_R8
 
-! read(startdate,'(i4,i2,i2,i2,i2)')year,month,day,hours,minutes
-! model_time = set_date(year, month, day, hours=hours, minutes=minutes)
+! Check that the input file exists ...
 
-write(*,*)'noah1d_to_dart_vector not written yet'
-stop
+if ( .not. file_exist(filename) ) then
+   write(string1,*) 'file <', trim(filename),'> does not exist.'
+   call error_handler(E_ERR,'noah1d_to_dart_vector',string1,source,revision,revdate)
+endif
+
+call nc_check(nf90_open(adjustl(filename), NF90_NOWRITE, ncid), &
+                   'noah1d_to_dart_vector', 'open '//trim(filename))
+
+restart_time = get_state_time(ncid,filename)
+
+if (do_output()) call print_time(restart_time,'time in restart file '//trim(filename))
+if (do_output()) call print_date(restart_time,'date in restart file '//trim(filename))
+
+! Start counting and filling the state vector one item at a time,
+! repacking the Nd arrays into a single 1d list of numbers.
+
+do ivar=1, nfields
+
+   ntimes     = -1
+   ncstart(:) = -1
+   nccount(:) = -1
+   varname    = trim(progvar(ivar)%varname)
+   string3    = trim(filename)//' '//trim(varname)
+
+   call nc_check(nf90_inq_varid(ncid, varname, VarID), &
+            'noah1d_to_dart_vector', 'inq_varid '//trim(string3))
+
+   call nc_check(nf90_inquire_variable(ncid,VarID,dimids=dimIDs,ndims=ncNdims), &
+            'noah1d_to_dart_vector', 'inquire '//trim(string3))
+
+   ! Check the rank of the variable
+
+   if ( ncNdims /= progvar(ivar)%numdims ) then
+      write(string1, *) 'netCDF rank of '//trim(varname)//' does not match derived type knowledge'
+      write(string2, *) 'netCDF rank is ',ncNdims,' expected ',progvar(ivar)%numdims
+      call error_handler(E_ERR,'noah1d_to_dart_vector', string1, &
+                        source,revision,revdate,text2=string2)
+   endif
+
+   ! Check the shape of the variable
+   ! making sure we only compare the last timestep ...
+
+   do i = 1,progvar(ivar)%numdims
+
+      write(string1,'(''inquire dimension'',i2,A)') i,trim(string3)
+      call nc_check(nf90_inquire_dimension(ncid, dimIDs(i), len=dimlen), &
+            'noah1d_to_dart_vector', string1)
+
+      ncstart(i) = 1
+      nccount(i) = dimlen
+
+      if ( progvar(ivar)%dimnames(i) == 'Time' ) then
+         ntimes     = dimlen
+         ncstart(i) = dimlen
+         nccount(i) = 1
+      elseif ( dimlen /= progvar(ivar)%dimlens(i) ) then
+         write(string1,*) trim(string3),' dim/dimlen ',i,dimlen,' not ',progvar(ivar)%dimlens(i)
+         call error_handler(E_ERR,'noah1d_to_dart_vector',string1,source,revision,revdate)
+      endif
+
+   enddo
+
+   ! Pack the variable into the DART state vector
+
+   indx = progvar(ivar)%index1
+
+   if (ncNdims == 1) then
+
+      dimlen = progvar(ivar)%dimlens(1)
+      allocate(data_1d_array(dimlen))
+
+      call nc_check(nf90_get_var(ncid, VarID, data_1d_array,  &
+                     start=ncstart(1:1), count=nccount(1:1)), &
+                  'noah1d_to_dart_vector', 'get_var '//trim(string3))
+
+      do i = 1, dimlen
+         state_vector(indx) = data_1d_array(i)
+         indx = indx + 1
+      enddo
+      deallocate(data_1d_array)
+
+   elseif (ncNdims == 2) then
+
+      dimlen = progvar(ivar)%dimlens(1)
+      allocate(data_2d_array(progvar(ivar)%dimlens(1), progvar(ivar)%dimlens(2)))
+
+      call nc_check(nf90_get_var(ncid, VarID, data_2d_array,  &
+                     start=ncstart(1:2), count=nccount(1:2)), &
+                  'noah1d_to_dart_vector', 'get_var '//trim(string3))
+
+      do j = 1, progvar(ivar)%dimlens(2)
+      do i = 1, progvar(ivar)%dimlens(1)
+         state_vector(indx) = data_2d_array(i,j)
+         indx = indx + 1
+      enddo
+      enddo
+      deallocate(data_2d_array)
+
+   else
+
+      write(string1, *)'Variable '//trim(varname)//' has ',ncNdims,' dimensions.'
+      write(string2, *)'cannot handle that.'
+      call error_handler(E_ERR,'noah1d_to_dart_vector', string1, &
+                        source,revision,revdate,text2=string2)
+
+   endif
+
+   indx = indx - 1
+   if ( indx /= progvar(ivar)%indexN ) then
+      write(string1, *)'Variable '//trim(varname)//' filled wrong.'
+      write(string2, *)'Should have ended at ',progvar(ivar)%indexN,' actually ended at ',indx
+      call error_handler(E_ERR,'noah1d_to_dart_vector', string1, &
+                        source,revision,revdate,text2=string2)
+   endif
+
+enddo
+
+if (do_output() .and. (debug > 8)) then
+   write(*,*)progvar(ivar)%varname, 'newest time is ',ntimes
+   do i = 1,size(state_vector)
+      write(*,*)'state vector(',i,') is',state_vector(i)
+   enddo
+endif
 
 end subroutine noah1d_to_dart_vector
 
@@ -1063,8 +1332,6 @@ if (debug > 0) write(*,*)'Last time is '//trim(datestring(ntimes))
 read(datestring(ntimes),'(i4,i2,i2,i2,i2)')year, month, day, hour, minute
 
 get_state_time = set_date(year, month, day, hours=hour, minutes=minute, seconds=0)
-
-
 
 deallocate(datestring)
 

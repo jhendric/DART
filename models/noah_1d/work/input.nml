@@ -233,9 +233,9 @@
    output_file          = "check_me_out",
    advance_time_present = .FALSE.,
    verbose              = .TRUE.,
-   test1thru            = 1,
-   x_ind                = 720,
-   kind_of_interest     = 'T_SOISNO',
+   test1thru            = 4,
+   x_ind                = 7,
+   kind_of_interest     = 'KIND_SOIL_MOISTURE',
    loc_of_interest      = 287.5, 82.48, 0.35,
    /
 

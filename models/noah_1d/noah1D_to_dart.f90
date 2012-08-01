@@ -85,7 +85,7 @@ write(*,'(''noah1D_to_dart:converting noah1D restart file '',A, &
 x_size = get_model_size()
 allocate(statevector(x_size))
 
-call noah1d_to_dart_vector(statevector, model_time) 
+call noah1d_to_dart_vector(noah1D_restart_filename, statevector, model_time) 
 
 iunit = open_restart_write(noah1D_to_dart_output_file)
 
