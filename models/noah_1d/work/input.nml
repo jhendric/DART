@@ -9,7 +9,7 @@
      output_state_vector          = .false.
      debug                        = 9,
      calendar                     = 'Gregorian'
-     noah_state_variables         = 'STC',    'KIND_SOIL_TEMPERATURE',
+     noah_variables               = 'STC',    'KIND_SOIL_TEMPERATURE',
                                     'SMC',    'KIND_SOIL_MOISTURE',
                                     'SH2O',   'KIND_SOIL_LIQUID_WATER',
                                     'T1',     'KIND_SKIN_TEMPERATURE',
@@ -136,7 +136,8 @@
   /
 
 &obs_kind_nml
-   assimilate_these_obs_types = 'SOIL_TEMPERATURE',
+   assimilate_these_obs_types = 'COSMOS_NEUTRON_INTENSITY',
+   evaluate_these_obs_types   = 'SOIL_TEMPERATURE',
   /
 
 &preprocess_nml
@@ -144,7 +145,8 @@
    output_obs_kind_mod_file = '../../../obs_kind/obs_kind_mod.f90',
      input_obs_def_mod_file = '../../../obs_def/DEFAULT_obs_def_mod.F90',
     output_obs_def_mod_file = '../../../obs_def/obs_def_mod.f90',
-   input_files              = '../../../obs_def/obs_def_tower_mod.f90'
+   input_files              = '../../../obs_def/obs_def_tower_mod.f90',
+                              '../../../obs_def/obs_def_COSMOS_mod.f90'
   /
 
 &assim_model_nml

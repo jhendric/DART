@@ -98,13 +98,13 @@ character(len=128), parameter :: &
 ! The variables in the noah restart file that are used to create the
 ! DART state vector are specified in the input.nml:model_nml namelist.
 !
-!    noah_state_variables  = 'STC',    'KIND_SOIL_TEMPERATURE',
-!                            'SMC',    'KIND_SOIL_MOISTURE',
-!                            'SH2O',   'KIND_LIQUID_SOIL_MOISTURE',
-!                            'T1',     'KIND_SKIN_TEMPERATURE',
-!                            'SNOWH',  'KIND_SNOW_DEPTH',
-!                            'SNEQV',  'KIND_LIQUID_EQUIVALENT',
-!                            'CMC',    'KIND_CANOPY_WATER',
+!    noah_variables  = 'STC',    'KIND_SOIL_TEMPERATURE',
+!                      'SMC',    'KIND_SOIL_MOISTURE',
+!                      'SH2O',   'KIND_LIQUID_SOIL_MOISTURE',
+!                      'T1',     'KIND_SKIN_TEMPERATURE',
+!                      'SNOWH',  'KIND_SNOW_DEPTH',
+!                      'SNEQV',  'KIND_LIQUID_EQUIVALENT',
+!                      'CMC',    'KIND_CANOPY_WATER',
 !------------------------------------------------------------------
 
 integer :: nfields
@@ -124,12 +124,12 @@ real(r8)              :: model_perturbation_amplitude = 0.2
 logical               :: output_state_vector          = .true.
 character(len=32)     :: calendar = 'Gregorian'
 integer               :: debug    = 0  ! turn up for more and more debug messages
-character(len=obstypelength) :: noah_state_variables(max_state_variables*num_state_table_columns) = ' '
+character(len=obstypelength) :: noah_variables(max_state_variables*num_state_table_columns) = ' '
 
 namelist /model_nml/ noah_netcdf_filename, noah_namelist_filename, &
           assimilation_period_days, assimilation_period_seconds,   &
           model_perturbation_amplitude, output_state_vector,       &
-          calendar, debug, noah_state_variables
+          calendar, debug, noah_variables
 
 !------------------------------------------------------------------
 ! Everything needed to recreate the NOAH METADTA_NAMELIST
@@ -359,7 +359,7 @@ enddo
 ! Compute the offsets into the state vector for each variable type.
 ! Record the extent of the variable type in the state vector.
 
-call verify_state_variables( noah_state_variables, iunit, noah_netcdf_filename, &
+call verify_state_variables( noah_variables, iunit, noah_netcdf_filename, &
                              nfields, variable_table )
 
 index1  = 1
@@ -727,15 +727,27 @@ integer              :: ierr          ! return value of function
 
 integer :: nDimensions, nVariables, nAttributes, unlimitedDimID
 
-integer :: StateVarDimID   ! netCDF pointer to state variable dimension (model size)
-integer :: MemberDimID     ! netCDF pointer to dimension of ensemble    (ens_size)
-integer :: TimeDimID       ! netCDF pointer to time dimension           (unlimited)
+integer :: StateVarDimID    ! netCDF pointer to state variable dimension (model size)
+integer :: MemberDimID      ! netCDF pointer to dimension of ensemble    (ens_size)
+integer :: TimeDimID        ! netCDF pointer to time dimension           (unlimited)
+integer :: nSoilLayersDimID !   ..     ..                                (# soil layers)
 
 integer :: StateVarVarID   ! netCDF pointer to state variable coordinate array
 integer :: StateVarID      ! netCDF pointer to 3D [state,copy,time] array
 
+!----------------------------------------------------------------------
+! variables for the namelist output
+!----------------------------------------------------------------------
+
+character(len=129), allocatable, dimension(:) :: textblock
+integer :: LineLenDimID, nlinesDimID, nmlVarID
+integer :: nlines, linelen
+logical :: has_ncommas_namelist
+
+!----------------------------------------------------------------------
 ! we are going to need these to record the creation date in the netCDF file.
 ! This is entirely optional, but nice.
+!----------------------------------------------------------------------
 
 character(len=8)      :: crdate      ! needed by F90 DATE_AND_TIME intrinsic
 character(len=10)     :: crtime      ! needed by F90 DATE_AND_TIME intrinsic
@@ -778,9 +790,14 @@ endif
 !-------------------------------------------------------------------------------
 ! Define the model size / state variable dimension / whatever ...
 !-------------------------------------------------------------------------------
+
 call nc_check(nf90_def_dim(ncid=ncFileID, name="StateVariable",  &
                            len=model_size, dimid=StateVarDimID), &
                            "nc_write_model_atts", "def_dim state")
+
+call nc_check(nf90_def_dim(ncid=ncFileID, name="nSoilLayers",  &
+                           len=nSoilLayers, dimid=nSoilLayersDimID), &
+                           "nc_write_model_atts", "def_dim nSoilLayers")
 
 !-------------------------------------------------------------------------------
 ! Write Global Attributes 
@@ -800,6 +817,51 @@ call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "model_revdate" ,revdate), &
                           "nc_write_model_atts", "put_att model_revdate")
 call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "model","noah_1d"), &
                           "nc_write_model_atts", "put_att model")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "calendar",trim(calendar)), &
+                          "nc_write_model_atts", "put_att calendar")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Longitude",Longitude), &
+                          "nc_write_model_atts", "put_att Longitude")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Latitude",Latitude), &
+                          "nc_write_model_atts", "put_att Latitude")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Forcing_Timestep",Forcing_Timestep), &
+                          "nc_write_model_atts", "put_att Forcing_Timestep")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Noahlsm_Timestep",Noahlsm_Timestep), &
+                          "nc_write_model_atts", "put_att Noahlsm_Timestep")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Soil_type_index",Soil_type_index), &
+                          "nc_write_model_atts", "put_att Soil_type_index")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Vegetation_type_index",Vegetation_type_index), &
+                          "nc_write_model_atts", "put_att Vegetation_type_index")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Urban_veg_category",Urban_veg_category), &
+                          "nc_write_model_atts", "put_att Urban_veg_category")
+
+!-------------------------------------------------------------------------------
+! Determine shape of most important namelist
+!-------------------------------------------------------------------------------
+
+call find_textfile_dims('ncommas_vars.nml', nlines, linelen)
+if (nlines > 0) then
+  has_ncommas_namelist = .true.
+else
+  has_ncommas_namelist = .false.
+endif
+
+if (debug > 0)    print *, 'ncommas namelist: nlines, linelen = ', nlines, linelen
+
+if (has_ncommas_namelist) then
+   allocate(textblock(nlines))
+   textblock = ''
+
+   call nc_check(nf90_def_dim(ncid=ncFileID, name='nlines', &
+                 len = nlines, dimid = nlinesDimID), &
+                 'nc_write_model_atts', 'def_dim nlines ')
+
+   call nc_check(nf90_def_var(ncFileID,name='ncommas_in', xtype=nf90_char,    &
+                 dimids = (/ linelenDimID, nlinesDimID /),  varid=nmlVarID), &
+                 'nc_write_model_atts', 'def_var ncommas_in')
+   call nc_check(nf90_put_att(ncFileID, nmlVarID, 'long_name',       &
+                 'contents of ncommas_in namelist'), 'nc_write_model_atts', 'put_att ncommas_in')
+
+endif
 
 !-------------------------------------------------------------------------------
 ! Here is the extensible part. The simplest scenario is to output the state vector,

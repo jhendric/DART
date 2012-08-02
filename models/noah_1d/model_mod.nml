@@ -7,7 +7,7 @@
      output_state_vector          = .false.
      debug                        = 9,
      calendar                     = 'Gregorian'
-     noah_state_variables         = 'STC',    'KIND_SOIL_TEMPERATURE',
+     noah_variables               = 'STC',    'KIND_SOIL_TEMPERATURE',
                                     'SMC',    'KIND_SOIL_MOISTURE',
                                     'SH2O',   'KIND_SOIL_LIQUID_WATER',
                                     'T1',     'KIND_SKIN_TEMPERATURE',
