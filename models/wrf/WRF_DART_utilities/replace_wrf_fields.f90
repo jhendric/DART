@@ -303,7 +303,7 @@ fieldloop : do i=1, 10000
          call nc_check(nf90_put_var(ncoutid, outvarid, sixd), 'nf90_put_var', 'outfile')
          deallocate(sixd)
       case (7)
-         allocate(sevend(dimlen(1),dimlen(2),dimlen(3),dimlen(4),dimlen(4),dimlen(6),dimlen(7)))
+         allocate(sevend(dimlen(1),dimlen(2),dimlen(3),dimlen(4),dimlen(5),dimlen(6),dimlen(7)))
          call nc_check(nf90_get_var( ncinid,  invarid, sevend), 'nf90_get_var',  'infile')
          call nc_check(nf90_put_var(ncoutid, outvarid, sevend), 'nf90_put_var', 'outfile')
          deallocate(sevend)
