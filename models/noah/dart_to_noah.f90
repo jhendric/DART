@@ -2,7 +2,7 @@
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
-program dart_to_noah1D
+program dart_to_noah
 
 ! <next few lines under version control, do not edit>
 ! $URL$
@@ -26,7 +26,7 @@ program dart_to_noah1D
 ! author: Tim Hoar 12 July 2011
 !----------------------------------------------------------------------
 
-use        types_mod, only : r8
+use        types_mod, only : r8, obstypelength
 use    utilities_mod, only : initialize_utilities, timestamp, &
                              find_namelist_in_file, check_namelist_read, &
                              logfileunit, open_file, close_file, &
@@ -49,10 +49,12 @@ character(len=128), parameter :: &
 !------------------------------------------------------------------
 
 character (len = 128) :: dart_to_noah_input_file = 'dart_restart'
-logical               :: advance_time_present   = .false.
+character (len=obstypelength), dimension(40) :: do_not_update_variables = ' '
+logical               :: advance_time_present   = .true.
 
 namelist /dart_to_noah_nml/ dart_to_noah_input_file, &
-                           advance_time_present
+                            do_not_update_variables, &
+                            advance_time_present
 
 !----------------------------------------------------------------------
 
@@ -129,4 +131,4 @@ endif
 ! When called with 'end', timestamp will call finalize_utilities()
 call timestamp(string1=source, pos='end')
 
-end program dart_to_noah1D
+end program dart_to_noah

@@ -27,7 +27,6 @@
    dart_to_noah_input_file   = 'dart_restart',
    do_not_update_variables   = 'QFX'
    advance_time_present      = .true.
-   single_forcing_file_in    = .true.
   /
 
 &perfect_model_obs_nml
