@@ -1,30 +1,33 @@
-# NOAH 1d (column) model namelist
+# NOAH model namelist
 
 &model_nml
-     noah_netcdf_filename         = 'OUTPUT.nc',
-     noah_namelist_filename       = 'bondville.dat',
+     noah_netcdf_filename         = 'restart.nc',
+     noah_namelist_filename       = 'namelist.hrldas',
      assimilation_period_days     =    0,
      assimilation_period_seconds  = 3600,
      model_perturbation_amplitude = 0.0,
      output_state_vector          = .false.
      debug                        = 9,
      calendar                     = 'Gregorian'
-     noah_variables               = 'STC',    'KIND_SOIL_TEMPERATURE',
-                                    'SMC',    'KIND_SOIL_MOISTURE',
-                                    'SH2O',   'KIND_SOIL_LIQUID_WATER',
-                                    'T1',     'KIND_SKIN_TEMPERATURE',
-                                    'SNOWH',  'KIND_SNOW_THICKNESS',
-                                    'SNEQV',  'KIND_SNOW_WATER',
-                                    'CMC',    'KIND_CANOPY_WATER',
+     noah_variables               = 'SOIL_T',   'KIND_SOIL_TEMPERATURE',
+                                    'SOIL_M',   'KIND_SOIL_MOISTURE',
+                                    'SOIL_W',   'KIND_SOIL_LIQUID_WATER',
+                                    'SKINTEMP', 'KIND_SKIN_TEMPERATURE',
+                                    'SNODEP',   'KIND_SNOW_THICKNESS',
+                                    'WEASD',    'KIND_SNOW_WATER',
+                                    'CANWAT',   'KIND_CANOPY_WATER',
+                                    'QFX',      'KIND_LATENT_HEAT_FLUX',
   /
 
-&noah1D_to_dart_nml
-   noah1D_to_dart_output_file = 'dart_ics'
+&noah_to_dart_nml
+   noah_to_dart_output_file = 'dart_ics'
   /
 
-&dart_to_noah1D_nml
-   dart_to_noah1D_input_file = 'dart_restart',
+&dart_to_noah_nml
+   dart_to_noah_input_file   = 'dart_restart',
+   do_not_update_variables   = 'QFX'
    advance_time_present      = .true.
+   single_forcing_file_in    = .true.
   /
 
 &perfect_model_obs_nml

@@ -10,13 +10,6 @@ module model_mod
 ! $Revision$
 ! $Date$
 
-! This is a noah_1d showing the interfaces required for a model to be compliant
-! with the DART data assimilation infrastructure. The public interfaces listed
-! must all be supported with the argument lists as indicated. Many of the interfaces
-! are not required for minimal implementation (see the discussion of each
-! interface and look for NULL INTERFACE). 
-
-! Modules that are absolutely required for use are listed
 use        types_mod, only : r8, MISSING_R8, obstypelength
 use time_manager_mod, only : time_type, set_time, set_date, get_time,          &
                              print_time, print_date, set_calendar_type,        &
@@ -84,9 +77,9 @@ public :: get_model_size,         &
 ! not required by DART but for larger models can be useful for
 ! utility programs that are tightly tied to the other parts of
 ! the model_mod code.
-public :: noah1d_to_dart_vector, &
+public :: noah_to_dart_vector, &
           dart_vector_to_model_file, &
-          get_noah1D_restart_filename
+          get_noah_restart_filename
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -108,23 +101,24 @@ character(len=128), parameter :: &
 !------------------------------------------------------------------
 
 integer :: nfields
-integer, parameter :: max_state_variables = 40
-integer, parameter :: num_state_table_columns = 2
-character(len=obstypelength) :: variable_table(max_state_variables, num_state_table_columns)
+integer, parameter :: NSOLDX = 100
+integer, parameter :: MAX_STATE_VARIABLES = 40
+integer, parameter :: NUM_STATE_TABLE_COLUMNS = 2
+character(len=obstypelength) :: variable_table(MAX_STATE_VARIABLES, NUM_STATE_TABLE_COLUMNS)
 
 !------------------------------------------------------------------
 ! things which can/should be in the DART model_nml
 !------------------------------------------------------------------
 
-character(len=128)    :: noah_netcdf_filename   = 'OUTPUT.NC'
-character(len=128)    :: noah_namelist_filename = 'somelocation.dat'
+character(len=128)    :: noah_netcdf_filename   = 'restart.nc'
+character(len=128)    :: noah_namelist_filename = 'namelist.hrldas'
 integer               :: assimilation_period_days     = 0
 integer               :: assimilation_period_seconds  = 60
 real(r8)              :: model_perturbation_amplitude = 0.2
 logical               :: output_state_vector          = .true.
 character(len=32)     :: calendar = 'Gregorian'
 integer               :: debug    = 0  ! turn up for more and more debug messages
-character(len=obstypelength) :: noah_variables(max_state_variables*num_state_table_columns) = ' '
+character(len=obstypelength) :: noah_variables(MAX_STATE_VARIABLES*NUM_STATE_TABLE_COLUMNS) = ' '
 
 namelist /model_nml/ noah_netcdf_filename, noah_namelist_filename, &
           assimilation_period_days, assimilation_period_seconds,   &
@@ -138,74 +132,48 @@ namelist /model_nml/ noah_netcdf_filename, noah_namelist_filename, &
 ! DART needs to write a NOAH-compatible namelist. 
 !------------------------------------------------------------------
 
-integer, parameter :: nSoilLayers = 4
+! ZSOIL, set through the namelist, is the BOTTOM of each soil layer (m)
+! Values are negative, implying depth below the surface.
+real(r8), dimension(nsoldx) :: zsoil
+integer                     :: nsoil
 
-character(len=12) :: startdate
-character(len=12) :: enddate
-logical  :: loop_for_a_while
-real(r8) :: Latitude
-real(r8) :: Longitude
-integer  :: Forcing_Timestep
-integer  :: Noahlsm_Timestep
-logical  :: Sea_ice_point
-real(r8), dimension(nSoilLayers) :: Soil_layer_thickness
-real(r8), dimension(nSoilLayers) :: Soil_Temperature
-real(r8), dimension(nSoilLayers) :: Soil_Moisture
-real(r8), dimension(nSoilLayers) :: Soil_Liquid
-real(r8) :: Skin_Temperature
-real(r8) :: Canopy_water
-real(r8) :: Snow_depth
-real(r8) :: Snow_equivalent
-real(r8) :: Deep_Soil_Temperature
-character(len=256) :: Landuse_dataset
-integer  :: Soil_type_index
-integer  :: Vegetation_type_index
-integer  :: Urban_veg_category
-integer  :: glacial_veg_category
-integer  :: Slope_type_index
-real(r8) :: Max_snow_albedo
-real(r8) :: Air_temperature_level
-real(r8) :: Wind_level
-real(r8) :: Green_Vegetation_Min
-real(r8) :: Green_Vegetation_Max
-logical  :: Usemonalb
-logical  :: Rdlai2d
-integer  :: sfcdif_option
-integer  :: iz0tlnd
-real(r8), dimension(12) :: Albedo_monthly
-real(r8), dimension(12) :: Shdfac_monthly
-real(r8), dimension(12) ::    lai_monthly
-real(r8), dimension(12) ::  Z0brd_monthly
+CHARACTER(len=256) :: indir
+character(len=256) :: outdir = "."
+character(len=256) :: hrldas_constants_file = " "
+character(len=256) :: external_fpar_filename_template = " "
+character(len=256) :: external_lai_filename_template = " "
+character(len=256) :: restart_filename_requested = " "
+integer            :: split_output_count = 1
+integer            :: restart_frequency_hours
+integer            :: output_timestep
+integer            :: subwindow_xstart = 1
+integer            :: subwindow_ystart = 1
+integer            :: subwindow_xend = 0
+integer            :: subwindow_yend = 0
+integer            :: sfcdif_option = 0
+integer            :: iz0tlnd = 0
+logical            :: update_snow_from_forcing = .TRUE.
 
-namelist /METADATA_NAMELIST/ startdate, enddate, loop_for_a_while,   &
-         Latitude, Longitude, Forcing_Timestep, Noahlsm_Timestep,    &
-         Sea_ice_point, Soil_layer_thickness, Soil_Temperature,      &
-         Soil_Moisture, Soil_Liquid, Skin_Temperature, Canopy_water, &
-         Snow_depth, Snow_equivalent, Deep_Soil_Temperature, Landuse_dataset, &
-         Soil_type_index, Vegetation_type_index, Urban_veg_category, &
-         glacial_veg_category, Slope_type_index, Max_snow_albedo,    &
-         Air_temperature_level, Wind_level, Green_Vegetation_Min,    &
-         Green_Vegetation_Max, Usemonalb, Rdlai2d, sfcdif_option,    &
-         iz0tlnd, Albedo_monthly, Shdfac_monthly, lai_monthly, Z0brd_monthly
+integer  :: start_year, start_month, start_day, start_hour, start_min
+integer  :: noah_timestep = -999
+integer  :: forcing_timestep = -999
 
-! We are going to create a DART state vector out of the following 17 items
+integer  :: khour, kday
+real(r8) :: zlvl, zlvl_wind
 
-type noahtype
-   private
-   real(r8), dimension(nSoilLayers) :: Soil_Temperature
-   real(r8), dimension(nSoilLayers) :: Soil_Moisture
-   real(r8), dimension(nSoilLayers) :: Soil_Liquid
-   real(r8) :: Skin_Temperature
-   real(r8) :: Canopy_water
-   real(r8) :: Snow_depth
-   real(r8) :: Snow_equivalent
-   real(r8) :: Deep_Soil_Temperature
-end type noahtype
+namelist / NOAHLSM_OFFLINE/ indir, nsoil, zsoil, forcing_timestep, noah_timestep, &
+       start_year, start_month, start_day, start_hour, start_min, &
+       restart_frequency_hours, output_timestep, &
+       split_output_count, sfcdif_option, iz0tlnd, update_snow_from_forcing, &
+       khour, kday, zlvl, zlvl_wind, hrldas_constants_file, outdir, restart_filename_requested, &
+       external_fpar_filename_template, external_lai_filename_template, &
+       subwindow_xstart, subwindow_xend, subwindow_ystart, subwindow_yend
+
+!------------------------------------------------------------------
 
 ! define model parameters here
 type(time_type)     :: time_step
-type(location_type) :: state_loc(0:nSoilLayers)
-type(noahtype)      :: noah1d
+type(location_type),allocatable, dimension(:) :: state_loc
 
 ! Everything needed to describe a variable
 
@@ -226,7 +194,7 @@ type progvartype
    character(len=paramname_length) :: kind_string
 end type progvartype
 
-type(progvartype), dimension(max_state_variables) :: progvar
+type(progvartype), dimension(MAX_STATE_VARIABLES) :: progvar
 
 !------------------------------------------------------------------------------
 ! These are the metadata arrays that are the same size as the state vector.
@@ -243,7 +211,10 @@ type(time_type)    :: model_time       ! valid time of the model state
 type(time_type)    :: model_time_step  ! smallest time to adv model
 character(len=256) :: string1, string2, string3
 logical, save      :: module_initialized = .false.
-real(r8), dimension(nSoilLayers) :: soil_depths
+real(r8), allocatable, dimension(:) :: soil_depths
+
+real(r8), allocatable, dimension(:,:) :: xlong, xlat
+integer :: south_north, west_east
 
 !==================================================================
 contains
@@ -284,16 +255,7 @@ call check_namelist_read(iunit, io, "model_nml")
 if (do_nml_file()) write(nmlfileunit, nml=model_nml)
 if (do_nml_term()) write(     *     , nml=model_nml)
 
-! Read the NOAH namelist
-call find_namelist_in_file(trim(noah_namelist_filename), "METADATA_NAMELIST", iunit)
-read(iunit, nml = METADATA_NAMELIST, iostat = io)
-call check_namelist_read(iunit, io, "METADATA_NAMELIST")
-
-! Record the NOAH namelist
-if (do_nml_file()) write(nmlfileunit, nml=METADATA_NAMELIST)
-if (do_nml_term()) write(     *     , nml=METADATA_NAMELIST)
-
-! Check to make sure the required input files exist
+! Check to make sure the required NOAH input files exist
 if ( .not. file_exist(noah_netcdf_filename) ) then
    write(string1,*) 'cannot open file ', trim(noah_netcdf_filename),' for reading.'
    call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate)
@@ -303,9 +265,22 @@ if ( .not. file_exist(noah_namelist_filename) ) then
    call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate)
 endif
 
-! convert the [-180,180] longitudes to [0,360)
+! Read the NOAH namelist
+call find_namelist_in_file(trim(noah_namelist_filename), "NOAHLSM_OFFLINE", iunit)
+read(iunit, nml = NOAHLSM_OFFLINE, iostat = io)
+call check_namelist_read(iunit, io, "NOAHLSM_OFFLINE")
 
-if (Longitude < 0.0_r8) Longitude = Longitude + 360.0_r8
+! Record the NOAH namelist
+if (do_nml_file()) write(nmlfileunit, nml=NOAHLSM_OFFLINE)
+if (do_nml_term()) write(     *     , nml=NOAHLSM_OFFLINE)
+
+! Check to make sure the NOAH constants file exists
+if ( .not. file_exist(hrldas_constants_file) ) then
+   write(string1,*) 'cannot open file ', trim(hrldas_constants_file),' for reading.'
+   call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate)
+endif
+
+call get_hrldas_constants(hrldas_constants_file) ! TJH FIXME - write this
 
 ! The time_step in terms of a time type must also be initialized.
 
@@ -325,30 +300,31 @@ endif
 
 ! Make sure the number of soil layers is as we expect
 
-call nc_check(nf90_inq_dimid(iunit, 'num_soil_layers', dimIDs(1)), &
-                  'static_init_model','inq_dimid num_soil_layers '//trim(noah_netcdf_filename))
+call nc_check(nf90_inq_dimid(iunit, 'soil_layers_stag', dimIDs(1)), &
+                  'static_init_model','inq_dimid soil_layers_stag '//trim(noah_netcdf_filename))
 call nc_check(nf90_inquire_dimension(iunit, dimIDs(1), len=nLayers), &
                   'static_init_model','inquire_dimension Time '//trim(noah_netcdf_filename))
 
-if (nSoilLayers /= nLayers) then
-   write(string1,*) 'Expected ',nSoilLayers,' soil layers ', &
+if (nsoil /= nLayers) then
+   write(string1,*) 'Expected ',nsoil,' soil layers ', &
                        trim(noah_netcdf_filename),' has ',nLayers
    call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate)
 endif
 
+! TJH FIXME ... simplify this ... extend to 2D case ...
 ! convert soil thicknesses to depths
 ! closer to the center of the earth is an increasingly large negative number
-soil_depths(1) = Soil_layer_thickness(1) 
-do i = 2,nSoilLayers
-   soil_depths(i) = soil_depths(i-1) + Soil_layer_thickness(i)
+allocate(soil_depths(0:nsoil), state_loc(0:nsoil))
+soil_depths(0) = 0.0_r8
+do i = 1,nsoil
+   soil_depths(i) = soil_depths(i-1) + zsoil(i)
 enddo
 soil_depths = -1.0_r8 * soil_depths
 
-! there are only nSoilLayers + 1 different locations
-
-state_loc(0) = set_location(Longitude, Latitude, 0.0_r8, VERTISHEIGHT)
-do i = 1,nSoilLayers
-   state_loc(i) = set_location(Longitude, Latitude, soil_depths(i), VERTISHEIGHT)
+state_loc(0)   = set_location(xlong(1,1), xlat(1,1), 0.0_r8, VERTISHEIGHT)
+! there are only nsoil + 1 different locations
+do i = 1,nsoil
+   state_loc(i) = set_location(xlong(1,1), xlat(1,1), soil_depths(i), VERTISHEIGHT)
 enddo
 
 !---------------------------------------------------------------
@@ -461,12 +437,12 @@ model_size = progvar(nfields)%indexN
 if ((debug > 8) .and. do_output()) then
 
    write(*,*)
-   do i=1,nSoilLayers
+   do i=1,nsoil
       write(*,*)'soil layer',i,soil_depths(i)
    enddo
 
    write(*,*)
-   do i=0,nSoilLayers
+   do i=0,nsoil
       call write_location(iunit,state_loc(i),charstring=string1)
       write(*,*)'location ',i,' is ',trim(string1)
    enddo
@@ -730,7 +706,7 @@ integer :: nDimensions, nVariables, nAttributes, unlimitedDimID
 integer :: StateVarDimID    ! netCDF pointer to state variable dimension (model size)
 integer :: MemberDimID      ! netCDF pointer to dimension of ensemble    (ens_size)
 integer :: TimeDimID        ! netCDF pointer to time dimension           (unlimited)
-integer :: nSoilLayersDimID !   ..     ..                                (# soil layers)
+integer :: nsoilDimID !   ..     ..                                (# soil layers)
 
 integer :: StateVarVarID   ! netCDF pointer to state variable coordinate array
 integer :: StateVarID      ! netCDF pointer to 3D [state,copy,time] array
@@ -795,9 +771,9 @@ call nc_check(nf90_def_dim(ncid=ncFileID, name="StateVariable",  &
                            len=model_size, dimid=StateVarDimID), &
                            "nc_write_model_atts", "def_dim state")
 
-call nc_check(nf90_def_dim(ncid=ncFileID, name="nSoilLayers",  &
-                           len=nSoilLayers, dimid=nSoilLayersDimID), &
-                           "nc_write_model_atts", "def_dim nSoilLayers")
+call nc_check(nf90_def_dim(ncid=ncFileID, name="nsoil",  &
+                           len=nsoil, dimid=nsoilDimID), &
+                           "nc_write_model_atts", "def_dim nsoil")
 
 !-------------------------------------------------------------------------------
 ! Write Global Attributes 
@@ -815,24 +791,36 @@ call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "model_revision",revision), &
                           "nc_write_model_atts", "put_att model_revision")
 call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "model_revdate" ,revdate), &
                           "nc_write_model_atts", "put_att model_revdate")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "model","noah_1d"), &
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "model","NOAH"), &
                           "nc_write_model_atts", "put_att model")
 call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "calendar",trim(calendar)), &
                           "nc_write_model_atts", "put_att calendar")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Longitude",Longitude), &
-                          "nc_write_model_atts", "put_att Longitude")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Latitude",Latitude), &
-                          "nc_write_model_atts", "put_att Latitude")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Forcing_Timestep",Forcing_Timestep), &
-                          "nc_write_model_atts", "put_att Forcing_Timestep")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Noahlsm_Timestep",Noahlsm_Timestep), &
-                          "nc_write_model_atts", "put_att Noahlsm_Timestep")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Soil_type_index",Soil_type_index), &
-                          "nc_write_model_atts", "put_att Soil_type_index")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Vegetation_type_index",Vegetation_type_index), &
-                          "nc_write_model_atts", "put_att Vegetation_type_index")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Urban_veg_category",Urban_veg_category), &
-                          "nc_write_model_atts", "put_att Urban_veg_category")
+
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "HRLDAS_CONSTANTS_FILE",trim(hrldas_constants_file)), &
+                          "nc_write_model_atts", "put_att HRLDAS_CONSTANTS_FILE")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "HRLDAS_INDIR",trim(INDIR)), &
+                          "nc_write_model_atts", "put_att HRLDAS_INDIR")
+
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "RESTART_FILENAME_REQUESTED",trim(restart_filename_requested)), &
+                          "nc_write_model_atts", "put_att RESTART_FILENAME_REQUESTED")
+
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "KDAY",KDAY), &
+                          "nc_write_model_atts", "put_att KDAY")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "KHOUR",KHOUR), &
+                          "nc_write_model_atts", "put_att KHOUR")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "FORCING_TIMESTEP",forcing_timestep), &
+                          "nc_write_model_atts", "put_att FORCING_TIMESTEP")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "NOAH_TIMESTEP",noah_timestep), &
+                          "nc_write_model_atts", "put_att NOAH_TIMESTEP")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "OUTPUT_TIMESTEP",output_timestep), &
+                          "nc_write_model_atts", "put_att OUTPUT_TIMESTEP")
+
+! call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Soil_type_index",Soil_type_index), &
+!                           "nc_write_model_atts", "put_att Soil_type_index")
+! call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Vegetation_type_index",Vegetation_type_index), &
+!                           "nc_write_model_atts", "put_att Vegetation_type_index")
+! call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Urban_veg_category",Urban_veg_category), &
+!                           "nc_write_model_atts", "put_att Urban_veg_category")
 
 !-------------------------------------------------------------------------------
 ! Determine shape of most important namelist
@@ -1129,7 +1117,7 @@ MyLoop : do i = 1, nrows
 enddo MyLoop
 
 if (ngood == nrows) then
-   string1 = 'WARNING: There is a possibility you need to increase ''max_state_variables'''
+   string1 = 'WARNING: There is a possibility you need to increase ''MAX_STATE_VARIABLES'''
    write(string2,'(''WARNING: you have specified at least '',i4,'' perhaps more.'')')ngood
    call error_handler(E_MSG,'verify_state_variables',string1,source,revision,revdate,text2=string2)
 endif
@@ -1139,20 +1127,20 @@ end subroutine verify_state_variables
 
 
 
-subroutine get_noah1D_restart_filename( noah1D_restart_filename )
+subroutine get_noah_restart_filename( noah_restart_filename )
 !------------------------------------------------------------------
-character(len=*), intent(out) :: noah1d_restart_filename
+character(len=*), intent(out) :: noah_restart_filename
 
 if ( .not. module_initialized ) call static_init_model
 
-noah1d_restart_filename = noah_netcdf_filename
+noah_restart_filename = noah_netcdf_filename
 
-end subroutine get_noah1D_restart_filename
-
-
+end subroutine get_noah_restart_filename
 
 
-subroutine noah1d_to_dart_vector(filename, state_vector, restart_time)
+
+
+subroutine noah_to_dart_vector(filename, state_vector, restart_time)
 !------------------------------------------------------------------
 ! Reads the current time and state variables from a model data
 ! file and packs them into a dart state vector.
@@ -1179,11 +1167,11 @@ state_vector(:) = MISSING_R8
 
 if ( .not. file_exist(filename) ) then
    write(string1,*) 'file <', trim(filename),'> does not exist.'
-   call error_handler(E_ERR,'noah1d_to_dart_vector',string1,source,revision,revdate)
+   call error_handler(E_ERR,'noah_to_dart_vector',string1,source,revision,revdate)
 endif
 
 call nc_check(nf90_open(adjustl(filename), NF90_NOWRITE, ncid), &
-                   'noah1d_to_dart_vector', 'open '//trim(filename))
+                   'noah_to_dart_vector', 'open '//trim(filename))
 
 restart_time = get_state_time(ncid,filename)
 
@@ -1202,17 +1190,17 @@ do ivar=1, nfields
    string3    = trim(filename)//' '//trim(varname)
 
    call nc_check(nf90_inq_varid(ncid, varname, VarID), &
-            'noah1d_to_dart_vector', 'inq_varid '//trim(string3))
+            'noah_to_dart_vector', 'inq_varid '//trim(string3))
 
    call nc_check(nf90_inquire_variable(ncid,VarID,dimids=dimIDs,ndims=ncNdims), &
-            'noah1d_to_dart_vector', 'inquire '//trim(string3))
+            'noah_to_dart_vector', 'inquire '//trim(string3))
 
    ! Check the rank of the variable
 
    if ( ncNdims /= progvar(ivar)%numdims ) then
       write(string1, *) 'netCDF rank of '//trim(varname)//' does not match derived type knowledge'
       write(string2, *) 'netCDF rank is ',ncNdims,' expected ',progvar(ivar)%numdims
-      call error_handler(E_ERR,'noah1d_to_dart_vector', string1, &
+      call error_handler(E_ERR,'noah_to_dart_vector', string1, &
                         source,revision,revdate,text2=string2)
    endif
 
@@ -1223,7 +1211,7 @@ do ivar=1, nfields
 
       write(string1,'(''inquire dimension'',i2,A)') i,trim(string3)
       call nc_check(nf90_inquire_dimension(ncid, dimIDs(i), len=dimlen), &
-            'noah1d_to_dart_vector', string1)
+            'noah_to_dart_vector', string1)
 
       ncstart(i) = 1
       nccount(i) = dimlen
@@ -1234,7 +1222,7 @@ do ivar=1, nfields
          nccount(i) = 1
       elseif ( dimlen /= progvar(ivar)%dimlens(i) ) then
          write(string1,*) trim(string3),' dim/dimlen ',i,dimlen,' not ',progvar(ivar)%dimlens(i)
-         call error_handler(E_ERR,'noah1d_to_dart_vector',string1,source,revision,revdate)
+         call error_handler(E_ERR,'noah_to_dart_vector',string1,source,revision,revdate)
       endif
 
    enddo
@@ -1250,7 +1238,7 @@ do ivar=1, nfields
 
       call nc_check(nf90_get_var(ncid, VarID, data_1d_array,  &
                      start=ncstart(1:1), count=nccount(1:1)), &
-                  'noah1d_to_dart_vector', 'get_var '//trim(string3))
+                  'noah_to_dart_vector', 'get_var '//trim(string3))
 
       do i = 1, dimlen
          state_vector(indx) = data_1d_array(i)
@@ -1265,7 +1253,7 @@ do ivar=1, nfields
 
       call nc_check(nf90_get_var(ncid, VarID, data_2d_array,  &
                      start=ncstart(1:2), count=nccount(1:2)), &
-                  'noah1d_to_dart_vector', 'get_var '//trim(string3))
+                  'noah_to_dart_vector', 'get_var '//trim(string3))
 
       do j = 1, progvar(ivar)%dimlens(2)
       do i = 1, progvar(ivar)%dimlens(1)
@@ -1279,7 +1267,7 @@ do ivar=1, nfields
 
       write(string1, *)'Variable '//trim(varname)//' has ',ncNdims,' dimensions.'
       write(string2, *)'cannot handle that.'
-      call error_handler(E_ERR,'noah1d_to_dart_vector', string1, &
+      call error_handler(E_ERR,'noah_to_dart_vector', string1, &
                         source,revision,revdate,text2=string2)
 
    endif
@@ -1288,7 +1276,7 @@ do ivar=1, nfields
    if ( indx /= progvar(ivar)%indexN ) then
       write(string1, *)'Variable '//trim(varname)//' filled wrong.'
       write(string2, *)'Should have ended at ',progvar(ivar)%indexN,' actually ended at ',indx
-      call error_handler(E_ERR,'noah1d_to_dart_vector', string1, &
+      call error_handler(E_ERR,'noah_to_dart_vector', string1, &
                         source,revision,revdate,text2=string2)
    endif
 
@@ -1301,7 +1289,7 @@ if (do_output() .and. (debug > 8)) then
    enddo
 endif
 
-end subroutine noah1d_to_dart_vector
+end subroutine noah_to_dart_vector
 
 
  
@@ -1326,7 +1314,7 @@ iunit = open_file(trim(filename), form='formatted', action='write')
 ! convert statedate to namelist variable
 ! convert adv_to_time to namelist variable if needed
 
-write(iunit,nml=METADATA_NAMELIST)
+write(iunit,nml=NOAHLSM_OFFLINE)
 close(iunit)
 
 end subroutine dart_vector_to_model_file
@@ -1338,20 +1326,20 @@ function get_state_time(ncid, filename)
 ! The restart netcdf files have the time of the state.
 ! We are always using the 'most recent' which is, by defn, the last one.
 !
-!        Time = UNLIMITED ; // (35039 currently)
-!        num_soil_layers = 4 ;
-!        DatStrLen = 12 ;
+!        Time = UNLIMITED ; // (blah_blah_blah currently)
+!        DateStrLen = 19 ;
 !variables:
-!        char Times(Time, DatStrLen) ;
-!                Times:description = "UTC time of data output" ;
-!                Times:units = "YYYYMMDD HH:mm" ;
+!        char Times(Time, DateStrLen) ;
+!
+! Times =
+!  "2004-01-01_01:00:00" ;
 
 type(time_type) :: get_state_time
 integer,          intent(in) :: ncid
 character(len=*), intent(in) :: filename
 
-character(len=12), allocatable, dimension(:) :: datestring
-integer               :: year, month, day, hour, minute
+character(len=19), allocatable, dimension(:) :: datestring
+integer               :: year, month, day, hour, minute, second
 integer               :: DimID, VarID, strlen, ntimes
 integer, dimension(2) :: ncstart, nccount
 
@@ -1364,13 +1352,13 @@ call nc_check(nf90_inq_dimid(ncid, 'Time', DimID), &
 call nc_check(nf90_inquire_dimension(ncid, DimID, len=ntimes), &
                   'get_state_time','inquire_dimension Time '//trim(filename))
 
-call nc_check(nf90_inq_dimid(ncid, 'DatStrLen', DimID), &
-                  'get_state_time','inq_dimid DatStrLen '//trim(filename))
+call nc_check(nf90_inq_dimid(ncid, 'DateStrLen', DimID), &
+                  'get_state_time','inq_dimid DateStrLen '//trim(filename))
 call nc_check(nf90_inquire_dimension(ncid, DimID, len=strlen), &
                   'get_state_time','inquire_dimension DatStrLen '//trim(filename))
 
-if (strlen /= 12) then
-   write(string1,*)"DatStrLen string length ",strlen," /= 12 "
+if (strlen /= len(datestring)) then
+   write(string1,*)"DatStrLen string length ",strlen," /= ",len(datestring)
    call error_handler(E_ERR,"get_state_time", string1, source, revision, revdate)
 endif
 
@@ -1391,14 +1379,107 @@ call nc_check(nf90_get_var(ncid, VarID, datestring), &
 
 if (debug > 0) write(*,*)'Last time is '//trim(datestring(ntimes))
 
-read(datestring(ntimes),'(i4,i2,i2,i2,i2)')year, month, day, hour, minute
+read(datestring(ntimes),'(i4,5(1x,i2))')year, month, day, hour, minute, second
 
-get_state_time = set_date(year, month, day, hours=hour, minutes=minute, seconds=0)
+get_state_time = set_date(year, month, day, hours=hour, minutes=minute, seconds=second)
 
 deallocate(datestring)
 
 end function get_state_time
 
+
+
+subroutine get_hrldas_constants(filename)
+! Read the 'wrfinput' netCDF file for grid information, etc.
+! This is all time-invariant, so we can mostly ignore the Time coordinate.
+!
+! MODULE variables set by this routine:
+!    south_north
+!    west_east 
+!    xlong
+!    xlat
+
+character(len=*), intent(in) :: filename
+
+integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, ncstart, nccount
+character(len=NF90_MAX_NAME)          :: dimname, varname
+
+integer :: i, iunit, DimID, VarID, numdims, dimlen, xtype
+
+if ( .not. module_initialized ) call static_init_model
+
+call nc_check(nf90_open(adjustl(filename), NF90_NOWRITE, iunit), &
+                   'get_hrldas_constants', 'open '//trim(filename))
+
+call nc_check(nf90_inq_dimid(iunit, 'south_north', DimID), &
+                  'get_hrldas_constants','inq_dimid south_north '//trim(filename))
+call nc_check(nf90_inquire_dimension(iunit, DimID, len=south_north), &
+                  'get_hrldas_constants','inquire_dimension south_north '//trim(filename))
+
+call nc_check(nf90_inq_dimid(iunit, 'west_east', DimID), &
+                  'get_hrldas_constants','inq_dimid west_east '//trim(filename))
+call nc_check(nf90_inquire_dimension(iunit, DimID, len=west_east), &
+                  'get_hrldas_constants','inquire_dimension west_east '//trim(filename))
+
+! Require that the xlong and xlat are the same shape.
+
+allocate(xlong(west_east,south_north), xlat(west_east,south_north))
+
+call nc_check(nf90_inq_varid(iunit, 'XLONG', VarID), &
+                  'get_hrldas_constants','inq_varid XLONG '//trim(filename))
+
+call nc_check(nf90_inquire_variable(iunit, VarID, dimids=dimIDs, &
+                  ndims=numdims, xtype=xtype), &
+                  'get_hrldas_constants', 'inquire_variable XLONG '//trim(filename))
+
+! Form the start/count such that we always get the 'latest' time.
+
+ncstart(:) = 0
+nccount(:) = 0
+
+do i = 1,numdims
+
+   write(string1,'(''inquire dimension'',i2,A)') i,trim(filename)
+   call nc_check(nf90_inquire_dimension(iunit, dimIDs(i), name=dimname, len=dimlen), &
+                                          'static_init_model', string1)
+   ncstart(i) = 1
+   nccount(i) = dimlen
+
+   if ((trim(dimname) == 'Time') .or. (trim(dimname) == 'time')) then
+      ncstart(i) = dimlen
+      nccount(i) = 1
+   endif
+
+enddo
+
+if (debug > 7) write(*,*)'TJH DEBUG get_hrldas_constants ncstart is',ncstart(1:numdims)
+if (debug > 7) write(*,*)'TJH DEBUG get_hrldas_constants nccount is',nccount(1:numdims)
+
+! finally get the longitudes
+
+call nc_check(nf90_get_var(iunit, VarID, xlong, &
+                  start=ncstart(1:numdims), count=nccount(1:numdims)), &
+                  'get_hrldas_constants', 'get_var XLONG '//trim(filename))
+
+where(xlong < 0.0_r8) xlong = xlong + 360.0_r8
+
+! finally get the latitudes
+
+call nc_check(nf90_inq_varid(iunit, 'XLAT', VarID), &
+                  'get_hrldas_constants','inq_varid XLAT '//trim(filename))
+
+call nc_check(nf90_get_var(iunit, VarID, xlat, &
+                  start=ncstart(1:numdims), count=nccount(1:numdims)), &
+                  'get_hrldas_constants', 'get_var XLAT '//trim(filename))
+
+write(*,*)'TJH DEBUG XLONG is',xlong
+write(*,*)'TJH DEBUG XLAT  is',xlat
+
+! FIXME
+write(string1,*) 'get_hrldas_constants not written yet.'
+call error_handler(E_MSG,'static_init_model',string1,source,revision,revdate)
+
+end subroutine get_hrldas_constants
 
 
 !===================================================================

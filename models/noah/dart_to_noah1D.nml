@@ -1,5 +1,5 @@
-&dart_to_noah1D_nml
-   dart_to_noah1D_output_file   = 'dart_restart',
+&dart_to_noah_nml
+   dart_to_noah_output_file   = 'dart_restart',
    advance_time_present         = .true.,
   /
 

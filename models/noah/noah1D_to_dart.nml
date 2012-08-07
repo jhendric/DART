@@ -1,4 +1,4 @@
-&noah1D_to_dart_nml
-   noah1D_to_dart_output_file = 'dart_ics',
+&noah_to_dart_nml
+   noah_to_dart_output_file = 'dart_ics',
    /
 

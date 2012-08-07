@@ -6,7 +6,7 @@
 #
 # $Id$
 
-../../../mkmf/mkmf -p dart_to_noah1D -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p dart_to_noah -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
  -a "../../.." path_names_dart_to_noah1D
 
 exit $status

@@ -11,14 +11,14 @@ program dart_to_noah1D
 ! $Date$
 
 !----------------------------------------------------------------------
-! purpose: interface between DART and the noah1D model
+! purpose: interface between DART and the NOAH model
 !
-! method: Read DART state vector and overwrite values in a noah1D restart file.
+! method: Read DART state vector and overwrite values in a noah restart file.
 !         If the DART state vector has an 'advance_to_time' present, 
 !         it is read ... but nothing happens with it at this time.
-!         DART is NEVER expected to advance noah1D.
+!         DART is NEVER expected to advance noah.
 !
-!         The dart_to_noah1D_nml namelist setting for advance_time_present 
+!         The dart_to_noah_nml namelist setting for advance_time_present 
 !         determines whether or not the input file has an 'advance_to_time'.
 !         Typically, only temporary files like 'assim_model_state_ic' have
 !         an 'advance_to_time'.
@@ -48,15 +48,15 @@ character(len=128), parameter :: &
 ! The namelist variables
 !------------------------------------------------------------------
 
-character (len = 128) :: dart_to_noah1D_input_file = 'dart_restart'
+character (len = 128) :: dart_to_noah_input_file = 'dart_restart'
 logical               :: advance_time_present   = .false.
 
-namelist /dart_to_noah1D_nml/ dart_to_noah1D_input_file, &
+namelist /dart_to_noah_nml/ dart_to_noah_input_file, &
                            advance_time_present
 
 !----------------------------------------------------------------------
 
-character(len=20)     :: noah1D_restart_filename = 'noah1d_input.nml'
+character(len=20)     :: noah_restart_filename = 'noah_input.nml'
 integer               :: iunit, io, x_size
 type(time_type)       :: model_time, adv_to_time
 real(r8), allocatable :: statevector(:)
@@ -64,10 +64,10 @@ logical               :: verbose              = .FALSE.
 
 !----------------------------------------------------------------------
 
-call initialize_utilities(progname='dart_to_noah1D', output_flag=verbose)
+call initialize_utilities(progname='dart_to_noah', output_flag=verbose)
 
 !----------------------------------------------------------------------
-! Call model_mod:static_init_model() which reads the noah_1d namelist
+! Call model_mod:static_init_model() which reads the NOAH namelist
 ! to set location and state vector
 !----------------------------------------------------------------------
 
@@ -78,20 +78,20 @@ allocate(statevector(x_size))
 
 ! Read the namelist to get the input filename. 
 
-call find_namelist_in_file("input.nml", "dart_to_noah1D_nml", iunit)
-read(iunit, nml = dart_to_noah1D_nml, iostat = io)
-call check_namelist_read(iunit, io, "dart_to_noah1D_nml")
+call find_namelist_in_file("input.nml", "dart_to_noah_nml", iunit)
+read(iunit, nml = dart_to_noah_nml, iostat = io)
+call check_namelist_read(iunit, io, "dart_to_noah_nml")
 
 write(*,*)
-write(*,'(''dart_to_noah1D:converting DART file '',A, &
-      &'' to noah_1d input namelist '',A)') &
-     trim(dart_to_noah1D_input_file), trim(noah1D_restart_filename)
+write(*,'(''dart_to_noah:converting DART file '',A, &
+      &'' to NOAH input namelist '',A)') &
+     trim(dart_to_noah_input_file), trim(noah_restart_filename)
 
 !----------------------------------------------------------------------
 ! Reads the valid time, the state, and the target time.
 !----------------------------------------------------------------------
 
-iunit = open_restart_read(dart_to_noah1D_input_file)
+iunit = open_restart_read(dart_to_noah_input_file)
 
 if ( advance_time_present ) then
    call aread_state_restart(model_time, statevector, iunit, adv_to_time)
@@ -105,25 +105,25 @@ call close_restart(iunit)
 !----------------------------------------------------------------------
 
 if ( advance_time_present ) then
-   call dart_vector_to_model_file(statevector, noah1D_restart_filename, model_time, adv_to_time)
+   call dart_vector_to_model_file(statevector, noah_restart_filename, model_time, adv_to_time)
 else
-   call dart_vector_to_model_file(statevector, noah1D_restart_filename, model_time)
+   call dart_vector_to_model_file(statevector, noah_restart_filename, model_time)
 endif
 
 !----------------------------------------------------------------------
 ! Log what we think we're doing, and exit.
 !----------------------------------------------------------------------
 
-call print_date( model_time,'dart_to_noah1D:noah1D  model date')
-call print_time( model_time,'dart_to_noah1D:DART    model time')
-call print_date( model_time,'dart_to_noah1D:noah1D  model date',logfileunit)
-call print_time( model_time,'dart_to_noah1D:DART    model time',logfileunit)
+call print_date( model_time,'dart_to_noah:noah  model date')
+call print_time( model_time,'dart_to_noah:DART    model time')
+call print_date( model_time,'dart_to_noah:noah  model date',logfileunit)
+call print_time( model_time,'dart_to_noah:DART    model time',logfileunit)
 
 if ( advance_time_present ) then
-   call print_time(adv_to_time,'dart_to_noah1D:advance_to time')
-   call print_date(adv_to_time,'dart_to_noah1D:advance_to date')
-   call print_time(adv_to_time,'dart_to_noah1D:advance_to time',logfileunit)
-   call print_date(adv_to_time,'dart_to_noah1D:advance_to date',logfileunit)
+   call print_time(adv_to_time,'dart_to_noah:advance_to time')
+   call print_date(adv_to_time,'dart_to_noah:advance_to date')
+   call print_time(adv_to_time,'dart_to_noah:advance_to time',logfileunit)
+   call print_date(adv_to_time,'dart_to_noah:advance_to date',logfileunit)
 endif
 
 ! When called with 'end', timestamp will call finalize_utilities()
