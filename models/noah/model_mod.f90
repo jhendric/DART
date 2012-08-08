@@ -246,9 +246,9 @@ module_initialized = .true.
 call register_module(source, revision, revdate)
 
 ! Read the DART namelist
-call find_namelist_in_file("input.nml", "model_nml", iunit)
+call find_namelist_in_file('input.nml', 'model_nml', iunit)
 read(iunit, nml = model_nml, iostat = io)
-call check_namelist_read(iunit, io, "model_nml")
+call check_namelist_read(iunit, io, 'model_nml')
 
 ! Record the DART namelist values used for the run ...
 if (do_nml_file()) write(nmlfileunit, nml=model_nml)
@@ -265,9 +265,9 @@ if ( .not. file_exist(noah_namelist_filename) ) then
 endif
 
 ! Read the NOAH namelist
-call find_namelist_in_file(trim(noah_namelist_filename), "NOAHLSM_OFFLINE", iunit)
+call find_namelist_in_file(trim(noah_namelist_filename), 'NOAHLSM_OFFLINE', iunit)
 read(iunit, nml = NOAHLSM_OFFLINE, iostat = io)
-call check_namelist_read(iunit, io, "NOAHLSM_OFFLINE")
+call check_namelist_read(iunit, io, 'NOAHLSM_OFFLINE')
 
 ! Record the NOAH namelist
 if (do_nml_file()) write(nmlfileunit, nml=NOAHLSM_OFFLINE)
@@ -293,7 +293,7 @@ model_time      = get_state_time(iunit, trim(noah_netcdf_filename))
 ! FIXME ... make sure model_time_step is attainable given OUTPUT_TIMESTEP
 model_time_step = set_time(assimilation_period_seconds, assimilation_period_days)
 
-if (debug > 0) then
+if ( debug > 0 ) then
    call print_date(model_time     ,'static_init_model:model date')
    call print_time(model_time     ,'static_init_model:model time')
    call print_time(model_time_step,'static_init_model:model timestep')
@@ -406,7 +406,7 @@ FILL_PROGVAR : do ivar = 1, nfields
    progvar(ivar)%indexN      = index1 + varsize - 1
    index1                    = index1 + varsize      ! sets up for next variable
 
-   if ((debug > 8) .and. do_output()) then
+   if ( debug > 8 ) then
       write(logfileunit,*)
       write(logfileunit,*) trim(progvar(ivar)%varname),' variable number ',ivar
       write(logfileunit,*) '  long_name   ',trim(progvar(ivar)%long_name)
@@ -446,7 +446,7 @@ call nc_check(nf90_close(iunit), 'static_init_model', 'close '//trim(noah_netcdf
 
 model_size = progvar(nfields)%indexN
 
-if ((debug > 8) .and. do_output()) then
+if ( debug > 99 ) then
 
    write(*,*)
    do i=0,nsoil
@@ -618,6 +618,11 @@ integer :: n, layer, ivar
 
 if ( .not. module_initialized ) call static_init_model
 
+if( west_east*south_north /= 1 ) then
+     write(string1,*) 'PROBLEM: not set up for a case with multiple locations yet.'
+     call error_handler(E_ERR,'get_state_meta_data',string1,source,revision,revdate)
+endif
+
 layer = -1
 
 FindIndex : do n = 1,nfields
@@ -629,10 +634,11 @@ FindIndex : do n = 1,nfields
    endif
 enddo FindIndex
 
-if ((debug > 0) .and. do_output()) then
+if ( debug > 99 ) then
    write(*,*)'get_state_meta_data: index_in is ',index_in
    write(*,*)'get_state_meta_data: ivar     is ',ivar
    write(*,*)'get_state_meta_data: layer    is ',layer
+   write(*,*)
 endif
 
 if( layer == -1 ) then
@@ -664,29 +670,13 @@ end subroutine end_model
 
 function nc_write_model_atts( ncFileID ) result (ierr)
 !------------------------------------------------------------------
-! TJH 24 Oct 2006 -- Writes the model-specific attributes to a netCDF file.
-!     This includes coordinate variables and some metadata, but NOT
-!     the model state vector. We do have to allocate SPACE for the model
-!     state vector, but that variable gets filled as the model advances.
+! This routine writes all the netCDF 'infrastructure' and sets up the
+! global attributes, dimensions, coordinate variables, and output variables. 
+! The actuall filling of the output variables is done by
+! nc_write_model_vars() which can be called repeatedly for each
+! assimilation cycle.
 !
-! As it stands, this routine will work for ANY model, with no modification.
-!
-! The simplest possible netCDF file would contain a 3D field
-! containing the state of 'all' the ensemble members. This requires
-! three coordinate variables -- one for each of the dimensions
-! [model_size, ensemble_member, time]. A little metadata is useful,
-! so we can also create some 'global' attributes.
-! This is what is implemented here.
-!
-! Once the simplest case is working, this routine (and nc_write_model_vars)
-! can be extended to create a more logical partitioning of the state vector,
-! fundamentally creating a netCDF file with variables that are easily
-! plotted. The bgrid model_mod is perhaps a good one to view, keeping
-! in mind it is complicated by the fact it has two coordinate systems.
-! There are stubs in this template, but they are only stubs.
-!
-! TJH 29 Jul 2003 -- for the moment, all errors are fatal, so the
-! return code is always '0 == normal', since the fatal errors stop execution.
+! All errors are fatal, so the return code is always '0 == normal'
 !
 ! assim_model_mod:init_diag_output uses information from the location_mod
 !     to define the location dimension and variable ID. All we need to do
@@ -702,21 +692,33 @@ function nc_write_model_atts( ncFileID ) result (ierr)
 !    NF90_put_var       ! provide values for variable
 ! NF90_CLOSE            ! close: save updated netCDF dataset
 
-use typeSizes
-use netcdf
-
 integer, intent(in)  :: ncFileID      ! netCDF file identifier
 integer              :: ierr          ! return value of function
 
 integer :: nDimensions, nVariables, nAttributes, unlimitedDimID
 
+!----------------------------------------------------------------------
+! variables if we just blast out one long state vector
+!----------------------------------------------------------------------
+
 integer :: StateVarDimID    ! netCDF pointer to state variable dimension (model size)
 integer :: MemberDimID      ! netCDF pointer to dimension of ensemble    (ens_size)
 integer :: TimeDimID        ! netCDF pointer to time dimension           (unlimited)
-integer :: nsoilDimID !   ..     ..                                (# soil layers)
 
 integer :: StateVarVarID   ! netCDF pointer to state variable coordinate array
 integer :: StateVarID      ! netCDF pointer to 3D [state,copy,time] array
+
+!----------------------------------------------------------------------
+! variables if we parse the state vector into prognostic variables
+!----------------------------------------------------------------------
+
+integer :: weDimID
+integer :: snDimID
+integer :: nsoilDimID
+integer :: myndims
+integer :: ivar, varID
+integer, dimension(NF90_MAX_VAR_DIMS) :: mydimids
+character(len=NF90_MAX_NAME) :: varname
 
 !----------------------------------------------------------------------
 ! variables for the namelist output
@@ -725,7 +727,7 @@ integer :: StateVarID      ! netCDF pointer to 3D [state,copy,time] array
 character(len=129), allocatable, dimension(:) :: textblock
 integer :: LineLenDimID, nlinesDimID, nmlVarID
 integer :: nlines, linelen
-logical :: has_ncommas_namelist
+logical :: has_noah_namelist
 
 !----------------------------------------------------------------------
 ! we are going to need these to record the creation date in the netCDF file.
@@ -740,6 +742,8 @@ character(len=NF90_MAX_NAME) :: str1
 
 integer :: i
 
+character(len=128) :: filename
+
 if ( .not. module_initialized ) call static_init_model
 
 !-------------------------------------------------------------------------------
@@ -749,9 +753,18 @@ if ( .not. module_initialized ) call static_init_model
 
 ierr = -1 ! assume things go poorly
 
+!--------------------------------------------------------------------
+! we only have a netcdf handle here so we do not know the filename
+! or the fortran unit number.  but construct a string with at least
+! the netcdf handle, so in case of error we can trace back to see
+! which netcdf file is involved.
+!--------------------------------------------------------------------
+
+write(filename,*) 'ncFileID', ncFileID
+
 call nc_check(nf90_inquire(ncFileID,nDimensions,nVariables,nAttributes,unlimitedDimID), &
-                     "nc_write_model_atts", "inquire")
-call nc_check(nf90_redef(ncFileID), "nc_write_model_atts", "redef")
+                     'nc_write_model_atts', 'inquire '//trim(filename))
+call nc_check(nf90_redef(ncFileID), 'nc_write_model_atts', 'redef '//trim(filename))
 
 !-------------------------------------------------------------------------------
 ! We need the dimension ID for the number of copies/ensemble members, and
@@ -759,28 +772,24 @@ call nc_check(nf90_redef(ncFileID), "nc_write_model_atts", "redef")
 ! Our job is create the 'model size' dimension.
 !-------------------------------------------------------------------------------
 
-call nc_check(nf90_inq_dimid(ncid=ncFileID, name="copy", dimid=MemberDimID), &
-                            "nc_write_model_atts", "inq_dimid copy")
-call nc_check(nf90_inq_dimid(ncid=ncFileID, name="time", dimid= TimeDimID), &
-                            "nc_write_model_atts", "inq_dimid time")
+call nc_check(nf90_inq_dimid(ncid=ncFileID, name='copy', dimid=MemberDimID), &
+                            'nc_write_model_atts', 'inq_dimid copy '//trim(filename))
+call nc_check(nf90_inq_dimid(ncid=ncFileID, name='time', dimid= TimeDimID), &
+                            'nc_write_model_atts', 'inq_dimid time '//trim(filename))
 
 if ( TimeDimID /= unlimitedDimId ) then
-   write(string1,*)"Time Dimension ID ",TimeDimID, &
-                     " should equal Unlimited Dimension ID",unlimitedDimID
-   call error_handler(E_ERR,"nc_write_model_atts", string1, source, revision, revdate)
+   write(string1,*)'Time Dimension ID ',TimeDimID, &
+                     ' should equal Unlimited Dimension ID',unlimitedDimID
+   call error_handler(E_ERR,'nc_write_model_atts', string1, source, revision, revdate)
 endif
 
 !-------------------------------------------------------------------------------
 ! Define the model size / state variable dimension / whatever ...
 !-------------------------------------------------------------------------------
 
-call nc_check(nf90_def_dim(ncid=ncFileID, name="StateVariable",  &
+call nc_check(nf90_def_dim(ncid=ncFileID, name='StateVariable',  &
                            len=model_size, dimid=StateVarDimID), &
-                           "nc_write_model_atts", "def_dim state")
-
-call nc_check(nf90_def_dim(ncid=ncFileID, name="nsoil",  &
-                           len=nsoil, dimid=nsoilDimID), &
-                           "nc_write_model_atts", "def_dim nsoil")
+                           'nc_write_model_atts', 'def_dim state '//trim(filename))
 
 !-------------------------------------------------------------------------------
 ! Write Global Attributes
@@ -790,71 +799,76 @@ call DATE_AND_TIME(crdate,crtime,crzone,values)
 write(str1,'(''YYYY MM DD HH MM SS = '',i4,5(1x,i2.2))') &
                   values(1), values(2), values(3), values(5), values(6), values(7)
 
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "creation_date" ,str1), &
-                          "nc_write_model_atts", "put_att creation_date")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "model_source"  ,source), &
-                          "nc_write_model_atts", "put_att model_source")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "model_revision",revision), &
-                          "nc_write_model_atts", "put_att model_revision")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "model_revdate" ,revdate), &
-                          "nc_write_model_atts", "put_att model_revdate")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "model","NOAH"), &
-                          "nc_write_model_atts", "put_att model")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "calendar",trim(calendar)), &
-                          "nc_write_model_atts", "put_att calendar")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'creation_date' ,str1), &
+                          'nc_write_model_atts', 'put_att creation_date '//trim(filename))
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'model_source'  ,source), &
+                          'nc_write_model_atts', 'put_att model_source '//trim(filename))
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'model_revision',revision), &
+                          'nc_write_model_atts', 'put_att model_revision '//trim(filename))
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'model_revdate' ,revdate), &
+                          'nc_write_model_atts', 'put_att model_revdate '//trim(filename))
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'model','NOAH'), &
+                          'nc_write_model_atts', 'put_att model '//trim(filename))
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'calendar',trim(calendar)), &
+                          'nc_write_model_atts', 'put_att calendar '//trim(filename))
 
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "HRLDAS_CONSTANTS_FILE",trim(hrldas_constants_file)), &
-                          "nc_write_model_atts", "put_att HRLDAS_CONSTANTS_FILE")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "HRLDAS_INDIR",trim(INDIR)), &
-                          "nc_write_model_atts", "put_att HRLDAS_INDIR")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'HRLDAS_CONSTANTS_FILE',trim(hrldas_constants_file)), &
+                          'nc_write_model_atts', 'put_att HRLDAS_CONSTANTS_FILE '//trim(filename))
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'HRLDAS_INDIR',trim(INDIR)), &
+                          'nc_write_model_atts', 'put_att HRLDAS_INDIR '//trim(filename))
 
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "RESTART_FILENAME_REQUESTED",trim(restart_filename_requested)), &
-                          "nc_write_model_atts", "put_att RESTART_FILENAME_REQUESTED")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'RESTART_FILENAME_REQUESTED ',trim(restart_filename_requested)), &
+                          'nc_write_model_atts', 'put_att RESTART_FILENAME_REQUESTED '//trim(filename))
 
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "KDAY",KDAY), &
-                          "nc_write_model_atts", "put_att KDAY")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "KHOUR",KHOUR), &
-                          "nc_write_model_atts", "put_att KHOUR")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "FORCING_TIMESTEP",forcing_timestep), &
-                          "nc_write_model_atts", "put_att FORCING_TIMESTEP")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "NOAH_TIMESTEP",noah_timestep), &
-                          "nc_write_model_atts", "put_att NOAH_TIMESTEP")
-call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "OUTPUT_TIMESTEP",output_timestep), &
-                          "nc_write_model_atts", "put_att OUTPUT_TIMESTEP")
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'KDAY',KDAY), &
+                          'nc_write_model_atts', 'put_att KDAY '//trim(filename))
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'KHOUR',KHOUR), &
+                          'nc_write_model_atts', 'put_att KHOUR '//trim(filename))
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'FORCING_TIMESTEP',forcing_timestep), &
+                          'nc_write_model_atts', 'put_att FORCING_TIMESTEP '//trim(filename))
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'NOAH_TIMESTEP',noah_timestep), &
+                          'nc_write_model_atts', 'put_att NOAH_TIMESTEP '//trim(filename))
+call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'OUTPUT_TIMESTEP',output_timestep), &
+                          'nc_write_model_atts', 'put_att OUTPUT_TIMESTEP '//trim(filename))
 
-! call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Soil_type_index",Soil_type_index), &
-!                           "nc_write_model_atts", "put_att Soil_type_index")
-! call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Vegetation_type_index",Vegetation_type_index), &
-!                           "nc_write_model_atts", "put_att Vegetation_type_index")
-! call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, "Urban_veg_category",Urban_veg_category), &
-!                           "nc_write_model_atts", "put_att Urban_veg_category")
+! call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'Soil_type_index',Soil_type_index), &
+!                           'nc_write_model_atts', 'put_att Soil_type_index'//trim(filename))
+! call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'Vegetation_type_index',Vegetation_type_index), &
+!                           'nc_write_model_atts', 'put_att Vegetation_type_index')
+! call nc_check(nf90_put_att(ncFileID, NF90_GLOBAL, 'Urban_veg_category',Urban_veg_category), &
+!                           'nc_write_model_atts', 'put_att Urban_veg_category'//trim(filename))
 
 !-------------------------------------------------------------------------------
 ! Determine shape of most important namelist
 !-------------------------------------------------------------------------------
 
-call find_textfile_dims('ncommas_vars.nml', nlines, linelen)
+call find_textfile_dims(noah_namelist_filename, nlines, linelen)
 if (nlines > 0) then
-  has_ncommas_namelist = .true.
+  has_noah_namelist = .true.
 else
-  has_ncommas_namelist = .false.
+  has_noah_namelist = .false.
 endif
 
-if (debug > 0)    print *, 'ncommas namelist: nlines, linelen = ', nlines, linelen
+if ( debug > 99 ) print *, 'noah namelist: nlines, linelen = ', nlines, linelen
 
-if (has_ncommas_namelist) then
+if (has_noah_namelist) then
    allocate(textblock(nlines))
    textblock = ''
 
-   call nc_check(nf90_def_dim(ncid=ncFileID, name='nlines', &
-                 len = nlines, dimid = nlinesDimID), &
-                 'nc_write_model_atts', 'def_dim nlines ')
+   call nc_check(nf90_def_dim(ncid=ncFileID, name='noahNMLlinelen', &
+          len = linelen, dimid = linelenDimID), &
+          'nc_write_model_atts', 'def_dim noahNMLlinelen '//trim(filename))
 
-   call nc_check(nf90_def_var(ncFileID,name='ncommas_in', xtype=nf90_char,    &
-                 dimids = (/ linelenDimID, nlinesDimID /),  varid=nmlVarID), &
-                 'nc_write_model_atts', 'def_var ncommas_in')
-   call nc_check(nf90_put_att(ncFileID, nmlVarID, 'long_name',       &
-                 'contents of ncommas_in namelist'), 'nc_write_model_atts', 'put_att ncommas_in')
+   call nc_check(nf90_def_dim(ncid=ncFileID, name='noahNMLnlines', &
+          len = nlines, dimid = nlinesDimID), &
+          'nc_write_model_atts', 'def_dim noahNMLnlines '//trim(filename))
+
+   call nc_check(nf90_def_var(ncFileID,name='noah_namelist', xtype=nf90_char,    &
+          dimids = (/ linelenDimID, nlinesDimID /),  varid=nmlVarID), &
+          'nc_write_model_atts', 'def_var noah_namelist'//trim(filename))
+
+   call nc_check(nf90_put_att(ncFileID, nmlVarID, 'long_name', 'contents of noah_namelist'), &
+          'nc_write_model_atts', 'put_att noah_namelist'//trim(filename))
 
 endif
 
@@ -872,48 +886,176 @@ if ( output_state_vector ) then
    !----------------------------------------------------------------------------
 
   ! Define the state vector coordinate variable and some attributes.
-   call nc_check(nf90_def_var(ncid=ncFileID,name="StateVariable", xtype=NF90_INT, &
+   call nc_check(nf90_def_var(ncid=ncFileID,name='StateVariable', xtype=NF90_INT, &
                               dimids=StateVarDimID, varid=StateVarVarID), &
-                             "nc_write_model_atts", "def_var StateVariable")
-   call nc_check(nf90_put_att(ncFileID, StateVarVarID,"long_name","State Variable ID"), &
-                             "nc_write_model_atts", "put_att StateVariable long_name")
-   call nc_check(nf90_put_att(ncFileID, StateVarVarID, "units",     "indexical"), &
-                             "nc_write_model_atts", "put_att StateVariable units")
-   call nc_check(nf90_put_att(ncFileID, StateVarVarID, "valid_range", (/ 1, model_size /)), &
-                             "nc_write_model_atts", "put_att StateVariable valid_range")
+                             'nc_write_model_atts', 'def_var StateVariable')
+   call nc_check(nf90_put_att(ncFileID, StateVarVarID,'long_name','State Variable ID'), &
+                             'nc_write_model_atts', 'put_att StateVariable long_name')
+   call nc_check(nf90_put_att(ncFileID, StateVarVarID, 'units',     'indexical'), &
+                             'nc_write_model_atts', 'put_att StateVariable units')
+   call nc_check(nf90_put_att(ncFileID, StateVarVarID, 'valid_range', (/ 1, model_size /)), &
+                             'nc_write_model_atts', 'put_att StateVariable valid_range')
 
    ! Define the actual (3D) state vector, which gets filled as time goes on ...
-   call nc_check(nf90_def_var(ncid=ncFileID, name="state", xtype=NF90_REAL, &
+   call nc_check(nf90_def_var(ncid=ncFileID, name='state', xtype=NF90_REAL, &
                  dimids = (/ StateVarDimID, MemberDimID, unlimitedDimID /), &
-                 varid=StateVarID), "nc_write_model_atts", "def_var state")
-   call nc_check(nf90_put_att(ncFileID, StateVarID, "long_name", "model state or fcopy"), &
-                             "nc_write_model_atts", "put_att state long_name")
+                 varid=StateVarID), 'nc_write_model_atts', 'def_var state')
+   call nc_check(nf90_put_att(ncFileID, StateVarID, 'long_name', 'model state or fcopy'), &
+                             'nc_write_model_atts', 'put_att state long_name')
 
    ! Leave define mode so we can fill the coordinate variable.
-   call nc_check(nf90_enddef(ncfileID),"nc_write_model_atts", "state_vector enddef")
+   call nc_check(nf90_enddef(ncfileID),'nc_write_model_atts', 'state_vector enddef')
 
    ! Fill the state variable coordinate variable
    call nc_check(nf90_put_var(ncFileID, StateVarVarID, (/ (i,i=1,model_size) /)), &
-                                    "nc_write_model_atts", "put_var state")
+                                    'nc_write_model_atts', 'put_var state')
 
 else
 
    !----------------------------------------------------------------------------
-   ! We need to process the prognostic variables.
+   ! We need to output the prognostic variables.
+   !----------------------------------------------------------------------------
+   ! Define the additional dimensions IDs
    !----------------------------------------------------------------------------
 
-   ! This block is a stub for something more complicated.
-   ! Usually, the control for the execution of this block is a namelist variable.
-   ! Take a peek at the bgrid model_mod.f90 for a (rather complicated) example.
+   call nc_check(nf90_def_dim(ncid=ncFileID, name='west_east', &
+          len=west_east, dimid=weDimID),'nc_write_model_atts','west_east def_dim '//trim(filename))
 
-   call nc_check(nf90_enddef(ncfileID), "nc_write_model_atts", "prognostic enddef")
+   call nc_check(nf90_def_dim(ncid=ncFileID, name='south_north', &
+          len=south_north, dimid=snDimID),'nc_write_model_atts', 'south_north def_dim '//trim(filename))
 
+   call nc_check(nf90_def_dim(ncid=ncFileID, name='soil_layers_stag',  &
+          len=nsoil, dimid=nsoilDimID), 'nc_write_model_atts', 'def_dim soil_layers_stag'//trim(filename))
+
+   !----------------------------------------------------------------------------
+   ! Create the (empty) Coordinate Variables and the Attributes
+   !----------------------------------------------------------------------------
+
+   ! Grid Longitudes
+   call nc_check(nf90_def_var(ncFileID,name='XLONG', xtype=nf90_real, &
+                 dimids=(/ weDimID, snDimID /), varid=VarID),&
+                 'nc_write_model_atts', 'XLONG def_var '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, 'long_name', 'coordinate longitude'), &
+                 'nc_write_model_atts', 'XLONG long_name '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, 'coordinates', 'XLONG XLAT'),  &
+                 'nc_write_model_atts', 'XLONG coordinates '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, 'FieldType', 104),  &
+                 'nc_write_model_atts', 'XLONG FieldType '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, 'MemoryOrder', 'XY'),  &
+                 'nc_write_model_atts', 'XLONG MemoryOrder '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, '_FillValue', -999.0 ), &
+                 'nc_write_model_atts', 'XLONG _FillValue '//trim(filename))
+
+   ! Grid Latitudes
+   call nc_check(nf90_def_var(ncFileID,name='XLAT', xtype=nf90_real, &
+                 dimids=(/ weDimID, snDimID /), varid=VarID),&
+                 'nc_write_model_atts', 'XLAT def_var '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, 'long_name', 'coordinate latitude'), &
+                 'nc_write_model_atts', 'XLAT long_name '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, 'coordinates', 'XLONG XLAT'),  &
+                 'nc_write_model_atts', 'XLAT coordinates '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, 'FieldType', 104),  &
+                 'nc_write_model_atts', 'XLAT FieldType '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, 'MemoryOrder', 'XY'),  &
+                 'nc_write_model_atts', 'XLAT MemoryOrder '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, '_FillValue', -999.0 ), &
+                 'nc_write_model_atts', 'XLAT _FillValue '//trim(filename))
+
+   ! subsurface levels
+   call nc_check(nf90_def_var(ncFileID,name='soil_layers_stag', xtype=nf90_real, &
+                 dimids=(/ nsoilDimID /), varid=VarID),&
+                 'nc_write_model_atts', 'soil_layers_stag def_var '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, 'long_name', 'coordinate soil levels'), &
+                 'nc_write_model_atts', 'soil_layers_stag long_name '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID,  VarID, 'units', 'm'),  &
+                 'nc_write_model_atts', 'soil_layers_stag units '//trim(filename))
+
+   !----------------------------------------------------------------------------
+   ! Create the (empty) Prognostic Variables and their Attributes
+   !----------------------------------------------------------------------------
+
+   do ivar=1, nfields
+
+      varname = trim(progvar(ivar)%varname)
+      string1 = trim(filename)//' '//trim(varname)
+
+      ! match shape of the variable to the dimension IDs
+
+      call define_var_dims(ivar, ncFileID, MemberDimID, unlimitedDimID, myndims, mydimids)
+
+      ! define the variable and set the attributes
+
+      call nc_check(nf90_def_var(ncid=ncFileID, name=trim(varname), xtype=progvar(ivar)%xtype, &
+                    dimids = mydimids(1:myndims), varid=VarID),&
+                    'nc_write_model_atts', trim(string1)//' def_var' )
+
+      call nc_check(nf90_put_att(ncFileID, VarID, 'long_name', trim(progvar(ivar)%long_name)), &
+           'nc_write_model_atts', trim(string1)//' put_att long_name' )
+
+      call nc_check(nf90_put_att(ncFileID, VarID, 'DART_kind', trim(progvar(ivar)%kind_string)), &
+           'nc_write_model_atts', trim(string1)//' put_att dart_kind' )
+      call nc_check(nf90_put_att(ncFileID, VarID, 'units', trim(progvar(ivar)%units)), &
+           'nc_write_model_atts', trim(string1)//' put_att units' )
+
+      ! Preserve the original missing_value/_FillValue code.
+
+!     if (  progvar(ivar)%xtype == NF90_INT ) then
+!        call nc_check(nf90_put_att(ncFileID, VarID, 'missing_value', progvar(ivar)%spvalINT), &
+!             'nc_write_model_atts', trim(string1)//' put_att missing_value' )
+!        call nc_check(nf90_put_att(ncFileID, VarID, '_FillValue',  progvar(ivar)%spvalINT), &
+!             'nc_write_model_atts', trim(string1)//' put_att _FillValue' )
+
+!     elseif (  progvar(ivar)%xtype == NF90_FLOAT ) then
+!        call nc_check(nf90_put_att(ncFileID, VarID, 'missing_value', progvar(ivar)%spvalR4), &
+!             'nc_write_model_atts', trim(string1)//' put_att missing_value' )
+!        call nc_check(nf90_put_att(ncFileID, VarID, '_FillValue',  progvar(ivar)%spvalR4), &
+!             'nc_write_model_atts', trim(string1)//' put_att _FillValue' )
+
+!     elseif (  progvar(ivar)%xtype == NF90_DOUBLE ) then
+!        call nc_check(nf90_put_att(ncFileID, VarID, 'missing_value', progvar(ivar)%spvalR8), &
+!             'nc_write_model_atts', trim(string1)//' put_att missing_value' )
+!        call nc_check(nf90_put_att(ncFileID, VarID, '_FillValue',  progvar(ivar)%spvalR8), &
+!             'nc_write_model_atts', trim(string1)//' put_att _FillValue' )
+!     endif
+
+   enddo
+
+   !----------------------------------------------------------------------------
+   ! Finished with dimension/variable definitions, must end 'define' mode to fill.
+   !----------------------------------------------------------------------------
+
+   call nc_check(nf90_enddef(ncfileID), 'nc_write_model_atts', 'prognostic enddef')
+
+   !----------------------------------------------------------------------------
+   ! Fill the coordinate variables
+   !----------------------------------------------------------------------------
+
+   call nc_check(nf90_inq_varid(ncFileID, 'XLONG', VarID), &
+                'nc_write_model_atts', 'inq_varid XLONG '//trim(filename))
+   call nc_check(nf90_put_var(ncFileID, VarID, xlong ), &
+                'nc_write_model_atts', 'put_var XLONG '//trim(filename))
+
+   call nc_check(nf90_inq_varid(ncFileID, 'XLAT', VarID), &
+                'nc_write_model_atts', 'inq_varid XLAT '//trim(filename))
+   call nc_check(nf90_put_var(ncFileID, VarID, xlat ), &
+                'nc_write_model_atts', 'put_var XLAT '//trim(filename))
+
+   call nc_check(nf90_inq_varid(ncFileID, 'soil_layers_stag', VarID), &
+                'nc_write_model_atts', 'inq_varid soil_layers_stag '//trim(filename))
+   call nc_check(nf90_put_var(ncFileID, VarID, zsoil(1:nsoil)), &
+                'nc_write_model_atts', 'put_var soil_layers_stag '//trim(filename))
 endif
+
+!-------------------------------------------------------------------------------
+! Fill the variables we can
+!-------------------------------------------------------------------------------
+
+! none
 
 !-------------------------------------------------------------------------------
 ! Flush the buffer and leave netCDF file open
 !-------------------------------------------------------------------------------
-call nc_check(nf90_sync(ncFileID),"nc_write_model_atts", "sync")
+call nc_check(nf90_sync(ncFileID),'nc_write_model_atts', 'sync')
 
 ierr = 0 ! If we got here, things went well.
 
@@ -945,9 +1087,6 @@ function nc_write_model_vars( ncFileID, statevec, copyindex, timeindex ) result 
 !    NF90_put_var       ! provide values for variable
 ! NF90_CLOSE            ! close: save updated netCDF dataset
 
-use typeSizes
-use netcdf
-
 integer,                intent(in) :: ncFileID      ! netCDF file identifier
 real(r8), dimension(:), intent(in) :: statevec
 integer,                intent(in) :: copyindex
@@ -967,15 +1106,15 @@ if ( .not. module_initialized ) call static_init_model
 ierr = -1 ! assume things go poorly
 
 call nc_check(nf90_inquire(ncFileID,nDimensions,nVariables,nAttributes,unlimitedDimID), &
-                          "nc_write_model_vars", "inquire")
+                          'nc_write_model_vars', 'inquire')
 
 if ( output_state_vector ) then
 
-   call nc_check(nf90_inq_varid(ncFileID, "state", StateVarID), &
-                               "nc_write_model_vars", "inq_varid state" )
+   call nc_check(nf90_inq_varid(ncFileID, 'state', StateVarID), &
+                               'nc_write_model_vars', 'inq_varid state' )
    call nc_check(nf90_put_var(ncFileID, StateVarID, statevec,  &
                               start=(/ 1, copyindex, timeindex /)), &
-                             "nc_write_model_vars", "put_var state")
+                             'nc_write_model_vars', 'put_var state')
 
 else
 
@@ -997,13 +1136,13 @@ else
    ! call vector_to_prog_var(statevec, get_model_size(), global_Var)
 
    ! the 'start' array is crucial. In the following example, 'ps' is a 2D
-   ! array, and the netCDF variable "ps" is a 4D array [lat,lon,copy,time]
+   ! array, and the netCDF variable 'ps' is a 4D array [lat,lon,copy,time]
 
-   ! call nc_check(nf90_inq_varid(ncFileID, "ps", psVarID), &
-   !                             "nc_write_model_vars",  "inq_varid ps")
+   ! call nc_check(nf90_inq_varid(ncFileID, 'ps', psVarID), &
+   !                             'nc_write_model_vars',  'inq_varid ps')
    ! call nc_check(nf90_put_var( ncFileID, psVarID, global_Var%ps, &
    !                             start=(/ 1, 1, copyindex, timeindex /)), &
-   !                            "nc_write_model_vars", "put_var ps")
+   !                            'nc_write_model_vars', 'put_var ps')
 
 endif
 
@@ -1011,7 +1150,7 @@ endif
 ! Flush the buffer and leave netCDF file open
 !-------------------------------------------------------------------------------
 
-call nc_check(nf90_sync(ncFileID), "nc_write_model_vars", "sync")
+call nc_check(nf90_sync(ncFileID), 'nc_write_model_vars', 'sync')
 
 ierr = 0 ! If we got here, things went well.
 
@@ -1115,7 +1254,7 @@ MyLoop : do i = 1, nrows
 
    ! Record the contents of the DART state vector
 
-   if ((debug > 3) .and. do_output()) then
+   if ( debug > 3 ) then
       write(logfileunit,*)'variable ',i,' is ',trim(table(i,1)), '   ', trim(table(i,2))
       write(     *     ,*)'variable ',i,' is ',trim(table(i,1)), '   ', trim(table(i,2))
    endif
@@ -1240,11 +1379,11 @@ do ivar=1, nfields
       endif
    enddo
 
-   if (debug > 8) then
+   if ( debug > 99 ) then
       write(*,*)
-      write(*,*)'TJH DEBUG variable ',trim(varname)
-      write(*,*)'TJH DEBUG ncstart ',ncstart(1:ncNdims)
-      write(*,*)'TJH DEBUG nccount ',nccount(1:ncNdims)
+      write(*,*)'noah_to_dart_vector: variable ',trim(varname)
+      write(*,*)'noah_to_dart_vector: ncstart ',ncstart(1:ncNdims)
+      write(*,*)'noah_to_dart_vector: nccount ',nccount(1:ncNdims)
       write(*,*)
    endif
 
@@ -1342,7 +1481,7 @@ do ivar=1, nfields
 
 enddo
 
-if (do_output() .and. (debug > 8)) then
+if ( debug > 99 ) then
    write(*,*)progvar(ivar)%varname, 'newest time is ',ntimes
    do i = 1,size(state_vector)
       write(*,*)'state vector(',i,') is',state_vector(i)
@@ -1356,7 +1495,7 @@ end subroutine noah_to_dart_vector
 subroutine dart_vector_to_model_file(state_vector, filename, statedate, adv_to_time)
 !------------------------------------------------------------------
 ! Writes the current time and state variables from a dart state
-! vector (1d array) into a ncommas netcdf restart file.
+! vector (1d array) into a noah netcdf restart file.
 !
 real(r8),         intent(in) :: state_vector(:)
 character(len=*), intent(in) :: filename
@@ -1392,7 +1531,7 @@ function get_state_time(ncid, filename)
 !        char Times(Time, DateStrLen) ;
 !
 ! Times =
-!  "2004-01-01_01:00:00" ;
+!  '2004-01-01_01:00:00' ;
 
 type(time_type) :: get_state_time
 integer,          intent(in) :: ncid
@@ -1418,8 +1557,8 @@ call nc_check(nf90_inquire_dimension(ncid, DimID, len=strlen), &
                   'get_state_time','inquire_dimension DatStrLen '//trim(filename))
 
 if (strlen /= len(datestring)) then
-   write(string1,*)"DatStrLen string length ",strlen," /= ",len(datestring)
-   call error_handler(E_ERR,"get_state_time", string1, source, revision, revdate)
+   write(string1,*)'DatStrLen string length ',strlen,' /= ',len(datestring)
+   call error_handler(E_ERR,'get_state_time', string1, source, revision, revdate)
 endif
 
 ! Get the last Time string
@@ -1437,7 +1576,7 @@ allocate(datestring(ntimes))
 call nc_check(nf90_get_var(ncid, VarID, datestring), &
                    'get_state_time', 'get_var Times '//trim(filename))
 
-if (debug > 0) write(*,*)'Last time is '//trim(datestring(ntimes))
+if ( debug > 0 ) write(*,*)'Last time is '//trim(datestring(ntimes))
 
 read(datestring(ntimes),'(i4,5(1x,i2))')year, month, day, hour, minute, second
 
@@ -1450,6 +1589,7 @@ end function get_state_time
 
 
 subroutine get_hrldas_constants(filename)
+!------------------------------------------------------------------
 ! Read the 'wrfinput' netCDF file for grid information, etc.
 ! This is all time-invariant, so we can mostly ignore the Time coordinate.
 !
@@ -1512,8 +1652,8 @@ do i = 1,numdims
 
 enddo
 
-if (debug > 7) write(*,*)'TJH DEBUG get_hrldas_constants ncstart is',ncstart(1:numdims)
-if (debug > 7) write(*,*)'TJH DEBUG get_hrldas_constants nccount is',nccount(1:numdims)
+if ( debug > 7 ) write(*,*)'TJH DEBUG get_hrldas_constants ncstart is',ncstart(1:numdims)
+if ( debug > 7 ) write(*,*)'TJH DEBUG get_hrldas_constants nccount is',nccount(1:numdims)
 
 ! finally get the longitudes
 
@@ -1537,6 +1677,64 @@ write(string1,*) 'get_hrldas_constants not written yet.'
 call error_handler(E_MSG,'static_init_model',string1,source,revision,revdate)
 
 end subroutine get_hrldas_constants
+
+
+
+
+subroutine define_var_dims(ivar, ncid, memberdimid, unlimiteddimid, ndims, dimids)
+!------------------------------------------------------------------
+! I am trying to preserve the shape of the NOAH variable as much as possible.
+!
+! noah_variable(Time,       soil_layers_stag, south_north, west_east) becomes
+! noah_variable(time, copy, soil_layers_stag, south_north, west_east)
+!
+! Since 'time' or 'Time' is the unlimited dimension in both ... I can skip it
+! in the DEFDIM loop.
+
+integer,               intent(in)  :: ivar, ncid, memberdimid, unlimiteddimid
+integer,               intent(out) :: ndims
+integer, dimension(:), intent(out) :: dimids
+
+integer :: i, mydimid
+
+ndims = 0
+
+DEFDIM : do i = 1,progvar(ivar)%numdims
+
+   if ((trim(progvar(ivar)%dimnames(i)) == 'Time') .or. &
+       (trim(progvar(ivar)%dimnames(i)) == 'time')) cycle DEFDIM
+
+   call nc_check(nf90_inq_dimid(ncid=ncid, name=progvar(ivar)%dimnames(i), dimid=mydimid), &
+                           'define_var_dims','inq_dimid '//trim(progvar(ivar)%dimnames(i)))
+
+   ndims         = ndims + 1
+   dimids(ndims) = mydimid
+
+enddo DEFDIM
+
+ndims = ndims + 1
+dimids(ndims) = memberdimid
+ndims = ndims + 1
+dimids(ndims) = unlimitedDimid
+
+if ( debug > 99 ) then
+   write(logfileunit,*)
+   write(logfileunit,*)'define_var_dims knowledge'
+   write(logfileunit,*)trim(progvar(ivar)%varname),' has dimnames ', &
+                       progvar(ivar)%dimnames(1:progvar(ivar)%numdims)
+   write(logfileunit,*)' thus dimids ',dimids(1:ndims)
+   write(     *     ,*)
+   write(     *     ,*)'define_var_dims knowledge'
+   write(     *     ,*)trim(progvar(ivar)%varname),' has dimnames ', &
+                       progvar(ivar)%dimnames(1:progvar(ivar)%numdims)
+   write(     *     ,*)' thus dimids ',dimids(1:ndims)
+
+endif
+
+return
+end subroutine define_var_dims
+
+
 
 
 !===================================================================

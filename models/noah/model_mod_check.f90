@@ -21,7 +21,7 @@ use    utilities_mod, only : initialize_utilities, timestamp, nc_check, &
 use     location_mod, only : location_type, set_location, write_location, get_dist, &
                              query_location, LocationDims, get_location, VERTISHEIGHT
 use     obs_kind_mod, only : get_raw_obs_kind_name, get_raw_obs_kind_index, &
-                             KIND_SNOWCOVER_FRAC, KIND_SOIL_TEMPERATURE
+                             KIND_SOIL_MOISTURE, KIND_LATENT_HEAT_FLUX
 use  assim_model_mod, only : open_restart_read, open_restart_write, close_restart, &
                              aread_state_restart, awrite_state_restart, &
                              netcdf_file_type, aoutput_diagnostics, &
@@ -206,9 +206,9 @@ endif
 
 if (test1thru > 9) then
    write(*,*)
-   write(*,*)'Testing model_interpolate() with KIND_SNOWCOVER_FRAC'
+   write(*,*)'Testing model_interpolate() with KIND_SOIL_MOISTURE'
 
-   call model_interpolate(statevector, loc, KIND_SNOWCOVER_FRAC, interp_val, ios_out)
+   call model_interpolate(statevector, loc, KIND_SOIL_MOISTURE, interp_val, ios_out)
 
    if ( ios_out == 0 ) then 
       write(*,*)'model_interpolate : value is ',interp_val
@@ -218,9 +218,9 @@ if (test1thru > 9) then
 
 
    write(*,*)
-   write(*,*)'Testing model_interpolate() with KIND_SOIL_TEMPERATURE'
+   write(*,*)'Testing model_interpolate() with KIND_LATENT_HEAT_FLUX'
 
-   call model_interpolate(statevector, loc, KIND_SOIL_TEMPERATURE, interp_val, ios_out)
+   call model_interpolate(statevector, loc, KIND_LATENT_HEAT_FLUX, interp_val, ios_out)
 
    if ( ios_out == 0 ) then 
       write(*,*)'model_interpolate : value is ',interp_val
@@ -243,16 +243,16 @@ subroutine check_meta_data( iloc )
 
 integer, intent(in) :: iloc
 type(location_type) :: loc
-integer             :: var_type
+integer             :: dart_kind
 character(len=129)  :: string1
 
 write(*,*)
 write(*,*)'Checking metadata routines.'
 
-call get_state_meta_data( iloc, loc, var_type)
+call get_state_meta_data( iloc, loc, dart_kind)
 
 call write_location(42, loc, fform='formatted', charstring=string1)
-write(*,*)' indx ',iloc,' is type ',var_type,trim(string1)
+write(*,*)' indx ',iloc,' is dart kind ',dart_kind,trim(string1)
 
 end subroutine check_meta_data
 
@@ -266,7 +266,7 @@ real(r8), dimension(:), intent(in) :: loc_of_interest
 
 type(location_type) :: loc0, loc1
 integer  :: mykindindex
-integer  :: i, var_type, which_vert
+integer  :: i, dart_kind, which_vert
 real(r8) :: closest, rlon, rlat, rlev
 real(r8), allocatable, dimension(:) :: thisdist
 real(r8), dimension(LocationDims) :: rloc
@@ -274,16 +274,18 @@ character(len=32) :: kind_name
 logical :: matched
 
 ! Check user input ... if there is no 'vertical' ...  
-if ( (count(loc_of_interest >= 0.0_r8) < 3) .or. &
+if ( (count(loc_of_interest /= 0.0_r8) < 3) .or. &
      (LocationDims < 3 ) ) then
    write(*,*)
-   write(*,*)'Interface not fully implemented.' 
+   write(*,*)'find_closest_gridpoint: Interface not fully implemented.' 
+   write(*,*)'find_closest_gridpoint: Interface not fully implemented.' 
    return
 endif
 
 write(*,*)
 write(*,'(''Checking for the indices into the state vector that are at'')')
 write(*,'(''lon/lat/lev'',3(1x,f10.5))')loc_of_interest(1:LocationDims)
+write(*,*)
 
 allocate( thisdist(get_model_size()) )
 thisdist  = 9999999999.9_r8         ! really far away 
@@ -308,9 +310,9 @@ do i = 1,get_model_size()
    ! grid and set our target location to have the same.
    ! Then, compute the distance and compare.
 
-   call get_state_meta_data(i, loc1, var_type)
+   call get_state_meta_data(i, loc1, dart_kind)
 
-   if ( (var_type == mykindindex) .or. (mykindindex < 0) ) then
+   if ( (dart_kind == mykindindex) .or. (mykindindex < 0) ) then
       which_vert  = nint( query_location(loc1) )
       loc0        = set_location(rlon, rlat, rlev, which_vert)
       thisdist(i) = get_dist( loc1, loc0, no_vert= .true. )
@@ -332,20 +334,21 @@ matched = .false.
 do i = 1,get_model_size()
 
    if ( thisdist(i) == closest ) then
-      call get_state_meta_data(i, loc1, var_type)
+      call get_state_meta_data(i, loc1, dart_kind)
       rloc      = get_location(loc1)
-      if (nint(rloc(3)) == nint(rlev)) then
-         kind_name = get_raw_obs_kind_name(var_type)
+!     if (rloc(3) == rlev) then
+         kind_name = get_raw_obs_kind_name(dart_kind)
          write(*,'(''lon/lat/lev'',3(1x,f10.5),'' is index '',i10,'' for '',a)') &
              rloc, i, trim(kind_name)
          matched = .true.
-      endif
+!     endif
    endif
 
 enddo
 
 if ( .not. matched ) then
-   write(*,*)'Nothing matched the vertical.'
+   write(*,*)'WARNING: Nothing matched the vertical.'
+   write(*,*)'WARNING: Nothing matched the vertical.'
 endif
 
 deallocate( thisdist )
