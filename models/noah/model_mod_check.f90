@@ -19,7 +19,8 @@ use    utilities_mod, only : initialize_utilities, timestamp, nc_check, &
                              open_file, close_file, find_namelist_in_file, &
                              check_namelist_read
 use     location_mod, only : location_type, set_location, write_location, get_dist, &
-                             query_location, LocationDims, get_location, VERTISHEIGHT
+                             query_location, LocationDims, get_location, &
+                             VERTISHEIGHT, VERTISSURFACE
 use     obs_kind_mod, only : get_raw_obs_kind_name, get_raw_obs_kind_index, &
                              KIND_SOIL_MOISTURE, KIND_LATENT_HEAT_FLUX
 use  assim_model_mod, only : open_restart_read, open_restart_write, close_restart, &
@@ -208,6 +209,10 @@ if (test1thru > 9) then
    write(*,*)
    write(*,*)'Testing model_interpolate() with KIND_SOIL_MOISTURE'
 
+   loc = set_location(loc_of_interest(1), &
+                      loc_of_interest(2), &
+                      loc_of_interest(3), VERTISHEIGHT)
+
    call model_interpolate(statevector, loc, KIND_SOIL_MOISTURE, interp_val, ios_out)
 
    if ( ios_out == 0 ) then 
@@ -220,6 +225,9 @@ if (test1thru > 9) then
    write(*,*)
    write(*,*)'Testing model_interpolate() with KIND_LATENT_HEAT_FLUX'
 
+   loc = set_location(loc_of_interest(1), &
+                      loc_of_interest(2), &
+                      loc_of_interest(3), VERTISSURFACE)
    call model_interpolate(statevector, loc, KIND_LATENT_HEAT_FLUX, interp_val, ios_out)
 
    if ( ios_out == 0 ) then 
