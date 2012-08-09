@@ -34,7 +34,7 @@ use    utilities_mod, only : initialize_utilities, timestamp, &
 use  assim_model_mod, only : open_restart_read, aread_state_restart, close_restart
 use time_manager_mod, only : time_type, print_time, print_date, operator(-), get_time
 use        model_mod, only : static_init_model, dart_vector_to_model_file, &
-                             get_model_size
+                             get_model_size, get_noah_restart_filename
 
 implicit none
 
@@ -58,7 +58,7 @@ namelist /dart_to_noah_nml/ dart_to_noah_input_file, &
 
 !----------------------------------------------------------------------
 
-character(len=20)     :: noah_restart_filename = 'noah_input.nml'
+character(len=20)     :: noah_restart_filename
 integer               :: iunit, io, x_size
 type(time_type)       :: model_time, adv_to_time
 real(r8), allocatable :: statevector(:)
@@ -84,9 +84,13 @@ call find_namelist_in_file("input.nml", "dart_to_noah_nml", iunit)
 read(iunit, nml = dart_to_noah_nml, iostat = io)
 call check_namelist_read(iunit, io, "dart_to_noah_nml")
 
+! the output filename comes from the initialization of model_mod
+
+call get_noah_restart_filename( noah_restart_filename )
+
 write(*,*)
 write(*,'(''dart_to_noah:converting DART file '',A, &
-      &'' to NOAH input namelist '',A)') &
+      &'' to NOAH restart file '',A)') &
      trim(dart_to_noah_input_file), trim(noah_restart_filename)
 
 !----------------------------------------------------------------------
@@ -116,10 +120,12 @@ endif
 ! Log what we think we're doing, and exit.
 !----------------------------------------------------------------------
 
+! TJH FIXME convey adv_to_time to noah ...
+
 call print_date( model_time,'dart_to_noah:noah  model date')
-call print_time( model_time,'dart_to_noah:DART    model time')
+call print_time( model_time,'dart_to_noah:DART  model time')
 call print_date( model_time,'dart_to_noah:noah  model date',logfileunit)
-call print_time( model_time,'dart_to_noah:DART    model time',logfileunit)
+call print_time( model_time,'dart_to_noah:DART  model time',logfileunit)
 
 if ( advance_time_present ) then
    call print_time(adv_to_time,'dart_to_noah:advance_to time')

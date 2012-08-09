@@ -1512,7 +1512,7 @@ endif
 call nc_check(nf90_open(adjustl(filename), NF90_NOWRITE, ncid), &
                    'noah_to_dart_vector', 'open '//trim(filename))
 
-restart_time = get_state_time(ncid,filename)
+restart_time = get_state_time(ncid, trim(filename))
 
 if (do_output()) call print_time(restart_time,'time in restart file '//trim(filename))
 if (do_output()) call print_date(restart_time,'date in restart file '//trim(filename))
@@ -1686,35 +1686,184 @@ end subroutine noah_to_dart_vector
 
 
 
-subroutine dart_vector_to_model_file(state_vector, filename, statedate, adv_to_time)
+subroutine dart_vector_to_model_file(state_vector, filename, dart_time, adv_to_time)
 !------------------------------------------------------------------
 ! Writes the current time and state variables from a dart state
 ! vector (1d array) into a noah netcdf restart file.
 !
+! This is VERY similar to nc_write_model_vars() for this model.
+! If it were not for the 'copy' dimension, it would be identical, I think.
+! Then there's the part about communicating the adv_to_time ...
+
 real(r8),         intent(in) :: state_vector(:)
 character(len=*), intent(in) :: filename
-type(time_type),  intent(in) :: statedate
+type(time_type),  intent(in) :: dart_time
 type(time_type),  intent(in), optional :: adv_to_time
 
-integer :: iunit
+integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, mystart, mycount
+character(len=NF90_MAX_NAME)          :: varname
+character(len=NF90_MAX_NAME),dimension(NF90_MAX_VAR_DIMS) :: dimnames
+
+integer :: nDimensions, nVariables, nAttributes, unlimitedDimID
+integer :: ncFileID, VarID, ncNdims, TimeDimID
+integer :: timeindex, dimlen, numdims, timedimcounter
+
+type(time_type) :: file_time
+
+! temp space to hold data while we are writing it
+integer :: i, ni, nj, ivar
+real(r8), allocatable, dimension(:)         :: data_1d_array
+real(r8), allocatable, dimension(:,:)       :: data_2d_array
+real(r8), allocatable, dimension(:,:,:)     :: data_3d_array
 
 if ( .not. module_initialized ) call static_init_model
 
-iunit = open_file(trim(filename), form='formatted', action='write')
+! Check that the output file exists ...
 
-! FIXME TJH
-! unpack state_vector into namelist variables
-! convert statedate to namelist variable
-! convert adv_to_time to namelist variable if needed
+if ( .not. file_exist(filename) ) then
+   write(string1,*) 'cannot open file ', trim(filename),' for writing.'
+   call error_handler(E_ERR,'dart_vector_to_model_file',string1,source,revision,revdate)
+endif
 
-write(iunit,nml=NOAHLSM_OFFLINE)
-close(iunit)
+call nc_check(nf90_open(trim(filename), NF90_WRITE, ncFileID), &
+                  'dart_vector_to_model_file','open '//trim(filename))
+
+call nc_check(nf90_inquire(ncFileID,nDimensions,nVariables,nAttributes,unlimitedDimID), &
+                  'dart_vector_to_model_file', 'inquire '//trim(filename))
+
+call nc_check(nf90_inq_dimid(ncFileID, 'Time', TimeDimID), &
+                  'dart_vector_to_model_file','inq_dimid Time '//trim(filename))
+
+! make sure the time in the file is the same as the time on the data
+! we are trying to insert.  we are only updating part of the contents
+! of the clm restart file, and state vector contents from a different
+! time won't be consistent with the rest of the file.
+
+file_time = get_state_time(ncFileID, trim(filename), timeindex)
+
+if ( file_time /= dart_time ) then
+   call print_time(dart_time,'DART current time',logfileunit)
+   call print_time(file_time,'clm  current time',logfileunit)
+   call print_time(dart_time,'DART current time')
+   call print_time(file_time,'clm  current time')
+   write(string1,*)trim(filename),' current time /= model time. FATAL error.'
+   call error_handler(E_ERR,'dart_vector_to_model_file',string1,source,revision,revdate)
+endif
+
+if (do_output()) &
+    call print_time(file_time,'time of restart file '//trim(filename))
+if (do_output()) &
+    call print_date(file_time,'date of restart file '//trim(filename))
+
+! The DART prognostic variables are only defined for a single time.
+! IF the netCDF variable has a TIME dimension, it must be the last dimension.
+
+UPDATE : do ivar=1, nfields
+
+   varname = trim(progvar(ivar)%varname)
+   string2 = trim(filename)//' '//trim(varname)
+
+   ! Ensure netCDF variable is conformable with DART progvar quantity.
+
+   call nc_check(nf90_inq_varid(ncFileID, varname, VarID), &
+            'dart_vector_to_model_file', 'inq_varid '//trim(string2))
+
+   call nc_check(nf90_inquire_variable(ncFileID,VarID,dimids=dimIDs,ndims=ncNdims), &
+            'dart_vector_to_model_file', 'inquire '//trim(string2))
+
+   timedimcounter = 0
+   mystart(:) = 1
+   mycount(:) = 1
+   DimCheck : do i = 1,progvar(ivar)%numdims
+
+      write(string1,'(''inquire dimension'',i2,A)') i,trim(string2)
+      call nc_check(nf90_inquire_dimension(ncFileID, dimIDs(i), name=dimnames(i), len=dimlen), &
+            'dart_vector_to_model_file', string1)
+
+      if (dimIDs(i) == TimeDimID) timedimcounter = 1
+
+      if ( dimlen /= progvar(ivar)%dimlens(i) ) then
+         write(string1,*) trim(string2),' dim/dimlen ',i,dimlen,' not ',progvar(ivar)%dimlens(i)
+         write(string2,*)' but it should be.'
+         call error_handler(E_ERR, 'dart_vector_to_model_file', string1, &
+                         source, revision, revdate, text2=string2)
+      endif
+
+      mycount(i) = dimlen
+
+   enddo DimCheck
+
+   if (dimIDs(ncNdims) /= TimeDimID) then
+      write(string1,*) trim(string2),' required to have "Time" as the last/unlimited dimension'
+      write(string2,*)' last dimension is ',trim(dimnames(ncNdims))
+      call error_handler(E_ERR, 'dart_vector_to_model_file', string1, &
+                      source, revision, revdate, text2=string2)
+   endif
+
+   where(dimIDs == TimeDimID) mystart = timeindex
+   where(dimIDs == TimeDimID) mycount = 1
+
+   if ( debug > 0 ) then
+      write(*,*)'dart_vector_to_model_file '//trim(varname)//' start is ',mystart(1:ncNdims)
+      write(*,*)'dart_vector_to_model_file '//trim(varname)//' count is ',mycount(1:ncNdims)
+      write(*,*)'dart_vector_to_model_file ',dimnames(1:progvar(ivar)%numdims)
+   endif
+
+   numdims = progvar(ivar)%numdims - timedimcounter
+
+   if ( numdims == 1 ) then
+
+      allocate(data_1d_array(progvar(ivar)%dimlens(1)))
+      call vector_to_prog_var(state_vector, ivar, data_1d_array)
+      call nc_check(nf90_put_var(ncFileID, VarID, data_1d_array, &
+             start = mystart(1:ncNdims), count=mycount(1:ncNdims)), &
+            'dart_vector_to_model_file', 'put_var '//trim(string2))
+      deallocate(data_1d_array)
+
+   elseif ( numdims == 2 ) then
+
+      allocate(data_2d_array(progvar(ivar)%dimlens(1), &
+                             progvar(ivar)%dimlens(2)))
+      call vector_to_prog_var(state_vector, ivar, data_2d_array)
+      call nc_check(nf90_put_var(ncFileID, VarID, data_2d_array, &
+             start = mystart(1:ncNdims), count=mycount(1:ncNdims)), &
+            'dart_vector_to_model_file', 'put_var '//trim(string2))
+      deallocate(data_2d_array)
+
+   elseif ( numdims == 3) then
+
+      allocate(data_3d_array(progvar(ivar)%dimlens(1), &
+                             progvar(ivar)%dimlens(2), &
+                             progvar(ivar)%dimlens(3)))
+      call vector_to_prog_var(state_vector, ivar, data_3d_array)
+      call nc_check(nf90_put_var(ncFileID, VarID, data_3d_array, &
+             start = mystart(1:ncNdims), count=mycount(1:ncNdims)), &
+            'dart_vector_to_model_file', 'put_var '//trim(string2))
+      deallocate(data_3d_array)
+
+   else
+
+      write(string1, *) 'no support for data array of dimension ', ncNdims
+      call error_handler(E_ERR,'dart_vector_to_model_file', string1, &
+                        source,revision,revdate)
+   endif
+
+   ! Make note that the variable has been updated by DART
+   call nc_check(nf90_Redef(ncFileID),'dart_vector_to_model_file', 'redef '//trim(filename))
+   call nc_check(nf90_put_att(ncFileID, VarID,'DART','variable modified by DART'),&
+                 'dart_vector_to_model_file', 'modified '//trim(varname))
+   call nc_check(nf90_enddef(ncfileID),'dart_vector_to_model_file','state enddef '//trim(filename))
+
+enddo UPDATE
+
+call nc_check(nf90_close(ncFileID),'dart_vector_to_model_file','close '//trim(filename))
+ncFileID = 0
 
 end subroutine dart_vector_to_model_file
 
 
 
-function get_state_time(ncid, filename)
+function get_state_time(ncid, filename, timeindex)
 !------------------------------------------------------------------
 ! The restart netcdf files have the time of the state.
 ! We are always using the 'most recent' which is, by defn, the last one.
@@ -1728,8 +1877,9 @@ function get_state_time(ncid, filename)
 !  '2004-01-01_01:00:00' ;
 
 type(time_type) :: get_state_time
-integer,          intent(in) :: ncid
-character(len=*), intent(in) :: filename
+integer,           intent(in)  :: ncid
+character(len=*),  intent(in)  :: filename
+integer, optional, intent(out) :: timeindex
 
 character(len=19), allocatable, dimension(:) :: datestring
 integer               :: year, month, day, hour, minute, second
@@ -1777,6 +1927,8 @@ read(datestring(ntimes),'(i4,5(1x,i2))')year, month, day, hour, minute, second
 get_state_time = set_date(year, month, day, hours=hour, minutes=minute, seconds=second)
 
 deallocate(datestring)
+
+if (present(timeindex)) timeindex = ntimes
 
 end function get_state_time
 
