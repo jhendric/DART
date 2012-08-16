@@ -33,26 +33,27 @@ set NOAHDIR = /Users/thoar/svn/DART/devel/models/noah/src/hrldas-v3.3
 set DARTDIR = /Users/thoar/svn/DART/devel/models/noah
 
 ${COPY} ${NOAHDIR}/Run/wrfinput.template    wrfinput  || exit 1
-${COPY} ${NOAHDIR}/Run/namelist.hrldas             .  || exit 1
 ${COPY} ${NOAHDIR}/Run/Noah_hrldas_beta            .  || exit 1
 ${COPY} ${NOAHDIR}/Run/SOILPARM.TBL                .  || exit 1
 ${COPY} ${NOAHDIR}/Run/VEGPARM.TBL                 .  || exit 1
 ${COPY} ${NOAHDIR}/Run/GENPARM.TBL                 .  || exit 1
 ${COPY} ${NOAHDIR}/Run/URBPARM.TBL                 .  || exit 1
 
-${COPY} ${DARTDIR}/work/obs_seq.in                 .  || exit 2
-${COPY} ${DARTDIR}/work/input.nml                  .  || exit 2
-${COPY} ${DARTDIR}/work/perfect_model_obs          .  || exit 2
-${COPY} ${DARTDIR}/work/dart_to_noah               .  || exit 2
-${COPY} ${DARTDIR}/work/noah_to_dart               .  || exit 2
-${COPY} ${DARTDIR}/shell_scripts/run_pmo.csh       .  || exit 2
-${COPY} ${DARTDIR}/shell_scripts/advance_model.csh .  || exit 2
+${COPY} ${DARTDIR}/work/namelist.hrldas            .  || exit 2
+
+${COPY} ${DARTDIR}/work/obs_seq.in                 .  || exit 3
+${COPY} ${DARTDIR}/work/input.nml                  .  || exit 3
+${COPY} ${DARTDIR}/work/perfect_model_obs          .  || exit 3
+${COPY} ${DARTDIR}/work/dart_to_noah               .  || exit 3
+${COPY} ${DARTDIR}/work/noah_to_dart               .  || exit 3
+${COPY} ${DARTDIR}/shell_scripts/run_pmo.csh       .  || exit 3
+${COPY} ${DARTDIR}/shell_scripts/advance_model.csh .  || exit 3
 
 # need a single noah restart file to be used as THE TRUTH.
 # the input.nml:model_nml noah_netcdf_filename = 'restart.nc'
 # the assimilate.csh scripts wants an ensemble member node
 
-ln -sv ${NOAHDIR}/Run/hourly_output/RESTART.2004010107_DOMAIN1 restart.nc
+${COPY} ${NOAHDIR}/Run/hourly_output/RESTART.2004010107_DOMAIN1 restart.nc
 ln -sv restart.nc restart.0001.nc
 
 ./noah_to_dart                || exit 3

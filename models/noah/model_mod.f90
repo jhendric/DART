@@ -318,10 +318,10 @@ model_time      = get_state_time(iunit, trim(noah_netcdf_filename))
 ! FIXME ... make sure model_time_step is attainable given OUTPUT_TIMESTEP
 model_time_step = set_time(assimilation_period_seconds, assimilation_period_days)
 
-if ( debug > 0 ) then
-   call print_date(model_time     ,'static_init_model:model date')
-   call print_time(model_time     ,'static_init_model:model time')
-   call print_time(model_time_step,'static_init_model:model timestep')
+if (do_output()) then
+   call print_date(model_time     ,' static_init_model:model date')
+   call print_time(model_time     ,' static_init_model:model time')
+   call print_time(model_time_step,' static_init_model:model timestep')
 endif
 
 ! Make sure the number of soil layers is as we expect
@@ -641,13 +641,11 @@ if ( progvar(ivar)%varsize == 1 ) then
 else
    ! This assumes the soil layer has a constant value.
    DEPTH : do n = 1,nsoil
-      write(*,*)'model_interpolate comparing zsoil(n)',zsoil(n),' to observation depth',loc_depth
       if (loc_depth >= zsoil(n)) then
          zlev = n
          exit DEPTH
       endif
    enddo DEPTH
-   write(*,*)'model_interpolate zsoil(n)',zsoil(n),' matches observation depth',loc_depth
    indx = progvar(ivar)%index1 + zlev - 1 
 endif
 
@@ -1471,7 +1469,7 @@ MyLoop : do i = 1, nrows
 
    ! Record the contents of the DART state vector
 
-   if ( debug > 3 ) then
+   if (do_output()) then
       write(logfileunit,*)'variable ',i,' is ',trim(table(i,1)), '   ', trim(table(i,2))
       write(     *     ,*)'variable ',i,' is ',trim(table(i,1)), '   ', trim(table(i,2))
    endif
@@ -2033,8 +2031,8 @@ do i = 1,numdims
 
 enddo
 
-if ( debug > 7 ) write(*,*)'TJH DEBUG get_hrldas_constants ncstart is',ncstart(1:numdims)
-if ( debug > 7 ) write(*,*)'TJH DEBUG get_hrldas_constants nccount is',nccount(1:numdims)
+if ( debug > 99 ) write(*,*)'TJH DEBUG get_hrldas_constants ncstart is',ncstart(1:numdims)
+if ( debug > 99 ) write(*,*)'TJH DEBUG get_hrldas_constants nccount is',nccount(1:numdims)
 
 ! finally get the longitudes
 
@@ -2053,8 +2051,7 @@ call nc_check(nf90_get_var(iunit, VarID, xlat, &
                   start=ncstart(1:numdims), count=nccount(1:numdims)), &
                   'get_hrldas_constants', 'get_var XLAT '//trim(filename))
 
-! FIXME
-write(string1,*) 'get_hrldas_constants not written yet.'
+write(string1,*) 'get_hrldas_constants() not verified for full 2D scenario.'
 call error_handler(E_MSG,'static_init_model',string1,source,revision,revdate)
 
 end subroutine get_hrldas_constants

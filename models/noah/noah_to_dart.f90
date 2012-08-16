@@ -27,7 +27,8 @@ program noah_to_dart
 
 use        types_mod, only : r8
 use    utilities_mod, only : initialize_utilities, timestamp, &
-                             find_namelist_in_file, check_namelist_read
+                             find_namelist_in_file, check_namelist_read, &
+                             logfileunit, do_output
 use        model_mod, only : get_model_size, noah_to_dart_vector, &
                              get_noah_restart_filename
 use  assim_model_mod, only : awrite_state_restart, open_restart_write, close_restart
@@ -73,10 +74,16 @@ call check_namelist_read(iunit, io, "noah_to_dart_nml") ! closes, too.
 
 call get_noah_restart_filename( noah_restart_filename )
 
-write(*,*)
-write(*,'(''noah_to_dart:converting noah restart file '',A, &
+if (do_output()) then
+   write(*,*)
+   write(*,'(''noah_to_dart:converting noah restart file '',A, &
       &'' to DART file '',A)') &
        trim(noah_restart_filename), trim(noah_to_dart_output_file)
+   write(logfileunit,*)
+   write(logfileunit,'(''noah_to_dart:converting noah restart file '',A, &
+      &'' to DART file '',A)') &
+       trim(noah_restart_filename), trim(noah_to_dart_output_file)
+endif
 
 !----------------------------------------------------------------------
 ! get to work
@@ -96,8 +103,13 @@ call close_restart(iunit)
 ! When called with 'end', timestamp will call finalize_utilities()
 !----------------------------------------------------------------------
 
-call print_date(model_time, str='noah_to_dart:DART model date')
-call print_time(model_time, str='noah_to_dart:DART model time')
+if (do_output()) then
+   call print_date(model_time, str='noah_to_dart:DART model date',iunit=logfileunit)
+   call print_date(model_time, str='noah_to_dart:DART model date')
+   call print_time(model_time, str='noah_to_dart:DART model time')
+   call print_time(model_time, str='noah_to_dart:DART model time',iunit=logfileunit)
+endif
+
 call timestamp(string1=source, pos='end')
 
 end program noah_to_dart

@@ -137,8 +137,8 @@
   /
 
 &obs_kind_nml
-   assimilate_these_obs_types = 'COSMOS_NEUTRON_INTENSITY',
-   evaluate_these_obs_types   = 'SOIL_TEMPERATURE',
+   assimilate_these_obs_types = 'SOIL_TEMPERATURE',
+   evaluate_these_obs_types   = 'COSMOS_NEUTRON_INTENSITY',
   /
 
 &preprocess_nml
