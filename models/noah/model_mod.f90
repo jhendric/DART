@@ -529,6 +529,11 @@ type(time_type), intent(in)    :: time
 
 if ( .not. module_initialized ) call static_init_model
 
+write(string1,*) 'PROBLEM: cannot advance model with async == 0.'
+write(string2,*) 'async == 2 is a good choice.'
+call error_handler(E_ERR,'adv_1step',string1,source,revision,revdate, &
+                               text2=string2)
+
 end subroutine adv_1step
 
 

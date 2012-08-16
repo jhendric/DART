@@ -48,10 +48,12 @@ ${COPY} ${DARTDIR}/work/noah_to_dart               .  || exit 2
 ${COPY} ${DARTDIR}/shell_scripts/run_pmo.csh       .  || exit 2
 ${COPY} ${DARTDIR}/shell_scripts/advance_model.csh .  || exit 2
 
-# need a single noah restart file 
+# need a single noah restart file to be used as THE TRUTH.
 # the input.nml:model_nml noah_netcdf_filename = 'restart.nc'
+# the assimilate.csh scripts wants an ensemble member node
 
 ln -sv ${NOAHDIR}/Run/hourly_output/RESTART.2004010107_DOMAIN1 restart.nc
+ln -sv restart.nc restart.0001.nc
 
 ./noah_to_dart                || exit 3
 ${MOVE} dart_ics perfect_ics  || exit 4

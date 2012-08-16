@@ -59,7 +59,23 @@ mkdir -p $temp_dir  || exit 1
 cd       $temp_dir  || exit 1
 
 # Get the DART input.nml and the NOAH namelist
-cp    ../input.nml        .  || exit 1
+
+foreach FILE ( GENPARM.TBL SOILPARM.TBL URBPARM.TBL VEGPARM.TBL namelist.hrldas input.nml )
+   cp -v ../$FILE . || exit 2
+end
+
+set  MYSTRING = `grep HRLDAS_CONSTANTS_FILE namelist.hrldas`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
+set  NOAHFILE = `echo $MYSTRING[2]`
+ln -sv ../${NOAHFILE} .
+
+# bulletproof against '! '
+# get the directory containing the LDASIN files
+set  MYSTRING  = `grep LDASINDIR namelist.hrldas`
+set  MYSTRING  = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING  = `echo $MYSTRING | sed -e 's#"# #g'`
+set  LDASINDIR = `echo $MYSTRING[2]`
 
 # Loop through each state
 set state_copy = 1
@@ -72,7 +88,8 @@ while($state_copy <= $num_states)
    set ensemble_member = `head -$ensemble_member_line ../$control_file | tail -1`
    set input_file      = `head -$input_file_line      ../$control_file | tail -1`
    set output_file     = `head -$output_file_line     ../$control_file | tail -1`
-   
+   set fext            = `printf "%04d" $ensemble_member`
+
    #-------------------------------------------------------------------
    # Block 2: copy/convert the DART state vector to something the 
    #          model can ingest.
@@ -82,8 +99,32 @@ while($state_copy <= $num_states)
    #          * convert the DART state vector to model format 
    #-------------------------------------------------------------------
 
-   ln ../$input_file temp_ic || exit 2
-   ../dart_to_model          || exit 2
+   echo "converting ensemble member $fext from dart_restart to NOAH restart.nc"
+
+   ln -sf ../restart.$fext.nc  restart.nc   || exit 2
+   ln -sf ../$input_file       dart_restart || exit 2
+   ../dart_to_noah                          || exit 2
+
+   # Extract the right forcing timestep from a single forcing file
+   # and create the appropriate 'one-time-use' forcing file for this
+   # ensemble member.
+   # The forcing has to be for the NEXT "FORCING_TIMESTEP", apparently.
+   # FORCING_TIMESTEP is defined in namelist.input
+
+   set numfilestring = `head -3 noah_advance_information.txt | tail -1`
+   set numfilestring = `echo $numfilestring | sed -e "s#[=,']# #g"`
+   set numfilestring = `echo $numfilestring | sed -e 's#"# #g'`
+   @ numfiles        = `echo $numfilestring[2]`
+
+   @ ifile = 1
+   while ($ifile <= $numfiles)
+      @ linenum = 3 + $ifile
+      set FNAME = `head -${linenum} noah_advance_information.txt | tail -1`
+      ln -sf ${LDASINDIR}/${FNAME} .
+      @ ifile = $ifile + 1
+   end
+
+   # ncks -d time,1 santarita_2009.$fext.nc ldasin.nc
 
    #-------------------------------------------------------------------
    # Block 3: advance the model
@@ -94,10 +135,7 @@ while($state_copy <= $num_states)
    #          Your model will likely be different.
    #-------------------------------------------------------------------
 
-   copy all the stuff needed to run noah to this directory ... here ...
-   the forcing files for THIS ensemble member
-
-   ./noah_1d_driver >! integrate_model_out_temp${ensemble_member} || exit 3
+   ../Noah_hrldas_beta         || exit 3
 
    #-------------------------------------------------------------------
    # Block 4: Move the updated state vector back to CENTRALDIR
@@ -106,8 +144,16 @@ while($state_copy <= $num_states)
    #          model output to a DART ics file with the proper name.
    #-------------------------------------------------------------------
 
-   ../model_to_dart           || exit 4
-   mv temp_ud ../$output_file || exit 4
+   set RESTART = `ls -1 RESTART* | tail -1`
+
+   ln -sf ${RESTART} restart.nc
+   ../noah_to_dart                 || exit 4
+   \mv -v dart_ics ../$output_file || exit 4
+   \rm restart.nc
+
+   # rename the restart file to reflect the ensemble member ID
+
+   \mv -v  ${RESTART} ../restart.$fext.nc
 
    @ state_copy++
    @ ensemble_member_line = $ensemble_member_line + 3

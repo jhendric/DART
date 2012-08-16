@@ -159,7 +159,7 @@ if ( advance_time_present ) then
       mytime = mytime + nexttimestep
    enddo TIMELOOP
 
-   write(*,*)'needed ',nfiles,' iterations to get from model_time to adv_to_time.'
+   write(*,*)'needed ',nfiles,' LDASIN files to get from model_time to adv_to_time.'
 
    iunit = open_file('noah_advance_information.txt',form='formatted',action='write')
    call print_date(  model_time,'dart_to_noah:noah  model      date',iunit)

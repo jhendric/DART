@@ -31,9 +31,9 @@
 &perfect_model_obs_nml
    start_from_restart    = .true.,
    output_restart        = .true.,
-   async                 = 0,
-   init_time_days        = 0,
-   init_time_seconds     = 0,
+   async                 = 2,
+   init_time_days        = -1,
+   init_time_seconds     = -1,
    first_obs_days        = -1,
    first_obs_seconds     = -1,
    last_obs_days         = -1,
