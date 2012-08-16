@@ -96,8 +96,8 @@ call close_restart(iunit)
 ! When called with 'end', timestamp will call finalize_utilities()
 !----------------------------------------------------------------------
 
-call print_date(model_time, str='noah_to_dart:noah  model date')
-call print_time(model_time, str='noah_to_dart:DART    model time')
+call print_date(model_time, str='noah_to_dart:DART model date')
+call print_time(model_time, str='noah_to_dart:DART model time')
 call timestamp(string1=source, pos='end')
 
 end program noah_to_dart

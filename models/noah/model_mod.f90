@@ -76,7 +76,8 @@ public :: get_model_size,         &
 ! the model_mod code.
 public :: noah_to_dart_vector, &
           dart_vector_to_model_file, &
-          get_noah_restart_filename
+          get_noah_restart_filename, &
+          get_noah_timestepping
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -108,7 +109,6 @@ character(len=obstypelength) :: variable_table(MAX_STATE_VARIABLES, NUM_STATE_TA
 !------------------------------------------------------------------
 
 character(len=128)    :: noah_netcdf_filename   = 'restart.nc'
-character(len=128)    :: noah_namelist_filename = 'namelist.hrldas'
 integer               :: assimilation_period_days     = 0
 integer               :: assimilation_period_seconds  = 60
 real(r8)              :: model_perturbation_amplitude = 0.2
@@ -117,13 +117,15 @@ character(len=32)     :: calendar = 'Gregorian'
 integer               :: debug    = 0  ! turn up for more and more debug messages
 character(len=obstypelength) :: noah_variables(MAX_STATE_VARIABLES*NUM_STATE_TABLE_COLUMNS) = ' '
 
-namelist /model_nml/ noah_netcdf_filename, noah_namelist_filename, &
+namelist /model_nml/ noah_netcdf_filename, &
           assimilation_period_days, assimilation_period_seconds,   &
           model_perturbation_amplitude, output_state_vector,       &
           calendar, debug, noah_variables
 
 !------------------------------------------------------------------
 ! Everything needed to recreate the NOAH METADTA_NAMELIST
+! We are going to require that the namelist be in a file whose name
+! is (I believe) standard .... namelist.hrldas
 !
 ! To restart the file, we write a new namelist.
 ! DART needs to write a NOAH-compatible namelist.
@@ -131,6 +133,9 @@ namelist /model_nml/ noah_netcdf_filename, noah_namelist_filename, &
 
 ! ZSOIL, set through the namelist, is the BOTTOM of each soil layer (m)
 ! Values are negative, implying depth below the surface.
+
+character(len=128)    :: noah_namelist_filename = 'namelist.hrldas' ! mandate
+
 real(r8), dimension(nsoldx) :: zsoil
 integer                     :: nsoil
 
@@ -141,8 +146,8 @@ character(len=256) :: external_fpar_filename_template = " "
 character(len=256) :: external_lai_filename_template = " "
 character(len=256) :: restart_filename_requested = " "
 integer            :: split_output_count = 1
-integer            :: restart_frequency_hours
-integer            :: output_timestep
+integer            :: restart_frequency_hours = -999
+integer            :: output_timestep  = -999
 integer            :: subwindow_xstart = 1
 integer            :: subwindow_ystart = 1
 integer            :: subwindow_xend = 0
@@ -154,8 +159,8 @@ logical            :: update_snow_from_forcing = .TRUE.
 integer  :: start_year, start_month, start_day, start_hour, start_min
 integer  :: noah_timestep = -999
 integer  :: forcing_timestep = -999
-
-integer  :: khour, kday
+integer  :: khour = 0
+integer  :: kday  = 0
 real(r8) :: zlvl, zlvl_wind
 
 namelist / NOAHLSM_OFFLINE/ indir, nsoil, zsoil, forcing_timestep, noah_timestep, &
@@ -262,11 +267,11 @@ if (do_nml_term()) write(     *     , nml=model_nml)
 
 ! Check to make sure the required NOAH input files exist
 if ( .not. file_exist(noah_netcdf_filename) ) then
-   write(string1,*) 'cannot open file ', trim(noah_netcdf_filename),' for reading.'
+   write(string1,*) 'cannot open NOAH restart file ', trim(noah_netcdf_filename),' for reading.'
    call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate)
 endif
 if ( .not. file_exist(noah_namelist_filename) ) then
-   write(string1,*) 'cannot open file ', trim(noah_namelist_filename),' for reading.'
+   write(string1,*) 'cannot open NOAH namelist file ', trim(noah_namelist_filename),' for reading.'
    call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate)
 endif
 
@@ -283,6 +288,20 @@ if (do_nml_term()) write(     *     , nml=NOAHLSM_OFFLINE)
 if ( .not. file_exist(hrldas_constants_file) ) then
    write(string1,*) 'cannot open file ', trim(hrldas_constants_file),' for reading.'
    call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate)
+endif
+
+! Check to make sure the required NOAH namelist items are set:
+if ( (kday             < 0    ) .or. &
+     (khour            < 0    ) .or. &
+     (forcing_timestep /= 3600) .or. &
+     (noah_timestep    /= 3600) .or. &
+     (output_timestep  /= 3600) .or. &
+     (restart_frequency_hours /= 1) ) then
+   write(string3,*)'the only configuration supported is for hourly timesteps'
+   write(string2,*)'restart_frequency_hours must be equal to the noah_timstep'
+   write(string1,*)'unsupported noah namelist settings'
+   call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate,&
+                            text2=string2,text3=string3)
 endif
 
 call get_hrldas_constants(hrldas_constants_file)
@@ -412,7 +431,7 @@ FILL_PROGVAR : do ivar = 1, nfields
    progvar(ivar)%indexN      = index1 + varsize - 1
    index1                    = index1 + varsize      ! sets up for next variable
 
-   if ( debug > 8 ) then
+   if ( debug > 99 ) then
       write(logfileunit,*)
       write(logfileunit,*) trim(progvar(ivar)%varname),' variable number ',ivar
       write(logfileunit,*) '  long_name   ',trim(progvar(ivar)%long_name)
@@ -653,7 +672,9 @@ type(time_type) :: get_model_time_step
 
 if ( .not. module_initialized ) call static_init_model
 
-get_model_time_step = model_time_step
+! The NOAH model can only be advanced in multiples of the restart frequency.
+
+get_model_time_step = set_time(khour*3600,kday)
 
 end function get_model_time_step
 
@@ -1514,8 +1535,10 @@ call nc_check(nf90_open(adjustl(filename), NF90_NOWRITE, ncid), &
 
 restart_time = get_state_time(ncid, trim(filename))
 
-if (do_output()) call print_time(restart_time,'time in restart file '//trim(filename))
-if (do_output()) call print_date(restart_time,'date in restart file '//trim(filename))
+if ( debug > 99 ) then
+   call print_date(restart_time,'noah_to_dart_vector:date of restart file '//trim(filename))
+   call print_time(restart_time,'noah_to_dart_vector:time of restart file '//trim(filename))
+endif
 
 ! Start counting and filling the state vector one item at a time,
 ! repacking the Nd arrays into a single 1d list of numbers.
@@ -1686,19 +1709,17 @@ end subroutine noah_to_dart_vector
 
 
 
-subroutine dart_vector_to_model_file(state_vector, filename, dart_time, adv_to_time)
+subroutine dart_vector_to_model_file(state_vector, filename, dart_time)
 !------------------------------------------------------------------
 ! Writes the current time and state variables from a dart state
 ! vector (1d array) into a noah netcdf restart file.
 !
 ! This is VERY similar to nc_write_model_vars() for this model.
 ! If it were not for the 'copy' dimension, it would be identical, I think.
-! Then there's the part about communicating the adv_to_time ...
 
 real(r8),         intent(in) :: state_vector(:)
 character(len=*), intent(in) :: filename
 type(time_type),  intent(in) :: dart_time
-type(time_type),  intent(in), optional :: adv_to_time
 
 integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, mystart, mycount
 character(len=NF90_MAX_NAME)          :: varname
@@ -1736,24 +1757,24 @@ call nc_check(nf90_inq_dimid(ncFileID, 'Time', TimeDimID), &
 
 ! make sure the time in the file is the same as the time on the data
 ! we are trying to insert.  we are only updating part of the contents
-! of the clm restart file, and state vector contents from a different
+! of the NOAH restart file, and state vector contents from a different
 ! time won't be consistent with the rest of the file.
 
 file_time = get_state_time(ncFileID, trim(filename), timeindex)
 
 if ( file_time /= dart_time ) then
    call print_time(dart_time,'DART current time',logfileunit)
-   call print_time(file_time,'clm  current time',logfileunit)
+   call print_time(file_time,'NOAH current time',logfileunit)
    call print_time(dart_time,'DART current time')
-   call print_time(file_time,'clm  current time')
+   call print_time(file_time,'NOAH current time')
    write(string1,*)trim(filename),' current time /= model time. FATAL error.'
    call error_handler(E_ERR,'dart_vector_to_model_file',string1,source,revision,revdate)
 endif
 
-if (do_output()) &
-    call print_time(file_time,'time of restart file '//trim(filename))
-if (do_output()) &
-    call print_date(file_time,'date of restart file '//trim(filename))
+if (do_output()) then
+   call print_date(file_time,'dart_vector_to_model_file: date of restart file '//trim(filename))
+   call print_time(file_time,'dart_vector_to_model_file: time of restart file '//trim(filename))
+endif
 
 ! The DART prognostic variables are only defined for a single time.
 ! IF the netCDF variable has a TIME dimension, it must be the last dimension.
@@ -1803,7 +1824,7 @@ UPDATE : do ivar=1, nfields
    where(dimIDs == TimeDimID) mystart = timeindex
    where(dimIDs == TimeDimID) mycount = 1
 
-   if ( debug > 0 ) then
+   if ( debug > 99 ) then
       write(*,*)'dart_vector_to_model_file '//trim(varname)//' start is ',mystart(1:ncNdims)
       write(*,*)'dart_vector_to_model_file '//trim(varname)//' count is ',mycount(1:ncNdims)
       write(*,*)'dart_vector_to_model_file ',dimnames(1:progvar(ivar)%numdims)
@@ -1868,13 +1889,23 @@ function get_state_time(ncid, filename, timeindex)
 ! The restart netcdf files have the time of the state.
 ! We are always using the 'most recent' which is, by defn, the last one.
 !
+! The way the HRLDAS driver works is a bit wonky.
+! The time in the restart file is NOT the time at which the state is valid.
+! It is one noah_timestep AHEAD of the valid time.
+!
+! for instance, if the noah_timestep is 3600 seconds, the restart_frequency_hours is 1,
+! and the filename is RESTART.2004010102_DOMAIN1 the 
+!
 !        Time = UNLIMITED ; // (blah_blah_blah currently)
 !        DateStrLen = 19 ;
 !variables:
 !        char Times(Time, DateStrLen) ;
 !
 ! Times =
-!  '2004-01-01_01:00:00' ;
+!  '2004-01-01_02:00:00' ;
+!
+! BUT - the data is for the previous noah_timestep ... i.e. 2004-01-01_01:00:00
+! No kidding.
 
 type(time_type) :: get_state_time
 integer,           intent(in)  :: ncid
@@ -1885,6 +1916,7 @@ character(len=19), allocatable, dimension(:) :: datestring
 integer               :: year, month, day, hour, minute, second
 integer               :: DimID, VarID, strlen, ntimes
 integer, dimension(2) :: ncstart, nccount
+type(time_type)       :: filetime, timestep
 
 if ( .not. module_initialized ) call static_init_model
 
@@ -1905,30 +1937,28 @@ if (strlen /= len(datestring)) then
    call error_handler(E_ERR,'get_state_time', string1, source, revision, revdate)
 endif
 
-! Get the last Time string
+! Get all the Time strings, use the last one.
 
 call nc_check(nf90_inq_varid(ncid, 'Times', VarID), &
                    'get_state_time', 'inq_varid Times '//trim(filename))
 
-! for some reason, this did not work ... its a bit more compact than reading the whole thing.
-!ncstart = (/ 1, ntimes /)
-!nccount = (/ 1,      1 /)
-!call nc_check(nf90_get_var(ncid, VarID, datestring, start=ncstart, count=nccount), &
-!                  'get_state_time', 'get_var Times '//trim(filename))
-
 allocate(datestring(ntimes))
+
 call nc_check(nf90_get_var(ncid, VarID, datestring), &
                    'get_state_time', 'get_var Times '//trim(filename))
 
-if ( debug > 0 ) write(*,*)'Last time is '//trim(datestring(ntimes))
-
 read(datestring(ntimes),'(i4,5(1x,i2))')year, month, day, hour, minute, second
 
-get_state_time = set_date(year, month, day, hours=hour, minutes=minute, seconds=second)
-
-deallocate(datestring)
+timestep       = set_time(noah_timestep, 0)
+filetime       = set_date(year, month, day, hours=hour, minutes=minute, seconds=second)
+get_state_time = filetime - timestep
 
 if (present(timeindex)) timeindex = ntimes
+
+if ( debug > 99 ) write(*,*)'get_state_time: Last time string is '//trim(datestring(ntimes))
+if ( debug > 99 ) call print_date(get_state_time,' get_state_time: means valid time is ')
+
+deallocate(datestring)
 
 end function get_state_time
 
@@ -2198,6 +2228,17 @@ end subroutine vector_to_3d_prog_var
 
 
 
+subroutine get_noah_timestepping(day,hour,dynamical,output,forcing,restart)
+integer,          intent(out) :: day,hour,dynamical,output,forcing,restart
+
+day       = kday
+hour      = khour
+dynamical = noah_timestep
+output    = output_timestep
+forcing   = forcing_timestep
+restart   = restart_frequency_hours*3600
+
+end subroutine 
 
 
 !===================================================================
