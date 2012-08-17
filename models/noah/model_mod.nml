@@ -1,6 +1,5 @@
 &model_nml
      noah_netcdf_filename         = 'restart.nc',
-     noah_namelist_filename       = 'namelist.hrldas',
      assimilation_period_days     =    0,
      assimilation_period_seconds  = 3600,
      model_perturbation_amplitude = 0.0,

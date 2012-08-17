@@ -77,6 +77,8 @@ set  MYSTRING  = `echo $MYSTRING | sed -e "s#[=,']# #g"`
 set  MYSTRING  = `echo $MYSTRING | sed -e 's#"# #g'`
 set  LDASINDIR = `echo $MYSTRING[2]`
 
+echo "LDAS input files coming from $LDASINDIR"
+
 # Loop through each state
 set state_copy = 1
 set ensemble_member_line = 1
@@ -99,7 +101,7 @@ while($state_copy <= $num_states)
    #          * convert the DART state vector to model format 
    #-------------------------------------------------------------------
 
-   echo "converting ensemble member $fext from dart_restart to NOAH restart.nc"
+   echo "advance_model.csh block 2 converting ensemble member $fext"
 
    ln -sf ../restart.$fext.nc  restart.nc   || exit 2
    ln -sf ../$input_file       dart_restart || exit 2
@@ -135,7 +137,15 @@ while($state_copy <= $num_states)
    #          Your model will likely be different.
    #-------------------------------------------------------------------
 
-   ../Noah_hrldas_beta         || exit 3
+   ../Noah_hrldas_beta
+
+   if (! -e RESTART* ) then
+      echo "ERROR: NOAH died"
+      echo "ERROR: NOAH died"
+      exit 23
+   endif
+
+   \rm -f restart.nc
 
    #-------------------------------------------------------------------
    # Block 4: Move the updated state vector back to CENTRALDIR
@@ -166,7 +176,7 @@ end
 # If you are debugging, you may want to keep this directory. 
 
 cd ..
-\rm -rf $temp_dir
+# \rm -rf $temp_dir
 
 # MANDATORY - Remove the control_file to signal completion. If it still
 # exists in CENTRALDIR after all the ensemble members have been advanced,
