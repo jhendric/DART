@@ -107,20 +107,34 @@ while($state_copy <= $num_states)
    ln -sf ../$input_file       dart_restart || exit 2
    ../dart_to_noah                          || exit 2
 
-   # Extract the right forcing timestep from a single forcing file
-   # and create the appropriate 'one-time-use' forcing file for this
-   # ensemble member.
-   # The forcing has to be for the NEXT "FORCING_TIMESTEP", apparently.
-   # FORCING_TIMESTEP is defined in namelist.input
+   # This next two parts are based on using one-hour forcing files
+   # since the minimum time to advance the model seems to be 1 hour.
+   # (kday, khour, but no kminute, for example)
+   # dart_to_noah provides the setting for namelist.hrldas:khour
+   # we need to put that value in the local copy of namelist.hrldas
 
-   set numfilestring = `head -3 noah_advance_information.txt | tail -1`
+   set numadvancestr = `grep -i khour noah_advance_information.txt`
+   set numadvancestr = `echo $numadvancestr | sed -e "s#[=,']# #g"`
+   set numadvancestr = `echo $numadvancestr | sed -e 's#"# #g'`
+   set numadvances   = `echo $numadvancestr[2]`
+
+ex namelist.hrldas <<ex_end
+g;KHOUR ;s;= .*;= $numadvances;
+wq
+ex_end
+
+   # The forcing has to be for the NEXT "FORCING_TIMESTEP", apparently.
+   # FORCING_TIMESTEP is defined in namelist.input At this point, dart_to_noah
+   # has assumptions that the forcing_timestep is one hour.
+
+   set numfilestring = `head -4 noah_advance_information.txt | tail -1`
    set numfilestring = `echo $numfilestring | sed -e "s#[=,']# #g"`
    set numfilestring = `echo $numfilestring | sed -e 's#"# #g'`
-   @ numfiles        = `echo $numfilestring[2]`
+   set numfiles      = `echo $numfilestring[2]`
 
    @ ifile = 1
    while ($ifile <= $numfiles)
-      @ linenum = 3 + $ifile
+      @ linenum = 4 + $ifile
       set FNAME = `head -${linenum} noah_advance_information.txt | tail -1`
       ln -sf ${LDASINDIR}/${FNAME} .
       @ ifile = $ifile + 1
@@ -139,9 +153,11 @@ while($state_copy <= $num_states)
 
    ../Noah_hrldas_beta
 
-   if (! -e RESTART* ) then
+   set noah_status = `ls -1 RESTART*DOMAIN* | wc -l`
+   if ($noah_status < 1)  then
       echo "ERROR: NOAH died"
       echo "ERROR: NOAH died"
+      ls -l
       exit 23
    endif
 

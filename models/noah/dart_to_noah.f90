@@ -164,6 +164,7 @@ if ( advance_time_present ) then
    iunit = open_file('noah_advance_information.txt',form='formatted',action='write')
    call print_date(  model_time,'dart_to_noah:noah  model      date',iunit)
    call print_date( adv_to_time,'dart_to_noah:noah  advance_to_date',iunit)
+   write(iunit,'(''khour  = '',i6)') nfiles-1
    write(iunit,'(''nfiles = '',i6)') nfiles
 
    mytime = model_time
