@@ -84,6 +84,11 @@ end
 # COME UP WITH YOUR OWN ENSEMBLE.
 #==============================================================================
 
+echo "Make sure the earliest time in the obs_seq.out file is at or after"
+echo "the time we are inserting in the initial ensemble."
+echo "DART can advance the model states to the observation time."
+echo "DART cannot move the model state back in time."
+
 set ENSEMBLESOURCE = /Users/thoar/svn/DART/devel/models/noah/src/hrldas-v3.3/Run/hourly_output
 
 set   nfiles = `ls -1 ${ENSEMBLESOURCE}/RESTART*DOMAIN* | wc -l`
@@ -96,50 +101,20 @@ while ($ifile <= $nfiles)
    @ ensemble_member = $ensemble_member + 1
    set fext = `printf %04d $ensemble_member`
 
-   ${COPY} $filelist[$ifile] restart.nc
+   # make sure all the initial ensemble files have the same time.
 
-   # change the time here ... and simplify life
+   ncap2 -O -s 'Times(0,:)="2004-01-01_01:00:00"' $filelist[$ifile] restart.$fext.nc
+   if ($status != 0) then
+      echo "WARNING: time conversion failed"
+   endif
 
+   # make initial conditions for DART
+
+   ln -svf restart.$fext.nc restart.nc
    ./noah_to_dart                     || exit 3
    ${MOVE} dart_ics filter_ics.$fext  || exit 4
 
    @ ifile = $ifile + 10
-end
-
-#==============================================================================
-# Now we make sure all the initial ensemble files have the same time.
-#==============================================================================
-
-echo "Make sure the earliest time in the obs_seq.out file is at or after"
-echo "the time we are inserting in the initial ensemble."
-echo "DART can advance the model states to the observation time."
-echo "DART cannot move the model state back in time."
- 
-set MODEL_DAY    = 147192
-set MODEL_SECOND = 0
-
-ex input.nml <<ex_end
-/restart_file_tool_nml
-g;ens_size ;s;= .*;= 1,;
-g;single_restart_file_in ;s;= .*;= .true.,;
-g;single_restart_file_out ;s;= .*;= .true.,;
-g;write_binary_restart_files ;s;= .*;= .false.,;
-g;overwrite_data_time ;s;= .*;= .true.,;
-g;new_data_days ;s;= .*;= $MODEL_DAY,;
-g;new_data_secs ;s;= .*;= $MODEL_SECOND,;
-g;input_is_model_advance_file ;s;= .*;= .false.,;
-g;output_is_model_advance_file ;s;= .*;= .false.,;
-g;gregorian_cal ;s;= .*;= .true.;
-wq
-ex_end
-
-foreach FILE ( filter_ics.* )
-
-   ln -svf ${FILE} filter_restart
-   ./restart_file_tool 
-   ${MOVE} filter_updated_restart ${FILE}
-
-   ${REMOVE} filter_restart
 end
 
 # Since we have some knowledge of the ensemble size, 
@@ -158,6 +133,8 @@ ex_end
 #==============================================================================
 # Finish up.
 #==============================================================================
+
+${REMOVE} restart.nc
 
 echo
 echo "CENTRALDIR is ${CENTRALDIR}"
