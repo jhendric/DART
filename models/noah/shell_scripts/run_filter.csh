@@ -64,6 +64,30 @@
 #PBS -q medium
 #PBS -l nodes=4:ppn=2
 
+#==============================================================================
+# Set the commands so we can avoid problems with aliases, etc.
+#==============================================================================
+
+set   MOVE = '/usr/local/bin/mv -fv'
+set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
+set   LINK = '/usr/local/bin/ln -fvs'
+set REMOVE = '/usr/local/bin/rm -fr'
+
+set   MOVE = '/bin/mv -fv'
+set   COPY = '/bin/cp -fvp'
+set   LINK = '/bin/ln -fvs'
+set REMOVE = '/bin/rm -fr'
+
+#==============================================================================
+# Stage all the required files in CENTRALDIR
+#
+# CENTRALDIR is where 'filter' will run, each model advance takes place
+# in a subdirectory created and populated by 'advance_model.csh'
+#==============================================================================
+
+set CENTRALDIR = `pwd`
+
+#==============================================================================
 # Check for the existence of variables that are set by different 
 # queuing mechanisms.  This way, we can make a single script which
 # works for any queuing system.
@@ -71,9 +95,7 @@
 if ($?LS_SUBCWD) then
 
    # LSF has a list of processors already in a variable (LSB_HOSTS)
-
    mpirun.lsf ./filter
-   
 
 else if ($?PBS_O_WORKDIR) then
 
@@ -101,10 +123,9 @@ EOF
 
 else
 
-   # interactive - e.g. you are using 'lam-mpi' and you have
-   # already run 'lamboot' once to start the lam server.
+   # interactive - single-threaded filter, single-threaded noah
 
-   mpirun -np 4 ./filter
+   ./filter
 
 endif
 
