@@ -121,7 +121,8 @@ call close_restart(iunit)
 ! write the updated state to the NOAH restart file.
 !----------------------------------------------------------------------
 
-call dart_vector_to_model_file(statevector, noah_restart_filename, model_time)
+call dart_vector_to_model_file(statevector, noah_restart_filename, model_time, &
+                               do_not_update_variables)
 
 !----------------------------------------------------------------------
 ! Convey adv_to_time to noah by updating kday or khour in the namelist.
