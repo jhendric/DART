@@ -60,8 +60,12 @@ module obs_def_COSMOS_mod
 
 use        types_mod, only : r8, PI
 use    utilities_mod, only : register_module, error_handler, E_ERR, E_WARN, E_MSG, &
-                             logfileunit, get_unit
-use     location_mod, only : location_type
+                             logfileunit, get_unit, open_file, close_file
+use     location_mod, only : location_type, set_location, get_location, &
+                             vert_is_height,   VERTISHEIGHT,            &
+                             vert_is_level,    VERTISLEVEL
+use        model_mod, only : model_interpolate
+use     obs_kind_mod, only : KIND_GEOPOTENTIAL_HEIGHT, KIND_SOIL_MOISTURE
 
 implicit none
 private
@@ -81,7 +85,8 @@ character(len=128), parameter :: &
    revision = "$Revision $", &
    revdate  = "$Date$"
 
-logical, save :: module_initialized = .false.
+character(len=256) :: string1
+logical, save      :: module_initialized = .false.
 
 !----------------------------------------------------------------------------
 contains
@@ -194,7 +199,11 @@ integer,             intent(out) :: istatus  ! status of the calculation
 ! COSMIC: Variables list
 !=================================================================================
 
-integer  :: nlyr            ! Total number of soil layers
+!rr: Use 1 mm layer increments (down to 3 meters) to compute the weighting function
+!rr: (as originally done for COSMIC), and then compute the cumulative weights for
+!rr: individual soil layers
+
+integer, parameter :: nlyr=3000 ! Total number of soil layers - each 1mm for 3m
 
 real(r8) :: bd     = 0.0_r8 ! Dry soil bulk density (g/m3)
 real(r8) :: vwclat = 0.0_r8 ! Volumetric "lattice" water content (m3/m3)
@@ -225,26 +234,82 @@ real(r8), dimension(:), allocatable :: fastflux    ! Contribution to above-groun
 !rr: Not needed for DART
 !rr: real(r8), dimension(:), allocatable :: normfast ! Normalized contribution to neutron flux (-) [weighting factors]
 
-real(r8), parameter :: h2odens = 1000.0_r8 ! Density of water (g/cm3)
-!real(r8), parameter :: PI = 3.14159265359_r8   TJH comes from global use
+real(r8), parameter   :: h2odens = 1000.0_r8 ! Density of water (g/cm3)
 
-real(r8), dimension(nlayers) :: layerz ! NOAH-MP layers
+integer,  parameter   :: maxlayers = 1000 ! more than the maximum # of model soil layers
+real(r8), allocatable :: layerz(:)        ! original soil layer depths
+real(r8), allocatable :: soil_moisture(:) ! original soil layer moistures
 
-integer :: i
+integer  :: i, zi, nlevels, iunit
+real(r8) :: loc_array(3)
+real(r8) :: loc_lon, loc_lat, obs_val
+type(location_type) :: loc
 
 !=================================================================================
 
 if ( .not. module_initialized ) call initialize_module
-val = 0.0_r8
 
-! Soil layers in NOAH (cm)
-! THIS NEEDS TO BE CHANGED IF WE CHANGE THE SOIL LAYERS DISTRIBUTION IN NOAH-MP
-DATA layerz/10.0_r8, 40.0_r8, 100.0_r8, 200.0_r8/
+val = 0.0_r8 ! set return value early
 
-!rr: I am using 1 mm layer increments (down to 3 meters) to compute the weighting function
-!rr: (as originally done for COSMIC), and then compute the cumulative weights for NOAH's
-!rr: individual soil layers
-nlyr = 3000
+!=================================================================================
+! Determine the number of soil layers and their depths
+! using only the standard DART interfaces to model
+! set the locations for each of the model levels
+
+loc_array = get_location(location) ! loc is in DEGREES
+loc_lon   = loc_array(1)
+loc_lat   = loc_array(2)
+
+nlevels = 0
+COUNTLEVELS : do i = 1,maxlayers 
+   loc = set_location(loc_lon, loc_lat, real(i,r8), VERTISLEVEL)
+   call model_interpolate(state,loc,KIND_GEOPOTENTIAL_HEIGHT,obs_val,istatus)
+   if (istatus /= 0) exit COUNTLEVELS
+   nlevels = nlevels + 1
+enddo COUNTLEVELS
+
+if (nlevels == maxlayers) then
+   write(string1,*) 'FAILED to determine number of soil layers in model.'
+   call error_handler(E_ERR,'get_expected_neutron_intensity',string1,source,revision,revdate)
+else
+   write(*,*)'get_expected_neutron_intensity: we have ',nlevels,' soil layers'
+endif
+
+!=================================================================================
+! Now actually find the depths at each level
+! While we're at it, might as well get the soil moisture there, too.
+
+allocate(layerz(nlevels),soil_moisture(nlevels))
+
+FINDLEVELS : do i = 1,nlevels 
+   loc = set_location(loc_lon, loc_lat, real(i,r8), VERTISLEVEL)
+   call model_interpolate(state,loc,KIND_GEOPOTENTIAL_HEIGHT,layerz(i),istatus)
+   ! not checking this error code because it worked just a few lines earlier
+
+   loc = set_location(loc_lon, loc_lat, layerz(i), VERTISHEIGHT)
+   call model_interpolate(state,loc,KIND_SOIL_MOISTURE,obs_val,istatus)
+
+   if (istatus /= 0) then
+      write(string1,*) 'FAILED to determine soil moisture for layer',i
+      call error_handler(E_ERR,'get_expected_neutron_intensity',string1,source,revision,revdate)
+   endif
+
+   soil_moisture(i) = obs_val 
+   
+enddo FINDLEVELS
+
+if     ( all(layerz < 0.0_r8) ) then
+   layerz(:) = -1.0_r8 * layerz(:)
+elseif ( any(layerz < 0.0_r8) )then
+   write(string1,*) 'unusual values of soil layers in model.'
+   call error_handler(E_ERR,'get_expected_neutron_intensity',string1,source,revision,revdate)
+endif
+
+! TJH DEBUG compare to what was hardwired.
+
+write(*,*)'Comparing dynamic values (next line) to original hardcoded values:'
+write(*,*)layerz
+write(*,*)(/ 10.0_r8, 40.0_r8, 100.0_r8, 200.0_r8 /)
 
 !=================================================================================
 ! COSMIC: Site specific-parameters
@@ -265,73 +330,52 @@ L3     = 114.04156391_r8
 L4     = 3.8086191933_r8
 
 !=================================================================================
-
-!=================================================================================
 ! COSMIC: Allocate arrays and initialize variables
 !=================================================================================
+
 allocate(dz(nlyr), zthick(nlyr), vwc(nlyr), &
          hiflux(nlyr), fastpot(nlyr), h2oeffdens(nlyr), &
         idegrad(nlyr), fastflux(nlyr), &
         isoimass(nlyr), iwatmass(nlyr))
 
- totflux = 0.0_r8
+totflux = 0.0_r8
 
- do i = 1,nlyr
+do i = 1,nlyr
 
-    dz(i)         = 0.0_r8
-    zthick(i)     = 0.0_r8
-    h2oeffdens(i) = 0.0_r8
-    vwc(i)        = 0.0_r8
-    isoimass(i)   = 0.0_r8
-    iwatmass(i)   = 0.0_r8
-    hiflux(i)     = 0.0_r8
-    fastpot(i)    = 0.0_r8
-    idegrad(i)    = 0.0_r8
-    fastflux(i)   = 0.0_r8
+   dz(i)         = real(i,r8)/10.0_r8 ! 1 mm intervals
+   zthick(i)     = 0.0_r8
+   h2oeffdens(i) = 0.0_r8
+   vwc(i)        = 0.0_r8
+   isoimass(i)   = 0.0_r8
+   iwatmass(i)   = 0.0_r8
+   hiflux(i)     = 0.0_r8
+   fastpot(i)    = 0.0_r8
+   idegrad(i)    = 0.0_r8
+   fastflux(i)   = 0.0_r8
 
     !rr: Not needed for DART
     !rr: normfast(i)    = 0.0_r8
 
- enddo
-!=================================================================================
+enddo
 
-!rr: Get soil moisture from individual model layers and assign them to
-!rr: 1 mm intervals (down to 3 meters)
+!=================================================================================
+! Get soil moisture from individual model layers and assign them to
+! 1 mm intervals (down to 3 meters)
+!rr: vwc(i) = exp(state(1)) ! log-transform
+!rr: vwc(i) =     state(1)  ! actual soil moisture (m3/m3)
+
 do i = 1,nlyr
 
-   dz(i) = real(i,r8)/10.0_r8 ! 1 mm intervals
-
-   if(dz(i) <= layerz(1)) then
-
-      !vwc(i) = exp(state(1)) ! log-transform
-      !vwc(i) =     state(1)  ! actual soil moisture (m3/m3)
-
-      vwc(i) = state(1)/100.0_r8 ! soil moisture (% vol.)
-
-   elseif((dz(i) > layerz(1)) .and. (dz(i) <= layerz(2))) then
-
-      !vwc(i) = exp(state(2)) ! log-transform ! log-transform
-      !vwc(i) =     state(2)  ! actual soil moisture (m3/m3)
-
-      vwc(i) = state(2)/100.0_r8 ! soil moisture (% vol.)
-
-   elseif((dz(i) > layerz(2)) .and. (dz(i) <= layerz(3))) then
-
-      !vwc(i) = exp(state(3)) ! log-transform
-      !vwc(i) =     state(3)  ! actual soil moisture (m3/m3)
-
-      vwc(i) = state(3)/100.0_r8 ! soil moisture (% vol.)
-
-   elseif((dz(i) > layerz(3))) then
-
-      !vwc(i) = exp(state(4)) ! log-transform
-      !vwc(i) =     state(4)  ! actual soil moisture (m3/m3)
-
-      vwc(i) = state(4)/100.0_r8 ! soil moisture (% vol.)
-
-   endif
+   SOIL : do zi = 1,nlevels
+      if(dz(i) <= layerz(zi)) then
+         vwc(i) = soil_moisture(zi)/100.0_r8 ! soil moisture (% vol.)
+         exit SOIL
+      endif
+   enddo SOIL
 
 enddo
+
+deallocate(layerz ,soil_moisture)
 
 !=================================================================================
 ! COSMIC: Neutron flux calculation
@@ -341,6 +385,15 @@ zthick(1) = dz(1) - 0.0_r8 ! Surface layer
 do i = 2,nlyr
    zthick(i) = dz(i) - dz(i-1) ! Remaining layers
 enddo
+
+! TJH FIXME ... zthick is always 1mm ... why make 3000 of them?
+if ( 1 == 1 ) then ! TJH DEBUG OUTPUT BLOCK 
+   iunit = open_file('cosmos_layers.txt',form='formatted',action='write')
+   do i = 1,nlyr
+      write(iunit,*)dz(i),vwc(i),zthick(i)
+   enddo
+   call close_file(iunit)
+endif
 
 ! Angle distribution parameters (HARDWIRED)
 !rr: Using 0.5 deg angle intervals appears to be sufficient
@@ -402,7 +455,7 @@ enddo
 ! ... and finally calculated what the neutron intensity (which is basically totflux)
 val = totflux
 
-! assumed all is well for now
+! assume all is well for now
 istatus = 0
 
 return

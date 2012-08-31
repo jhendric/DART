@@ -22,6 +22,7 @@ use     location_mod, only : location_type, get_dist, query_location,          &
                              set_location, get_location, horiz_dist_only,      &
                              vert_is_surface,  VERTISSURFACE,                  &
                              vert_is_height,   VERTISHEIGHT,                   &
+                             vert_is_level,    VERTISLEVEL,                    &
                              get_close_obs_init, get_close_obs,                &
                              set_location_missing, write_location
 
@@ -29,17 +30,17 @@ use    utilities_mod, only : register_module, error_handler, nc_check,         &
                              E_ERR, E_MSG, logfileunit, get_unit,              &
                              nmlfileunit, do_output, do_nml_file, do_nml_term, &
                              find_namelist_in_file, check_namelist_read,       &
-                             open_file, file_exist, find_textfile_dims,        &
-                             file_to_text
+                             file_exist, find_textfile_dims, file_to_text
 
-use     obs_kind_mod, only : KIND_SOIL_TEMPERATURE,   &
-                             KIND_LIQUID_WATER,       &
-                             KIND_ICE,                &
-                             KIND_SNOWCOVER_FRAC,     &
-                             KIND_SNOW_THICKNESS,     &
-                             KIND_LEAF_CARBON,        &
-                             KIND_WATER_TABLE_DEPTH,  &
-                             paramname_length,        &
+use     obs_kind_mod, only : KIND_SOIL_TEMPERATURE,    &
+                             KIND_LIQUID_WATER,        &
+                             KIND_ICE,                 &
+                             KIND_SNOWCOVER_FRAC,      &
+                             KIND_SNOW_THICKNESS,      &
+                             KIND_LEAF_CARBON,         &
+                             KIND_WATER_TABLE_DEPTH,   &
+                             KIND_GEOPOTENTIAL_HEIGHT, &
+                             paramname_length,         &
                              get_raw_obs_kind_index
 
 use mpi_utilities_mod, only: my_task_id
@@ -627,14 +628,36 @@ loc_depth = loc(3)
 ! gridlatj  = latinds(1)
 ! gridloni  = loninds(1)
 
+! one use of model_interpolate is to allow other modules/routines
+! the ability to 'see' the model levels. To do this, we can create
+! locations with model levels and 'interpolate' them to 
+! KIND_GEOPOTENTIAL_HEIGHT
+
+if ( (itype == KIND_GEOPOTENTIAL_HEIGHT) .and. vert_is_level(location) ) then
+   if (nint(loc_depth) > nsoil) then
+      obs_val = MISSING_R8
+      istatus = 1
+   else
+      obs_val = zsoil(nint(loc_depth))
+      istatus = 0
+   endif
+   return
+endif
+
 ! need to know what variable we are interpolating.
 
+ivar = 0
 FindVariable : do n = 1,nfields
    if( progvar(n)%dart_kind == itype ) then
       ivar = n
       exit FindVariable
    endif
 enddo FindVariable
+
+if (ivar == 0) then
+   write(string1,*) 'unable to find state vector component matching type ',itype
+   call error_handler(E_ERR,'model_interpolate',string1,source,revision,revdate)
+endif
 
 if ( progvar(ivar)%varsize == 1 ) then
    indx = progvar(ivar)%index1
