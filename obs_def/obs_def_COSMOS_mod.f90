@@ -240,6 +240,7 @@ integer,  parameter   :: maxlayers = 1000 ! more than the maximum # of model soi
 real(r8), allocatable :: layerz(:)        ! original soil layer depths
 real(r8), allocatable :: soil_moisture(:) ! original soil layer moistures
 
+integer  :: angle, angledz, maxangle  ! loop indices for an integration interval
 integer  :: i, zi, nlevels, iunit
 real(r8) :: loc_array(3)
 real(r8) :: loc_lon, loc_lat, obs_val
@@ -298,18 +299,14 @@ FINDLEVELS : do i = 1,nlevels
    
 enddo FINDLEVELS
 
+!rr: DART soil layers are negative and given in meters while COSMIC needs them to be
+!rr: positive and in centimeters
 if     ( all(layerz < 0.0_r8) ) then
-   layerz(:) = -1.0_r8 * layerz(:)
+   layerz(:) = -1.0_r8 * 100.0_r8 * layerz(:)
 elseif ( any(layerz < 0.0_r8) )then
    write(string1,*) 'unusual values of soil layers in model.'
    call error_handler(E_ERR,'get_expected_neutron_intensity',string1,source,revision,revdate)
 endif
-
-! TJH DEBUG compare to what was hardwired.
-
-write(*,*)'Comparing dynamic values (next line) to original hardcoded values:'
-write(*,*)layerz
-write(*,*)(/ 10.0_r8, 40.0_r8, 100.0_r8, 200.0_r8 /)
 
 !=================================================================================
 ! COSMIC: Site specific-parameters
@@ -342,7 +339,7 @@ totflux = 0.0_r8
 
 do i = 1,nlyr
 
-   dz(i)         = real(i,r8)/10.0_r8 ! 1 mm intervals
+   dz(i)         = real(i,r8)/10.0_r8 ! 0.1 cm intervals ... for now.
    zthick(i)     = 0.0_r8
    h2oeffdens(i) = 0.0_r8
    vwc(i)        = 0.0_r8
@@ -361,14 +358,15 @@ enddo
 !=================================================================================
 ! Get soil moisture from individual model layers and assign them to
 ! 1 mm intervals (down to 3 meters)
-!rr: vwc(i) = exp(state(1)) ! log-transform
-!rr: vwc(i) =     state(1)  ! actual soil moisture (m3/m3)
 
 do i = 1,nlyr
 
    SOIL : do zi = 1,nlevels
-      if(dz(i) <= layerz(zi)) then
-         vwc(i) = soil_moisture(zi)/100.0_r8 ! soil moisture (% vol.)
+      if (dz(i) >= layerz(nlevels)) then
+         vwc(i) = soil_moisture(nlevels)
+         exit SOIL
+      elseif (dz(i) <= layerz(zi)) then
+         vwc(i) = soil_moisture(zi) ! soil moisture (m3/m3)
          exit SOIL
       endif
    enddo SOIL
@@ -380,14 +378,15 @@ deallocate(layerz ,soil_moisture)
 !=================================================================================
 ! COSMIC: Neutron flux calculation
 !=================================================================================
-! Soil layer thickness
+
+! At some point, you might want to tinker around with non-uniform 
+! soil layer thicknesses.
 zthick(1) = dz(1) - 0.0_r8 ! Surface layer
 do i = 2,nlyr
    zthick(i) = dz(i) - dz(i-1) ! Remaining layers
 enddo
 
-! TJH FIXME ... zthick is always 1mm ... why make 3000 of them?
-if ( 1 == 1 ) then ! TJH DEBUG OUTPUT BLOCK 
+if ( 2 == 1 ) then ! TJH DEBUG OUTPUT BLOCK 
    iunit = open_file('cosmos_layers.txt',form='formatted',action='write')
    do i = 1,nlyr
       write(iunit,*)dz(i),vwc(i),zthick(i)
@@ -398,8 +397,15 @@ endif
 ! Angle distribution parameters (HARDWIRED)
 !rr: Using 0.5 deg angle intervals appears to be sufficient
 !rr: (smaller angles increase the computing time for COSMIC)
-ideg   = 0.5_r8
-dtheta = ideg*(PI/180.0_r8)
+ideg     = 0.5_r8                   ! ideg ultimately controls the number of trips through
+angledz  = nint(ideg*10.0_r8)       ! the ANGLE loop. Make sure the 10.0_r8 is enough
+maxangle = 900 - angledz            ! to create integers with no remainder
+dtheta   = ideg*(PI/180.0_r8)
+
+if ( real(angledz,r8) /= ideg*10.0_r8 ) then
+   write(string1,*) 'ideg*10.0 must result in an integer - it results in ',ideg*10.0_r8
+   call error_handler(E_ERR,'get_expected_neutron_intensity',string1,source,revision,revdate)
+endif
 
 do i = 1,nlyr
 
@@ -423,16 +429,17 @@ do i = 1,nlyr
    hiflux( i) = N*exp(-(isoimass(i)/L1 + iwatmass(i)/L2) )
    fastpot(i) = zthick(i)*hiflux(i)*(alpha*bd + h2oeffdens(i))
 
-   ! TJH FIXME avoid infinite loop and obsolete do_while
    ! This second loop needs to be done for the distribution of angles for fast neutron release
-   zdeg = 0.0_r8
-   do while (zdeg <= 90.0_r8-ideg)  ! TJH FIXME should 90-ideg be in ()
-      zrad = (zdeg*PI)/180.0_r8
+   ! the intent is to loop from 0 to 89.5 by 0.5 degrees - or similar.
+   ! Because Fortran loop indices are integers, we have to divide the indices by 10 - you get the idea.  
+
+   do angle=0,maxangle,angledz
+      zdeg     = real(angle,r8)/10.0_r8   ! 0.0  0.5  1.0  1.5 ...
+      zrad     = (zdeg*PI)/180.0_r8
       costheta = cos(zrad)
 
       ! Angle-dependent low energy (fast) neutron upward flux
       fastflux(i) = fastflux(i) + fastpot(i)*exp(-(isoimass(i)/L3 + iwatmass(i)/L4)/costheta)*dtheta
-      zdeg = zdeg + ideg
    enddo
 
    ! After contribution from all directions are taken into account,
@@ -445,15 +452,13 @@ do i = 1,nlyr
 
 enddo
 
-!rr: These quantities need to be calculated after totflux is being computed
-!rr: This is not needed for DART
-!rr: do i = 1,nlyr
-!rr:   normfast(i) = fastflux(i)/totflux
-!rr: enddo
 !=================================================================================
 
 ! ... and finally calculated what the neutron intensity (which is basically totflux)
 val = totflux
+
+deallocate(dz, zthick, vwc, hiflux, fastpot, &
+           h2oeffdens, idegrad, fastflux, isoimass, iwatmass)
 
 ! assume all is well for now
 istatus = 0
