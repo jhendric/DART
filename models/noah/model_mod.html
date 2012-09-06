@@ -35,26 +35,26 @@
 
 <H2>Overview</H2>
 
-<P>The <strong><a href="http://www.ral.ucar.edu/research/land/technology/lsm.php">NOAH</a> 
-   Land Surface Model</strong> may now be tested with the 
+<P>The <strong><a href="http://www.ral.ucar.edu/research/land/technology/lsm.php">NOAH</a>
+   Land Surface Model</strong> may now be tested with the
    <strong>Data Assimilation Research Testbed (DART)</strong>.
-   This should be considered 
+   This should be considered
    an 'alpha' release -- the code has only been tested for a single column configuration.
-   The offline 2D driver code: High-Resolution Land Data Assimilation System (HRLDAS) 
+   The offline 2D driver code: High-Resolution Land Data Assimilation System (HRLDAS)
    v3.3 -- April 2011 is the version used to develop the interface.
    <br />
    <br />
-   The <em>simple_driver-v3.3</em> was deemed suboptimal because of poor restart 
-   characteristics.  Since the offline 2D driver code can be run at a single gridpoint 
-   and has excellent restart characteristics, there are no plans to support the 
+   The <em>simple_driver-v3.3</em> was deemed suboptimal because of poor restart
+   characteristics.  Since the offline 2D driver code can be run at a single gridpoint
+   and has excellent restart characteristics, there are no plans to support the
    <em>simple-driver-v3.3</em> version of NOAH.
    <br />
    <br />
-   <strong>IMPORTANT:</strong> The <em>hrldas-v3.3</em> driver 
-   generates NOAH restart files that are a bit unusual in 
-   that the <em>Times</em> string in the restart file <strong>does not</strong> denote the 
+   <strong>IMPORTANT:</strong> The <em>hrldas-v3.3</em> driver
+   generates NOAH restart files that are a bit unusual in
+   that the <em>Times</em> string in the restart file <strong>does not</strong> denote the
    time at which the restart is valid. The time at which the state is valid is actually
-   <strong>ONE <em class=code>noah_timestep</em> BEFORE</strong> the time in the restart 
+   <strong>ONE <em class=code>noah_timestep</em> BEFORE</strong> the time in the restart
    file - <em>by design</em>. This has a
    <strong>HUGE</strong> impact on the complexity of the scripting. At some point soon,
    I will develop a schematic to illustrate this point.
@@ -70,47 +70,47 @@
    <em class=code>SKINTEMP</em>,
    <em class=code>SNODEP</em>,
    <em class=code>WEASD</em>,
-   <em class=code>CANWAT</em>, and 
+   <em class=code>CANWAT</em>, and
    <em class=code>QFX</em>. These variables are then adjusted to be consistent
    with real observations and stuffed back into the same netCDF restart files.
-   Since DART is an ensemble algorithm, there are multiple restart files for a 
+   Since DART is an ensemble algorithm, there are multiple restart files for a
    single restart time: one for each ensemble member. Creating the initial ensemble
    of land surface states is an area of active research. At present, it may be sufficient
-   to use a climatological ensemble; e.g., using the restarts for '1 January 00Z' 
+   to use a climatological ensemble; e.g., using the restarts for '1 January 00Z'
    from 50 consecutive years.
    <br />
    <br />
-   The <em>offline hrldas-v3.3</em> driver is designed to use atmospheric 
+   The <em>offline hrldas-v3.3</em> driver is designed to use atmospheric
    forcing files that cover a VERY short period - about every hour.
-   Consequently, the directories that contain the forcing files get very 
+   Consequently, the directories that contain the forcing files get very
    cluttered for experiments that may cover years, for example.
-   There is reason to believe that the ensemble system will benefit from having 
-   unique atmospheric forcing for each ensemble member. 
+   There is reason to believe that the ensemble system will benefit from having
+   unique atmospheric forcing for each ensemble member.
    A reasonable ensemble size is 50 or 80 or so. You do the math.
    <br />
    <br />
-   DART reads the NOAH namelist <em class=code>&amp;NOAHLSM_OFFLINE</em> from a file called 
+   DART reads the NOAH namelist <em class=code>&amp;NOAHLSM_OFFLINE</em> from a file called
    <em class=file>namelist.hrldas</em> for several pieces of information.
-   DART is responsible for starting/stopping NOAH, the restart information is 
+   DART is responsible for starting/stopping NOAH, the restart information is
    conveyed through the NOAH namelist.
    <br />
    <br />
    There are several scripts in the <em class=file>DART/models/noah/shell_scripts</em>
    directory that assist in configuring and running experiments:
-   <em class=program>setup_pmo.csh</em>, 
-   <em class=program>run_pmo.csh</em>, 
+   <em class=program>setup_pmo.csh</em>,
+   <em class=program>run_pmo.csh</em>,
    <em class=program>setup_filter.csh</em>, and
-   <em class=program>run_filter.csh</em>&nbsp;. 
+   <em class=program>run_filter.csh</em>&nbsp;.
 </P>
 
 <div class=indent1>
    <h2>The offline 2D HRLDAS-V3.3</h2>
    <P>
-      and the development branch of DART was tested and run on a MacBook Pro laptop 
+      and the development branch of DART was tested and run on a MacBook Pro laptop
       running OS X 10.7.4 (Lion) with gfortran v 4.5.0.
-      Several trivial modifications to the hrldas makefiles were necessary to compile 
+      Several trivial modifications to the hrldas makefiles were necessary to compile
       <em>Noah_hrldas_beta</em> on a case-insensitive filesystem.
-      [TJH include more about this] 
+      [TJH include more about this]
       <br />
       <br />
       The DART components were built for debugging with the following settings:
@@ -123,15 +123,15 @@
    FFLAGS = -g -O0 -ffree-line-length-none -fbounds-check -frecord-marker=4 -ffpe-trap=invalid $(INCS)
    LDFLAGS = $(FFLAGS) $(LIBS)
    </pre>
-</div> 
+</div>
 
 <!-- div class=indent1>
    <h3>Observations.</h3>
    <P>
-      The observations come from the 
+      The observations come from the
       <a href="http://www.nodc.noaa.gov/OC5/WOD05/pr_wod05.html">World Ocean Database 2005</a>
       and are processed by DART routines in the
-   <a href="../../observations/WOD/WOD.html">DART/observations/WOD</a> directory.  
+   <a href="../../observations/WOD/WOD.html">DART/observations/WOD</a> directory.
    </P>
 </div -->
 
@@ -139,11 +139,11 @@
 <div class=indent1>
    <h3>Converting between DART files and NOAH restart files.</h3>
    <P>
-      The information about how the NOAH variables are stored in the DART 
-      state vector comes from the order in which the variables are specified in 
+      The information about how the NOAH variables are stored in the DART
+      state vector comes from the order in which the variables are specified in
       <em class=file>input.nml</em><em class=code>model_nml:noah_variables</em>&nbsp;,
       as is the the name of the NOAH restart file.
-      DART also needs to read the 
+      DART also needs to read the
       <em class=file>namelist.hrldas</em><em class=code>&amp;NOAHLSM_OFFLINE</em> namelist.
       <br />
       <br />
@@ -151,9 +151,9 @@
    </P>
    <table width="100%" cellpadding="10">
    <tr><td valign="top"><a href="noah_to_dart.html">noah_to_dart.f90</a></td>
-       <td>converts the NOAH restart file <em class=file>restart.nc</em> into a 
+       <td>converts the NOAH restart file <em class=file>restart.nc</em> into a
        DART-compatible file normally called <em class=file>dart_ics</em>&nbsp;.
-       We usually wind up linking the NOAH restart files to the 
+       We usually wind up linking the NOAH restart files to the
        static name (<em class=file>dart_ics</em>).
        </td>
    </tr>
@@ -164,13 +164,13 @@
        the DART state vector to aid in the application of observation operators, etc.,
        without having to modify those variables in the NOAH restart file.
        There are two different types of DART output files, so there is a namelist
-       option to specify if the DART file has two time records or just one 
-       (if there are two, the first one is the 'advance_to' time, followed 
+       option to specify if the DART file has two time records or just one
+       (if there are two, the first one is the 'advance_to' time, followed
        by the 'valid_time' of the ensuing state). <em class=program>dart_to_noah</em>
        requires the DART file to be named <em class=file>dart_restart</em> and the
        NOAH restart file have a name of <em class=file>restart.nc</em> &npsp;.
-       If the DART file contains an 'advance_to' time, 
-       <em class=program>dart_to_noah</em> creates a file  
+       If the DART file contains an 'advance_to' time,
+       <em class=program>dart_to_noah</em> creates a file
        <em class=file>noah_advance_information.txt</em> which contains information
        to control the length of the NOAH integration.
        </td>
@@ -192,25 +192,25 @@ cover the staging of the perfect model experiment
    <h3>Generating the initial ensemble.</h3>
    <P>
       Creating the initial ensemble of ocean states is an area of active research.
-      The NOAH model cannot take one single model state and generate its own 
+      The NOAH model cannot take one single model state and generate its own
       ensemble (typically done with <a href="#pert_model_state">pert_model_state</a>).
       <br />
       <br />
-      The ensemble has to come from 'somewhere else'. 
-      At present, it may be sufficient to use a climatological ensemble; e.g., 
-      using the NOAH restarts for '1 January 00Z' from 50 consecutive years 
+      The ensemble has to come from 'somewhere else'.
+      At present, it may be sufficient to use a climatological ensemble; e.g.,
+      using the NOAH restarts for '1 January 00Z' from 50 consecutive years
       from a hindcast experiment.
       <br />
       <br />
-      There is a <em class=program>shell_scripts/MakeInitialEnsemble.csh</em> 
-      script that is intended to demonstrate how to convert a set of NOAH netCDF 
-      restart files into a set of DART files that have a consistent timestamp. 
-      If you simply convert each NOAH file to a DART file using 
+      There is a <em class=program>shell_scripts/MakeInitialEnsemble.csh</em>
+      script that is intended to demonstrate how to convert a set of NOAH netCDF
+      restart files into a set of DART files that have a consistent timestamp.
+      If you simply convert each NOAH file to a DART file using
       <em class=program>dart_to_noah</em>, each DART file will have a 'valid&nbsp;time'
       that reflects the NOAH time of that state - instead of an ensemble of states
       reflecting one single time. The
-      <a href="../../../utilities/restart_file_utility.f90">restart_file_utility</a> 
-      can be used to overwrite the timestep in the header of each DART initial 
+      <a href="../../../utilities/restart_file_utility.f90">restart_file_utility</a>
+      can be used to overwrite the timestep in the header of each DART initial
       conditions file. The namelist for this program must look something like:
    </P>
    <pre>
@@ -231,12 +231,12 @@ cover the staging of the perfect model experiment
      new_advance_secs             = -1,
      gregorian_cal                = .true.  /</pre>
    <P>
-      The time of days&nbsp;=&nbsp;<em class=changed>145731</em> 
+      The time of days&nbsp;=&nbsp;<em class=changed>145731</em>
       seconds&nbsp;=&nbsp;<em class=changed>0</em> relates to 00Z&nbsp;1&nbsp;Jan&nbsp;2000 in the DART world.
       <br />
       <br />
-      BTW - Experience has shown that having a paired (unique) atmospheric forcing 
-      maintains the ensemble spread better than simply forcing all the ocean 
+      BTW - Experience has shown that having a paired (unique) atmospheric forcing
+      maintains the ensemble spread better than simply forcing all the ocean
       ensemble members with one single atmospheric state.
    </P>
 </div>
@@ -245,29 +245,29 @@ cover the staging of the perfect model experiment
 <div class=indent1>
    <h3>Generating a set of observations for a 'perfect model' experiment using the LANL/NOAH executable and scripts.</h3>
    <P>
-      A perfectly sensible approach to get to know the system would be to try to 
+      A perfectly sensible approach to get to know the system would be to try to
    </P>
    <ol>
      <li>assimilate data for the first assimilation period and stop. Do not advance
          the model at all. The filter namelist can control all of this and you do
          not need to have a working <em class=program>advance_model.csh</em>
          script, or even a working ocean model (as long as you have input data files).</li>
-     <li>advance the model first and then assimilate data for the first assimilation 
+     <li>advance the model first and then assimilate data for the first assimilation
          period and stop.</li>
      <li>advance, assimilate and advance again. This tests the whole DART facility.</li>
    </ol>
    <P>
       I always like running something akin to a 'perfect model' experiment to start.
       Since I have not come up with a good way to perturb a single model state to
-      generate an ensemble, here's the next best thing. The details for running 
+      generate an ensemble, here's the next best thing. The details for running
       each program are covered in their own documentation.
    </P>
    <ol>
-      <li>Create a set of initial conditions for DART by running one instance of NOAH 
+      <li>Create a set of initial conditions for DART by running one instance of NOAH
          for a very long time and saving restart files 'every so often'.
          Use one of these as the initial condition
          for <em class=program>perfect_model_obs</em> and the rest as the
-	 ensemble for the assimilation experiment. Since no one in their right 
+	 ensemble for the assimilation experiment. Since no one in their right
 	 mind would use a high-resolution model for a proof-of-concept case
 	 (hint, hint), running a low-resolution model for a 'very long time' should
 	 not be a problem.
@@ -275,42 +275,42 @@ cover the staging of the perfect model experiment
 
       <li>create a TINY (i.e. 1) set of 'perfect' observations in the normal fashion:
          <a href="../../../obs_sequence/create_obs_sequence.html">create_obs_sequence</a>
-         and then 
+         and then
          <a href="../../../obs_sequence/create_fixed_network_seq.html">create_fixed_network_seq</a>
-         to create an empty observation sequence file 
+         to create an empty observation sequence file
          (usually called <em class=file>obs_seq.in</em>).
 	 The programs will prompt you for all the information they require.
 	 Read their documentation if necessary.
 	 </li>
 
       <li>break the <em class=file>pop_in</em> namelist that comes with NOAH into
-          two pieces - one called <em class=file>pop_in.part1</em>, 
-	  that contains the <em class=code>&amp;time_manager_nml</em> and 
-	  put the rest in <em class=file>pop_in.part2</em>. The 
+          two pieces - one called <em class=file>pop_in.part1</em>,
+	  that contains the <em class=code>&amp;time_manager_nml</em> and
+	  put the rest in <em class=file>pop_in.part2</em>. The
 	  <em class=code>&amp;time_manager_nml</em> will be repeatedly updated
-	  as the NOAH model is repeatedly called by 
+	  as the NOAH model is repeatedly called by
 	  <em class=program>advance_model.csh</em>.
       </li>
 
       <li>modify <em class=file>NOAH/work/input.nml</em> as needed.
       </li>
 
-      <li>modify 
-         <em class=file>DART/models/NOAH/shell_scripts</em><em class=program>run_perfect_model_obs.batch</em> 
-         to reflect the location of your DART directory, the NOAH directory, 
+      <li>modify
+         <em class=file>DART/models/NOAH/shell_scripts</em><em class=program>run_perfect_model_obs.batch</em>
+         to reflect the location of your DART directory, the NOAH directory,
 	 and which POPFILE to use as the initial condition.
       </li>
 
       <li>Run the experiment and populate the observation sequence file by
-          executing/submitting the script 
+          executing/submitting the script
 	  <em class=file>DART/models/NOAH/shell_scripts/</em><em class=program>run_perfect_model_obs.batch</em>.
-	  The script may require some modification, but not much. 
-	  Please let me know if I can improve the readability or comments. 
-	  <em class=program>run_perfect_model_obs.batch</em> runs 
+	  The script may require some modification, but not much.
+	  Please let me know if I can improve the readability or comments.
+	  <em class=program>run_perfect_model_obs.batch</em> runs
 	  <a href="../../perfect_model_obs/perfect_model_obs.html">perfect_model_obs</a>
       </li>
 
-      <li><em class=program>run_filter.batch</em> runs 
+      <li><em class=program>run_filter.batch</em> runs
           <a href="../../filter/filter.html">filter</a> in a similar fashion.
 	  I have not finished the documentation for this yet.
       </li>
@@ -322,18 +322,18 @@ cover the staging of the perfect model experiment
 <div class=indent1>
    <h3>Exploring the Output.</h3>
    <P>
-      Is pretty much like any other model. The netCDF files have the model 
-      prognostic variables before and after the assimilation. 
-      There are Matlab&#174; scripts for perusing the netCDF files in the 
-      <em class=file>DART/matlab</em> directory. 
-      There are Matlab&#174; scripts for exploring the performance of the 
-      assimilation in observation-space (after running 
-      <a href="../../diagnostics/threed_sphere/obs_diag.html">obs_diag</a> 
-      to explore the <em class=file>obs_seq.final</em> file) - use the 
-      scripts starting with 'plot_', i.e. 
+      Is pretty much like any other model. The netCDF files have the model
+      prognostic variables before and after the assimilation.
+      There are Matlab&#174; scripts for perusing the netCDF files in the
+      <em class=file>DART/matlab</em> directory.
+      There are Matlab&#174; scripts for exploring the performance of the
+      assimilation in observation-space (after running
+      <a href="../../diagnostics/threed_sphere/obs_diag.html">obs_diag</a>
+      to explore the <em class=file>obs_seq.final</em> file) - use the
+      scripts starting with 'plot_', i.e.
       <em class=file>DART/diagnostics/matlab/plot_*.m</em>.
-      As always, there are some model-specific item you should know about in 
-      <em class=file>DART/models/NOAH/matlab</em>, and 
+      As always, there are some model-specific item you should know about in
+      <em class=file>DART/models/NOAH/matlab</em>, and
       <em class=file>DART/models/NOAH/shell_scripts</em>.
       <br />
       <br />
@@ -381,10 +381,10 @@ enclosed in quotes to prevent them from prematurely terminating the namelist.
 <TR><!--contents--><TD valign=top>output_state_vector</TD>
     <!--  type  --><TD valign=top>logical <em class=units>[default:&nbsp;.true.]</em></TD>
     <!--descript--><TD valign=top>The switch to determine the form of the state vector in the
-                       output netCDF files. If <em class=code>.true.</em> 
-                       the state vector will be output exactly as DART uses it 
-                       ... one long array.  If <em class=code>.false.</em>, 
-                       the state vector is parsed into prognostic variables and 
+                       output netCDF files. If <em class=code>.true.</em>
+                       the state vector will be output exactly as DART uses it
+                       ... one long array.  If <em class=code>.false.</em>,
+                       the state vector is parsed into prognostic variables and
                        output that way -- much easier to use with 'ncview', for
                        example.</TD></TR>
 
@@ -395,7 +395,7 @@ enclosed in quotes to prevent them from prematurely terminating the namelist.
 
 <TR><!--contents--><TD valign=top>assimilation_period_seconds</TD>
     <!--  type  --><TD valign=top>integer <em class=units>[default:&nbsp;0]</em></TD>
-    <!--descript--><TD valign=top>In addition to <em class=code>assimilation_period_days</em>, 
+    <!--descript--><TD valign=top>In addition to <em class=code>assimilation_period_days</em>,
                     the number of seconds to advance the model for each assimilation.
                        </TD></TR>
 
@@ -403,13 +403,13 @@ enclosed in quotes to prevent them from prematurely terminating the namelist.
     <!--  type  --><TD valign=top>real(r8) <em class=units>[default:&nbsp;0.2]</em></TD>
     <!--descript--><TD valign=top> Reserved for future use.
                   <!-- The amount of noise to add when trying to perturb a single
-                       state vector to create an ensemble. Only used when 
+                       state vector to create an ensemble. Only used when
 <em class=file>input.nml</em><em class=code>&amp;filter_nml:start_from_restart = .false.</em>
-                       See also 
-                       <a href="#InitialEnsemble">Generating the initial ensemble</a> 
-                       at the start of this document. units: standard deviation 
-                       of a gaussian distribution with the mean at the value of 
-                       the state vector element. --> </TD></TR> 
+                       See also
+                       <a href="#InitialEnsemble">Generating the initial ensemble</a>
+                       at the start of this document. units: standard deviation
+                       of a gaussian distribution with the mean at the value of
+                       the state vector element. --> </TD></TR>
 
 <TR><!--contents--><TD valign=top>debug</TD>
     <!--  type  --><TD valign=top>integer <em class=units>[default:&nbsp;0]</em></TD>
@@ -417,7 +417,7 @@ enclosed in quotes to prevent them from prematurely terminating the namelist.
                        <em class=code>0</em> is as quiet as it gets.
                        <em class=code>&gt; 1</em> provides more run-time messages.
                        <em class=code>&gt; 5</em> provides ALL run-time messages.
-                       All values above 0 will also write a netCDF file of the grid 
+                       All values above 0 will also write a netCDF file of the grid
                        information and perform a grid interpolation test.</TD></TR>
 
 </TABLE>
@@ -426,9 +426,9 @@ enclosed in quotes to prevent them from prematurely terminating the namelist.
 
 <pre>
 &amp;model_nml
-   assimilation_period_days     = 1, 
-   assimilation_period_seconds  = 0, 
-   model_perturbation_amplitude = 0.2, 
+   assimilation_period_days     = 1,
+   assimilation_period_seconds  = 0,
+   model_perturbation_amplitude = 0.2,
    output_state_vector          = .false.,
    debug                        = 0   /
 </pre>
@@ -453,37 +453,37 @@ enclosed in quotes to prevent them from prematurely terminating the namelist.
 
 <P>
    This namelist is read in a file called <em class=file>pop_in</em>&nbsp;.
-   This namelist is the same one that is used by the ocean model and is used 
-   to control the integration length of NOAH. It is unimportant for the CESM/POP 
+   This namelist is the same one that is used by the ocean model and is used
+   to control the integration length of NOAH. It is unimportant for the CESM/POP
    experiments but is critically important for the LANL/NOAH experiments.
    The values are explained in full in the NOAH documentation. The DART code
    reads the namelist and simply overwrites several values with the new time
-   integration information. All the other values are unchanged. 
+   integration information. All the other values are unchanged.
    <br />
    <br />
-   <em class=program>dart_to_noah</em> writes out a new 
+   <em class=program>dart_to_noah</em> writes out a new
    <em class=code>&amp;time_manager_nml</em> in <em class=file>pop_in.DART</em>
    if the DART state being converted has the 'advance_to_time' record in it.
-   This is the case during the middle of a DART experiment, but is not 
-   typically encountered if one is working with DART 'initial conditions' 
+   This is the case during the middle of a DART experiment, but is not
+   typically encountered if one is working with DART 'initial conditions'
    or 'restart' files. The <em class=file>pop_in.DART</em> must be concatenated
-   with the other namelists needed by NOAH into a file called 
-   <em class=file>pop_in</em>&nbsp;. We have chosen to store the other 
-   namelists (which contain static information) in a file called 
-   <em class=file>pop_in.part2</em>. Initially, the 
-   <em class=code>time_manager_nml</em> is stored in a companion file called 
+   with the other namelists needed by NOAH into a file called
+   <em class=file>pop_in</em>&nbsp;. We have chosen to store the other
+   namelists (which contain static information) in a file called
+   <em class=file>pop_in.part2</em>. Initially, the
+   <em class=code>time_manager_nml</em> is stored in a companion file called
    <em class=file>pop_in.part1</em> and the two files are concatenated into
    the expected <em class=file>pop_in</em> - then, during the course of an
-   assimilation experiment, DART keeps writing out a new 
-   <em class=code>time_manager_nml</em> with new integration information - 
-   which gets appended with the static information in 
+   assimilation experiment, DART keeps writing out a new
+   <em class=code>time_manager_nml</em> with new integration information -
+   which gets appended with the static information in
    <em class=file>pop_in.part2</em>&nbsp;
    <br />
    <br />
-   If you are running the support programs in a standalone fashion 
+   If you are running the support programs in a standalone fashion
    (as you might if you are converting restart files into an intial ensemble),
-   the 'valid time' of the model state comes from the restart file 
-   -&nbsp;NOT&nbsp;- the namelist. You can always patch the times in the 
+   the 'valid time' of the model state comes from the restart file
+   -&nbsp;NOT&nbsp;- the namelist. You can always patch the times in the
    headers with <em class=program>restart_file_utility</em>.
    <br />
    <br />
@@ -502,7 +502,7 @@ enclosed in quotes to prevent them from prematurely terminating the namelist.
 
 <TR><!--contents--><TD valign=top>stop_count</TD>
     <!--  type  --><TD valign=top>integer <em class=units>[default:&nbsp;1]</em></TD>
-    <!--descript--><TD valign=top>The duration of the model integration. The units 
+    <!--descript--><TD valign=top>The duration of the model integration. The units
                                   come from <em class=code>stop_option</em>.</TD></TR>
 </TABLE>
 
@@ -566,7 +566,7 @@ dart_pop_mod
 
 <P>
 Only a select number of interfaces used are discussed here.
-Each module has its own discussion of their routines. 
+Each module has its own discussion of their routines.
 </P>
 
 <h3 class=indent1>Required Interface Routines</h3>
@@ -602,8 +602,8 @@ Each module has its own discussion of their routines.
 
 <P>
 Ocean model namelist interfaces <em class=code>&amp;PARM03</em>,
-<em class=code>&amp;PARM04</em>, and 
-<em class=code>&amp;PARM04</em> are read from 
+<em class=code>&amp;PARM04</em>, and
+<em class=code>&amp;PARM04</em> are read from
 file <em class=file>data</em>.
 Ocean model namelist interface <em class=code>&amp;CAL_NML</em>,
 is read from file <em class=file>data.cal</em>.
@@ -617,18 +617,18 @@ is read from file <em class=file>data.cal</em>.
 <P>The presence of 'dry' gridpoints causes a little extra work for the
    <em class=program>get_close_obs()</em> routine. The routine normally
    comes from the <em class=program>location_mod</em> which has no notion
-   of wet/dry grid cell attributes. As such, the NOAH 
+   of wet/dry grid cell attributes. As such, the NOAH
    <em class=program>model_mod</em> will be augmenting the work done by
    <em class=program>location_mod/get_close_obs()</em>&nbsp;.
    <br />
    <br />
-   Fundamentally, the <em class=program>location_mod</em> calculates and returns 
-   all the 'close' observations.  DART is designed such that the routine that 
-   uses the list of close observations is in <em class=file>model_mod.f90</em>. 
-   Consequently, the NOAH <em class=program>model_mod</em> can take that 
-   information and adjust as necessary. This creates some logistical issues 
-   in that the NOAH model_mod needs to intercept all calls to 
-   <em class=program>location_mod:get_close_obs()</em> - which can be achieved 
+   Fundamentally, the <em class=program>location_mod</em> calculates and returns
+   all the 'close' observations.  DART is designed such that the routine that
+   uses the list of close observations is in <em class=file>model_mod.f90</em>.
+   Consequently, the NOAH <em class=program>model_mod</em> can take that
+   information and adjust as necessary. This creates some logistical issues
+   in that the NOAH model_mod needs to intercept all calls to
+   <em class=program>location_mod:get_close_obs()</em> - which can be achieved
    with the following syntax:
 </P>
 <pre>
@@ -714,7 +714,7 @@ This is a NULL_INTERFACE, provided only for compatibility with the DART requirem
 <A NAME="get_state_meta_data"></A>
 <br />
 <div class=routine>
-<em class=call>call get_state_meta_data (index_in, location, 
+<em class=call>call get_state_meta_data (index_in, location,
                           <em class=optionalcode>[,&nbsp;var_type]</em> )</em>
 <pre>
 integer,             intent(in)  :: <em class=code>index_in</em>
@@ -728,14 +728,14 @@ integer, optional,   intent(out) :: <em class=optionalcode> var_type </em>
 
 <P>
 <em class=code>get_state_meta_data</em>
-returns metadata about a given element of the DART representation of the 
+returns metadata about a given element of the DART representation of the
 model state vector. Since the DART model state vector is a 1D array and the
-native model grid is multidimensional, <em class=code>get_state_meta_data</em>  
+native model grid is multidimensional, <em class=code>get_state_meta_data</em>
 returns information about the native model state vector representation. Things
-like the <em class=code>location</em>, or the type of the variable 
-(for instance: salinity, temperature, u current component, ...). 
-The integer values used to indicate different variable types in 
-<em class=code>var_type</em> are themselves defined as public interfaces 
+like the <em class=code>location</em>, or the type of the variable
+(for instance: salinity, temperature, u current component, ...).
+The integer values used to indicate different variable types in
+<em class=code>var_type</em> are themselves defined as public interfaces
 to model_mod if required.
 </P>
 
@@ -754,17 +754,17 @@ to model_mod if required.
 <TR><TD valign=top><em class=optionalcode>var_type</em></TD>
     <TD>Returns the type of the indexed state variable as an optional argument.
         The type is one of the list of supported observation types, found in
-        the block of code starting 
+        the block of code starting
         <em class=code>!&nbsp;Integer&nbsp;definitions&nbsp;for&nbsp;DART&nbsp;TYPES</em>
-        in <em class=file>DART/obs_kind/obs_kind_mod.f90</em> 
+        in <em class=file>DART/obs_kind/obs_kind_mod.f90</em>
         </TD></TR>
 
 </TABLE>
 
 <P>
 The list of supported variables in <em class=file>DART/obs_kind/obs_kind_mod.f90</em>
-is created by <em class=program>preprocess</em> using the entries in 
-<em class=file>input.nml</em>[<em class=code>&amp;preprocess_nml, &amp;obs_kind_nml</em>], 
+is created by <em class=program>preprocess</em> using the entries in
+<em class=file>input.nml</em>[<em class=code>&amp;preprocess_nml, &amp;obs_kind_nml</em>],
 <em class=file>DEFAULT_obs_kin_mod.F90</em> and
 <em class=file>obs_def_ocean_mod.f90</em>.
 </P>
@@ -791,20 +791,20 @@ integer,                intent(out) :: <em class=code>istatus</em>
 <!-- Description -->
 
 <P>
-Given a model state, <em class=code>model_interpolate</em> returns the value of 
-the desired observation type (which could be a state variable) that would be 
+Given a model state, <em class=code>model_interpolate</em> returns the value of
+the desired observation type (which could be a state variable) that would be
 observed at the desired location. The interpolation method is either
 completely specified by the model, or uses some standard 2D or 3D scalar
 interpolation routines.
 Put another way, <em class=code>model_interpolate</em> will apply the forward
-operator <strong>H</strong> to the model state to create an observation at the desired 
+operator <strong>H</strong> to the model state to create an observation at the desired
 location.
 <br />
 <br />
-If the interpolation is valid, <em class=code>istatus = 0</em>. 
-In the case where the observation operator is not defined at the given 
+If the interpolation is valid, <em class=code>istatus = 0</em>.
+In the case where the observation operator is not defined at the given
 location (e.g. the observation is below the lowest model level, above the top
-level, or 'dry'), interp_val is returned as 0.0 and istatus = 1. 
+level, or 'dry'), interp_val is returned as 0.0 and istatus = 1.
 </P>
 
 <TABLE width=100% border=0 summary="" cellpadding=3>
@@ -847,12 +847,12 @@ type(time_type) :: <em class=code>get_model_time_step</em>
 <P>
 <em class=code>get_model_time_step</em>
 returns the forecast length to be used as the "model base time step" in the filter.
-This is the minimum amount of time the model can be advanced by 
-<em class=program>filter</em>.  
-<em class="strong">This is also the assimilation window</em>. 
+This is the minimum amount of time the model can be advanced by
+<em class=program>filter</em>.
+<em class="strong">This is also the assimilation window</em>.
 All observations within (+/-) one half of the forecast
 length are used for the assimilation.
-In the <em class=program>NOAH</em> case, this is set from 
+In the <em class=program>NOAH</em> case, this is set from
 the namelist values for <em class=file>input.nml</em><em
 class=code>&amp;model_nml:assimilation_period_days, assimilation_period_seconds</em>.
 </P>
@@ -880,9 +880,9 @@ class=code>&amp;model_nml:assimilation_period_days, assimilation_period_seconds<
 
 <P>
 <em class=code>static_init_model</em>
-is called for runtime initialization of the model. 
-The namelists are read to determine runtime configuration of the model, 
-the grid coordinates, etc. There are no input arguments and no return values. 
+is called for runtime initialization of the model.
+The namelists are read to determine runtime configuration of the model,
+the grid coordinates, etc. There are no input arguments and no return values.
 The routine sets module-local private attributes that can then be queried by the
 public interface routines.
 <br />
@@ -922,7 +922,7 @@ The namelists (all mandatory) are:<br />
 
 <P>
 <em class=code>end_model</em>
-is used to clean up storage for the model, etc. 
+is used to clean up storage for the model, etc.
 when the model is no longer needed. There are no arguments and no return values.
 The grid variables are deallocated.
 </P>
@@ -951,8 +951,8 @@ type(time_type), intent(out) :: <em class=code>time</em>
 <em class=code>init_time</em>
 returns the time at which the model will start if no input initial conditions are
 to be used. This is frequently used to spin-up models from rest, but is not
-meaningfully supported for the NOAH model.  
-The only time this routine would get called is if the 
+meaningfully supported for the NOAH model.
+The only time this routine would get called is if the
 <em class=file>input.nml</em><em class=code>&amp;perfect_model_obs_nml:start_from_restart</em> is .false., which is
 not supported in the NOAH model.
 </P>
@@ -985,7 +985,7 @@ real(r8), dimension(:), intent(out) :: <em class=code>x</em>
 <P>
 <em class=code>init_conditions</em>
 returns default initial conditions for model; generally used for spinning up
-initial model states. For the NOAH model it is just a stub because 
+initial model states. For the NOAH model it is just a stub because
 the initial state is always provided by the input files.
 </P>
 
@@ -1018,11 +1018,11 @@ integer, intent(in) :: <em class=code>ncFileID</em>
 <P>
 <em class=code>nc_write_model_atts</em>
 writes model-specific attributes to an opened netCDF file:
-In the NOAH case, this includes information like the 
-coordinate variables (the grid arrays: ULON, ULAT, TLON, TLAT, ZG, ZC, KMT, KMU), 
-information from some of the namelists, and either the 1D state 
-vector or the prognostic variables (SALT,TEMP,UVEL,VVEL,PSURF). 
-All the required information (except for the netCDF file identifier) 
+In the NOAH case, this includes information like the
+coordinate variables (the grid arrays: ULON, ULAT, TLON, TLAT, ZG, ZC, KMT, KMU),
+information from some of the namelists, and either the 1D state
+vector or the prognostic variables (SALT,TEMP,UVEL,VVEL,PSURF).
+All the required information (except for the netCDF file identifier)
 is obtained from the scope of the <em class=program>model_mod</em> module.
 Both the <em class=file>input.nml</em> and <em class=file>pop_in</em> files
 are preserved in the netCDF file as variables <em class=code>inputnml</em> and
@@ -1042,8 +1042,8 @@ are preserved in the netCDF file as variables <em class=code>inputnml</em> and
 <P>
 <em class=code>nc_write_model_atts</em>
 is responsible for the model-specific attributes in the following DART-output netCDF files:
-<em class=file>True_State.nc</em>, 
-<em class=file>Prior_Diag.nc</em>, and 
+<em class=file>True_State.nc</em>,
+<em class=file>Prior_Diag.nc</em>, and
 <em class=file>Posterior_Diag.nc</em>.
 </P>
 
@@ -1072,13 +1072,13 @@ integer                            :: <em class=code>ierr</em>
 <em class=code>nc_write_model_vars</em>
 writes a copy of the state variables to a NetCDF file. Multiple copies of the
 state for a given time are supported, allowing, for instance, a single file to
-include multiple ensemble estimates of the state. Whether the state vector is 
-parsed into prognostic variables (SALT, TEMP, UVEL, VVEL, PSURF) or simply written 
-as a 1D array is controlled by 
+include multiple ensemble estimates of the state. Whether the state vector is
+parsed into prognostic variables (SALT, TEMP, UVEL, VVEL, PSURF) or simply written
+as a 1D array is controlled by
 <em class=file>input.nml</em><em class=code>&amp;model_mod_nml:output_state_vector</em>.
-If <em class=code>output_state_vector&nbsp;=&nbsp;.true.</em> the state vector is 
+If <em class=code>output_state_vector&nbsp;=&nbsp;.true.</em> the state vector is
 written as a 1D array (the simplest case, but hard to explore with the diagnostics).
-If <em class=code>output_state_vector&nbsp;=&nbsp;.false.</em> the state vector is 
+If <em class=code>output_state_vector&nbsp;=&nbsp;.false.</em> the state vector is
 parsed into prognostic variables before being written.
 </P>
 
@@ -1119,22 +1119,22 @@ logical,                intent(out) :: <em class=code>interf_provided</em>
 
 <div class=indent1> <!-- Description -->
 <P>
-Given a model state, <em class=code>pert_model_state</em> produces a 
-perturbed model state. This is used to generate ensemble initial conditions 
-perturbed around some control trajectory state when one is preparing to 
-spin-up ensembles.  Since the DART state vector for the NOAH model 
-contains both 'wet' and 'dry' cells, it is imperative to provide an 
-interface to perturb <strong>just</strong> the wet cells 
+Given a model state, <em class=code>pert_model_state</em> produces a
+perturbed model state. This is used to generate ensemble initial conditions
+perturbed around some control trajectory state when one is preparing to
+spin-up ensembles.  Since the DART state vector for the NOAH model
+contains both 'wet' and 'dry' cells, it is imperative to provide an
+interface to perturb <strong>just</strong> the wet cells
 (<em class=code>interf_provided == .true.</em>).
 <br />
 <br />
-The magnitude of the perturbation is wholly determined by 
+The magnitude of the perturbation is wholly determined by
 <em class=file>input.nml</em><em class=code>&amp;model_mod_nml:model_perturbation_amplitude</em>
 and <strong>utterly, completely fails</strong>.
 <br />
 <br />
-A more robust perturbation mechanism is needed. 
-Until then, avoid using this routine by using your own ensemble of initial conditions. 
+A more robust perturbation mechanism is needed.
+Until then, avoid using this routine by using your own ensemble of initial conditions.
 This is determined by setting
 <em class=file>input.nml</em><em class=code>&amp;filter_nml:start_from_restart = .false.</em>
 </P>
@@ -1148,8 +1148,8 @@ This is determined by setting
     <TD>The perturbed state vector.</TD></TR>
 
 <TR><TD valign=top><em class=code>interf_provided&nbsp;&nbsp;&nbsp;</em></TD>
-    <TD>Because of the 'wet/dry' issue discussed above, this is always 
-        <em class=code>.true.</em>, indicating a model-specific perturbation 
+    <TD>Because of the 'wet/dry' issue discussed above, this is always
+        <em class=code>.true.</em>, indicating a model-specific perturbation
         is available.</TD></TR>
 
 </TABLE>
@@ -1376,9 +1376,9 @@ type(time_type),        intent(out)   :: <em class=code>model_time</em>
 <P>
    <em class=code>restart_file_to_sv</em>
    Reads <em class=code>SALT_CUR</em>, <em class=code>TEMP_CUR</em>,
-         <em class=code>UVEL_CUR</em>, <em class=code>VVEL_CUR</em>, and 
-         <em class=code>PSURF_CUR</em> from a NOAH netCDF format restart 
-   file and packs them into a DART state vector. The DART vector is simply 
+         <em class=code>UVEL_CUR</em>, <em class=code>VVEL_CUR</em>, and
+         <em class=code>PSURF_CUR</em> from a NOAH netCDF format restart
+   file and packs them into a DART state vector. The DART vector is simply
    a 1D vector that includes all the 'dry' cells as well as the 'wet' ones.
 </P>
 
@@ -1421,7 +1421,7 @@ type(time_type),        intent(in) :: <em class=code>statedate</em>
 <P>
 <em class=code>sv_to_restart_file</em>
 updates the SALT_CUR, TEMP_CUR, UVEL_CUR, VVEL_CUR, and PSURF_CUR variables
-in the NOAH netCDF-format restart file with values from 
+in the NOAH netCDF-format restart file with values from
 the DART vector <em class=code>state_vector</em>. The time in the
 file must match the <em class=code>statedate</em>.
 </P>
@@ -1460,7 +1460,7 @@ character(len=*), intent(out) :: <em class=code>filename</em>
 
 <P>
 <em class=code>get_pop_restart_filename</em>
-is actually a 'pass-through' to a routine of the same name in 
+is actually a 'pass-through' to a routine of the same name in
 <em class=file>dart_pop_mod.f90</em>, since the filename is in
 module storage in <em class=program>dart_pop_mod</em>.
 
@@ -1497,7 +1497,7 @@ integer, intent(in) :: <em class=code>test_casenum</em>
 <em class=code>test_interpolation</em>
 is a rigorous test of the interpolation routine and relies completely
 on data files that are not normally distributed with DART. This routine
-is only used by <em class=file>test_dipole_interp.f90</em> and is not 
+is only used by <em class=file>test_dipole_interp.f90</em> and is not
 normally part of the user-callable routines.
 </P>
 
@@ -1534,7 +1534,7 @@ normally part of the user-callable routines.
 <TR><TD>dart_log.out [default name]</TD>
     <TD>the run-time diagnostic output</TD></TR>
 <TR><TD>dart_log.nml [default name]</TD>
-    <TD>the record of all the namelists actually USED - 
+    <TD>the record of all the namelists actually USED -
         contains the default values</TD></TR>
 </TABLE>
 <br />
@@ -1564,11 +1564,11 @@ normally part of the user-callable routines.
 <TR><!-- routine --><TD VALIGN=top>update_reg_list</TD>
     <!-- message --><TD VALIGN=top>max_reg_list_num&nbsp;(##)&nbsp;is&nbsp;too&nbsp;small&nbsp;...&nbsp;increase
 values.</TD>
-    <!-- comment --><TD VALIGN=top>The max_reg_list_num controls the size of temporary 
-    storage used for initializing the regular grid. Four arrays of size 
+    <!-- comment --><TD VALIGN=top>The max_reg_list_num controls the size of temporary
+    storage used for initializing the regular grid. Four arrays of size
     num_reg_x*num_reg_y*max_reg_list_num are needed. The initialization
     fails and returns an error if max_reg_list_num is too small. A value of
-    30 is sufficient for the x3 NOAH grid with 180 regular lon and lat boxes 
+    30 is sufficient for the x3 NOAH grid with 180 regular lon and lat boxes
     and a value of 80 is sufficient for for the x1 grid. Look at the output
     from <em class=program>init_dipole_interp()</em> for values for new grids.</TD>
 </TR>
@@ -1613,13 +1613,13 @@ none at this time
 <div class="top">[<a href="#">top</a>]</div><hr />
 <H2>FUTURE PLANS</H2>
 <P>
-<em class=file>dart_pop_mod</em>:<em class=code>set_model_time_step()</em> 
-must ensure the forecast length is a multiple of the ocean model 
+<em class=file>dart_pop_mod</em>:<em class=code>set_model_time_step()</em>
+must ensure the forecast length is a multiple of the ocean model
 dynamical timestep declared by ????
 <br />
 <br />
-Provide a better mechanism for generating a set of perturbed initial 
-conditions - <em class=code>pert_model_state()</em> 
+Provide a better mechanism for generating a set of perturbed initial
+conditions - <em class=code>pert_model_state()</em>
 </P>
 
 <!--==================================================================-->

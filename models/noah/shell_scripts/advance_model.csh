@@ -51,33 +51,38 @@ set control_file = $3
 # The run-time directory for the entire experiment is called CENTRALDIR;
 # we need to provide a safe haven for each TASK ... in 'temp_dir'.
 
-set temp_dir = 'advance_temp'${process}
+set temp_dir = 'advance_temp'$process
 
 # Create a clean temporary directory and go there
-\rm -rf  $temp_dir  || exit 1
+# \rm -rf  $temp_dir  || exit 1
 mkdir -p $temp_dir  || exit 1
 cd       $temp_dir  || exit 1
 
 # Get the DART input.nml and the NOAH namelist
 
 foreach FILE ( GENPARM.TBL SOILPARM.TBL URBPARM.TBL VEGPARM.TBL namelist.hrldas input.nml )
-   cp -v ../$FILE . || exit 2
+   \cp -v ../$FILE . || exit 2
 end
 
-set  MYSTRING = `grep HRLDAS_CONSTANTS_FILE namelist.hrldas`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
-set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
-set  NOAHFILE = `echo $MYSTRING[2]`
-ln -sv ../${NOAHFILE} .
+set MYSTRING = `grep HRLDAS_CONSTANTS_FILE namelist.hrldas`
+set MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
+set NOAHFILE = `echo $MYSTRING[$#MYSTRING]`
+\ln -sv ../$NOAHFILE .
 
-# bulletproof against '! '
-# get the directory containing the LDASIN files
-set  MYSTRING  = `grep LDASINDIR namelist.hrldas`
-set  MYSTRING  = `echo $MYSTRING | sed -e "s#[=,']# #g"`
-set  MYSTRING  = `echo $MYSTRING | sed -e 's#"# #g'`
-set  LDASINDIR = `echo $MYSTRING[2]`
+# Extract the directory containing the forcing files used to create the LDASIN files.
+# This script uses logic that requires ALL of the hourly forcing files
+# to be concatenated into a single netCDF file that uses 'time' as the unlimited
+# dimension. The required time slices are extracted from this single netCDF file
+# into the filenames expected by NOAH. Since each ensemble member generally gets
+# a unique atmospheric forcing, this helps minimize the number of files. 
 
-echo "LDAS input files coming from $LDASINDIR"
+set MYSTRING   = `grep FORCING_FILE_DIRECTORY namelist.hrldas`
+set MYSTRING   = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set MYSTRING   = `echo $MYSTRING | sed -e 's#"# #g'`
+set FORCINGDIR = `echo $MYSTRING[$#MYSTRING]`
+
+# echo "Master atmospheric netCDF forcing file(s) coming from $FORCINGDIR"
 
 # Loop through each state
 set state_copy = 1
@@ -90,7 +95,7 @@ while($state_copy <= $num_states)
    set ensemble_member = `head -$ensemble_member_line ../$control_file | tail -1`
    set input_file      = `head -$input_file_line      ../$control_file | tail -1`
    set output_file     = `head -$output_file_line     ../$control_file | tail -1`
-   set fext            = `printf "%04d" $ensemble_member`
+   set instance        = `printf "%04d" $ensemble_member`
 
    #-------------------------------------------------------------------
    # Block 2: copy/convert the DART state vector to something the 
@@ -101,11 +106,18 @@ while($state_copy <= $num_states)
    #          * convert the DART state vector to model format 
    #-------------------------------------------------------------------
 
-   echo "advance_model.csh block 2 converting ensemble member $fext"
+   # echo "advance_model.csh block 2 converting ensemble member $instance"
 
-   ln -sf ../restart.$fext.nc  restart.nc   || exit 2
-   ln -sf ../$input_file       dart_restart || exit 2
-   ../dart_to_noah                          || exit 2
+   \rm -f restart.nc dart_restart noah_advance_information.txt
+   \ln -v ../restart.$instance.nc  restart.nc   || exit 2
+   \ln -s ../$input_file           dart_restart || exit 2
+   ../dart_to_noah                              || exit 2
+
+   if ( ! -e noah_advance_information.txt ) then
+      echo "ERROR: dart_to_noah failed for member $ensemble_member"
+      echo "ERROR: dart_to_noah failed for member $ensemble_member"
+      echo "ERROR: dart_to_noah failed for member $ensemble_member"
+   endif
 
    # This next two parts are based on using one-hour forcing files
    # since the minimum time to advance the model seems to be 1 hour.
@@ -116,7 +128,7 @@ while($state_copy <= $num_states)
    set numadvancestr = `grep -i khour noah_advance_information.txt`
    set numadvancestr = `echo $numadvancestr | sed -e "s#[=,']# #g"`
    set numadvancestr = `echo $numadvancestr | sed -e 's#"# #g'`
-   set numadvances   = `echo $numadvancestr[2]`
+   set numadvances   = `echo $numadvancestr[$#numadvancestr]`
 
 ex namelist.hrldas <<ex_end
 g;KHOUR ;s;= .*;= $numadvances;
@@ -127,20 +139,41 @@ ex_end
    # FORCING_TIMESTEP is defined in namelist.input At this point, dart_to_noah
    # has assumptions that the forcing_timestep is one hour.
 
-   set numfilestring = `head -4 noah_advance_information.txt | tail -1`
-   set numfilestring = `echo $numfilestring | sed -e "s#[=,']# #g"`
+   set numfilestring = `grep -ni nfiles noah_advance_information.txt`
+   set numfilestring = `echo $numfilestring | sed -e "s#[=,':]# #g"`
    set numfilestring = `echo $numfilestring | sed -e 's#"# #g'`
-   set numfiles      = `echo $numfilestring[2]`
+   set numfiles      = `echo $numfilestring[$#numfilestring]`
+   set skipNlines    = `echo $numfilestring[1]`
+
+   # Extract needed forcing periods from master NetCDF file located in $FORCINGDIR.
+   #
+   # For PERTURBED FORCING ... there must be a forcing file for each ensemble member
+   # with names like 'noah_forcing.$FYEAR.nnnn.nc' - where nnnn is a 
+   # zero-filled integer corresponding to the ensemble member instance [0001, 0002, ...]
 
    @ ifile = 1
    while ($ifile <= $numfiles)
-      @ linenum = 4 + $ifile
-      set FNAME = `head -${linenum} noah_advance_information.txt | tail -1`
-      ln -sf ${LDASINDIR}/${FNAME} .
+      @ linenum = $skipNlines + $ifile
+      set FNAME = `head -$linenum noah_advance_information.txt | tail -1`
+      set FDATE = `echo $FNAME | sed -e "s#[.,']# #g"`
+      set FDATE = `echo $FDATE[1]`
+      set FYEAR = `echo $FDATE] | cut -c1-4`
+      set FFILE = $FORCINGDIR/noah_forcing_$FYEAR.$instance.nc
+   
+      # Print some message
+      # echo 'extracting forcing for ' $FDATE.LDASIN_DOMAIN1
+
+      # Now create forcing data for single timestep
+      ncks -O -a -d time,$FDATE. $FFILE $FDATE.LDASIN_DOMAIN1
+
+      if ($status != 0) then
+         echo "ERROR: cannot create LDASIN file for $FDATE from $FFILE"
+         echo "ERROR: cannot create LDASIN file for $FDATE from $FFILE"
+         exit 20
+      endif
+
       @ ifile = $ifile + 1
    end
-
-   # ncks -d time,1 santarita_2009.$fext.nc ldasin.nc
 
    #-------------------------------------------------------------------
    # Block 3: advance the model
@@ -159,32 +192,35 @@ ex_end
       echo "ERROR: NOAH died"
       ls -l
       exit 23
+   else if ($noah_status > 1) then
+      echo "WARNING: NOAH created the following RESTART files. only expected one." 
+      ls -l RESTART*DOMAIN*
    endif
 
    \rm -f restart.nc
 
    #-------------------------------------------------------------------
-   # Block 4: Move the updated state vector back to CENTRALDIR
-   #          (temp_ud was created by integrate_model and is in the 
-   #          right format already.) In general, you must convert your 
-   #          model output to a DART ics file with the proper name.
+   # Block 4: convert the new model state into a DART-readable form. 
+   #          rename the restart file to reflect the ensemble member ID
    #-------------------------------------------------------------------
 
-   set RESTART = `ls -1 RESTART* | tail -1`
+   set RESTART = `ls -1  RESTART* | tail -1`
+   set LDASOUT = `ls -1 *LDASOUT* | tail -1`
 
-   ln -sf ${RESTART} restart.nc
-   ../noah_to_dart                 || exit 4
-   \mv -v dart_ics ../$output_file || exit 4
-   \rm restart.nc
+   \ln -s $RESTART  restart.nc  || exit 4
+   ../noah_to_dart              || exit 4
 
-   # rename the restart file to reflect the ensemble member ID
-
-   \mv -v  ${RESTART} ../restart.$fext.nc
+   \mv -v  dart_ics  ../$output_file          || exit 5
+   \mv -v  $RESTART  ../$RESTART.$instance.nc || exit 5
+   \mv -v  $LDASOUT  ../$LDASOUT.$instance.nc || exit 5
+   \ln -sf $RESTART.$instance.nc ../restart.$instance.nc
+   \ln -sf $RESTART.$instance.nc ../restart.nc
 
    @ state_copy++
    @ ensemble_member_line = $ensemble_member_line + 3
    @ input_file_line = $input_file_line + 3
    @ output_file_line = $output_file_line + 3
+
 end
 
 # Change back to original directory and get rid of temporary directory.
@@ -192,7 +228,7 @@ end
 # If you are debugging, you may want to keep this directory. 
 
 cd ..
-# \rm -rf $temp_dir
+\rm -rf $temp_dir
 
 # MANDATORY - Remove the control_file to signal completion. If it still
 # exists in CENTRALDIR after all the ensemble members have been advanced,

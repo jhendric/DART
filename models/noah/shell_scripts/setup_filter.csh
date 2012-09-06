@@ -45,13 +45,15 @@ foreach FILE ( Noah_hrldas_beta SOILPARM.TBL VEGPARM.TBL GENPARM.TBL URBPARM.TBL
    endif
 end
 
-if ( -e wrfinput ) then
-   echo "Using existing wrfinput"
-else
-   ${COPY} ${NOAHDIR}/Run/wrfinput.template wrfinput  || exit 1
-endif
+foreach FILE ( wrfinput namelist.hrldas )
+   if ( -e ${FILE} ) then
+      echo "Using existing ${FILE}"
+   else
+      ${COPY} ${DARTDIR}/templates/${FILE}.template ${FILE} || exit 1
+   endif
+end
 
-foreach FILE ( namelist.hrldas obs_seq.out input.nml filter dart_to_noah noah_to_dart restart_file_tool )
+foreach FILE ( obs_seq.out input.nml filter dart_to_noah noah_to_dart restart_file_tool )
    if ( -e ${FILE} )  then
       echo "Using existing $FILE"
    else
@@ -72,11 +74,11 @@ end
 # need a set of noah restart files to define the initial ensemble
 #
 # 1) point to a directory full of noah restart files and pick N of them;
+#    The tricky part is that the Time variable in those files is all wrong.
 # 2) convert them to DART format;
 # 3) make sure the time in each DART file is 'identical'
 # 4) the original noah restart files are also needed to start up
-#    advance_model.csh for the first model advance. The tricky part is
-#    that the Time variable in those files is all wrong.
+#    advance_model.csh for the first model advance.
 #
 # NOTE : This is for testing the machinery ONLY! If you try to publish a paper
 # with this ensemble I will REJECT IT AND EVERY OTHER PAPER IN YOUR CAREER.
@@ -89,10 +91,13 @@ echo "the time we are inserting in the initial ensemble."
 echo "DART can advance the model states to the observation time."
 echo "DART cannot move the model state back in time."
 
-set ENSEMBLESOURCE = /Users/thoar/svn/DART/devel/models/noah/src/hrldas-v3.3/Run/hourly_output
+set ENSEMBLESOURCE = /Users/thoar/svn/DART/devel/models/noah/ensemble_source
 
-set   nfiles = `ls -1 ${ENSEMBLESOURCE}/RESTART*DOMAIN* | wc -l`
-set filelist = `ls -1 ${ENSEMBLESOURCE}/RESTART*DOMAIN*`
+set   nfiles = `ls -1 ${ENSEMBLESOURCE}/RESTART*DOMAIN* | wc -l` || exit 2
+set filelist = `ls -1 ${ENSEMBLESOURCE}/RESTART*DOMAIN*`         || exit 2
+
+# now that we know everything about the initial ensemble; 
+# ensure the times are consistent and then convert to DART initial condition files.
 
 @ ifile = 1
 @ ensemble_member = 0
@@ -102,19 +107,20 @@ while ($ifile <= $nfiles)
    set fext = `printf %04d $ensemble_member`
 
    # make sure all the initial ensemble files have the same time.
+   # If the restart files already have identical, correct times, you can skip this part.
 
-   ncap2 -O -s 'Times(0,:)="2004-01-01_01:00:00"' $filelist[$ifile] restart.$fext.nc
+   ncap2 -O -s 'Times(0,:)="2009-01-02_01:00:00"' $filelist[$ifile] restart.$fext.nc
    if ($status != 0) then
       echo "WARNING: time conversion failed"
    endif
+   ln -svf restart.$fext.nc restart.nc
 
    # make initial conditions for DART
 
-   ln -svf restart.$fext.nc restart.nc
    ./noah_to_dart                     || exit 3
    ${MOVE} dart_ics filter_ics.$fext  || exit 4
 
-   @ ifile = $ifile + 10
+   @ ifile = $ifile + 1
 end
 
 # Since we have some knowledge of the ensemble size, 
@@ -130,18 +136,20 @@ g;single_restart_file_out ;s;= .*;= .false.,;
 wq
 ex_end
 
+# DART needs a copy of the NOAH restart file to determine the sizes
+# of the state vector components. We are going to LEAVE the final
+# ensemble member restart file linked to the expected restart file name.
+
 #==============================================================================
 # Finish up.
 #==============================================================================
 
-${REMOVE} restart.nc
-
 echo
 echo "CENTRALDIR is ${CENTRALDIR}"
-echo "Configure the ${CENTRALDIR}/input.nml"
-echo "Configure the ${CENTRALDIR}/namelist.hrldas"
-echo "execute       ${CENTRALDIR}/run_filter.csh"
+echo "Configure     ${CENTRALDIR}/input.nml"
+echo "Configure     ${CENTRALDIR}/namelist.hrldas"
 echo "Configure     ${CENTRALDIR}/wrfinput"
+echo "execute       ${CENTRALDIR}/run_filter.csh"
 echo
 
 exit 0

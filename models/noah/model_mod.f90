@@ -190,13 +190,16 @@ type progvartype
    character(len=NF90_MAX_NAME) :: stagger
    character(len=obstypelength), dimension(NF90_MAX_VAR_DIMS) :: dimnames
    integer, dimension(NF90_MAX_VAR_DIMS) :: dimlens
-   integer :: numdims
-   integer :: maxlevels
-   integer :: xtype
-   integer :: varsize     ! prod(dimlens(1:numdims))
-   integer :: index1      ! location in dart state vector of first occurrence
-   integer :: indexN      ! location in dart state vector of last  occurrence
-   integer :: dart_kind
+   integer  :: numdims
+   integer  :: maxlevels
+   integer  :: xtype
+   integer  :: varsize     ! prod(dimlens(1:numdims))
+   integer  :: index1      ! location in dart state vector of first occurrence
+   integer  :: indexN      ! location in dart state vector of last  occurrence
+   integer  :: dart_kind
+   integer  :: rangeRestricted
+   real(r8) :: maxvalue
+   real(r8) :: minvalue
    character(len=paramname_length) :: kind_string
 end type progvartype
 
@@ -410,6 +413,28 @@ FILL_PROGVAR : do ivar = 1, nfields
       progvar(ivar)%stagger = '-'
    endif
 
+   ! if the variable is bounded, then we need to know how to restrict it.
+   ! rangeRestricted == 0 is unbounded
+   ! rangeRestricted == 1 is bounded below
+   ! rangeRestricted == 2 is bounded above           ( TJH unsupported )
+   ! rangeRestricted == 3 is bounded above and below ( TJH unsupported )
+   ! Until we have more information ... (i.e. the netCDF files have the appropriate
+   ! valid_range attribute) ... we must guess.
+
+   if ( varname == 'QFX' ) then
+      progvar(ivar)%rangeRestricted = 0
+      progvar(ivar)%minvalue        = -1.0_r8*huge(0.0_r8)
+      progvar(ivar)%maxvalue        = huge(0.0_r8)
+   elseif ( varname == 'HFX' ) then
+      progvar(ivar)%rangeRestricted = 0
+      progvar(ivar)%minvalue        = -1.0_r8*huge(0.0_r8)
+      progvar(ivar)%maxvalue        = huge(0.0_r8)
+   else
+      progvar(ivar)%rangeRestricted = 1
+      progvar(ivar)%minvalue        = 0.0_r8
+      progvar(ivar)%maxvalue        = huge(0.0_r8)
+   endif
+
    ! These variables have a Time dimension. We only want the most recent time.
 
    varsize = 1
@@ -422,7 +447,7 @@ FILL_PROGVAR : do ivar = 1, nfields
 
       if ((trim(dimname) == 'Time') .or. (trim(dimname) == 'time')) dimlen = 1
       progvar(ivar)%dimlens( i) = dimlen
-      progvar(ivar)%dimnames(i) = dimname
+      progvar(ivar)%dimnames(i) = trim(dimname)
       varsize = varsize * dimlen
 
    enddo DimensionLoop
@@ -585,7 +610,7 @@ subroutine model_interpolate(x, location, itype, obs_val, istatus)
 ! 0 unless there is some problem in computing the interpolation in
 ! which case an alternate value should be returned. The itype variable
 ! is a model specific integer that specifies the type of field (for
-! instance temperature, zonal wind component, etc.). 
+! instance temperature, zonal wind component, etc.).
 
 real(r8),            intent(in) :: x(:)
 type(location_type), intent(in) :: location
@@ -600,7 +625,7 @@ integer                :: gridloni, gridlatj, zlev, n, ivar, indx
 
 if ( .not. module_initialized ) call static_init_model
 
-! FIXME - for the single column case - there is no obvious way to 
+! FIXME - for the single column case - there is no obvious way to
 ! determine the extent of the domain ... EVERYTHING matches.
 
 if( west_east*south_north /= 1 ) then
@@ -630,7 +655,7 @@ loc_depth = loc(3)
 
 ! one use of model_interpolate is to allow other modules/routines
 ! the ability to 'see' the model levels. To do this, we can create
-! locations with model levels and 'interpolate' them to 
+! locations with model levels and 'interpolate' them to
 ! KIND_GEOPOTENTIAL_HEIGHT
 
 if ( (itype == KIND_GEOPOTENTIAL_HEIGHT) .and. vert_is_level(location) ) then
@@ -669,10 +694,10 @@ else
          exit DEPTH
       endif
    enddo DEPTH
-   indx = progvar(ivar)%index1 + zlev - 1 
+   indx = progvar(ivar)%index1 + zlev - 1
 endif
 
-obs_val = x( indx ) 
+obs_val = x( indx )
 if (obs_val /= MISSING_R8) istatus = 0
 
 if ( debug > 99 ) then
@@ -777,7 +802,7 @@ end subroutine end_model
 function nc_write_model_atts( ncFileID ) result (ierr)
 !------------------------------------------------------------------
 ! This routine writes all the netCDF 'infrastructure' and sets up the
-! global attributes, dimensions, coordinate variables, and output variables. 
+! global attributes, dimensions, coordinate variables, and output variables.
 ! The actuall filling of the output variables is done by
 ! nc_write_model_vars() which can be called repeatedly for each
 ! assimilation cycle.
@@ -1224,7 +1249,7 @@ ierr = -1 ! assume things go poorly
 write(filename,*) 'ncFileID', ncFileID
 
 !-------------------------------------------------------------------------------
-! make sure ncFileID refers to an open netCDF file, 
+! make sure ncFileID refers to an open netCDF file,
 !-------------------------------------------------------------------------------
 
 call nc_check(nf90_inq_dimid(ncFileID, 'copy', dimid=CopyDimID), &
@@ -1258,12 +1283,12 @@ else
 
       ! Ensure netCDF variable is conformable with progvar quantity.
       ! The TIME and Copy dimensions are intentionally not queried.
-      ! This requires that Time is the unlimited dimension (the last one in Fortran), 
+      ! This requires that Time is the unlimited dimension (the last one in Fortran),
       ! and that 'copy' is the second-to-last. The variables declared in the DART
       ! diagnostic files are required to have the same shape as in the source
       ! restart file. If Time is present there, it must also be the 'last' one.
 
-      ! FIXME ... somewhere I should ensure that IF time is present in the original 
+      ! FIXME ... somewhere I should ensure that IF time is present in the original
       ! prognostic variable from the model, it is the last/unlimited dimension.
 
       call nc_check(nf90_inq_varid(ncFileID, varname, VarID), &
@@ -1536,7 +1561,6 @@ type(time_type),  intent(out)   :: restart_time
 integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, ncstart, nccount
 character(len=NF90_MAX_NAME) :: dimname, varname
 
-integer  :: year,month,day,hours,minutes
 integer  :: ncid, ncNdims, dimlen, VarID
 integer  :: i, indx1, indx2, indx3, indx4, indx, ivar, ntimes
 
@@ -1628,7 +1652,7 @@ do ivar=1, nfields
    endif
 
    ! FIXME - this is probably the place to ensure that the Time dimension is the last
-   ! dimension if it is present. unlimited dimension 
+   ! dimension if it is present. unlimited dimension
 
    ! Pack the variable into the DART state vector
 
@@ -1759,7 +1783,7 @@ integer :: timeindex, dimlen, numdims, timedimcounter
 type(time_type) :: file_time
 
 ! temp space to hold data while we are writing it
-integer :: i, ni, nj, ivar
+integer :: i, ivar
 real(r8), allocatable, dimension(:)         :: data_1d_array
 real(r8), allocatable, dimension(:,:)       :: data_2d_array
 real(r8), allocatable, dimension(:,:,:)     :: data_3d_array
@@ -1869,7 +1893,7 @@ UPDATE : do ivar=1, nfields
    if ( numdims == 1 ) then
 
       allocate(data_1d_array(progvar(ivar)%dimlens(1)))
-      call vector_to_prog_var(state_vector, ivar, data_1d_array)
+      call vector_to_prog_var(state_vector, ivar, data_1d_array,limit=.true.)
       call nc_check(nf90_put_var(ncFileID, VarID, data_1d_array, &
              start = mystart(1:ncNdims), count=mycount(1:ncNdims)), &
             'dart_vector_to_model_file', 'put_var '//trim(string2))
@@ -1879,7 +1903,7 @@ UPDATE : do ivar=1, nfields
 
       allocate(data_2d_array(progvar(ivar)%dimlens(1), &
                              progvar(ivar)%dimlens(2)))
-      call vector_to_prog_var(state_vector, ivar, data_2d_array)
+      call vector_to_prog_var(state_vector, ivar, data_2d_array,limit=.true.)
       call nc_check(nf90_put_var(ncFileID, VarID, data_2d_array, &
              start = mystart(1:ncNdims), count=mycount(1:ncNdims)), &
             'dart_vector_to_model_file', 'put_var '//trim(string2))
@@ -1890,7 +1914,7 @@ UPDATE : do ivar=1, nfields
       allocate(data_3d_array(progvar(ivar)%dimlens(1), &
                              progvar(ivar)%dimlens(2), &
                              progvar(ivar)%dimlens(3)))
-      call vector_to_prog_var(state_vector, ivar, data_3d_array)
+      call vector_to_prog_var(state_vector, ivar, data_3d_array,limit=.true.)
       call nc_check(nf90_put_var(ncFileID, VarID, data_3d_array, &
              start = mystart(1:ncNdims), count=mycount(1:ncNdims)), &
             'dart_vector_to_model_file', 'put_var '//trim(string2))
@@ -1928,7 +1952,7 @@ function get_state_time(ncid, filename, timeindex)
 ! It is one noah_timestep AHEAD of the valid time.
 !
 ! for instance, if the noah_timestep is 3600 seconds, the restart_frequency_hours is 1,
-! and the filename is RESTART.2004010102_DOMAIN1 the 
+! and the filename is RESTART.2004010102_DOMAIN1 the
 !
 !        Time = UNLIMITED ; // (blah_blah_blah currently)
 !        DateStrLen = 19 ;
@@ -1949,7 +1973,6 @@ integer, optional, intent(out) :: timeindex
 character(len=19), allocatable, dimension(:) :: datestring
 integer               :: year, month, day, hour, minute, second
 integer               :: DimID, VarID, strlen, ntimes
-integer, dimension(2) :: ncstart, nccount
 type(time_type)       :: filetime, timestep
 
 if ( .not. module_initialized ) call static_init_model
@@ -2012,7 +2035,7 @@ subroutine get_hrldas_constants(filename)
 character(len=*), intent(in) :: filename
 
 integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, ncstart, nccount
-character(len=NF90_MAX_NAME)          :: dimname, varname
+character(len=NF90_MAX_NAME)          :: dimname
 
 integer :: i, iunit, DimID, VarID, numdims, dimlen, xtype
 
@@ -2145,7 +2168,7 @@ end subroutine define_var_dims
 
 
 
-subroutine vector_to_1d_prog_var(x, ivar, data_1d_array)
+subroutine vector_to_1d_prog_var(x, ivar, data_1d_array, limit)
 !------------------------------------------------------------------
 ! convert the values from a 1d array, starting at an offset, into a 1d array.
 !
@@ -2159,8 +2182,9 @@ subroutine vector_to_1d_prog_var(x, ivar, data_1d_array)
 real(r8), dimension(:),   intent(in)  :: x
 integer,                  intent(in)  :: ivar
 real(r8), dimension(:),   intent(out) :: data_1d_array
+logical,  OPTIONAL,       intent(in)  :: limit
 
-integer :: i,ii, VarID
+integer :: i,ii
 
 if ( .not. module_initialized ) call static_init_model
 
@@ -2172,6 +2196,19 @@ do i = 1, progvar(ivar)%dimlens(1)
    data_1d_array(i) = x(ii)
    ii = ii + 1
 enddo
+
+if (present(limit)) then
+if ( limit ) then
+   if (    progvar(ivar)%rangeRestricted == 1) then
+      where(data_1d_array < progvar(ivar)%minvalue) data_1d_array = progvar(ivar)%minvalue
+   elseif (progvar(ivar)%rangeRestricted == 2) then
+      where(data_1d_array > progvar(ivar)%maxvalue) data_1d_array = progvar(ivar)%maxvalue
+   elseif (progvar(ivar)%rangeRestricted == 3) then
+      where(data_1d_array < progvar(ivar)%minvalue) data_1d_array = progvar(ivar)%minvalue
+      where(data_1d_array > progvar(ivar)%maxvalue) data_1d_array = progvar(ivar)%maxvalue
+   endif
+endif
+endif
 
 ii = ii - 1
 if ( ii /= progvar(ivar)%indexN ) then
@@ -2186,7 +2223,7 @@ end subroutine vector_to_1d_prog_var
 
 
 
-subroutine vector_to_2d_prog_var(x, ivar, data_2d_array)
+subroutine vector_to_2d_prog_var(x, ivar, data_2d_array, limit)
 !------------------------------------------------------------------
 ! convert the values from a 1d array, starting at an offset,
 ! into a 2d array.
@@ -2194,12 +2231,13 @@ subroutine vector_to_2d_prog_var(x, ivar, data_2d_array)
 real(r8), dimension(:),   intent(in)  :: x
 integer,                  intent(in)  :: ivar
 real(r8), dimension(:,:), intent(out) :: data_2d_array
+logical,  OPTIONAL,       intent(in)  :: limit
 
-integer :: i,j,ii, VarID
+integer :: i,j,ii
 
 if ( .not. module_initialized ) call static_init_model
 
-! unpack the right part of the DART state vector into a 1D array.
+! unpack the right part of the DART state vector into a 2D array.
 
 ii = progvar(ivar)%index1
 
@@ -2209,6 +2247,19 @@ do i = 1,progvar(ivar)%dimlens(1)
    ii = ii + 1
 enddo
 enddo
+
+if (present(limit)) then
+if ( limit ) then
+   if (    progvar(ivar)%rangeRestricted == 1) then
+      where(data_2d_array < progvar(ivar)%minvalue) data_2d_array = progvar(ivar)%minvalue
+   elseif (progvar(ivar)%rangeRestricted == 2) then
+      where(data_2d_array > progvar(ivar)%maxvalue) data_2d_array = progvar(ivar)%maxvalue
+   elseif (progvar(ivar)%rangeRestricted == 3) then
+      where(data_2d_array < progvar(ivar)%minvalue) data_2d_array = progvar(ivar)%minvalue
+      where(data_2d_array > progvar(ivar)%maxvalue) data_2d_array = progvar(ivar)%maxvalue
+   endif
+endif
+endif
 
 ii = ii - 1
 if ( ii /= progvar(ivar)%indexN ) then
@@ -2223,7 +2274,7 @@ end subroutine vector_to_2d_prog_var
 
 
 
-subroutine vector_to_3d_prog_var(x, ivar, data_3d_array)
+subroutine vector_to_3d_prog_var(x, ivar, data_3d_array, limit)
 !------------------------------------------------------------------
 ! convert the values from a 1d array, starting at an offset,
 ! into a 3d array.
@@ -2231,12 +2282,13 @@ subroutine vector_to_3d_prog_var(x, ivar, data_3d_array)
 real(r8), dimension(:),     intent(in)  :: x
 integer,                    intent(in)  :: ivar
 real(r8), dimension(:,:,:), intent(out) :: data_3d_array
+logical,  OPTIONAL,         intent(in)  :: limit
 
-integer :: i,j,k,ii, VarID
+integer :: i,j,k,ii
 
 if ( .not. module_initialized ) call static_init_model
 
-! unpack the right part of the DART state vector into a 1D array.
+! unpack the right part of the DART state vector into a 3D array.
 
 ii = progvar(ivar)%index1
 
@@ -2248,6 +2300,19 @@ do i = 1,progvar(ivar)%dimlens(1)
 enddo
 enddo
 enddo
+
+if (present(limit)) then
+if ( limit ) then
+   if (    progvar(ivar)%rangeRestricted == 1) then
+      where(data_3d_array < progvar(ivar)%minvalue) data_3d_array = progvar(ivar)%minvalue
+   elseif (progvar(ivar)%rangeRestricted == 2) then
+      where(data_3d_array > progvar(ivar)%maxvalue) data_3d_array = progvar(ivar)%maxvalue
+   elseif (progvar(ivar)%rangeRestricted == 3) then
+      where(data_3d_array < progvar(ivar)%minvalue) data_3d_array = progvar(ivar)%minvalue
+      where(data_3d_array > progvar(ivar)%maxvalue) data_3d_array = progvar(ivar)%maxvalue
+   endif
+endif
+endif
 
 ii = ii - 1
 if ( ii /= progvar(ivar)%indexN ) then
@@ -2271,7 +2336,7 @@ output    = output_timestep
 forcing   = forcing_timestep
 restart   = restart_frequency_hours*3600
 
-end subroutine 
+end subroutine
 
 
 !===================================================================

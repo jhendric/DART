@@ -5,9 +5,9 @@
      assimilation_period_days     =    0,
      assimilation_period_seconds  = 3600,
      model_perturbation_amplitude = 0.0,
-     output_state_vector          = .false.
+     output_state_vector          = .false.,
      debug                        = 9,
-     calendar                     = 'Gregorian'
+     calendar                     = 'Gregorian',
      noah_variables               = 'SOIL_T',   'KIND_SOIL_TEMPERATURE',
                                     'SOIL_M',   'KIND_SOIL_MOISTURE',
                                     'SOIL_W',   'KIND_SOIL_LIQUID_WATER',
@@ -16,6 +16,7 @@
                                     'WEASD',    'KIND_SNOW_WATER',
                                     'CANWAT',   'KIND_CANOPY_WATER',
                                     'QFX',      'KIND_LATENT_HEAT_FLUX',
+                                    'HFX',      'KIND_SENSIBLE_HEAT_FLUX' 
   /
 
 &noah_to_dart_nml
@@ -24,7 +25,7 @@
 
 &dart_to_noah_nml
    dart_to_noah_input_file   = 'dart_restart',
-   do_not_update_variables   = 'QFX'
+   do_not_update_variables   = 'QFX','HFX',
    advance_time_present      = .true.
   /
 
@@ -138,7 +139,10 @@
 
 &obs_kind_nml
    assimilate_these_obs_types = 'SOIL_TEMPERATURE',
-   evaluate_these_obs_types   = 'COSMOS_NEUTRON_INTENSITY',
+                                'SOIL_MOISTURE',
+                                'LAYER_LIQUID_WATER',
+                                'COSMOS_NEUTRON_INTENSITY',
+   evaluate_these_obs_types   = 'null',
   /
 
 &preprocess_nml

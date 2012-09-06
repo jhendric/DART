@@ -14,11 +14,11 @@ program dart_to_noah
 ! purpose: interface between DART and the NOAH model
 !
 ! method: Read DART state vector and overwrite values in a noah restart file.
-!         If the DART state vector has an 'advance_to_time' present, 
+!         If the DART state vector has an 'advance_to_time' present,
 !         it is read ... but nothing happens with it at this time.
 !         DART is NEVER expected to advance noah.
 !
-!         The dart_to_noah_nml namelist setting for advance_time_present 
+!         The dart_to_noah_nml namelist setting for advance_time_present
 !         determines whether or not the input file has an 'advance_to_time'.
 !         Typically, only temporary files like 'assim_model_state_ic' have
 !         an 'advance_to_time'.
@@ -89,7 +89,7 @@ call static_init_model()
 x_size = get_model_size()
 allocate(statevector(x_size))
 
-! Read the namelist to get the input filename. 
+! Read the namelist to get the input filename.
 
 call find_namelist_in_file("input.nml", "dart_to_noah_nml", iunit)
 read(iunit, nml = dart_to_noah_nml, iostat = io)
@@ -138,7 +138,7 @@ if ( advance_time_present ) then
 
    call get_noah_timestepping(kday, khour, noah_timestep, output_timestep, forcing_timestep, &
                               restart_frequency_seconds)
-   
+
    if ( (noah_timestep == forcing_timestep) .and. &
         (noah_timestep == output_timestep )) then
 
@@ -191,7 +191,7 @@ if ( advance_time_present ) then
    call close_file(iunit)
 
 !  We know we need the forcing file for the timestring contained in the restart file.
-!  This is a direct consequence of requiring the noah_timestep to be the same as the restart_frequency. 
+!  This is a direct consequence of requiring the noah_timestep to be the same as the restart_frequency.
 !  determine how many forcing files are needed
 !  determine the setting of kday or khour
 

@@ -17,7 +17,7 @@ program noah_to_dart
 !         Reform fields into a DART state vector (control vector).
 !         Write out state vector in "proprietary" format for DART.
 !         The output is a "DART restart file" format.
-! 
+!
 ! USAGE:  The noah filename is read from the noah_in namelist
 !         <edit noah_to_dart_output_file in input.nml:noah_to_dart>
 !         noah_to_dart
@@ -92,7 +92,7 @@ endif
 x_size = get_model_size()
 allocate(statevector(x_size))
 
-call noah_to_dart_vector(noah_restart_filename, statevector, model_time) 
+call noah_to_dart_vector(noah_restart_filename, statevector, model_time)
 
 iunit = open_restart_write(noah_to_dart_output_file)
 

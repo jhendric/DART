@@ -32,14 +32,14 @@ set CENTRALDIR = `pwd`
 set NOAHDIR = /Users/thoar/svn/DART/devel/models/noah/src/hrldas-v3.3
 set DARTDIR = /Users/thoar/svn/DART/devel/models/noah
 
-${COPY} ${NOAHDIR}/Run/wrfinput.template    wrfinput  || exit 1
 ${COPY} ${NOAHDIR}/Run/Noah_hrldas_beta            .  || exit 1
 ${COPY} ${NOAHDIR}/Run/SOILPARM.TBL                .  || exit 1
 ${COPY} ${NOAHDIR}/Run/VEGPARM.TBL                 .  || exit 1
 ${COPY} ${NOAHDIR}/Run/GENPARM.TBL                 .  || exit 1
 ${COPY} ${NOAHDIR}/Run/URBPARM.TBL                 .  || exit 1
 
-${COPY} ${DARTDIR}/work/namelist.hrldas            .  || exit 2
+${COPY} ${DARTDIR}/templates/namelist.hrldas.template  namelist.hrldas || exit 2
+${COPY} ${DARTDIR}/templates/wrfinput.template         wrfinput        || exit 2
 
 ${COPY} ${DARTDIR}/work/obs_seq.in                 .  || exit 3
 ${COPY} ${DARTDIR}/work/input.nml                  .  || exit 3
@@ -49,15 +49,18 @@ ${COPY} ${DARTDIR}/work/noah_to_dart               .  || exit 3
 ${COPY} ${DARTDIR}/shell_scripts/run_pmo.csh       .  || exit 3
 ${COPY} ${DARTDIR}/shell_scripts/advance_model.csh .  || exit 3
 
-# need a single noah restart file to be used as THE TRUTH.
-# the input.nml:model_nml noah_netcdf_filename = 'restart.nc'
-# the assimilate.csh scripts wants an ensemble member node
+# Need a single noah restart file to be used as THE TRUTH.
+# This can come from anywhere. Link the file to that expected by DART:
+# input.nml:model_nml noah_netcdf_filename = 'restart.nc'
+# The assimilate.csh scripts wants an ensemble member node, for
+# a perfect_model experiment - this must be 0001.
 
-${COPY} ${NOAHDIR}/Run/hourly_output/RESTART.2004010107_DOMAIN1 restart.nc
-ln -sv restart.nc restart.0001.nc
+${COPY} ${DARTDIR}/ensemble_source/RESTART.2009010200_DOMAIN1.0001.nc  .  || exit 4
+ln -sv RESTART.2009010200_DOMAIN1.0001.nc  restart.nc      || exit 5
+ln -sv RESTART.2009010200_DOMAIN1.0001.nc  restart.0001.nc || exit 5
 
-./noah_to_dart                || exit 3
-${MOVE} dart_ics perfect_ics  || exit 4
+./noah_to_dart                    || exit 6
+${MOVE} dart_ics perfect_ics      || exit 7
 
 echo
 echo "CENTRALDIR is ${CENTRALDIR}"
