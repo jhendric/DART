@@ -1,5 +1,5 @@
 Download the support files to test an installation from:
-http://www.image.ucar.edu/pub/DART/NOAH/NOAH_DART_files.tar
+http://www.image.ucar.edu/pub/DART/NOAH/NOAH_DART_files.tar.gz
 
 Please untar the file from the DART/models/noah directory.
 It will install the following files into
