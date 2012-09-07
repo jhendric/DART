@@ -1759,7 +1759,7 @@ end subroutine noah_to_dart_vector
 
 
 
-subroutine dart_vector_to_model_file(state_vector, filename, dart_time, do_not_update_variables)
+subroutine dart_vector_to_model_file(state_vector, filename, dart_time, skip_variables)
 !------------------------------------------------------------------
 ! Writes the current time and state variables from a dart state
 ! vector (1d array) into a noah netcdf restart file.
@@ -1770,7 +1770,7 @@ subroutine dart_vector_to_model_file(state_vector, filename, dart_time, do_not_u
 real(r8),         intent(in) :: state_vector(:)
 character(len=*), intent(in) :: filename
 type(time_type),  intent(in) :: dart_time
-character(len=*), intent(in) :: do_not_update_variables(:)
+character(len=*), intent(in) :: skip_variables(:)
 
 integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, mystart, mycount
 character(len=NF90_MAX_NAME)          :: varname
@@ -1837,9 +1837,9 @@ UPDATE : do ivar=1, nfields
 
    ! If this variable is on the skip list ... skip it.
 
-   SKIPME : do i = 1,size(do_not_update_variables)
-      if (len_trim(do_not_update_variables(i)) < 1) cycle SKIPME
-      if (trim(do_not_update_variables(i)) == trim(varname)) cycle UPDATE
+   SKIPME : do i = 1,size(skip_variables)
+      if (len_trim(skip_variables(i)) < 1) cycle SKIPME
+      if (trim(skip_variables(i)) == trim(varname)) cycle UPDATE
    enddo SKIPME
 
    ! Ensure netCDF variable is conformable with DART progvar quantity.

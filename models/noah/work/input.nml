@@ -24,9 +24,9 @@
   /
 
 &dart_to_noah_nml
-   dart_to_noah_input_file   = 'dart_restart',
-   do_not_update_variables   = 'QFX','HFX',
-   advance_time_present      = .true.
+   dart_to_noah_input_file = 'dart_restart',
+   skip_variables          = 'QFX','HFX',
+   advance_time_present    = .true.
   /
 
 &perfect_model_obs_nml
@@ -213,12 +213,12 @@
   /
 
 &obs_diag_nml
-   obs_sequence_name = 'obs_seq.final',
+   obs_sequence_name = '../../shell_scripts/bob/obs_seq.final',
    obs_sequence_list = '',
-   first_bin_center =  1601, 1, 1, 0, 0, 0 ,
-   last_bin_center  =  1601, 1, 1, 3, 0, 0 ,
-   bin_separation   =     0, 0, 0, 0, 3, 0 ,
-   bin_width        =     0, 0, 0, 0, 3, 0 ,
+   first_bin_center =  2009, 1, 1, 0, 0, 0 ,
+   last_bin_center  =  2009, 1, 1,12, 0, 0 ,
+   bin_separation   =     0, 0, 0, 1, 0, 0 ,
+   bin_width        =     0, 0, 0, 1, 0, 0 ,
    time_to_skip     =     0, 0, 0, 0, 0, 0 ,
    max_num_bins     = 1000,
    rat_cri            = 3.0,
@@ -230,8 +230,8 @@
    latlim2    =  90.0,
    reg_names  = 'Earth',
    print_mismatched_locs = .false.,
-   print_obs_locations   = .true.,
    verbose               = .false.
+   hlevel = 0.0, -0.25, -0.7, -1.5, -10.0
   /
 
 

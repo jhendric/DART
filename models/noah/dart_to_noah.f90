@@ -52,12 +52,12 @@ character(len=128), parameter :: &
 
 character (len = 128) :: dart_to_noah_input_file = 'dart_restart'
 character (len = 128) :: noah_reqd_file_list = 'ldasin_files_needed'
-character (len=obstypelength), dimension(40) :: do_not_update_variables = ' '
+character (len=obstypelength), dimension(40) :: skip_variables = ' '
 logical               :: advance_time_present   = .true.
 
 namelist /dart_to_noah_nml/ dart_to_noah_input_file, &
                             noah_reqd_file_list,     &
-                            do_not_update_variables, &
+                            skip_variables, &
                             advance_time_present
 
 !----------------------------------------------------------------------
@@ -122,7 +122,7 @@ call close_restart(iunit)
 !----------------------------------------------------------------------
 
 call dart_vector_to_model_file(statevector, noah_restart_filename, model_time, &
-                               do_not_update_variables)
+                               skip_variables)
 
 !----------------------------------------------------------------------
 ! Convey adv_to_time to noah by updating kday or khour in the namelist.
