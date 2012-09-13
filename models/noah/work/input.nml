@@ -16,7 +16,8 @@
                                     'WEASD',    'KIND_SNOW_WATER',
                                     'CANWAT',   'KIND_CANOPY_WATER',
                                     'QFX',      'KIND_LATENT_HEAT_FLUX',
-                                    'HFX',      'KIND_SENSIBLE_HEAT_FLUX' 
+                                    'HFX',      'KIND_SENSIBLE_HEAT_FLUX',
+                                    'GRDFLX',   'KIND_GROUND_HEAT_FLUX'
   /
 
 &noah_to_dart_nml
@@ -233,7 +234,6 @@
    verbose               = .false.
    hlevel = 0.0, -0.25, -0.7, -1.5, -10.0
   /
-
 
 &model_mod_check_nml
    input_file           = "dart_ics",
