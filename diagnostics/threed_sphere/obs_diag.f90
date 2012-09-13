@@ -32,7 +32,7 @@ use obs_sequence_mod, only : read_obs_seq, obs_type, obs_sequence_type, get_firs
                              get_qc, destroy_obs_sequence, read_obs_seq_header, & 
                              get_last_obs, destroy_obs, get_num_qc, get_qc_meta_data
 use      obs_def_mod, only : obs_def_type, get_obs_def_error_variance, get_obs_def_time, &
-                             get_obs_def_location,  get_obs_kind, get_obs_name
+                             get_obs_def_location,  get_obs_kind
 use     obs_kind_mod, only : max_obs_kinds, get_obs_kind_var_type, get_obs_kind_name, &
                              KIND_U_WIND_COMPONENT, KIND_V_WIND_COMPONENT
 use     location_mod, only : location_type, get_location, set_location_missing,   &
@@ -74,6 +74,7 @@ character(len=128), parameter :: &
 
 integer, parameter :: MaxLevels  = 50
 integer, parameter :: MaxRegions = 50
+integer, parameter :: MaxTrusted = 50
 integer, parameter :: stringlength = 32
 
 !---------------------------------------------------------------------
@@ -88,6 +89,7 @@ type(location_type)     :: obs_loc
 
 character(len = 129) :: obs_seq_in_file_name
 character(len = 129), allocatable, dimension(:) :: obs_seq_filenames
+character(len = stringlength), dimension(MaxTrusted) :: trusted_obsname = 'null'
 
 ! Storage with fixed size for observation space diagnostics
 real(r8), dimension(1) :: prior_mean, posterior_mean, prior_spread, posterior_spread
@@ -122,7 +124,6 @@ real(r8) :: obs_error_variance
 
 character(len=129) :: obs_seq_read_format
 logical :: pre_I_format
-logical :: only_print_locations = .false.
 
 integer,  dimension(2) :: key_bounds
 real(r8), dimension(1) :: obs
@@ -131,7 +132,7 @@ real(r8) :: obs_err_var
 integer,  allocatable, dimension(:) :: keys
 integer,  allocatable, dimension(:) :: ens_copy_index
 
-logical :: out_of_range, is_there_one, keeper, create_rank_histogram
+logical :: out_of_range, is_there_one, keeper
 
 !---------------------------------------------------------------------
 ! variables associated with quality control
@@ -154,7 +155,7 @@ logical :: out_of_range, is_there_one, keeper, create_rank_histogram
 ! 8+    reserved for future use
 
 integer             :: org_qc_index, dart_qc_index
-integer             :: qc_integer, my_qc_integer
+integer             :: qc_integer
 integer, parameter  :: QC_MAX = 8
 integer, parameter  :: QC_MAX_PRIOR     = 3
 integer, parameter  :: QC_MAX_POSTERIOR = 1
@@ -163,6 +164,8 @@ real(r8), allocatable, dimension(:) :: qc
 real(r8), allocatable, dimension(:) :: copyvals
 
 integer, parameter, dimension(5) :: hist_qcs = (/ 0, 1, 2, 3, 7 /)
+integer, parameter, dimension(5) :: trusted_prior_qcs = (/ 0, 1, 2, 3, 7 /)
+integer, parameter, dimension(3) :: trusted_poste_qcs = (/ 0, 1,       7 /)
 integer :: numqcvals
 
 !-----------------------------------------------------------------------
@@ -188,32 +191,36 @@ real(r8), dimension(MaxRegions) :: latlim1= MISSING_R8, latlim2= MISSING_R8
 character(len = stringlength), dimension(MaxRegions) :: reg_names = 'null'
 type(location_type), dimension(MaxRegions) :: min_loc, max_loc
 
+character(len = stringlength), dimension(MaxTrusted) :: trusted_obs = 'null'
+
 real(r8):: rat_cri               = 5000.0_r8 ! QC ratio
 real(r8):: input_qc_threshold    = 3.0_r8    ! maximum NCEP QC factor
 logical :: print_mismatched_locs = .false.
-logical :: print_obs_locations   = .false.
 logical :: verbose               = .false.
 logical :: outliers_in_histogram = .false.
+logical :: create_rank_histogram = .true.
 
 namelist /obs_diag_nml/ obs_sequence_name, obs_sequence_list,                 &
                        first_bin_center, last_bin_center,                     &
                        bin_separation, bin_width, time_to_skip, max_num_bins, &
                        plevel, hlevel, mlevel, rat_cri, input_qc_threshold,   &
                        Nregions, lonlim1, lonlim2, latlim1, latlim2,          &
-                       reg_names, print_mismatched_locs, print_obs_locations, &
-                       obs_sequence_list, verbose, outliers_in_histogram
+                       reg_names, print_mismatched_locs,                      &
+                       obs_sequence_list, verbose, outliers_in_histogram,     &
+                       create_rank_histogram, hlevel_edges, trusted_obs
 
 !-----------------------------------------------------------------------
 ! Variables used to accumulate the statistics.
 !-----------------------------------------------------------------------
 
-integer, parameter :: Ncopies = 21
+
+integer, parameter :: Ncopies = 22
 character(len = stringlength), dimension(Ncopies) :: copy_names =                &
    (/ 'Nposs      ', 'Nused      ', 'NbigQC     ', 'NbadIZ     ', 'NbadUV     ', &
       'NbadLV     ', 'rmse       ', 'bias       ', 'spread     ', 'totalspread', &
       'NbadDARTQC ', 'observation', 'ens_mean   ',                               &
       'N_DARTqc_0 ', 'N_DARTqc_1 ', 'N_DARTqc_2 ', 'N_DARTqc_3 ',                &
-      'N_DARTqc_4 ', 'N_DARTqc_5 ', 'N_DARTqc_6 ', 'N_DARTqc_7 ' /)
+      'N_DARTqc_4 ', 'N_DARTqc_5 ', 'N_DARTqc_6 ', 'N_DARTqc_7 ', 'N_trusted  ' /)
 
 type TLRV_type
    ! statistics by time-level-region-variable
@@ -223,7 +230,7 @@ type TLRV_type
    integer :: variable_dim = 4
    character(len=8) :: string
    integer :: num_times = 0, num_levels = 0, num_regions = 0, num_variables = 0
-   integer,  dimension(:,:,:,:), pointer :: Nposs, Nused
+   integer,  dimension(:,:,:,:), pointer :: Nposs, Nused, Ntrusted
    integer,  dimension(:,:,:,:), pointer :: NbigQC ! # original QC values >= input_qc_threshold
    integer,  dimension(:,:,:,:), pointer :: NbadIZ ! # bad (ie huge) Innovation Zscore
    integer,  dimension(:,:,:,:), pointer :: NbadUV ! # unmatched U/V wind pairs
@@ -243,7 +250,7 @@ type LRV_type
    integer :: variable_dim = 3
    character(len=8) :: string
    integer :: num_levels = 0, num_regions = 0, num_variables = 0
-   integer,  dimension(:,:,:), pointer :: Nposs, Nused
+   integer,  dimension(:,:,:), pointer :: Nposs, Nused, Ntrusted
    integer,  dimension(:,:,:), pointer :: NbigQC ! # bad (original) QC values
    integer,  dimension(:,:,:), pointer :: NbadIZ ! # bad (ie huge) Innovation Zscore
    integer,  dimension(:,:,:), pointer :: NbadUV ! # unmatched U/V wind pairs
@@ -278,12 +285,14 @@ real(r8), dimension(MaxLevels+1) :: plevel_edges = MISSING_R8 ! pressure level (
 real(r8), dimension(MaxLevels+1) :: hlevel_edges = MISSING_R8 ! height (meters)
 real(r8), dimension(MaxLevels+1) :: mlevel_edges = MISSING_R8 ! model levels (nondimensional)
 
-integer  :: obsindex, i, iunit, lunit, ierr, io
+integer  :: obsindex, i, iunit, ierr, io, ikind
 
 integer  :: ivert
 integer  :: level_index
-integer  :: Nlevels, ilev   ! counters
+integer  :: Nlevels, ilev, num_trusted   ! counters
 integer  :: seconds, days, Nepochs
+
+logical  :: matched, trusted
 
 integer,  allocatable, dimension(:) :: which_vert ! relates kind of level for each obs kind
 real(r8), allocatable, dimension(:) :: scale_factor ! to convert to plotting units
@@ -308,8 +317,8 @@ type(time_type) :: seqT1, seqTN        ! first,last time in entire observation s
 type(time_type) :: AllseqT1, AllseqTN  ! first,last time in ALL observation sequences
 type(time_type) :: obs_time, skip_time
 
-character(len = 129) :: ncName, locName, msgstring
-character(len = stringlength) :: str1, str2, str3
+character(len = 129) :: ncName, string1, string2, string3
+character(len = stringlength) :: obsname, possible_obs_type
 
 integer  :: Nidentity  = 0   ! identity observations
 
@@ -351,10 +360,50 @@ if (do_nml_file()) write(nmlfileunit, nml=obs_diag_nml)
 if (do_nml_term()) write(    *      , nml=obs_diag_nml)
 
 if ((obs_sequence_name /= '') .and. (obs_sequence_list /= '')) then
-   write(msgstring,*)'specify "obs_sequence_name" or "obs_sequence_list"'
-   call error_handler(E_MSG, 'obs_diag', msgstring, source, revision, revdate)
-   write(msgstring,*)'set other to an empty string ... i.e. ""'
-   call error_handler(E_ERR, 'obs_diag', msgstring, source, revision, revdate)
+   write(string1,*)'specify "obs_sequence_name" or "obs_sequence_list"'
+   write(string2,*)'set other to an empty string ... i.e. ""'
+   call error_handler(E_ERR, 'obs_diag', string1, source, revision, revdate, text2=string2)
+endif
+
+! Count up the number of 'trusted' observations
+! Check to make sure trusted observations desired are supported.
+num_trusted = 0
+CountTrusted : do i = 1,MaxTrusted
+   if (trim(trusted_obs(i)) == 'null') exit CountTrusted
+
+   matched = .false.
+   VerifyTrusted : do ikind = 1,max_obs_kinds
+      possible_obs_type = get_obs_kind_name(ikind)
+      if (trim(trusted_obs(i)) == trim(possible_obs_type)) then
+         matched = .true.
+         exit VerifyTrusted
+      endif
+   enddo VerifyTrusted
+
+   if (matched) then
+       num_trusted = num_trusted + 1
+       trusted_obsname(num_trusted) = trim(trusted_obs(i))
+   else
+      write(string1,*)'trusted_obs "',trim(trusted_obs(i)),'" is not a supported observation type.'
+      call error_handler(E_WARN, 'obs_diag', string1, source, revision, revdate)
+   endif
+enddo CountTrusted
+
+if (num_trusted == MaxTrusted) then
+   write(string1,*)'There are ',num_trusted,' "trusted" observation types.'
+   write(string2,*)'This is the maximum allowed unless you increase "MaxTrusted" and recompile.'
+   call error_handler(E_WARN, 'obs_diag', string1, source, revision, revdate, text2=string2)
+endif
+
+if (num_trusted > 0 ) then
+   write(string1,*)'There are ',num_trusted,' "trusted" observation types, they are:'
+   call error_handler(E_MSG, 'obs_diag', string1, source, revision, revdate)
+   do i = 1,num_trusted
+      call error_handler(E_MSG, 'obs_diag', trusted_obsname(i), source, revision, revdate)
+   enddo
+else
+   write(string1,*)'There are no "trusted" observation types.'
+   call error_handler(E_MSG, 'obs_diag', string1, source, revision, revdate)
 endif
 
 !----------------------------------------------------------------------
@@ -372,18 +421,9 @@ endif
 ! Now that we have input, do some checking and setup
 !----------------------------------------------------------------------
 
-call ObsLocationsExist( print_obs_locations )
 call set_calendar_type(GREGORIAN)
 call Convert2Time(beg_time, end_time, skip_time, binsep, binwidth, halfbinwidth)
 call ActOnNamelist( Nregions )
-
-! layer boundaries - heights get sorted to solve single-layer case
-
-Nplevels = Rmidpoints2edges(plevel, plevel_edges)
-Nhlevels = Rmidpoints2edges(hlevel, hlevel_edges)
-Nmlevels = Imidpoints2edges(mlevel, mlevel_edges)
-
-hlevel_edges(1:Nhlevels+1) = sort(hlevel_edges(1:Nhlevels+1))
 
 !----------------------------------------------------------------------
 ! SetTime rectifies user input and the final binning sequence.
@@ -395,12 +435,14 @@ call SetRegionLimits(Nregions, lonlim1, lonlim2, latlim1, latlim2, &
      min_loc, max_loc)
 
 if (verbose) then
+   write(*,*)
    write(*,*)'pressure levels     = ',plevel(      1:Nplevels)
    write(*,*)'pressure interfaces = ',plevel_edges(1:Nplevels+1)
    write(*,*)'height   levels     = ',hlevel(      1:Nhlevels)
    write(*,*)'height   interfaces = ',hlevel_edges(1:Nhlevels+1)
    write(*,*)'model    levels     = ',mlevel(      1:Nmlevels)
    write(*,*)'model    interfaces = ',mlevel_edges(1:Nmlevels+1)
+   write(*,*)
    do i = 1,Nregions
       write(*,'(''Region '',i02,1x,a32,'' (WESN): '',4(f10.4,1x))') i, &
              reg_names(i), lonlim1(i),lonlim2(i),latlim1(i),latlim2(i)
@@ -453,7 +495,8 @@ allocate(guess%rmse(       Nepochs, Nlevels, Nregions, num_obs_types), &
          guess%NDartQC_4(  Nepochs, Nlevels, Nregions, num_obs_types), &
          guess%NDartQC_5(  Nepochs, Nlevels, Nregions, num_obs_types), &
          guess%NDartQC_6(  Nepochs, Nlevels, Nregions, num_obs_types), &
-         guess%NDartQC_7(  Nepochs, Nlevels, Nregions, num_obs_types)  )
+         guess%NDartQC_7(  Nepochs, Nlevels, Nregions, num_obs_types), &
+         guess%Ntrusted(   Nepochs, Nlevels, Nregions, num_obs_types)  )
 
 guess%rmse        = 0.0_r8
 guess%bias        = 0.0_r8
@@ -476,6 +519,7 @@ guess%NDartQC_4   = 0
 guess%NDartQC_5   = 0
 guess%NDartQC_6   = 0
 guess%NDartQC_7   = 0
+guess%Ntrusted    = 0
 
 guess%string        = 'guess'
 guess%num_times     = Nepochs
@@ -503,7 +547,8 @@ allocate(analy%rmse(       Nepochs, Nlevels, Nregions, num_obs_types), &
          analy%NDartQC_4(  Nepochs, Nlevels, Nregions, num_obs_types), &
          analy%NDartQC_5(  Nepochs, Nlevels, Nregions, num_obs_types), &
          analy%NDartQC_6(  Nepochs, Nlevels, Nregions, num_obs_types), &
-         analy%NDartQC_7(  Nepochs, Nlevels, Nregions, num_obs_types)  )
+         analy%NDartQC_7(  Nepochs, Nlevels, Nregions, num_obs_types), &
+         analy%Ntrusted(   Nepochs, Nlevels, Nregions, num_obs_types)  )
 
 analy%rmse        = 0.0_r8
 analy%bias        = 0.0_r8
@@ -526,6 +571,7 @@ analy%NDartQC_4   = 0
 analy%NDartQC_5   = 0
 analy%NDartQC_6   = 0
 analy%NDartQC_7   = 0
+analy%Ntrusted    = 0
 
 analy%string        = 'analy'
 analy%num_times     = Nepochs
@@ -553,7 +599,8 @@ allocate(guessAVG%rmse(       Nlevels, Nregions, num_obs_types), &
          guessAVG%NDartQC_4(  Nlevels, Nregions, num_obs_types), &
          guessAVG%NDartQC_5(  Nlevels, Nregions, num_obs_types), &
          guessAVG%NDartQC_6(  Nlevels, Nregions, num_obs_types), &
-         guessAVG%NDartQC_7(  Nlevels, Nregions, num_obs_types)  )
+         guessAVG%NDartQC_7(  Nlevels, Nregions, num_obs_types), &
+         guessAVG%Ntrusted(   Nlevels, Nregions, num_obs_types)  )
 
 guessAVG%rmse        = 0.0_r8
 guessAVG%bias        = 0.0_r8
@@ -576,6 +623,7 @@ guessAVG%NDartQC_4   = 0
 guessAVG%NDartQC_5   = 0
 guessAVG%NDartQC_6   = 0
 guessAVG%NDartQC_7   = 0
+guessAVG%Ntrusted    = 0
 
 guessAVG%string        = 'VPguess'
 guessAVG%num_levels    = Nlevels
@@ -602,7 +650,8 @@ allocate(analyAVG%rmse(       Nlevels, Nregions, num_obs_types), &
          analyAVG%NDartQC_4(  Nlevels, Nregions, num_obs_types), &
          analyAVG%NDartQC_5(  Nlevels, Nregions, num_obs_types), &
          analyAVG%NDartQC_6(  Nlevels, Nregions, num_obs_types), &
-         analyAVG%NDartQC_7(  Nlevels, Nregions, num_obs_types)  )
+         analyAVG%NDartQC_7(  Nlevels, Nregions, num_obs_types), &
+         analyAVG%Ntrusted(   Nlevels, Nregions, num_obs_types)  )
 
 analyAVG%rmse        = 0.0_r8
 analyAVG%bias        = 0.0_r8
@@ -625,6 +674,7 @@ analyAVG%NDartQC_4   = 0
 analyAVG%NDartQC_5   = 0
 analyAVG%NDartQC_6   = 0
 analyAVG%NDartQC_7   = 0
+analyAVG%Ntrusted    = 0
 
 analyAVG%string        = 'VPanaly'
 analyAVG%num_levels    = Nlevels
@@ -668,12 +718,17 @@ ObsFileLoop : do ifile=1, 1000
    endif
 
    if ( file_exist(trim(obs_seq_in_file_name)) ) then
-      write(msgstring,*)'opening ', trim(obs_seq_in_file_name)
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+      write(string1,*)'opening ', trim(obs_seq_in_file_name)
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
    else
-      write(msgstring,*)trim(obs_seq_in_file_name),&
-                        ' does not exist. Finishing up.'
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+      write(string1,*)trim(obs_seq_in_file_name), ' does not exist. Finishing.'
+
+      if (ifile == 1) then
+         call error_handler(E_ERR,'obs_diag',string1,source,revision,revdate)
+      else
+         call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
+      endif
+
       exit ObsFileLoop
    endif
 
@@ -704,14 +759,12 @@ ObsFileLoop : do ifile=1, 1000
       write(logfileunit,*)'num_obs             is ',num_obs
       write(logfileunit,*)'max_num_obs         is ',max_num_obs
       write(logfileunit,*)'obs_seq_read_format is ',trim(obs_seq_read_format)
-      write(logfileunit,*)'pre_I_format        is ',pre_I_format
       write(    *      ,*)
       write(    *      ,*)'num_copies          is ',num_copies
       write(    *      ,*)'num_qc              is ',num_qc
       write(    *      ,*)'num_obs             is ',num_obs
       write(    *      ,*)'max_num_obs         is ',max_num_obs
       write(    *      ,*)'obs_seq_read_format is ',trim(obs_seq_read_format)
-      write(    *      ,*)'pre_I_format        is ',pre_I_format
    endif
 
    ! Read in the entire observation sequence
@@ -819,9 +872,9 @@ ObsFileLoop : do ifile=1, 1000
    if (ens_size > 0) then
       if (allocated(ens_copy_index)) then
          if (size(ens_copy_index) /= ens_size) then
-            write(msgstring,'(''expecting '',i3,'' ensemble members, got '',i3)') &
+            write(string1,'(''expecting '',i3,'' ensemble members, got '',i3)') &
                                        size(ens_copy_index), ens_size
-            call error_handler(E_ERR,'obs_diag',msgstring,source,revision,revdate)
+            call error_handler(E_ERR,'obs_diag',string1,source,revision,revdate)
          endif
       else
          ! This should happen exactly once, if at all.
@@ -846,11 +899,9 @@ ObsFileLoop : do ifile=1, 1000
 
    if ( any( (/ prior_mean_index,     prior_spread_index, &
             posterior_mean_index, posterior_spread_index /) < 0) ) then
-      only_print_locations = .true.
-      msgstring = 'observation sequence has no prior/posterior information'
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
-   else
-      only_print_locations = .false.
+      string1 = 'observation sequence has no prior/posterior information'
+      string2 = 'for location information, use "obs_seq_to_netcdf"'
+      call error_handler(E_ERR,'obs_diag',string1,source,revision,revdate,text2=string2)
    endif
 
    !====================================================================
@@ -873,18 +924,6 @@ ObsFileLoop : do ifile=1, 1000
 
       write(logfileunit, *) 'num_obs_in_epoch (', iepoch, ') = ', num_obs_in_epoch
       write(     *     , *) 'num_obs_in_epoch (', iepoch, ') = ', num_obs_in_epoch
-
-      ! Open each epoch file here if writing out auxiliary location files
-      if (print_obs_locations) then
-          ! Append epoch number to name
-          write(locName,'(a,i3.3,a)') 'observation_locations.', iepoch, '.dat'
-          if (file_exist(locName)) then
-             lunit = open_file(locName, form='formatted', action='append')
-          else
-             lunit = open_file(locName, form='formatted', action='rewind')
-             write(lunit, '(a)') '     lon         lat      lev       kind     key   QCval'
-          endif
-      endif
 
       allocate(keys(num_obs_in_epoch))
 
@@ -910,6 +949,13 @@ ObsFileLoop : do ifile=1, 1000
          obslon   = obsloc3(1) ! [  0, 360]
          obslat   = obsloc3(2) ! [-90,  90]
          obslevel = obsloc3(3) ! variable-dependent
+
+         ! Check to see if this is a trusted observation
+         trusted = .false.
+         if ( num_trusted > 0 ) then
+            obsname = get_obs_kind_name(flavor)
+            trusted = is_observation_trusted(obsname) 
+         endif
 
          ! Check to see if it is an identity observation.
          ! If it is, we count them and skip them since they are better
@@ -941,7 +987,7 @@ ObsFileLoop : do ifile=1, 1000
 
          level_index = ParseLevel(obs_loc, obslevel, flavor)
 
-         if ( 1 == 2 ) then
+         if ( 1 == 1 ) then
             write(8,*)'obsindx ',obsindex, keys(obsindex), obsloc3(3), level_index
          endif
 
@@ -960,31 +1006,6 @@ ObsFileLoop : do ifile=1, 1000
             ! only in getting the location information.
             qc_integer = QC_MAX + 9999
          endif
-
-         !--------------------------------------------------------------
-         ! Write location of observation if namelist item is true
-         !--------------------------------------------------------------
-
-         if (print_obs_locations) then
-
-            if (dart_qc_index > 0) then 
-               my_qc_integer =      nint(qc(dart_qc_index))
-            elseif (org_qc_index > 0) then
-               my_qc_integer = -1 * nint(qc(org_qc_index))
-            else
-               my_qc_integer = -99
-            endif
-
-            write(lunit, FMT='(3(f10.2,1x),3(i7,1x))') &
-               obslon, obslat, obslevel, flavor, keys(obsindex), my_qc_integer
-         endif
-
-         !--------------------------------------------------------------
-         ! Early exit from the observation loop if the observation 
-         ! does not have all the required copies (attributes).
-         !--------------------------------------------------------------
-
-         if (only_print_locations) cycle ObservationLoop
 
          !--------------------------------------------------------------
          ! retrieve observation prior and posterior means and spreads
@@ -1029,6 +1050,7 @@ ObsFileLoop : do ifile=1, 1000
          if (.true.) then
               write(*,*)
               write(*,*)'Observation index is ',keys(obsindex),' and has:'
+              write(*,*)'observation type       is',obsname
               write(*,*)'flavor                 is',flavor
               write(*,*)'obs              value is',obs(1)
               write(*,*)'prior_mean       value is',prior_mean(1)
@@ -1036,6 +1058,7 @@ ObsFileLoop : do ifile=1, 1000
               write(*,*)'prior_spread     value is',prior_spread(1)
               write(*,*)'posterior_spread value is',posterior_spread(1)
               write(*,*)'DART QC          value is',qc_integer
+              write(*,*)'observation  is   trusted',trusted
               do i= 1,num_copies 
                  write(*,*)copyvals(i),trim(get_copy_meta_data(seq,i))
               enddo
@@ -1213,9 +1236,9 @@ ObsFileLoop : do ifile=1, 1000
             ! Do all the heavy lifting
             !-----------------------------------------------------------
 
-            call Bin4D(qc_integer, iepoch, level_index, iregion, flavor, &
-                     obs(1), obs_err_var, pr_mean, pr_sprd, po_mean, po_sprd, &
-                     rank_histogram_bin)
+            call Bin4D(qc_integer, iepoch, level_index, iregion, flavor, trusted, &
+                  obs(1), obs_err_var, pr_mean, pr_sprd, po_mean, po_sprd, &
+                  rank_histogram_bin)
 
             !-----------------------------------------------------------
             ! Additional work for horizontal wind (given U,V)
@@ -1260,7 +1283,7 @@ ObsFileLoop : do ifile=1, 1000
                   endif
 
                   call Bin4D(maxval( (/qc_integer, U_qc/) ), &
-                       iepoch, level_index, iregion, wflavor, &
+                       iepoch, level_index, iregion, wflavor, .false., &
                        obs(1),  obs_err_var,   pr_mean,   pr_sprd,   po_mean,   po_sprd,  &
                        rank_histogram_bin, &
                        U_obs, U_obs_err_var, U_pr_mean, U_pr_sprd, U_po_mean, U_po_sprd   )
@@ -1335,7 +1358,7 @@ ObsFileLoop : do ifile=1, 1000
                call IPE(analyAVG%NbadIZ(level_index,iregion,flavor), 1)
             endif
 
-            call Bin3D(qc_integer, level_index,   iregion,    flavor, &
+            call Bin3D(qc_integer, level_index,   iregion,    flavor, trusted, &
                    obs(1),  obs_err_var,  pr_mean,   pr_sprd,   po_mean,   po_sprd  )
 
             ! Handle horizontal wind given U,V components 
@@ -1360,7 +1383,7 @@ ObsFileLoop : do ifile=1, 1000
                      call IPE(analyAVG%NbadIZ(level_index,iregion,wflavor), 1)
                   endif
 
-                  call Bin3D(maxval( (/qc_integer, U_qc/) ), level_index, iregion, wflavor, &
+                  call Bin3D(maxval( (/qc_integer, U_qc/) ), level_index, iregion, wflavor, .false., &
                       obs(1),  obs_err_var,   pr_mean,   pr_sprd,   po_mean,   po_sprd, &
                       U_obs, U_obs_err_var, U_pr_mean, U_pr_sprd, U_po_mean, U_po_sprd  ) 
                endif
@@ -1377,8 +1400,6 @@ ObsFileLoop : do ifile=1, 1000
       !-----------------------------------------------------------------
 
       deallocate(keys)
-
-      if (print_obs_locations) close(lunit)
 
    enddo EpochLoop
 
@@ -1680,10 +1701,10 @@ if ( sum(obs_used_in_epoch) == 0 ) then
    write(    *      ,*)
    write(logfileunit,*)
 
-   write(msgstring,*)'WARNING: NO OBSERVATIONS in requested time bins.'
-   call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
-   call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
-   call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+   write(string1,*)'WARNING: NO OBSERVATIONS in requested time bins.'
+   call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
+   call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
+   call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
 
 endif
 
@@ -1703,7 +1724,7 @@ deallocate(obs_seq_filenames)
 deallocate(guess%rmse,        guess%bias,      guess%spread,    guess%totspread, &
            guess%observation, guess%ens_mean,  guess%Nposs,     guess%Nused,     &
            guess%NbigQC,      guess%NbadIZ,    guess%NbadUV,    guess%NbadLV,    &
-           guess%NbadDartQC,                                                     &
+           guess%NbadDartQC,  guess%Ntrusted,                                    &
            guess%NDartQC_0,   guess%NDartQC_1, guess%NDartQC_2, guess%NDartQC_3, &
            guess%NDartQC_4,   guess%NDartQC_5, guess%NDartQC_6, guess%NDartQC_7) 
 
@@ -1714,7 +1735,7 @@ if (allocated(ens_copy_index)) deallocate(ens_copy_index)
 deallocate(analy%rmse,        analy%bias,      analy%spread,    analy%totspread, &
            analy%observation, analy%ens_mean,  analy%Nposs,     analy%Nused,     &
            analy%NbigQC,      analy%NbadIZ,    analy%NbadUV,    analy%NbadLV,    &
-           analy%NbadDartQC,                                                     &
+           analy%NbadDartQC,  analy%Ntrusted,                                    &
            analy%NDartQC_0,   analy%NDartQC_1, analy%NDartQC_2, analy%NDartQC_3, &
            analy%NDartQC_4,   analy%NDartQC_5, analy%NDartQC_6, analy%NDartQC_7) 
 
@@ -1724,7 +1745,8 @@ deallocate(guessAVG%rmse,        guessAVG%bias,        guessAVG%spread,     &
            guessAVG%NbadIZ,      guessAVG%NbadUV,      guessAVG%NbadLV,     &
            guessAVG%NbadDartQC,  guessAVG%NDartQC_0,   guessAVG%NDartQC_1,  &
            guessAVG%NDartQC_2,   guessAVG%NDartQC_3,   guessAVG%NDartQC_4,  &
-           guessAVG%NDartQC_5,   guessAVG%NDartQC_6,   guessAVG%NDartQC_7) 
+           guessAVG%NDartQC_5,   guessAVG%NDartQC_6,   guessAVG%NDartQC_7,  &
+           guessAVG%Ntrusted ) 
 
 deallocate(analyAVG%rmse,        analyAVG%bias,        analyAVG%spread,     &
            analyAVG%totspread,   analyAVG%observation, analyAVG%ens_mean,   &
@@ -1732,7 +1754,8 @@ deallocate(analyAVG%rmse,        analyAVG%bias,        analyAVG%spread,     &
            analyAVG%NbadIZ,      analyAVG%NbadUV,      analyAVG%NbadLV,     &
            analyAVG%NbadDartQC,  analyAVG%NDartQC_0,   analyAVG%NDartQC_1,  &
            analyAVG%NDartQC_2,   analyAVG%NDartQC_3,   analyAVG%NDartQC_4,  &
-           analyAVG%NDartQC_5,   analyAVG%NDartQC_6,   analyAVG%NDartQC_7) 
+           analyAVG%NDartQC_5,   analyAVG%NDartQC_6,   analyAVG%NDartQC_7,  &
+           analyAVG%Ntrusted ) 
 
 deallocate(epoch_center, epoch_edges, bincenter, obs_used_in_epoch)
 
@@ -1810,7 +1833,7 @@ CONTAINS
       ! Global-scope variables in use in this routine:
       ! max_num_bins    comes from namelist
       ! verbose         comes from namelist
-      ! msgstring
+      ! string1
       ! logfileunit
 
       ! Determine temporal bin characteristics.
@@ -1884,22 +1907,22 @@ CONTAINS
       do iepoch = 1,Nepochs
          write(logfileunit,*)
          write(     *     ,*)
-         write(str1,'(''epoch '',i6,''  start'')')iepoch
-         write(str2,'(''epoch '',i6,'' center'')')iepoch
-         write(str3,'(''epoch '',i6,''    end'')')iepoch
-         call print_time(binedges(1,iepoch),str1,logfileunit)
-         call print_time(bincenter( iepoch),str2,logfileunit)
-         call print_time(binedges(2,iepoch),str3,logfileunit)
-         call print_time(binedges(1,iepoch),str1)
-         call print_time(bincenter( iepoch),str2)
-         call print_time(binedges(2,iepoch),str3)
+         write(string1,'(''epoch '',i6,''  start'')')iepoch
+         write(string2,'(''epoch '',i6,'' center'')')iepoch
+         write(string3,'(''epoch '',i6,''    end'')')iepoch
+         call print_time(binedges(1,iepoch),string1,logfileunit)
+         call print_time(bincenter( iepoch),string2,logfileunit)
+         call print_time(binedges(2,iepoch),string3,logfileunit)
+         call print_time(binedges(1,iepoch),string1)
+         call print_time(bincenter( iepoch),string2)
+         call print_time(binedges(2,iepoch),string3)
 
-         call print_date(binedges(1,iepoch),str1,logfileunit)
-         call print_date(bincenter( iepoch),str2,logfileunit)
-         call print_date(binedges(2,iepoch),str3,logfileunit)
-         call print_date(binedges(1,iepoch),str1)
-         call print_date(bincenter( iepoch),str2)
-         call print_date(binedges(2,iepoch),str3)
+         call print_date(binedges(1,iepoch),string1,logfileunit)
+         call print_date(bincenter( iepoch),string2,logfileunit)
+         call print_date(binedges(2,iepoch),string3,logfileunit)
+         call print_date(binedges(1,iepoch),string1)
+         call print_date(bincenter( iepoch),string2)
+         call print_date(binedges(2,iepoch),string3)
       enddo
       write(logfileunit,*)
       write(     *     ,*)
@@ -1938,23 +1961,23 @@ CONTAINS
    ! do some error-checking first
 
    if ( (bin_separation(1) /= 0) .or. (bin_separation(2) /= 0) ) then
-      write(msgstring,*)'bin_separation:year,month must both be zero, they are ', &
+      write(string1,*)'bin_separation:year,month must both be zero, they are ', &
       bin_separation(1),bin_separation(2)
-      call error_handler(E_WARN,'obs_diag:Convert2Time',msgstring,source,revision,revdate)
+      call error_handler(E_WARN,'obs_diag:Convert2Time',string1,source,revision,revdate)
       error_out = .true.
    endif
 
    if ( (bin_width(1) /= 0) .or. (bin_width(2) /= 0) ) then
-      write(msgstring,*)'bin_width:year,month must both be zero, they are ', &
+      write(string1,*)'bin_width:year,month must both be zero, they are ', &
       bin_width(1),bin_width(2)
-      call error_handler(E_WARN,'obs_diag:Convert2Time',msgstring,source,revision,revdate)
+      call error_handler(E_WARN,'obs_diag:Convert2Time',string1,source,revision,revdate)
       error_out = .true.
    endif
 
    if ( (time_to_skip(1) /= 0) .or. (time_to_skip(2) /= 0) ) then
-      write(msgstring,*)'time_to_skip:year,month must both be zero, they are ', &
+      write(string1,*)'time_to_skip:year,month must both be zero, they are ', &
       time_to_skip(1),time_to_skip(2)
-      call error_handler(E_WARN,'obs_diag:Convert2Time',msgstring,source,revision,revdate)
+      call error_handler(E_WARN,'obs_diag:Convert2Time',string1,source,revision,revdate)
       error_out = .true.
    endif
 
@@ -2065,19 +2088,31 @@ CONTAINS
    if (all(plevel <  1.0)) then
        plevel(1:11) = (/ 1000,  925,  850,   700,   500,  400, &
                           300,  250,  200,   150,   100        /)
+       Nplevels = Rlevels2edges(plevel, plevel_edges)
    endif
 
    ! Height levels
 
-   if (all(hlevel < 1.0)) then
+   if( all(hlevel_edges == MISSING_R8) .and. & 
+       all(hlevel       == MISSING_R8)) then
        hlevel(1:11) = (/ 1000, 2000, 3000,  4000,  5000, 6000, &
                          7000, 8000, 9000, 10000, 11000        /)
+       Nhlevels = Rlevels2edges(hlevel, hlevel_edges)
+       hlevel_edges(1:Nhlevels+1) = sort(hlevel_edges(1:Nhlevels+1))
+   elseif ( any(hlevel_edges /= MISSING_R8) ) then
+       ! user specified edges and we have to find the midpoints
+       Nhlevels = Redges2levels(hlevel_edges, hlevel)
+   else
+       ! user specified midpoints and we have to find the edges
+       Nhlevels = Rlevels2edges(hlevel, hlevel_edges)
+       hlevel_edges(1:Nhlevels+1) = sort(hlevel_edges(1:Nhlevels+1))
    endif
 
    ! Model levels
 
    if (all(mlevel < 1)) then
        mlevel(1:11) = (/ (i,i=1,11) /)   ! set model levels to indices
+       Nmlevels = Ilevels2edges(mlevel, mlevel_edges)
    endif
 
    end Subroutine ActOnNamelist
@@ -2105,8 +2140,8 @@ CONTAINS
                    GetEnsSize = GetEnsSize + 1
    enddo MetaDataLoop
 
-   write(msgstring,'(''There are '',i4,'' ensemble members.'')') GetEnsSize
-   call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+   write(string1,'(''There are '',i4,'' ensemble members.'')') GetEnsSize
+   call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
 
    end Function GetEnsSize
 
@@ -2172,28 +2207,28 @@ CONTAINS
    !--------------------------------------------------------------------
 
    if ( prior_mean_index       < 0 ) then
-      write(msgstring,*)'metadata:prior ensemble mean not found'
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+      write(string1,*)'metadata:prior ensemble mean not found'
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
    endif
    if ( posterior_mean_index   < 0 ) then 
-      write(msgstring,*)'metadata:posterior ensemble mean not found' 
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate) 
+      write(string1,*)'metadata:posterior ensemble mean not found' 
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate) 
    endif
    if ( prior_spread_index     < 0 ) then 
-      write(msgstring,*)'metadata:prior ensemble spread not found'
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate) 
+      write(string1,*)'metadata:prior ensemble spread not found'
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate) 
    endif
    if ( posterior_spread_index < 0 ) then 
-      write(msgstring,*)'metadata:posterior ensemble spread not found' 
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate) 
+      write(string1,*)'metadata:posterior ensemble spread not found' 
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate) 
    endif
    if (           org_qc_index < 0 ) then 
-      write(msgstring,*)'metadata:Quality Control not found' 
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+      write(string1,*)'metadata:Quality Control not found' 
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
    endif
    if (          dart_qc_index < 0 ) then 
-      write(msgstring,*)'metadata:DART quality control not found' 
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+      write(string1,*)'metadata:DART quality control not found' 
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
    endif
 
    ! Only require obs_index to be present; this allows the program
@@ -2201,63 +2236,63 @@ CONTAINS
    ! less info from them, but you can still plot locations, etc.
 
    if ( obs_index < 0 ) then
-      write(msgstring,*)'metadata:observation not found'
-      call error_handler(E_ERR,'obs_diag',msgstring,source,revision,revdate)
+      write(string1,*)'metadata:observation not found'
+      call error_handler(E_ERR,'obs_diag',string1,source,revision,revdate)
    endif
 
    !--------------------------------------------------------------------
    ! Echo what we found.
    !--------------------------------------------------------------------
 
-   write(msgstring,'(''observation      index '',i2,'' metadata '',a)') &
+   write(string1,'(''observation      index '',i2,'' metadata '',a)') &
         obs_index, trim(get_copy_meta_data(seq,obs_index))
-   call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+   call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
 
    if (prior_mean_index > 0 ) then
-      write(msgstring,'(''prior mean       index '',i2,'' metadata '',a)') &
+      write(string1,'(''prior mean       index '',i2,'' metadata '',a)') &
            prior_mean_index, trim(get_copy_meta_data(seq,prior_mean_index))
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
    endif
 
    if (posterior_mean_index > 0 ) then
-      write(msgstring,'(''posterior mean   index '',i2,'' metadata '',a)') &
+      write(string1,'(''posterior mean   index '',i2,'' metadata '',a)') &
            posterior_mean_index, trim(get_copy_meta_data(seq,posterior_mean_index))
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate) 
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate) 
    endif
 
    if (prior_spread_index > 0 ) then
-      write(msgstring,'(''prior spread     index '',i2,'' metadata '',a)') &
+      write(string1,'(''prior spread     index '',i2,'' metadata '',a)') &
            prior_spread_index, trim(get_copy_meta_data(seq,prior_spread_index))
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
    endif
 
    if (posterior_spread_index > 0 ) then
-      write(msgstring,'(''posterior spread index '',i2,'' metadata '',a)') &
+      write(string1,'(''posterior spread index '',i2,'' metadata '',a)') &
            posterior_spread_index, trim(get_copy_meta_data(seq,posterior_spread_index))
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
    endif
 
    if (org_qc_index > 0 ) then
-      write(msgstring,'(''Quality Control      index '',i2,'' metadata '',a)') &
+      write(string1,'(''Quality Control      index '',i2,'' metadata '',a)') &
             org_qc_index, trim(get_qc_meta_data(seq,org_qc_index))
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
    endif
 
    if (dart_qc_index > 0 ) then
-      write(msgstring,'(''DART quality control index '',i2,'' metadata '',a)') &
+      write(string1,'(''DART quality control index '',i2,'' metadata '',a)') &
            dart_qc_index, trim(get_qc_meta_data(seq,dart_qc_index))
-      call error_handler(E_MSG,'obs_diag',msgstring,source,revision,revdate)
+      call error_handler(E_MSG,'obs_diag',string1,source,revision,revdate)
    endif
 
    end Subroutine SetIndices
 
 
 
-   Function Rmidpoints2edges(levels, midpoints)
-   ! determine layer midpoints ... ascending vs. descending complications
-   integer :: Rmidpoints2edges
+   Function Rlevels2edges(levels, leveledges)
+   ! determine layer edges ... ascending vs. descending complications
+   integer :: Rlevels2edges
    real(r8), dimension(:), intent(inout) :: levels
-   real(r8), dimension(:), intent(  out) :: midpoints
+   real(r8), dimension(:), intent(  out) :: leveledges
 
    logical :: increasing
    integer :: n, i
@@ -2265,10 +2300,10 @@ CONTAINS
    integer, dimension(SIZE(levels)) :: indxs
    logical, dimension(SIZE(levels)) :: logicarray
 
-   Rmidpoints2edges = SIZE(levels,1)
-   if (Rmidpoints2edges > MaxLevels) then
-      write(msgstring,*)Rmidpoints2edges,' is too many levels - max is ',Maxlevels,' (Maxlevels)'
-      call error_handler(E_ERR,'obs_diag:Rmidpoints2edges', msgstring,source,revision,revdate)
+   Rlevels2edges = SIZE(levels,1)
+   if (Rlevels2edges > MaxLevels) then
+      write(string1,*)Rlevels2edges,' is too many levels - max is ',Maxlevels,' (Maxlevels)'
+      call error_handler(E_ERR,'obs_diag:Rlevels2edges', string1,source,revision,revdate)
    endif
 
    ! find length of useful portion of levels array
@@ -2277,12 +2312,12 @@ CONTAINS
    dummyindxs = maxloc(indxs, logicarray)
    n          = dummyindxs(1)
 
-   Rmidpoints2edges = n
+   Rlevels2edges = n
 
    ! single-level case works for pressures, must change sign for heights
    if ( n == 1 ) then
-      midpoints(1) = levels(1) + 0.1 * levels(1) 
-      midpoints(2) = levels(1) - 0.1 * levels(1) 
+      leveledges(1) = levels(1) + 0.1 * levels(1) 
+      leveledges(2) = levels(1) - 0.1 * levels(1) 
       return
    endif
 
@@ -2291,33 +2326,33 @@ CONTAINS
       increasing  = .true.
       levels(1:n) = sort(levels(1:n))
    else
-      increasing     = .false.
-      midpoints(1:n) = sort(levels(1:n))
-      levels(1:n)    = midpoints(n:1:-1)
+      increasing      = .false.
+      leveledges(1:n) = sort(levels(1:n))
+      levels(1:n)     = leveledges(n:1:-1)
    endif
 
-   midpoints(  1) = levels(1) - (levels(2) - levels(  1))/2.0_r8
-   midpoints(n+1) = levels(n) + (levels(n) - levels(n-1))/2.0_r8
+   leveledges(  1) = levels(1) - (levels(2) - levels(  1))/2.0_r8
+   leveledges(n+1) = levels(n) + (levels(n) - levels(n-1))/2.0_r8
    do i = 2,n
-     midpoints(i) = levels(i-1) + (levels(i) - levels(i-1))/2.0_r8
+     leveledges(i) = levels(i-1) + (levels(i) - levels(i-1))/2.0_r8
    enddo
 
    if ( increasing ) then ! must be heights
-      midpoints(  1) = max(   0.0_r8, midpoints(  1))
+      leveledges(  1) = max(   0.0_r8, leveledges(  1))
    else                   ! must be pressures
-      midpoints(  1) = min(1025.0_r8, midpoints(  1))
-      midpoints(n+1) = max(   0.0_r8, midpoints(n+1))
+      leveledges(  1) = min(1025.0_r8, leveledges(  1))
+      leveledges(n+1) = max(   0.0_r8, leveledges(n+1))
    endif
 
-   end Function Rmidpoints2edges
+   end Function Rlevels2edges
 
 
 
-   Function Imidpoints2edges(levelmids, leveledges)
+   Function Ilevels2edges(levelmids, leveledges)
    ! determine layer edges ... needed for plotting purposes
    ! the midpoints are integers
 
-   integer :: Imidpoints2edges
+   integer :: Ilevels2edges
    integer, dimension(:), intent(inout) :: levelmids
    real(r8), dimension(:), intent( out) :: leveledges
 
@@ -2328,10 +2363,10 @@ CONTAINS
    logical,  dimension(SIZE(levelmids)) :: logicarray
    real(r8), dimension(SIZE(levelmids)) :: rdummy ! needed by sort routine
 
-   Imidpoints2edges = SIZE(levelmids,1)
-   if (Imidpoints2edges > MaxLevels) then
-      write(msgstring,*)Imidpoints2edges,' is too many levels - max is ',Maxlevels,' (Maxlevels)'
-      call error_handler(E_ERR,'obs_diag:Imidpoints2edges', msgstring,source,revision,revdate)
+   Ilevels2edges = SIZE(levelmids,1)
+   if (Ilevels2edges > MaxLevels) then
+      write(string1,*)Ilevels2edges,' is too many levels - max is ',Maxlevels,' (Maxlevels)'
+      call error_handler(E_ERR,'obs_diag:Ilevels2edges', string1,source,revision,revdate)
    endif
 
    ! find length of useful portion of levelmids array
@@ -2340,7 +2375,7 @@ CONTAINS
    dummyindxs = maxloc(indxs, logicarray)
    n          = dummyindxs(1)
 
-   Imidpoints2edges = n
+   Ilevels2edges = n
 
    ! single-level case 
    if ( n == 1 ) then
@@ -2373,7 +2408,57 @@ CONTAINS
 !     leveledges(n+1) = max(   0.0_r8, leveledges(n+1))
 !  endif
 
-   end Function Imidpoints2edges
+   end Function Ilevels2edges
+
+
+
+   Function Redges2levels(leveledges, levels)
+   ! determine layer edge ... ascending vs. descending complications
+   integer :: Redges2levels
+   real(r8), dimension(:), intent(inout) :: leveledges
+   real(r8), dimension(:), intent(  out) :: levels
+
+   logical :: increasing
+   integer :: n, i
+   integer :: dummyindxs(1)
+   integer, dimension(SIZE(leveledges)) :: indxs
+   logical, dimension(SIZE(leveledges)) :: logicarray
+
+   Redges2levels = SIZE(leveledges,1) - 1
+   if (Redges2levels > MaxLevels) then
+      write(string1,*)Redges2levels,' is too many levels - max is ',Maxlevels,' (Maxlevels)'
+      call error_handler(E_ERR,'obs_diag:Redges2levels', string1,source,revision,revdate)
+   endif
+
+   ! find the number of edges the user specified
+   indxs      = (/ (i,i=1,SIZE(leveledges)) /) 
+   logicarray = leveledges /= MISSING_R8
+   dummyindxs = maxloc(indxs, logicarray)
+   n          = dummyindxs(1)
+
+   if ( n == 1 ) then
+      write(string1,*)'obs_diag_nml: need at least two entries in hlevel_edges. Only got 1.'
+      call error_handler(E_ERR,'obs_diag:Redges2levels', string1,source,revision,revdate)
+      return
+   endif
+
+   Redges2levels = n - 1  ! returns the number of layers, not the number of edges
+
+   ! resolve [ascending/descending] monotonicity
+   if (leveledges(1) < leveledges(n) ) then 
+      increasing      = .true.
+      leveledges(1:n) = sort(leveledges(1:n))
+   else
+      increasing      = .false.
+      leveledges(1:n) = sort(leveledges(1:n))
+      leveledges(1:n) = leveledges(n:1:-1)
+   endif
+
+   do i = 1,n-1
+     levels(i) = (leveledges(i) + leveledges(i+1))/2.0_r8
+   enddo
+
+   end Function Redges2levels
 
 
 
@@ -2394,37 +2479,37 @@ CONTAINS
    if (vert_is_surface(obslocation)               .and. &
       (      which_vert(flavor) /= VERTISSURFACE) .and. &
       (ob_defining_vert(flavor)  >     0        ) ) then
-           write(msgstring,'(''obs '', i8, '' type '', i3, &
+           write(string1,'(''obs '', i8, '' type '', i3, &
            &  '' changing from '', i2, '' to surface - def by obs '',i8)') &
            keys(obsindex), flavor, which_vert(flavor), ob_defining_vert(flavor)
-      call error_handler(E_WARN,'CheckVertical',msgstring,source,revision,revdate)
+      call error_handler(E_WARN,'CheckVertical',string1,source,revision,revdate)
    endif
 
    if (vert_is_level(obslocation)               .and. &
       (      which_vert(flavor) /= VERTISLEVEL) .and. &
       (ob_defining_vert(flavor)  >     0      ) ) then
-           write(msgstring,'(''obs '', i8, '' type '', i3, &
+           write(string1,'(''obs '', i8, '' type '', i3, &
            & '' changing from '', i2, '' to level - def by obs '',i8)') &
            keys(obsindex), flavor, which_vert(flavor), ob_defining_vert(flavor)
-      call error_handler(E_WARN,'CheckVertical',msgstring,source,revision,revdate)
+      call error_handler(E_WARN,'CheckVertical',string1,source,revision,revdate)
    endif
 
    if (vert_is_pressure(obslocation)               .and. &
       (      which_vert(flavor) /= VERTISPRESSURE) .and. &
       (ob_defining_vert(flavor)  >     0         ) ) then
-           write(msgstring,'(''obs '', i8, '' type '', i3, &
+           write(string1,'(''obs '', i8, '' type '', i3, &
            & '' changing from '', i2, '' to pressure - def by obs '',i8)') &
            keys(obsindex), flavor, which_vert(flavor), ob_defining_vert(flavor)
-      call error_handler(E_WARN,'CheckVertical',msgstring,source,revision,revdate)
+      call error_handler(E_WARN,'CheckVertical',string1,source,revision,revdate)
    endif
 
    if (vert_is_height(obslocation)               .and. &
       (      which_vert(flavor) /= VERTISHEIGHT) .and. &
       (ob_defining_vert(flavor)  >     0       ) ) then
-           write(msgstring,'(''obs '', i8, '' type '', i3, &
+           write(string1,'(''obs '', i8, '' type '', i3, &
            & '' changing from '', i2, '' to height - def by obs '',i8)') &
            keys(obsindex), flavor, which_vert(flavor), ob_defining_vert(flavor)
-      call error_handler(E_WARN,'CheckVertical',msgstring,source,revision,revdate)
+      call error_handler(E_WARN,'CheckVertical',string1,source,revision,revdate)
    endif
 
    end Subroutine CheckVertical
@@ -2457,21 +2542,34 @@ CONTAINS
       ParseLevel         = ClosestLevelIndex(obslevel, VERTISLEVEL)
       which_vert(flavor) = VERTISLEVEL
 
+      if ( (1 == 1) .and. (ParseLevel > 0)) write(*,301) keys(obsindex), obsindex, &
+            mlevel_edges(ParseLevel), obslevel, mlevel_edges(ParseLevel+1), &
+            mlevel(ParseLevel), ParseLevel, bob
+
    elseif(vert_is_pressure(obslocation)) then
       bob                = 'pressure'
       ParseLevel         = ClosestLevelIndex(obslevel, VERTISPRESSURE)
       which_vert(flavor) = VERTISPRESSURE
+
+      if ( (1 == 1) .and. (ParseLevel > 0)) write(*,300) keys(obsindex), obsindex, &
+            plevel_edges(ParseLevel), obslevel, plevel_edges(ParseLevel+1), &
+            plevel(ParseLevel), ParseLevel, bob
 
    elseif(vert_is_height(obslocation)) then
       bob                = 'height'
       ParseLevel         = ClosestLevelIndex(obslevel, VERTISHEIGHT)
       which_vert(flavor) = VERTISHEIGHT
 
+      if ( (1 == 1) .and. (ParseLevel > 0)) write(*,300) keys(obsindex), obsindex, &
+            hlevel_edges(ParseLevel), obslevel, hlevel_edges(ParseLevel+1), &
+            hlevel(ParseLevel), ParseLevel, bob
+
    elseif(vert_is_undef(obslocation)) then
       obslevel           = 1
       bob                = 'undef'
       ParseLevel         = 1
       which_vert(flavor) = VERTISUNDEF
+
    else
       call error_handler(E_ERR,'obs_diag','Vertical coordinate not recognized', &
            source,revision,revdate)
@@ -2479,18 +2577,18 @@ CONTAINS
 
    ob_defining_vert(flavor) = keys(obsindex)
 
-   if ( 1 == 2 ) then ! TJH debug statement
-      write(*,'(''obskey '',i6, '' counter '', i6,'' level '', f10.4, &
-          &  '' level index '',i3,1x,(a8))') &
-         keys(obsindex), obsindex, obslevel, ParseLevel, bob
-   endif
+ 300 format('obskey ',i5,' # ',i5,' [',3(f10.4,1x),'] mid == ',f10.4,' level ',i3,1x,a)
+ 301 format('obskey ',i5,' # ',i5,' [',3(f10.4,1x),'] mid == ',i10  ,' level ',i3,1x,a)
+   write(*,*)  ! TJH whitespace
 
    end Function ParseLevel
 
 
 
    Function ClosestLevelIndex(level_in, leveltype)
-   ! The levels, intervals are ordered surface == 1
+   ! The levels, intervals are ordered :
+   ! closest to the center of the earth == 1
+   ! outer space                        == N
    !
    ! nlev, levels and levels_int are scoped in this unit.
    !
@@ -2498,24 +2596,45 @@ CONTAINS
    integer,  intent(in) :: leveltype        ! indicator for surface, height, etc.
    integer              :: ClosestLevelIndex
 
-   integer :: a(1)
+   integer :: a(1), i
 
    real(r8), dimension(MaxLevels) :: dx
    real(r8) :: surface, top
 
+ 100 format(a,3(f10.4,1x),i4,1x,f10.4)
+ 101 format(a,3(f10.4,1x),i4,1x,i10)
+ 200 format(a,11(f10.4,1x))
+ 201 format(a,11(i10,1x))
+
    if (leveltype == VERTISHEIGHT) then   ! we have heights levels
 
-      surface = hlevel_edges(1)
-      top     = hlevel_edges(Nhlevels+1)
-
-      if      ( level_in < surface ) then
+      if      ( level_in < hlevel_edges(1) ) then
          ClosestLevelIndex = -1
-      else if ( level_in > top     ) then
+      else if ( level_in > hlevel_edges(Nhlevels+1) ) then
          ClosestLevelIndex = 100 + Nhlevels
       else
          dx(1:Nhlevels) = abs(level_in - hlevel(1:Nhlevels))
          a              = minloc(dx(1:Nhlevels))
          ClosestLevelIndex   = a(1)
+         write(*,200)'TJH hlevel',   hlevel(1:Nhlevels)
+         write(*,200)'TJH     dx',       dx(1:Nhlevels)
+         write(*,  *)'TJH minloc',minloc(dx(1:Nhlevels))
+
+         write(*,100)'TJH old',hlevel_edges(ClosestLevelIndex),level_in, &
+         hlevel_edges(ClosestLevelIndex+1),ClosestLevelIndex,hlevel(ClosestLevelIndex)
+
+         ! Starting close to the center of the earth ... 
+         HEIGHTLOOP : do i = 1,Nhlevels
+            if (level_in >  hlevel_edges(i) .and. &
+                level_in <= hlevel_edges(i+1)) then
+               ClosestLevelIndex = i
+               exit HEIGHTLOOP
+            endif
+         enddo HEIGHTLOOP
+
+         write(*,100)'TJH new',hlevel_edges(ClosestLevelIndex),level_in, &
+         hlevel_edges(ClosestLevelIndex+1),ClosestLevelIndex,hlevel(ClosestLevelIndex)
+
       endif
 
    else if (leveltype == VERTISLEVEL) then   ! we have model levels
@@ -2535,6 +2654,24 @@ CONTAINS
          dx(1:Nmlevels) = abs(level_in - mlevel(1:Nmlevels))
          a              = minloc(dx(1:Nmlevels))
          ClosestLevelIndex   = a(1)
+         write(*,201)'TJH mlevel',   mlevel(1:Nmlevels)
+         write(*,200)'TJH     dx',       dx(1:Nmlevels)
+         write(*,  *)'TJH minloc',minloc(dx(1:Nmlevels))
+
+         write(*,101)'TJH old',mlevel_edges(ClosestLevelIndex),level_in, &
+         mlevel_edges(ClosestLevelIndex+1),ClosestLevelIndex,mlevel(ClosestLevelIndex)
+
+         ! Starting close to the center of the earth ... 
+         LEVELLOOP : do i = 1,Nmlevels
+            if (level_in >  mlevel_edges(i) .and. &
+                level_in <= mlevel_edges(i+1)) then
+               ClosestLevelIndex = i
+               exit LEVELLOOP
+            endif
+         enddo LEVELLOOP
+
+         write(*,101)'TJH new',mlevel_edges(ClosestLevelIndex),level_in, &
+         mlevel_edges(ClosestLevelIndex+1),ClosestLevelIndex,mlevel(ClosestLevelIndex)
       endif
 
    else if (leveltype == VERTISUNDEF) then
@@ -2554,6 +2691,24 @@ CONTAINS
          dx(1:Nplevels) = abs(level_in - plevel(1:Nplevels))
          a              = minloc(dx(1:Nplevels))
          ClosestLevelIndex   = a(1)
+         write(*,200)'TJH plevel',   plevel(1:Nplevels)
+         write(*,200)'TJH     dx',       dx(1:Nplevels)
+         write(*,  *)'TJH minloc',minloc(dx(1:Nplevels))
+
+         write(*,100)'TJH old',plevel_edges(ClosestLevelIndex),level_in, &
+         plevel_edges(ClosestLevelIndex+1),ClosestLevelIndex,plevel(ClosestLevelIndex)
+
+         ! Starting close to the center of the earth ... 
+         PRESSURELOOP : do i = 1,Nplevels
+            if (level_in >  plevel_edges(i) .and. &
+                level_in <= plevel_edges(i+1)) then
+               ClosestLevelIndex = i
+               exit PRESSURELOOP
+            endif
+         enddo PRESSURELOOP
+
+         write(*,100)'TJH new',plevel_edges(ClosestLevelIndex),level_in, &
+         plevel_edges(ClosestLevelIndex+1),ClosestLevelIndex,plevel(ClosestLevelIndex)
       endif
 
    endif
@@ -2642,17 +2797,17 @@ CONTAINS
                mykind1 == KIND_V_WIND_COMPONENT) .or. &
               (mykind1 == KIND_U_WIND_COMPONENT .and. &
                mykind2 == KIND_V_WIND_COMPONENT)) ) then
-      write(msgstring,*) 'around OBS ', keys(obsindex), &
+      write(string1,*) 'around OBS ', keys(obsindex), &
               'flavors not complementary ...',flavor1, flavor2
-      call error_handler(E_WARN,'CheckMate',msgstring,source,revision,revdate)
+      call error_handler(E_WARN,'CheckMate',string1,source,revision,revdate)
       flavor = -flavor1
       return
    endif
 
    if ( obsloc1 /= obsloc2 ) then
       if ( print_mismatched_locs ) then
-         write(msgstring,*) 'around OBS ', keys(obsindex), 'locations do not match ...'
-         call error_handler(E_WARN,'CheckMate',msgstring,source,revision,revdate)
+         write(string1,*) 'around OBS ', keys(obsindex), 'locations do not match ...'
+         call error_handler(E_WARN,'CheckMate',string1,source,revision,revdate)
          call write_location(logfileunit,obsloc1,'FORMATTED')
          call write_location(logfileunit,obsloc2,'FORMATTED')
          call write_location(6,obsloc1,'FORMATTED')
@@ -2677,8 +2832,8 @@ CONTAINS
       write(logfileunit,*)'wind component 2 ',trim(str2)
       write(     *     ,*)'wind component 1 ',trim(str1)
       write(     *     ,*)'wind component 2 ',trim(str2)
-      write(msgstring,*) 'around OBS ', keys(obsindex), 'adjacent U,V winds not matching'
-      call error_handler(E_WARN,'CheckMate',msgstring,source,revision,revdate)
+      write(string1,*) 'around OBS ', keys(obsindex), 'adjacent U,V winds not matching'
+      call error_handler(E_WARN,'CheckMate',string1,source,revision,revdate)
       flavor = -flavor2
       return
    endif
@@ -2689,8 +2844,8 @@ CONTAINS
    indx2 = index(str1, '_10_METER_WIND') - 3
 
    if ( (indx1 < 1) .and. (indx2 < 1) ) then
-      write(msgstring,*) 'around OBS ', keys(obsindex), 'not a known wind name ...'
-      call error_handler(E_WARN,'CheckMate',msgstring,source,revision,revdate)
+      write(string1,*) 'around OBS ', keys(obsindex), 'not a known wind name ...'
+      call error_handler(E_WARN,'CheckMate',string1,source,revision,revdate)
       flavor = -flavor2
       return
    endif
@@ -2708,8 +2863,8 @@ CONTAINS
    ! 'RADIOSONDE_' or 'SHIP_' or 'AIREP_' or ...
 
    if (index(str1, str2(1:indx1)) < 1) then
-      write(msgstring,*) 'around OBS ', keys(obsindex), 'observation types not compatible.'
-      call error_handler(E_WARN,'obs_diag',msgstring,source,revision,revdate)
+      write(string1,*) 'around OBS ', keys(obsindex), 'observation types not compatible.'
+      call error_handler(E_WARN,'obs_diag',string1,source,revision,revdate)
    endif
 
    ! Find the derived type in our augmented list in global storage.
@@ -2728,15 +2883,15 @@ CONTAINS
    if (CheckMate /= 0) then
       write(     *     ,*) 'around OBS ', keys(obsindex), trim(str1), ' ', trim(str2)
       write(logfileunit,*) 'around OBS ', keys(obsindex), trim(str1), ' ', trim(str2)
-      write(  msgstring,*) 'around OBS ', keys(obsindex), 'observation types not known.'
-      call error_handler(E_ERR,'obs_diag',msgstring,source,revision,revdate)
+      write(  string1,*) 'around OBS ', keys(obsindex), 'observation types not known.'
+      call error_handler(E_ERR,'obs_diag',string1,source,revision,revdate)
    endif
 
    end Function CheckMate
 
 
 
-   Subroutine Bin4D(iqc, iepoch, ilevel, iregion, flavor, &
+   Subroutine Bin4D(iqc, iepoch, ilevel, iregion, flavor, trusted, &
                 obsval,  obserrvar,  prmean,  prsprd,  pomean,  posprd, rank, &
                   uobs, uobserrvar, uprmean, uprsprd, upomean, uposprd)
    !----------------------------------------------------------------------
@@ -2759,6 +2914,7 @@ CONTAINS
    ! obs_diag, it is not possible to compute this quantity now.
 
    integer,  intent(in)           :: iqc, iepoch, ilevel, iregion, flavor
+   logical,  intent(in)           :: trusted
    real(r8), intent(in)           :: obsval,  obserrvar,  prmean,  prsprd,  pomean,  posprd
    integer,  intent(in)           :: rank
    real(r8), intent(in), optional ::   uobs, uobserrvar, uprmean, uprsprd, upomean, uposprd
@@ -2822,16 +2978,70 @@ CONTAINS
    endif
 
    !----------------------------------------------------------------------
+   ! The rank histogram binning is a bit of a peculiar situation.
+   ! Only the prior is of interest ... so DART QCs of 0 1 2 3 are 'good'.
+   ! There is some debate about whether we should be considering the 
+   ! 'outlier' observations (DART QC == 7), so that is namelist controlled.
+   !----------------------------------------------------------------------
+
+   if (     (myrank > 0) .and. create_rank_histogram ) then
+      if ( any(iqc == hist_qcs(1:numqcvals) ) )  &
+         call IPE(guess%hist_bin(iepoch,ilevel,iregion,flavor,myrank), 1)
+   endif
+
+   !----------------------------------------------------------------------
    ! Track the number of possible observations
    !----------------------------------------------------------------------
 
    call IPE(guess%Nposs(iepoch,ilevel,iregion,flavor), 1)
    call IPE(analy%Nposs(iepoch,ilevel,iregion,flavor), 1)
 
+   !----------------------------------------------------------------------
+   ! Enforce the use of trusted observations.
+   !----------------------------------------------------------------------
+
+   if ( trusted ) then
+
+      call IPE(guess%Ntrusted(iepoch,ilevel,iregion,flavor), 1)
+      call IPE(analy%Ntrusted(iepoch,ilevel,iregion,flavor), 1)
+
+      ! Accrue the PRIOR quantities
+      if ( any(iqc == trusted_prior_qcs) ) then
+         call IPE(guess%Nused(      iepoch,ilevel,iregion,flavor),      1    )
+         call RPE(guess%observation(iepoch,ilevel,iregion,flavor), obsmean   )
+         call RPE(guess%ens_mean(   iepoch,ilevel,iregion,flavor), priormean )
+         call RPE(guess%bias(       iepoch,ilevel,iregion,flavor), priorbias )
+         call RPE(guess%rmse(       iepoch,ilevel,iregion,flavor), priorsqerr)
+         call RPE(guess%spread(     iepoch,ilevel,iregion,flavor), priorspred)
+         call RPE(guess%totspread(  iepoch,ilevel,iregion,flavor), priorspredplus)
+      else
+         call IPE(guess%NbadDartQC(iepoch,ilevel,iregion,flavor),       1    )
+      endif
+
+      ! Accrue the POSTERIOR quantities
+      if ( any(iqc == trusted_poste_qcs) ) then
+         call IPE(analy%Nused(      iepoch,ilevel,iregion,flavor),      1   )
+         call RPE(analy%observation(iepoch,ilevel,iregion,flavor), obsmean  )
+         call RPE(analy%ens_mean(   iepoch,ilevel,iregion,flavor), postmean )
+         call RPE(analy%bias(       iepoch,ilevel,iregion,flavor), postbias )
+         call RPE(analy%rmse(       iepoch,ilevel,iregion,flavor), postsqerr)
+         call RPE(analy%spread(     iepoch,ilevel,iregion,flavor), postspred)
+         call RPE(analy%totspread(  iepoch,ilevel,iregion,flavor), postspredplus)
+      else
+         call IPE(analy%NbadDartQC(iepoch,ilevel,iregion,flavor),       1   )
+      endif
+
+      return  ! EXIT THE BINNING ROUTINE
+   endif
+
+   !----------------------------------------------------------------------
+   ! Proceed 'as normal'.
+   !----------------------------------------------------------------------
+
    if ( iqc > QC_MAX_PRIOR ) then  ! prior and posterior failed
 
-      call IPE(guess%NbadDartQC(iepoch,ilevel,iregion,flavor),      1    )
-      call IPE(analy%NbadDartQC(iepoch,ilevel,iregion,flavor),      1    )
+      call IPE(guess%NbadDartQC(iepoch,ilevel,iregion,flavor),       1    )
+      call IPE(analy%NbadDartQC(iepoch,ilevel,iregion,flavor),       1    )
 
    else if ( iqc > QC_MAX_POSTERIOR ) then
 
@@ -2845,7 +3055,7 @@ CONTAINS
       call RPE(guess%totspread(  iepoch,ilevel,iregion,flavor), priorspredplus)
 
       ! However, the posterior is bad
-      call IPE(analy%NbadDartQC(iepoch,ilevel,iregion,flavor),      1    )
+      call IPE(analy%NbadDartQC(iepoch,ilevel,iregion,flavor),       1    )
 
    else
 
@@ -2869,21 +3079,11 @@ CONTAINS
 
    endif
 
-   ! The rank histogram binning is a bit of a peculiar situation.
-   ! Only the prior is of interest ... so DART QCs of 0 1 2 3 are 'good'.
-   ! There is some debate about whether we should be considering the 
-   ! 'outlier' observations (DART QC == 7), so that is namelist controlled.
-
-   if (     (myrank > 0) .and. create_rank_histogram ) then
-      if ( any(iqc == hist_qcs(1:numqcvals) ) )  &
-         call IPE(guess%hist_bin(iepoch,ilevel,iregion,flavor,myrank), 1)
-   endif
-
    end Subroutine Bin4D
 
 
 
-   Subroutine Bin3D(iqc, ilevel, iregion, flavor, &
+   Subroutine Bin3D(iqc, ilevel, iregion, flavor, trusted, &
                 obsval,  obserrvar,  prmean,  prsprd,  pomean,  posprd, &
                   uobs, uobserrvar, uprmean, uprsprd, upomean, uposprd  )
    !----------------------------------------------------------------------
@@ -2897,6 +3097,7 @@ CONTAINS
    ! Its an 'all-or-nothing' optional argument situation.
    !----------------------------------------------------------------------
    integer,  intent(in)           :: iqc, ilevel, iregion, flavor
+   logical,  intent(in)           :: trusted
    real(r8), intent(in)           :: obsval,  obserrvar,  prmean,  prsprd,  pomean,  posprd
    real(r8), intent(in), optional ::   uobs, uobserrvar, uprmean, uprsprd, upomean, uposprd
 
@@ -2955,10 +3156,52 @@ CONTAINS
    call IPE(guessAVG%Nposs(ilevel,iregion,flavor), 1)
    call IPE(analyAVG%Nposs(ilevel,iregion,flavor), 1)
 
+   !----------------------------------------------------------------------
+   ! Enforce the use of trusted observations.
+   !----------------------------------------------------------------------
+
+   if ( trusted ) then
+
+      call IPE(guessAVG%Ntrusted(ilevel,iregion,flavor), 1)
+      call IPE(analyAVG%Ntrusted(ilevel,iregion,flavor), 1)
+
+      ! Accrue the PRIOR quantities
+      if ( any(iqc == trusted_prior_qcs) ) then
+         call IPE(guessAVG%Nused(      ilevel,iregion,flavor),      1    )
+         call RPE(guessAVG%observation(ilevel,iregion,flavor), obsmean   )
+         call RPE(guessAVG%ens_mean(   ilevel,iregion,flavor), priormean )
+         call RPE(guessAVG%bias(       ilevel,iregion,flavor), priorbias )
+         call RPE(guessAVG%rmse(       ilevel,iregion,flavor), priorsqerr)
+         call RPE(guessAVG%spread(     ilevel,iregion,flavor), priorspred)
+         call RPE(guessAVG%totspread(  ilevel,iregion,flavor), priorspredplus)
+      else
+         call IPE(guessAVG%NbadDartQC(ilevel,iregion,flavor),      1     )
+      endif
+
+      ! Accrue the POSTERIOR quantities
+      if ( any(iqc == trusted_poste_qcs) ) then
+         call IPE(analyAVG%Nused(      ilevel,iregion,flavor),     1    )
+         call RPE(analyAVG%observation(ilevel,iregion,flavor), obsmean  )
+         call RPE(analyAVG%ens_mean(   ilevel,iregion,flavor), postmean )
+         call RPE(analyAVG%bias(       ilevel,iregion,flavor), postbias )
+         call RPE(analyAVG%rmse(       ilevel,iregion,flavor), postsqerr)
+         call RPE(analyAVG%spread(     ilevel,iregion,flavor), postspred)
+         call RPE(analyAVG%totspread(  ilevel,iregion,flavor), postspredplus)
+      else
+         call IPE(analyAVG%NbadDartQC(ilevel,iregion,flavor),      1    )
+      endif
+
+      return  ! EXIT THE BINNING ROUTINE
+   endif
+
+   !----------------------------------------------------------------------
+   ! Proceed 'as normal'.
+   !----------------------------------------------------------------------
+
    if ( iqc > QC_MAX_PRIOR ) then  ! prior and posterior failed
 
-      call IPE(guessAVG%NbadDartQC(ilevel,iregion,flavor),      1    )
-      call IPE(analyAVG%NbadDartQC(ilevel,iregion,flavor),      1    )
+      call IPE(guessAVG%NbadDartQC(ilevel,iregion,flavor),      1     )
+      call IPE(analyAVG%NbadDartQC(ilevel,iregion,flavor),      1     )
 
    else if ( iqc > QC_MAX_POSTERIOR ) then
 
@@ -2972,7 +3215,7 @@ CONTAINS
       call RPE(guessAVG%totspread(  ilevel,iregion,flavor), priorspredplus)
 
       ! However, the posterior is bad
-      call IPE(analyAVG%NbadDartQC(ilevel,iregion,flavor),      1    )
+      call IPE(analyAVG%NbadDartQC(ilevel,iregion,flavor),      1     )
 
    else
 
@@ -2986,12 +3229,12 @@ CONTAINS
       call RPE(guessAVG%totspread(  ilevel,iregion,flavor), priorspredplus)
 
       ! The posterior is good
-      call IPE(analyAVG%Nused(      ilevel,iregion,flavor),      1   )
-      call RPE(analyAVG%observation(ilevel,iregion,flavor), obsmean  )
-      call RPE(analyAVG%ens_mean(   ilevel,iregion,flavor), postmean )
-      call RPE(analyAVG%bias(       ilevel,iregion,flavor), postbias )
-      call RPE(analyAVG%rmse(       ilevel,iregion,flavor), postsqerr)
-      call RPE(analyAVG%spread(     ilevel,iregion,flavor), postspred)
+      call IPE(analyAVG%Nused(      ilevel,iregion,flavor),      1    )
+      call RPE(analyAVG%observation(ilevel,iregion,flavor), obsmean   )
+      call RPE(analyAVG%ens_mean(   ilevel,iregion,flavor), postmean  )
+      call RPE(analyAVG%bias(       ilevel,iregion,flavor), postbias  )
+      call RPE(analyAVG%rmse(       ilevel,iregion,flavor), postsqerr )
+      call RPE(analyAVG%spread(     ilevel,iregion,flavor), postspred )
       call RPE(analyAVG%totspread(  ilevel,iregion,flavor), postspredplus)
 
    endif
@@ -3048,8 +3291,8 @@ CONTAINS
             ncid = ncid), 'obs_diag:WriteNetCDF', 'create '//trim(fname))
 
    if (verbose) then
-      write(msgstring,*)trim(ncName), ' is fortran unit ',ncid
-      call error_handler(E_MSG,'WriteNetCDF',msgstring,source,revision,revdate)
+      write(string1,*)trim(ncName), ' is fortran unit ',ncid
+      call error_handler(E_MSG,'WriteNetCDF',string1,source,revision,revdate)
    endif
 
    !----------------------------------------------------------------------------
@@ -3057,9 +3300,9 @@ CONTAINS
    !----------------------------------------------------------------------------
 
    call DATE_AND_TIME(crdate,crtime,crzone,values)
-   write(msgstring,'(''YYYY MM DD HH MM SS = '',i4,5(1x,i2.2))') &
+   write(string1,'(''YYYY MM DD HH MM SS = '',i4,5(1x,i2.2))') &
                   values(1), values(2), values(3), values(5), values(6), values(7)
-   call nc_check(nf90_put_att(ncid, NF90_GLOBAL, 'creation_date', trim(msgstring) ), &
+   call nc_check(nf90_put_att(ncid, NF90_GLOBAL, 'creation_date', trim(string1) ), &
               'WriteNetCDF', 'put_att creation_date '//trim(fname))
 
 !  call nc_check(nf90_put_att(ncid, NF90_GLOBAL, 'title', global_meta_data), &
@@ -3144,9 +3387,9 @@ CONTAINS
 
      if (indx1 > 0) exit FILEloop
 
-     write(msgstring,'(''obs_seq_file_'',i3.3)')i
+     write(string1,'(''obs_seq_file_'',i3.3)')i
      call nc_check(nf90_put_att(ncid, NF90_GLOBAL, &
-            trim(msgstring), trim(obs_seq_filenames(i)) ), &
+            trim(string1), trim(obs_seq_filenames(i)) ), &
             'WriteNetCDF', 'region_names:obs_kinds')
 
    enddo FILEloop
@@ -3609,6 +3852,7 @@ CONTAINS
          rchunk(iregion,ilevel,19,itime) = vrbl%NDartQC_5(  itime,ilevel,iregion,ivar)
          rchunk(iregion,ilevel,20,itime) = vrbl%NDartQC_6(  itime,ilevel,iregion,ivar)
          rchunk(iregion,ilevel,21,itime) = vrbl%NDartQC_7(  itime,ilevel,iregion,ivar)
+         rchunk(iregion,ilevel,22,itime) = vrbl%Ntrusted(   itime,ilevel,iregion,ivar)
 
       enddo
       enddo
@@ -3618,8 +3862,8 @@ CONTAINS
 
       ! Create netCDF variable name
       
-      str1 = obs_type_strings(ivar)
-      string1 = trim(str1)//'_'//adjustl(vrbl%string)
+      string2 = obs_type_strings(ivar)
+      string1 = trim(string2)//'_'//adjustl(vrbl%string)
 
       call nc_check(nf90_def_var(ncid, name=string1, xtype=nf90_real, &
              dimids=(/ RegionDimID, LevelDimID, CopyDimID, TimeDimID /), &
@@ -3736,6 +3980,7 @@ CONTAINS
          chunk(iregion,ilevel,19) = vrbl%NDartQC_5(  ilevel,iregion,ivar)
          chunk(iregion,ilevel,20) = vrbl%NDartQC_6(  ilevel,iregion,ivar)
          chunk(iregion,ilevel,21) = vrbl%NDartQC_7(  ilevel,iregion,ivar)
+         chunk(iregion,ilevel,22) = vrbl%Ntrusted(   ilevel,iregion,ivar)
 
       enddo
       enddo
@@ -3744,8 +3989,8 @@ CONTAINS
 
       ! Create netCDF variable name
       
-      str1 = obs_type_strings(ivar)
-      string1 = trim(str1)//'_'//adjustl(vrbl%string)
+      string2 = obs_type_strings(ivar)
+      string1 = trim(string2)//'_'//adjustl(vrbl%string)
 
       call nc_check(nf90_def_var(ncid, name=string1, xtype=nf90_real, &
              dimids=(/ RegionDimID, LevelDimID, CopyDimID /), &
@@ -3922,41 +4167,6 @@ CONTAINS
 
 
 
-   Subroutine ObsLocationsExist( printswitch )
-
-   ! This routine checks for the existence of observation location files.
-   ! Each epoch writes out its own observation location file - and since
-   ! it is possible that multiple observation sequence files contribute
-   ! to the same epoch ... opening and appending is not a well-posed 
-   ! strategy. Furthermore, some people do not start close enough to the
-   ! beginning of their epoch definition to ensure that epoch 1 exists.
-   ! So ... we check for any of observation_locations.00[1-4].dat
-   ! Completely arbitrary.
-
-   logical :: printswitch
-   integer :: i
-
-   ! locname, msgstring, source, revision, and revdate are globally-scoped
-
-   if (printswitch) then
-
-      do i = 1,4
-      write(locName,'(a,i3.3,a)') 'observation_locations.', i, '.dat'
-   
-      if (file_exist(locName)) then
-         write(msgstring,*)'please remove file(s) like ', trim(locName)
-         call error_handler(E_MSG,'ObsLocationsExist',msgstring,source,revision,revdate)
-         write(msgstring,*)'Cannot have pre-existing obs location output files. Stopping.'
-         call error_handler(E_ERR,'ObsLocationsExist',msgstring,source,revision,revdate)
-      endif
-      enddo
-
-   endif
-
-   end Subroutine ObsLocationsExist
-
-
-
    Function Rank_Histogram(copyvalues, obs_index, &
                        error_variance, ens_copy_index ) result(rank) 
 
@@ -4028,5 +4238,28 @@ CONTAINS
 
    end Function Rank_Histogram
 
+
+
+
+   Function is_observation_trusted(obsname) 
+
+   ! Is the observation one that we 'trust'.
+   ! If so, disregard the DART QC ==7 (outlier rejection) and use it to
+   ! in the statistics calculations.
+   ! Since each obs_sequence file can have its own header/table, the safest
+   ! way is to compare the string to a list of trusted (string) observation types.
+
+   character(len=*), intent(in) :: obsname
+   logical                      :: is_observation_trusted
+
+   is_observation_trusted = .false.
+   rUtrusted : do i = 1,num_trusted
+      if ( trim(obsname) == trim(trusted_obsname(i)) ) then
+         is_observation_trusted = .true.
+         exit rUtrusted
+      endif
+   enddo rUtrusted
+
+   end Function is_observation_trusted
 
 end program obs_diag
