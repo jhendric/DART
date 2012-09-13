@@ -51,12 +51,14 @@
    start_from_restart    = .false.
    output_restart        = .false.
    restart_in_file_name  = 'smoother_ics'
-   restart_out_file_name = 'smoother_restart' /
+   restart_out_file_name = 'smoother_restart'
+   /
 
 &ensemble_manager_nml
    single_restart_file_in  = .false.,
    single_restart_file_out = .false.,
-   perturbation_amplitude  = 0.2 /
+   perturbation_amplitude  = 0.2
+   /
 
 &assim_tools_nml
    filter_kind                     = 1,
@@ -71,16 +73,19 @@
 /
 
 &cov_cutoff_nml
-   select_localization = 1  /
+   select_localization = 1
+   /
 
 &reg_factor_nml
    select_regression    = 1,
    input_reg_file       = "time_mean_reg",
    save_reg_diagnostics = .false.,
-   reg_diagnostics_file = 'reg_diagnostics' /
+   reg_diagnostics_file = 'reg_diagnostics'
+   /
 
 &obs_sequence_nml
-   write_binary_obs_sequence = .false.  /
+   write_binary_obs_sequence = .false.
+   /
 
 &assim_model_nml
    write_binary_restart_files = .true.,
@@ -186,13 +191,14 @@
    module_details = .false.,
    logfilename = 'dart_log.out',
    nmlfilename = 'dart_log.nml',
-   write_nml   = 'file'  /
+   write_nml   = 'file'
+   /
 
 &mpi_utilities_nml
    /
 
 &obs_def_gps_nml
-  max_gpsro_obs = 100000,
+   max_gpsro_obs = 1000000
   / 
 
 &restart_file_tool_nml
@@ -210,7 +216,8 @@
    overwrite_advance_time       = .false.,
    new_advance_days             =  -1,
    new_advance_secs             =  -1,
-   gregorian_cal                = .true.   /
+   gregorian_cal                = .true.
+   /
 
 &obs_sequence_tool_nml
    filename_seq       = 'obs_seq.one', 'obs_seq.two',
@@ -280,7 +287,8 @@
    reg_names  = 'Northern Hemisphere', 'Southern Hemisphere', 'Tropics', 'North America',
    print_mismatched_locs = .false.,
    print_obs_locations = .false.,
-   verbose = .false.  /
+   verbose = .false.
+   /
 
 &schedule_nml
    calendar        = 'Gregorian',
@@ -302,9 +310,6 @@
    latlim1    =  -90.0,
    latlim2    =   90.0,
    verbose    = .false.
-   /
-
-&obs_def_gps_nml
    /
 
 &obs_common_subset_nml
