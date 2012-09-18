@@ -10,10 +10,10 @@ program test_random_gsl
 ! $Revision$
 ! $Date$
 
-use     types_mod, only : r4, r8, digits12
-use utilities_mod, only : register_module, error_handler, E_ERR, &
-                          initialize_utilities, timestamp
-use    random_mod, only : random_seq_type, init_ran, ran_unif, ran_gauss
+use      types_mod, only : r4, r8, digits12
+use  utilities_mod, only : register_module, error_handler, E_ERR, &
+                           initialize_utilities, timestamp
+use random_seq_mod, only : random_seq_type, init_random_seq, random_gaussian
 
 implicit none
 
@@ -42,40 +42,40 @@ write(*, *) 'r4       is defined to be ', r4
 n = 10000000
 
 
-call init_ran(r, -5)
+call init_random_seq(r, -5)
 d12mean_dist = 0.0
 do i = 1, n
-   d12r1        = ran_gauss(r)
+   d12r1        = random_gaussian(r, 0.0_r8, 1.0_r8)
    d12dist      = abs(d12r1)
    d12mean_dist = d12mean_dist + d12dist
 end do
 write(*, *) 'digits12         sd is ', d12mean_dist / n
 
 
-call init_ran(r, -5)
+call init_random_seq(r, -5)
 dpmean_dist = 0.0
 do i = 1, n
-   dpr1        = ran_gauss(r)
+   dpr1        = random_gaussian(r, 0.0_r8, 1.0_r8)
    dpdist      = dabs(dpr1)
    dpmean_dist = dpmean_dist + dpdist
 end do
 write(*, *) 'double precision sd is ', dpmean_dist / n
 
 
-call init_ran(r, -5)
+call init_random_seq(r, -5)
 r8mean_dist = 0.0_r8
 do i = 1, n
-   r8r1        = ran_gauss(r)
+   r8r1        = random_gaussian(r, 0.0_r8, 1.0_r8)
    r8dist      = abs(r8r1)
    r8mean_dist = r8mean_dist + r8dist
 end do
 write(*, *) 'r8               sd is ', r8mean_dist / n
 
 
-call init_ran(r, -5)
+call init_random_seq(r, -5)
 r4mean_dist = 0.0_r4
 do i = 1, n
-   r4r1        = ran_gauss(r)
+   r4r1        = random_gaussian(r, 0.0_r8, 1.0_r8)
    r4dist      = abs(r4r1)
    r4mean_dist = r4mean_dist + r4dist
 end do
