@@ -48,7 +48,9 @@ integer, parameter :: M = 397
 integer(i8), parameter :: UPPER_MASK  = z'80000000'
 integer(i8), parameter :: LOWER_MASK  = z'7FFFFFFF'
 integer(i8), parameter :: FULL32_MASK = z'FFFFFFFF'
-integer(i8), parameter :: magic       = z'9908b0df'
+integer(i8), parameter :: magic       = z'9908B0DF'
+integer(i8), parameter :: C1          = z'9D2C5680'
+integer(i8), parameter :: C2          = z'EFC60000'
 
 type random_seq_type
    private
@@ -283,8 +285,8 @@ endif
 k = s%mt(s%mti)
 
 k = ieor(k, ishft(k, -11))
-k = ieor(k, iand(ishft(k, 7),  z'9d2c5680'))
-k = ieor(k, iand(ishft(k, 15), z'efc60000'))
+k = ieor(k, iand(ishft(k, 7),  C1))
+k = ieor(k, iand(ishft(k, 15), C2))
 k = ieor(k, ishft(k, -18))
 
 ! original c code:
