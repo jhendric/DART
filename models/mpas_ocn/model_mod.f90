@@ -199,7 +199,6 @@ integer :: maxEdges      = -1  ! Largest number of edges a cell can have
 integer :: nVertLevels   = -1  ! Vertical levels; count of vert cell centers
 integer :: nVertLevelsP1 = -1  ! Vert levels plus 1; count of vert cell faces
 integer :: vertexDegree  = -1  ! Max number of cells/edges that touch any vertex
-integer :: nSoilLevels   = -1  ! Number of soil layers
 
 ! scalar grid positions
 
@@ -384,7 +383,7 @@ call error_handler(E_MSG,'static_init_model',string1,source,revision,revdate)
 ! 3) read them from the analysis file
 
 ! read_grid_dims() fills in the following module global variables:
-!  nCells, nVertices, nEdges, maxEdges, nVertLevels, nVertLevelsP1, vertexDegree, nSoilLevels
+!  nCells, nVertices, nEdges, maxEdges, nVertLevels, nVertLevelsP1, vertexDegree
 call read_grid_dims()
 
 allocate(latCell(nCells), lonCell(nCells)) 
@@ -534,8 +533,6 @@ do ivar = 1, nfields
          case ('nEdges')
             progvar(ivar)%numedges = dimlen
          case ('nVertL')  ! nVertLevels, nVertLevelsP1, nVertLevelsP2
-            progvar(ivar)%numvertical = dimlen
-         case ('nSoilL')  ! nSoilLevels
             progvar(ivar)%numvertical = dimlen
       end select
 
@@ -855,7 +852,7 @@ integer,             intent(out) :: istatus
 ! Local storage
 
 real(r8) :: loc_array(3), llon, llat, lheight, fract, v_interp
-integer  :: i, j, ivar, ier, lower, upper, this_kind
+integer  :: i, j, ivar, ier, lower, upper
 integer  :: pt_base_offset, density_base_offset, qv_base_offset
 
 real(r8) :: weights(3), lower_interp, upper_interp, ltemp, utemp
@@ -1178,7 +1175,6 @@ integer :: nCellsDimID
 integer :: nEdgesDimID, maxEdgesDimID
 integer :: nVerticesDimID
 integer :: VertexDegreeDimID
-integer :: nSoilLevelsDimID
 integer :: nVertLevelsDimID
 integer :: nVertLevelsP1DimID
 
@@ -1326,10 +1322,6 @@ else
    call nc_check(nf90_def_dim(ncid=ncFileID, name='nVertLevelsP1', &
           len = nVertLevelsP1, dimid = NVertLevelsP1DimID),'nc_write_model_atts', &
                                       'nVertLevelsP1 def_dim '//trim(filename))
-
-   call nc_check(nf90_def_dim(ncid=ncFileID, name='nSoilLevels', &
-          len = nSoilLevels, dimid = nSoilLevelsDimID),'nc_write_model_atts', &
-               'nSoilLevels def_dim '//trim(filename))
 
    !----------------------------------------------------------------------------
    ! Create the (empty) Coordinate Variables and the Attributes
@@ -2313,18 +2305,12 @@ type(time_type),  intent(in) :: statetime
 integer :: i, ivar
 real(r8), allocatable, dimension(:)         :: data_1d_array
 real(r8), allocatable, dimension(:,:)       :: data_2d_array
-real(r8), allocatable, dimension(:,:)       :: data_2d_array2
 real(r8), allocatable, dimension(:,:,:)     :: data_3d_array
-
-! temp space to hold horizontal winds
-real(r8), allocatable :: u(:,:), ucell_incr(:,:), vcell_incr(:,:)
 
 integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, mystart, mycount
 character(len=NF90_MAX_NAME) :: varname
 integer :: VarID, ncNdims, dimlen
-integer :: zonal, meridional
 integer :: ncFileID, TimeDimID, TimeDimLength
-logical :: both
 type(time_type) :: model_time
 
 if ( .not. module_initialized ) call static_init_model
@@ -2649,7 +2635,6 @@ Vertices   = nVertices
 Edges      = nEdges
 VertLevels = nVertLevels
 VertexDeg  = vertexDegree
-SoilLevels = nSoilLevels
 
 end subroutine get_grid_dims
 
@@ -2810,13 +2795,6 @@ call nc_check(nf90_inq_dimid(grid_id, 'vertexDegree', dimid), &
 call nc_check(nf90_inquire_dimension(grid_id, dimid, len=vertexDegree), &
             'read_grid_dims','inquire_dimension vertexDegree '//trim(grid_definition_filename))
 
-! nSoilLevels : get dimid for 'nSoilLevels' and then get value
-
-call nc_check(nf90_inq_dimid(grid_id, 'nSoilLevels', dimid), &
-              'read_grid_dims','inq_dimid nSoilLevels '//trim(grid_definition_filename))
-call nc_check(nf90_inquire_dimension(grid_id, dimid, len=nSoilLevels), &
-            'read_grid_dims','inquire_dimension nSoilLevels '//trim(grid_definition_filename))
-
 ! tidy up
 
 call nc_check(nf90_close(grid_id), &
@@ -2831,7 +2809,6 @@ if (debug > 7) then
    write(*,*)'read_grid_dims: nVertLevels   is ', nVertLevels
    write(*,*)'read_grid_dims: nVertLevelsP1 is ', nVertLevelsP1
    write(*,*)'read_grid_dims: vertexDegree  is ', vertexDegree
-   write(*,*)'read_grid_dims: nSoilLevels   is ', nSoilLevels
 endif
 
 end subroutine read_grid_dims
@@ -3039,9 +3016,8 @@ real(r8), allocatable :: data_2d_array(:,:)
 
 integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, mystart, mycount
 character(len=NF90_MAX_NAME) :: dimname 
-integer :: VarID, numdims, dimlen, ntimes, i
+integer :: VarID, numdims, dimlen, i
 integer :: zonal, meridional
-logical :: both
 logical :: already_updated = .false.
 
 if ( .not. module_initialized ) call static_init_model
@@ -3543,8 +3519,6 @@ MyLoop : do i = 1, nrows
          case ('nVertLevels')
             ! supported - do nothing
          case ('nVertLevelsP1')
-            ! supported - do nothing
-         case ('nSoilLevels')
             ! supported - do nothing
          case default
             write(string2,'(''unsupported dimension '',a,'' in '',a)') trim(dimname),trim(string1)
@@ -4408,7 +4382,7 @@ integer,  intent(in)  :: lev, nlevs
 real(r8), intent(out) :: pressure
 integer,  intent(out) :: ier
 
-integer  :: i, offset
+integer  :: offset
 real(r8) :: pt, density, qv, tk
 
 
@@ -4963,10 +4937,10 @@ integer,             intent(out) :: ier
 ! using barycentric weights to get the value at the interpolation point.
 
 integer, parameter :: listsize = 30 
-integer  :: nedges, edgelist(listsize), i, j, neighborcells(maxEdges), edgeid, nvert
+integer  :: nedges, i, neighborcells(maxEdges), edgeid, nvert
 real(r8) :: xdata(listsize), ydata(listsize), zdata(listsize)
 real(r8) :: t1(3), t2(3), t3(3), r(3), fdata(3), weights(3)
-integer  :: vertindex, index1, progindex, cellid, verts(listsize), closest_vert
+integer  :: index1, cellid, verts(listsize), closest_vert
 real(r8) :: lat, lon, vert, tmp(3), fract, lowval(3), uppval(3), p(3)
 integer  :: verttype, lower, upper, c(3), vindex, v, vp1
 logical  :: inside, foundit
@@ -5117,7 +5091,7 @@ real(r8) :: ureconstructx, ureconstructy, ureconstructz
 real(r8) :: ureconstructzonal, ureconstructmeridional
 real(r8) :: datatangentplane(3,2)
 real(r8) :: coeffs_reconstruct(3,listsize)
-integer  :: vertindex, index1, progindex, cellid
+integer  :: index1, progindex, cellid
 real(r8) :: lat, lon, vert, tmp(3), fract, lowval, uppval
 integer  :: verttype, lower, upper
 
@@ -5490,7 +5464,6 @@ logical               :: inside_cell
 ! otherwise return yes.
 
 integer :: nedges, i, edgeid, vert
-real(r8) :: v1(3), v2(3), p(3), vec1(3), vec2(3), r(3), m
 
 ! if we're on a global grid, skip all this code
 if (global_grid) then
@@ -5623,8 +5596,7 @@ integer,  intent(in)  :: cellid
 real(r8), intent(in)  :: lat, lon
 integer               :: closest_vertex_ll
 
-integer :: nverts, i, closest, vertexid
-real(r8) :: distsq, closest_dist, x, y, z, px, py, pz
+real(r8) :: px, py, pz
 
 ! use the same radius as MPAS for computing this
 call latlon_to_xyz(lat, lon, px, py, pz)
@@ -5647,8 +5619,8 @@ integer,  intent(in)  :: cellid
 real(r8), intent(in)  :: px, py, pz
 integer               :: closest_vertex_xyz
 
-integer :: nverts, i, closest, vertexid
-real(r8) :: distsq, closest_dist, x, y, z, dx, dy, dz
+integer :: nverts, i, vertexid
+real(r8) :: distsq, closest_dist, dx, dy, dz
 
 ! nedges and nverts is same in a closed figure
 !print *, 'cellid = ', cellid
@@ -5824,8 +5796,6 @@ real(r8), intent(out) :: intp(3)
 
 real(r8) :: m(3,3), v(3) ! intermediates to compute intersection
 real(r8) :: mi(3,3)      ! invert of m
-integer  :: i
-
 
 m(1,1) = -s(1)
 m(1,2) = t1(1) - t0(1)

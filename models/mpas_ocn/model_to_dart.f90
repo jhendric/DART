@@ -54,7 +54,6 @@ namelist /model_to_dart_nml/    &
 ! global storage
 !----------------------------------------------------------------------
 
-logical               :: verbose = .TRUE.
 integer               :: io, iunit, x_size
 type(time_type)       :: model_time
 real(r8), allocatable :: statevector(:)
@@ -63,8 +62,6 @@ character(len=256)    :: model_analysis_filename
 !======================================================================
 
 call initialize_utilities(progname='model_to_dart')
-! if verbose is false, E_MSG won't get printed.  i'm not sure we want that.
-!call initialize_utilities(progname='model_to_dart', output_flag=verbose)
 
 !----------------------------------------------------------------------
 ! Read the namelist to get the output filename.
