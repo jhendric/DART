@@ -40,9 +40,7 @@ use     location_mod, only : location_type, get_dist, query_location,          &
                              vert_is_height,   VERTISHEIGHT,                   &
                              vert_is_scale_height, VERTISSCALEHEIGHT,          &
                              get_close_obs_init, get_close_obs_destroy,        &
-                             loc_get_close_obs
-
-                            ! loc_get_close_obs => get_close_obs
+                             loc_get_close_obs => get_close_obs
 
 use    utilities_mod, only : register_module, error_handler,                   &
                              E_ERR, E_WARN, E_MSG, logfileunit, get_unit,      &
