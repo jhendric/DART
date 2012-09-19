@@ -690,7 +690,7 @@ integer, optional,   intent(out) :: var_type
 
 integer  :: nxp, nzp, iloc, vloc, nf, n
 integer  :: myindx
-integer  :: ztypeout, istatus
+integer  :: istatus
 real(r8) :: height
 type(location_type) :: new_location
 
@@ -823,7 +823,7 @@ integer,             intent(out) :: istatus
 
 ! local storage
 
-integer  :: ivar, ier, obs_kind
+integer  :: ivar, obs_kind
 integer  :: tvars(3)
 logical  :: badkind
 real(r8) :: values(3), loc_array(3), lpres
@@ -1815,10 +1815,9 @@ integer,             dimension(:), intent(out)   :: close_ind
 real(r8),            dimension(:), intent(out)   :: dist
 
 integer                :: ztypeout
-integer                :: t_ind, istatus1, istatus2, k, iv
+integer                :: t_ind, istatus1, istatus2, k
 integer                :: base_which, local_obs_which
 real(r8), dimension(3) :: base_xyz, local_obs_xyz
-real(r8), dimension(3) :: test_xyz
 type(location_type)    :: local_obs_loc
 
 real(r8) ::  hor_dist
@@ -2197,16 +2196,11 @@ type(time_type),  intent(in) :: statetime
 integer :: i, ivar
 real(r8), allocatable, dimension(:)         :: data_1d_array
 real(r8), allocatable, dimension(:,:)       :: data_2d_array
-real(r8), allocatable, dimension(:,:)       :: data_2d_array2
 real(r8), allocatable, dimension(:,:,:)     :: data_3d_array
-
-! temp space to hold horizontal winds
-real(r8), allocatable :: u(:,:), ucell_incr(:,:), vcell_incr(:,:)
 
 integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, mystart, mycount
 character(len=NF90_MAX_NAME) :: varname
 integer :: VarID, ncNdims, dimlen
-integer :: zonal, meridional
 integer :: ncFileID, TimeDimID, TimeDimLength
 logical :: done_winds
 type(time_type) :: model_time
@@ -4092,7 +4086,7 @@ real(r8),            intent(out) :: fract(:)
 integer,             intent(out) :: ier
 
 real(r8) :: lat, lon, vert, llv(3)
-integer  :: verttype, edgeid, i
+integer  :: verttype, i
 integer  :: pt_base_offset, density_base_offset, qv_base_offset
 
 ! the plan is to take in: whether this var is on cell centers or edges,
@@ -4331,7 +4325,7 @@ real(r8), intent(out) :: pressure
 integer,  intent(out) :: ier
 logical,  intent(in), optional :: debug
 
-integer  :: i, offset
+integer  :: offset
 real(r8) :: pt, density, qv, tk
 
 
@@ -4460,8 +4454,8 @@ integer,             intent(in)  :: ival(:)
 real(r8),            intent(out) :: dval(:)
 integer,             intent(out) :: ier
 
-real(r8) :: fract(3), lowval(3), uppval(3), fdata(3), weights(3), llv(3)
-integer  :: lower(3), upper(3), c(3), nvert, index1, k, i, verttype, nc
+real(r8) :: fract(3), lowval(3), uppval(3), fdata(3), weights(3)
+integer  :: lower(3), upper(3), c(3), nvert, index1, k, i, nc
 
 dval = MISSING_R8
 
@@ -4515,11 +4509,11 @@ integer,             intent(out) :: ier
 ! using barycentric weights to get the value at the interpolation point.
 
 integer, parameter :: listsize = 30 
-integer  :: nedges, i, j, neighborcells(maxEdges), edgeid
+integer  :: nedges, i, neighborcells(maxEdges), edgeid
 real(r8) :: xdata(listsize), ydata(listsize), zdata(listsize)
 real(r8) :: t1(3), t2(3), t3(3), r(3)
-integer  :: vertindex, progindex, cellid, verts(listsize), closest_vert
-real(r8) :: lat, lon, vert, llv(3), p(3)
+integer  :: cellid, verts(listsize), closest_vert
+real(r8) :: lat, lon, vert, llv(3)
 integer  :: verttype, vindex, v, vp1
 logical  :: inside, foundit
 
@@ -4675,7 +4669,7 @@ real(r8) :: ureconstructx, ureconstructy, ureconstructz
 real(r8) :: ureconstructzonal, ureconstructmeridional
 real(r8) :: datatangentplane(3,2)
 real(r8) :: coeffs_reconstruct(3,listsize)
-integer  :: vertindex, index1, progindex, cellid, vertexid
+integer  :: index1, progindex, cellid, vertexid
 real(r8) :: lat, lon, vert, llv(3), fract(listsize), lowval, uppval
 integer  :: verttype, lower(listsize), upper(listsize), ncells, celllist(listsize)
 
@@ -5102,7 +5096,6 @@ logical               :: inside_cell
 ! otherwise return yes.
 
 integer :: nedges, i, edgeid, vert
-real(r8) :: v1(3), v2(3), p(3), vec1(3), vec2(3), r(3), m
 
 ! if we're on a global grid, skip all this code
 if (global_grid) then
@@ -5158,8 +5151,7 @@ integer,  intent(in)  :: cellid
 real(r8), intent(in)  :: lat, lon
 integer               :: closest_vertex_ll
 
-integer :: nverts, i, closest, vertexid
-real(r8) :: distsq, closest_dist, x, y, z, px, py, pz
+real(r8) :: px, py, pz
 
 ! use the same radius as MPAS for computing this
 call latlon_to_xyz(lat, lon, px, py, pz)
@@ -5181,8 +5173,8 @@ integer,  intent(in)  :: cellid
 real(r8), intent(in)  :: px, py, pz
 integer               :: closest_vertex_xyz
 
-integer :: nverts, i, closest, vertexid
-real(r8) :: distsq, closest_dist, x, y, z, dx, dy, dz
+integer :: nverts, i, vertexid
+real(r8) :: distsq, closest_dist, dx, dy, dz
 
 ! nedges and nverts is same in a closed figure
 nverts = nEdgesOnCell(cellid)
@@ -5513,7 +5505,7 @@ integer,  intent(out)   :: ier
 integer, parameter :: listsize = 30 
 real(r8) :: o_lower(listsize), o_fract(listsize)
 real(r8) :: x1, x2, x
-integer  :: i, j, k, e, c1, c2, c
+integer  :: i, c1, c2, c
 
 ! save the originals; we are going to overwrite these arrays
 o_lower = lower
@@ -5616,8 +5608,6 @@ real(r8), intent(in)  :: r(3), lat, lon
 logical,  intent(out) :: inside
 real(r8), intent(out) :: weights(3)
 
-integer  :: i
-
 ! check for degenerate cases first - is the test point located
 ! directly on one of the vertices?  (this case may be common
 ! if we're computing on grid point locations.)
@@ -5676,8 +5666,6 @@ integer  :: nverts, i, vertexid
 real(r8) :: s(3)         ! location of point on surface
 real(r8) :: p(3,3)       ! first 3 vertices of cell, xyz
 real(r8) :: intp(3)      ! intersection point with plane
-logical  :: inside       ! if true, intersection is inside tri
-
 
 call latlon_to_xyz(lat, lon, s(1), s(2), s(3))
 

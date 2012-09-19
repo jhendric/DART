@@ -59,17 +59,14 @@ namelist /dart_to_model_nml/ dart_to_model_input_file, &
 
 !----------------------------------------------------------------------
 
-integer               :: iunit, io, x_size, diff1, diff2
-type(time_type)       :: model_time, adv_to_time, base_time
+integer               :: iunit, io, x_size
+type(time_type)       :: model_time, adv_to_time
 real(r8), allocatable :: statevector(:)
-logical               :: verbose              = .FALSE.
 character(len=256)    :: model_analysis_filename
 
 !----------------------------------------------------------------------
 
 call initialize_utilities(progname='dart_to_model')
-! if verbose is false, E_MSG won't get printed.  i'm not sure we want that.
-!call initialize_utilities(progname='dart_to_model', output_flag=verbose)
 
 ! Read the namelist to get the input filename. 
 
