@@ -6,7 +6,7 @@
 #
 # $Id$
 
-../../../mkmf/mkmf -p advance_time -t ../../../mkmf/mkmf.template${MKMF} \
+../../../mkmf/mkmf -p advance_time -t ../../../mkmf/mkmf.template \
  -a "../../.." path_names_advance_time
 
 exit $status
