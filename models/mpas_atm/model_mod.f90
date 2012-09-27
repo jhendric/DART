@@ -42,6 +42,11 @@ use     location_mod, only : location_type, get_dist, query_location,          &
                              get_close_obs_init, get_close_obs_destroy,        &
                              loc_get_close_obs => get_close_obs
 
+use xyz_location_mod, only : xyz_location_type, xyz_get_close_maxdist_init,    &
+                             xyz_get_close_type, xyz_set_location, xyz_get_location, &
+                             xyz_get_close_obs_init, xyz_get_close_obs_destroy, &
+                             xyz_find_nearest
+
 use    utilities_mod, only : register_module, error_handler,                   &
                              E_ERR, E_WARN, E_MSG, logfileunit, get_unit,      &
                              nc_check, do_output, to_upper, nmlfileunit,       &
@@ -149,9 +154,8 @@ type(random_seq_type) :: random_seq
 
 ! Structure for computing distances to cell centers, and assorted arrays
 ! needed for the get_close code.
-type(get_close_type)             :: cc_gc
-type(location_type), allocatable :: cell_locs(:)
-integer, allocatable             :: dummy(:), close_ind(:)
+type(xyz_get_close_type)             :: cc_gc
+type(xyz_location_type), allocatable :: cell_locs(:)
 
 ! variables which are in the module namelist 
 integer            :: vert_localization_coord = VERTISHEIGHT
@@ -159,10 +163,11 @@ integer            :: assimilation_period_days = 0
 integer            :: assimilation_period_seconds = 60
 real(r8)           :: model_perturbation_amplitude = 0.0001   ! tiny amounts
 real(r8)           :: highest_obs_pressure_mb   = 100.0_r8    ! do not assimilate obs higher than this level.
-real(r8)           :: cell_size_radians = 0.10_r8    ! size of largest cell in r
+real(r8)           :: cell_size_meters = 100.0_r8    ! size of largest cell in r
 logical            :: output_state_vector = .false.  ! output prognostic variables (if .false.)
 logical            :: logp = .false.  ! if true, interpolate pres in log space
 integer            :: debug = 0   ! turn up for more and more debug messages
+integer            :: xyzdebug = 0
 character(len=32)  :: calendar = 'Gregorian'
 character(len=256) :: model_analysis_filename = 'mpas_analysis.nc'
 character(len=256) :: grid_definition_filename = 'mpas_analysis.nc'
@@ -182,7 +187,13 @@ integer :: use_rbf_option = 2
 
 ! if .false. edge normal winds (u) should be in state vector and are written out directly
 ! if .true.  edge normal winds (u) are updated based on U/V reconstructed winds
-logical :: update_u_from_reconstruct = .false.
+logical :: update_u_from_reconstruct = .true.
+
+! only if update_u_from_reconstruct is true, 
+! if .false. use the cell center u,v reconstructed values to update edge winds
+! if .true., read in the original u,v winds, compute the increments after the
+! assimilation, and use only the increments to update the edge winds
+logical :: use_increments_for_u_update = .true.
 
 namelist /model_nml/             &
    model_analysis_filename,      &
@@ -194,9 +205,11 @@ namelist /model_nml/             &
    model_perturbation_amplitude, &
    calendar,                     &
    debug,                        &
+   xyzdebug,                     &
    use_u_for_wind,               &
    use_rbf_option,               &
    update_u_from_reconstruct,    &
+   use_increments_for_u_update,  &
    highest_obs_pressure_mb
 
 ! DART state vector contents are specified in the input.nml:&mpas_vars_nml namelist.
@@ -296,7 +309,7 @@ type(time_type) :: model_timestep      ! smallest time to adv model
 ! useful flags in making decisions when searching for points, etc
 logical :: global_grid = .true.        ! true = the grid covers the sphere with no holes
 logical :: all_levels_exist_everywhere = .true. ! true = cells defined at all levels
-logical :: has_real_u = .false.        ! true = has original u on edges
+logical :: has_edge_u = .false.        ! true = has original normal u on edges
 logical :: has_uvreconstruct = .false. ! true = has reconstructed at centers
 
 ! currently unused; for a regional model it is going to be necessary to know
@@ -380,9 +393,10 @@ character(len=NF90_MAX_NAME)          :: varname,dimname
 character(len=paramname_length)       :: kind_string
 integer :: ncid, VarID, numdims, varsize, dimlen
 integer :: iunit, io, ivar, i, index1, indexN, iloc, kloc
-integer :: ss, dd
+integer :: ss, dd, z1, m1
 integer :: nDimensions, nVariables, nAttributes, unlimitedDimID, TimeDimID
 integer :: cel1, cel2
+logical :: both
 
 if ( module_initialized ) return ! only need to do this once.
 
@@ -595,7 +609,7 @@ do ivar = 1, nfields
       progvar(ivar)%ZonHalf = .FALSE.
    endif
 
-   if (varname == 'u') has_real_u = .true.
+   if (varname == 'u') has_edge_u = .true.
    if (varname == 'uReconstructZonal' .or. &
        varname == 'uReconstructMeridional') has_uvreconstruct = .true.
 
@@ -638,17 +652,52 @@ if ( debug > 0 .and. do_output()) then
   endif
 endif
 
-! do some sanity checking here?
+! do some sanity checking here:
+
+! if you have at least one of these wind components in the state vector, 
+! you have to have them both.  the subroutine will error out if only one 
+! is found and not both.
+if (has_uvreconstruct) then
+   call winds_present(z1,m1,both)
+endif
+
+! if you set the namelist to use the reconstructed cell center winds,
+! they have to be in the state vector.
 if (update_u_from_reconstruct .and. .not. has_uvreconstruct) then
    write(string1,*) 'update_u_from_reconstruct cannot be True'
    write(string2,*) 'because state vector does not contain U/V reconstructed winds'
    call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate, &
                       text2=string2)
 endif
-if (update_u_from_reconstruct .and. has_real_u) then
+
+! if you set the namelist to update the edge normal winds based on the
+! updated cell center winds, and you also have the edge normal winds in
+! the state vector, warn that the edge normal winds will be ignored
+! when going back to the mpas_analysis.nc file.  not an error, but the
+! updates to the edge normal vectors won't affect the results.
+if (update_u_from_reconstruct .and. has_edge_u) then
    write(string1,*) 'edge normal winds (u) in MPAS file will be updated based on U/V reconstructed winds'
-   write(string2,*) 'and not from the real edge normal values in the state vector'
+   write(string2,*) 'and not from the updated edge normal values in the state vector'
    write(string3,*) 'because update_u_from_reconstruct is True'
+   call error_handler(E_MSG,'static_init_model',string1,source,revision,revdate, &
+                      text2=string2, text3=string3)
+endif
+
+! there are two choices when updating the edge normal winds based on the
+! winds at the cell centers.  one is a direct interpolation of the values;
+! the other is to read in the original cell centers, compute the increments
+! changed by the interpolation, and then add or substract only the increments
+! from the original edge normal wind values.
+if (update_u_from_reconstruct) then
+   if (use_increments_for_u_update) then
+      write(string1,*) 'edge normal winds (u) in MPAS file will be updated based on the difference'
+      write(string2,*) 'between the original U/V reconstructed winds and the updated values'
+      write(string3,*) 'because use_increment_for_u_update is True'
+   else
+      write(string1,*) 'edge normal winds (u) in MPAS file will be updated by averaging the'
+      write(string2,*) 'updated U/V reconstructed winds at the corresponding cell centers'
+      write(string3,*) 'because use_increment_for_u_update is False'
+   endif
    call error_handler(E_MSG,'static_init_model',string1,source,revision,revdate, &
                       text2=string2, text3=string3)
 endif
@@ -660,7 +709,7 @@ if ((get_progvar_index_from_kind(KIND_POTENTIAL_TEMPERATURE) < 0) .or. &
     (get_progvar_index_from_kind(KIND_DENSITY) < 0) .or. &
     (get_progvar_index_from_kind(KIND_VAPOR_MIXING_RATIO) < 0)) then
    write(string1, *) 'State vector is missing one or more of the following fields:'
-   write(string2, *) 'Potential Temperature, Density, Vapor Mixing Ratio.'
+   write(string2, *) 'Potential Temperature (theta), Density (rho), Vapor Mixing Ratio (qv).'
    write(string3, *) 'Cannot convert between height/pressure nor compute sensible temps.'
    call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate, &
                       text2=string2, text3=string3)
@@ -825,7 +874,7 @@ integer,             intent(out) :: istatus
 
 integer  :: ivar, obs_kind
 integer  :: tvars(3)
-logical  :: badkind
+logical  :: goodkind
 real(r8) :: values(3), loc_array(3), lpres
 type(location_type) :: new_location
 
@@ -880,23 +929,26 @@ endif
 ! at the cell centers (U,V).  there are namelist options to control
 ! which to use if both are in the state vector.
 
-badkind = .false.
 ivar = get_progvar_index_from_kind(obs_kind)
+if (ivar > 0) then
+   goodkind = .true.
 
-if (ivar <= 0) then
-   badkind = .true.
+else
+   goodkind = .false.
 
    ! exceptions 1 and 2:
-   if (obs_kind == KIND_TEMPERATURE) badkind = .false.
+   if (obs_kind == KIND_TEMPERATURE) goodkind = .true.
 
    if ((obs_kind == KIND_U_WIND_COMPONENT) .or. obs_kind == KIND_V_WIND_COMPONENT) then
       ivar = get_progvar_index_from_kind(KIND_EDGE_NORMAL_SPEED)
-      if (ivar > 0 .and. use_u_for_wind) badkind = .false.
+      if (ivar > 0 .and. use_u_for_wind) goodkind = .true.
    endif
 endif
 
-if (badkind) then
-   istatus = 88            ! this kind not in state vector
+! this kind is not in the state vector and it isn't one of the exceptions
+! that we know how to handle.
+if (.not. goodkind) then
+   istatus = 88
    return
 endif
 
@@ -907,7 +959,7 @@ if(obs_kind == KIND_VERTICAL_VELOCITY) then
 endif
 
 if ((obs_kind == KIND_U_WIND_COMPONENT .or. &
-     obs_kind == KIND_V_WIND_COMPONENT) .and. has_real_u .and. use_u_for_wind) then
+     obs_kind == KIND_V_WIND_COMPONENT) .and. has_edge_u .and. use_u_for_wind) then
    if (obs_kind == KIND_U_WIND_COMPONENT) then
       ! return U
       call compute_u_with_rbf(x, location, .TRUE., interp_val, istatus)
@@ -1673,7 +1725,6 @@ real(r8), intent(in) :: filter_ens_mean(:)
 if ( .not. module_initialized ) call static_init_model
 
 ens_mean = filter_ens_mean
-!print *, 'setting ens_mean, x(100) = ', ens_mean(100)
 
 end subroutine ens_mean_for_model
 
@@ -1817,7 +1868,7 @@ real(r8),            dimension(:), intent(out)   :: dist
 integer                :: ztypeout
 integer                :: t_ind, istatus1, istatus2, k
 integer                :: base_which, local_obs_which
-real(r8), dimension(3) :: base_xyz, local_obs_xyz
+real(r8), dimension(3) :: base_llv, local_obs_llv   ! lon/lat/vert
 type(location_type)    :: local_obs_loc
 
 real(r8) ::  hor_dist
@@ -1833,20 +1884,21 @@ istatus2  = 0
 
 ! Convert base_obs vertical coordinate to requested vertical coordinate if necessary
 
-base_xyz = get_location(base_obs_loc)
+base_llv = get_location(base_obs_loc)
 base_which = nint(query_location(base_obs_loc))
 
 ztypeout = vert_localization_coord
 
 if (.not. horiz_dist_only) then
-  if (base_xyz(3) == MISSING_R8) then
+  if (base_llv(3) == MISSING_R8) then
      istatus1 = 1
   else if (base_which /= vert_localization_coord) then
       call vert_convert(ens_mean, base_obs_loc, base_obs_kind, ztypeout, istatus1)
+      if(debug > 5) then
       call write_location(0,base_obs_loc,charstring=string1)
-      if(debug > 5) &
       call error_handler(E_MSG, 'get_close_obs: base_obs_loc',string1,source, revision, revdate)
   endif
+endif
 endif
 
 if (istatus1 == 0) then
@@ -1877,9 +1929,9 @@ if (istatus1 == 0) then
 
       ! Compute distance - set distance to a very large value if vert coordinate is missing
       ! or vert_interpolate returned error (istatus2=1)
-      local_obs_xyz = get_location(local_obs_loc)
+      local_obs_llv = get_location(local_obs_loc)
       if (( (.not. horiz_dist_only)           .and. &
-            (local_obs_xyz(3) == MISSING_R8)) .or.  &
+            (local_obs_llv(3) == MISSING_R8)) .or.  &
             (istatus2 /= 0)                   ) then
             dist(k) = 1.0e9_r8
       else
@@ -2265,7 +2317,7 @@ PROGVARLOOP : do ivar=1, nfields
 
       ! this routine updates the edge winds from both the zonal and meridional
       ! fields, so only call it once.
-      call update_wind_components(ncFileID, state_vector)
+      call update_wind_components(ncFileID, state_vector, use_increments_for_u_update)
       done_winds = .true.
       cycle PROGVARLOOP
    endif
@@ -2905,17 +2957,38 @@ end subroutine get_grid
 
 !------------------------------------------------------------------
 
-subroutine update_wind_components(ncid, state_vector)
+subroutine update_wind_components(ncid, state_vector, use_increments_for_u_update)
 
  integer,  intent(in)  :: ncid                  ! netCDF handle for model_analysis_filename
  real(r8), intent(in)  :: state_vector(:)
+ logical,  intent(in)  :: use_increments_for_u_update
 
-! Special processing if the DART state uses the 'Reconstructed' winds (on the grid centers)
-! as opposed to the components on the grid edge centers (components normal to 
-! the edge direction).  This routine reads in the previous reconstructed winds
-! (from an mpas netcdf file - it could get them from the DART Prior_Diag.nc file)
-! and then computes what the increments were, then uses the increments at the centers
-! to update the normal edge winds in the mpas netcdf file.
+! the winds pose a special problem because the model uses the edge-normal component
+! of the winds at the center of the cell edges at half levels in the vertical ('u').
+! the output files from the model can include interpolated Meridional and Zonal
+! winds as prognostic fields, which are easier for us to use when computing
+! forward operator values.  but in the end we need to update 'u' in the output
+! model file.
+
+! this routine is only called when 'u' is not being directly updated by the
+! assimilation, and the updated cell center values need to be converted back
+! to update 'u'.   there are several choices for how to do this and most are
+! controlled by namelist settings.
+
+! If 'use_increments_for_u_update' is .true.:
+!  Read in the previous reconstructed winds from the original mpas netcdf file
+!  and compute what increments (changes in values) were added by the assimilation.
+!  Read in the original edge normal wind 'u' field from that same mpas netcdf
+!  file and add the interpolated increments to compute the updated 'u' values.
+!  (note that we can't use the DART Prior_Diag.nc file to get the previous
+!  values if we're using Prior inflation, because the diagnostic values are
+!  written out after inflation is applied.)
+
+! If 'use_increments_for_u_update' is .false.:
+!  use the Zonal/Meridional cell center values directly. The edge normal winds
+!  are each directly between 2 cell centers, so average the components normal
+!  to the edge direction.  don't read in the previous values at the cell centers
+!  or the edge normal winds.
 
 ! there are several changes here from previous versions:
 !  1. it requires both zonal and meridional fields to be there.  it doesn't
@@ -2929,10 +3002,10 @@ subroutine update_wind_components(ncid, state_vector)
 !  the code needs to be changed (one place vs three).
 
 ! space to hold existing data from the analysis file
-real(r8), allocatable :: u(:,:)                ! u(nVertLevels, nEdges) 
-real(r8), allocatable :: ucell_incr(:,:)       ! uReconstructZonal(nVertLevels, nCells) 
-real(r8), allocatable :: vcell_incr(:,:)       ! uReconstructMeridional(nVertLevels, nCells) 
-real(r8), allocatable :: data_2d_array(:,:)
+real(r8), allocatable :: u(:,:)              ! u(nVertLevels, nEdges) 
+real(r8), allocatable :: ucell(:,:)          ! uReconstructZonal(nVertLevels, nCells) 
+real(r8), allocatable :: vcell(:,:)          ! uReconstructMeridional(nVertLevels, nCells) 
+real(r8), allocatable :: data_2d_array(:,:)  ! temporary
 logical :: both
 integer :: zonal, meridional
 
@@ -2943,65 +3016,76 @@ call winds_present(zonal,meridional,both)
 if (.not. both) call error_handler(E_ERR, 'update_wind_components', &
    'internal error: wind fields not found', source, revision, revdate)
 
-allocate(         u(nVertLevels, nEdges))
-allocate(ucell_incr(nVertLevels, nCells))
-allocate(vcell_incr(nVertLevels, nCells))
+allocate(    u(nVertLevels, nEdges))
+allocate(ucell(nVertLevels, nCells))
+allocate(vcell(nVertLevels, nCells))
 
-! read in 'u' (edge normal winds), plus the uReconstructZonal
+! if doing increments, read in 'u' (edge normal winds), plus the uReconstructZonal
 ! and uReconstructMeridonal fields from the mpas analysis netcdf file.
 
-call read_2d_from_nc_file(ncid, 'u', u)
-call read_2d_from_nc_file(ncid, 'uReconstructZonal', ucell_incr)
-call read_2d_from_nc_file(ncid, 'uReconstructMeridonal', vcell_incr)
+if (use_increments_for_u_update) then
+   call read_2d_from_nc_file(ncid, 'u', u)
+   call read_2d_from_nc_file(ncid, 'uReconstructZonal', ucell)
+   call read_2d_from_nc_file(ncid, 'uReconstructMeridonal', vcell)
 
-if ( debug > 8 ) then
-   write(*,*)
-   write(*,*)'update_winds: org u          range ',minval(u),          maxval(u)
-   write(*,*)'update_winds: org zonal      range ',minval(ucell_incr), maxval(ucell_incr)
-   write(*,*)'update_winds: org meridional range ',minval(vcell_incr), maxval(vcell_incr)
+   if ( debug > 8 ) then
+      write(*,*)
+      write(*,*)'update_winds: org u          range ',minval(u),     maxval(u)
+      write(*,*)'update_winds: org zonal      range ',minval(ucell), maxval(ucell)
+      write(*,*)'update_winds: org meridional range ',minval(vcell), maxval(vcell)
+   endif
+
+   ! compute the increments compared to the updated values in the state vector
+
+   allocate(data_2d_array(nVertLevels, nCells))
+
+   call vector_to_prog_var(state_vector, zonal, data_2d_array)
+   ucell = data_2d_array - ucell
+   call vector_to_prog_var(state_vector, meridional, data_2d_array)
+   vcell = data_2d_array - vcell
+
+   deallocate(data_2d_array)
+
+   ! this is by nedges, not ncells as above
+   allocate(data_2d_array(nVertLevels, nEdges))
+   call uv_cell_to_edges(ucell, vcell, data_2d_array)
+   u(:,:) = u(:,:) + data_2d_array(:,:)
+   deallocate(data_2d_array)
+
+   if ( debug > 8 ) then
+      write(*,*)
+      write(*,*)'update_winds: u increment    range ',minval(ucell), maxval(ucell)
+      write(*,*)'update_winds: v increment    range ',minval(vcell), maxval(vcell)
+   endif
+   
+else
+
+   ! The state vector has updated zonal and meridional wind components.
+   ! put them directly into the arrays.  these are the full values, not
+   ! just increments.
+   call vector_to_prog_var(state_vector, zonal, ucell)
+   call vector_to_prog_var(state_vector, meridional, vcell)
+
+   call uv_cell_to_edges(ucell, vcell, u)
+
+   if ( debug > 8 ) then
+      write(*,*)
+      write(*,*)'update_winds: u values    range ',minval(ucell), maxval(ucell)
+      write(*,*)'update_winds: v values    range ',minval(vcell), maxval(vcell)
+   endif
+
 endif
-
-! The state vector has updated zonal and meridional wind components.
-! compute the difference between the updated values and the originals.
-
-allocate(data_2d_array(nVertLevels, nCells))
-
-call vector_to_prog_var(state_vector, zonal, data_2d_array)
-ucell_incr = data_2d_array - ucell_incr
-
-call vector_to_prog_var(state_vector, meridional, data_2d_array)
-vcell_incr = data_2d_array - vcell_incr
-
-deallocate(data_2d_array)
-
-if ( debug > 8 ) then
-   write(*,*)
-   write(*,*)'update_winds: u increment    range ',minval(ucell_incr), maxval(ucell_incr)
-   write(*,*)'update_winds: v increment    range ',minval(vcell_incr), maxval(vcell_incr)
-endif
-
-! Now that we have the U,V increments (at the cell centers) and 
-! the prior 'normal' wind component ('u' - at the cell edges),
-! convert the increments to increments at the edges.
-
-allocate(data_2d_array(nVertLevels, nEdges))
-
-call uv_cell_to_edges(ucell_incr, vcell_incr, data_2d_array)
-
-! Update normal velocity 
-u(:,:) = u(:,:) + data_2d_array(:,:)
 
 if ( debug > 8 ) then
    write(*,*)
    write(*,*)'update_winds: u after update:',minval(u), maxval(u)
 endif
 
-! Finally update the normal wind component field back in the mpas
-! analysis file.
+! Write back to the mpas analysis file.
 
 call put_u(ncid, u)
 
-deallocate(data_2d_array, ucell_incr, vcell_incr, u)
+deallocate(ucell, vcell, u)
 
 end subroutine update_wind_components
 
@@ -3561,8 +3645,9 @@ else if (zonal < 0 .and. meridional < 0) then
 endif
 
 ! only one present - error.
-write(string1,*) 'both components for U winds must be in state vector'
-call error_handler(E_ERR,'winds_present',string1,source,revision,revdate)
+write(string1,*) 'both components for U/V reconstructed winds must be in state vector'
+write(string2,*) 'cannot have only one of uReconstructMeridional and uReconstructZonal'
+call error_handler(E_ERR,'winds_present',string1,source,revision,revdate,text2=string2)
 
 end subroutine winds_present
 
@@ -3776,7 +3861,7 @@ integer,                intent(out)   :: istatus
 ! zin and zout are the vert values coming in and going out.
 ! ztype{in,out} are the vert types as defined by the 3d sphere 
 ! locations mod (location/threed_sphere/location_mod.f90)
-real(r8) :: xyz_loc(3)
+real(r8) :: llv_loc(3)
 real(r8) :: zin, zout, tk, fullp, surfp
 real(r8) :: weights(3), zk_mid(3), values(3), fract(3), fdata(3)
 integer  :: ztypein, i
@@ -3815,19 +3900,19 @@ else
 endif
 
 ! we do need to convert the vertical.  start by
-! extracting the location lat/lon/vert values.
-xyz_loc = get_location(location)
+! extracting the location lon/lat/vert values.
+llv_loc = get_location(location)
 
 ! the routines below will use zin as the incoming vertical value
 ! and zout as the new outgoing one.  start out assuming failure
 ! (zout = missing) and wait to be pleasantly surprised when it works.
-zin     = xyz_loc(3)
+zin     = llv_loc(3)
 zout    = missing_r8
 
 ! if the vertical is missing to start with, return it the same way
 ! with the requested type as out.
 if (zin == missing_r8) then
-   location = set_location(xyz_loc(1),xyz_loc(2),missing_r8,ztypeout)
+   location = set_location(llv_loc(1),llv_loc(2),missing_r8,ztypeout)
    return
 endif
 
@@ -3929,7 +4014,7 @@ select case (ztypeout)
    endif
 
    ! Get theta, rho, qv at the surface corresponding to the interpolated location
-   surfloc = set_location(xyz_loc(1), xyz_loc(2), 1.0_r8, VERTISLEVEL)
+   surfloc = set_location(llv_loc(1), llv_loc(2), 1.0_r8, VERTISLEVEL)
    call compute_scalar_with_barycentric (x, surfloc, 3, ivars, values, istatus)
    if (istatus /= 0) return
 
@@ -3963,7 +4048,7 @@ select case (ztypeout)
 end select   ! outgoing vert type
 
 ! Returned location 
-location = set_location(xyz_loc(1),xyz_loc(2),zout,ztypeout)
+location = set_location(llv_loc(1),llv_loc(2),zout,ztypeout)
    
 ! Set successful return code only if zout has good value
 if(zout /= missing_r8) istatus = 0
@@ -4263,16 +4348,24 @@ do i = 2, nbounds
    call get_interp_pressure(x, pt_base_offset, density_base_offset, &
       qv_base_offset, cellid, i, nbounds, pressure(i), ier)
 !print *, 'find p bounds i, pr(i) = ', i, pressure(i), ier
+   if (ier /= 0) return
 
    ! Check if pressure at lower level is higher than at upper level.
    if(pressure(i) > pressure(i-1)) then
+      if (debug > 0) then
       write(string1, *) 'lower pressure larger than upper pressure at cellid',  cellid
       write(string2, *) 'level nums, pressures: ', i-1,i,pressure(i-1),pressure(i)
       write(*,*) 'find_pressure_bounds: ', trim(string1), trim(string2)
+      endif
+      if (debug > 5) then
       do j = 1, nbounds
          call get_interp_pressure(x, pt_base_offset, density_base_offset, &
             qv_base_offset, cellid, j, nbounds, pr, ier2, .true.)
       enddo
+      endif
+
+      ier = 988
+      return
 
       !call error_handler(E_ERR, "find_pressure_bounds", string1, &
       !   source, revision, revdate, text2=string2)
@@ -4284,15 +4377,12 @@ do i = 2, nbounds
       upper = i
       if (pressure(i) == pressure(i-1)) then
          fract = 0.0_r8
-      else
-         ! FIXME: should this be interpolated in log(p)?? 
-         if (logp) then
+      else if (logp) then
             fract = exp(log(p) - log(pressure(i-1))) / &
                        (log(pressure(i)) - log(pressure(i-1)))
          else
             fract = (p - pressure(i-1)) / (pressure(i) - pressure(i-1))
          endif
-      endif
 
       if(debug>9 .and. my_task_id() == 0) print '(A,3F26.18,2I4,F22.18)', &
          "find_pressure_bounds: p_in, pr(i-1), pr(i), lower, upper, fract = ", &
@@ -4441,6 +4531,16 @@ weights(2) = ((cys(3) - cys(1)) * (x - cxs(3)) + &
 
 weights(3) = 1.0_r8 - weights(1) - weights(2)
 
+! FIXME: i want to remove this code.  does it affect the answers?
+if (any(abs(weights) < roundoff)) then
+   !print *, 'get_barycentric_weights due to roundoff errors: ', weights
+   where (abs(weights) < roundoff) weights = 0.0_r8
+   where (abs(1.0_r8 - abs(weights)) < roundoff) weights = 1.0_r8
+endif
+if(abs(sum(weights)-1.0_r8) > roundoff) &
+   print *, 'fail in get_barycentric_weights: sum(weights) = ',sum(weights)
+!end FIXME section
+
 end subroutine get_barycentric_weights
 
 
@@ -4535,7 +4635,9 @@ vert = llv(3)
 verttype = nint(query_location(loc))
 
 cellid = find_closest_cell_center(lat, lon)
+if(xyzdebug > 5) print *, 'closest cell center for lon/lat: ', lon, lat, cellid
 if (cellid < 1) then
+   if(xyzdebug > 0) print *, 'closest cell center for lon/lat: ', lon, lat, cellid
    ier = 11
    return
 endif
@@ -4554,7 +4656,7 @@ endif
 
 ! closest vertex to given point.
 closest_vert = closest_vertex_ll(cellid, lat, lon)
-
+if(xyzdebug > 5)print *, 'closest vertex for lon/lat: ', lon, lat, closest_vert
 
 ! collect the neighboring cell ids and vertex numbers
 ! this 2-step process avoids us having to read in the
@@ -4613,9 +4715,17 @@ findtri: do i=vindex, vindex+nedges
       ! in the triangle formed by t1, t2, t3.
       ! v and vp1 are vert indices which are same indices 
       ! for cell centers
-      nc = 3
-      c(2) = neighborcells(v)
-      c(3) = neighborcells(vp1)
+! FIXME: i want to remove this code.  does it affect the answers?
+      if(any(weights == 1.0_r8)) then
+         nc = 1
+      else
+!end FIXME section
+         nc = 3
+         c(2) = neighborcells(v)
+         c(3) = neighborcells(vp1)
+! FIXME: i want to remove this code.  does it affect the answers?
+      endif
+!end FIXME section
       foundit = .true.
       exit findtri  
    endif
@@ -4905,20 +5015,16 @@ subroutine init_closest_center()
 
 integer :: i
 
-allocate(cell_locs(nCells), dummy(nCells), close_ind(nCells))
-dummy = 0
+allocate(cell_locs(nCells))
 
 do i=1, nCells
-   cell_locs(i) = set_location(lonCell(i), latCell(i), 0.0_r8, VERTISSURFACE)
+   cell_locs(i) = xyz_set_location(lonCell(i), latCell(i), 0.0_r8, radius)
 enddo
 
-! FIXME: should be as small as possible. its a namelist item now.
-! smaller is faster, right up until it fails catestrophically.
-! definitely needs to be small for a regional grid.  the limit is
-! the size of the largest polygon.  try much smaller - roughly twice
-! the size of an average grid cell.
-call get_close_maxdist_init(cc_gc, cell_size_radians)  
-call get_close_obs_init(cc_gc, nCells, cell_locs)
+! the width really isn't used anymore, but it's part of the
+! interface so we have to pass some number in.
+call xyz_get_close_maxdist_init(cc_gc, cell_size_meters)
+call xyz_get_close_obs_init(cc_gc, nCells, cell_locs)
 
 end subroutine init_closest_center
 
@@ -4932,12 +5038,10 @@ function find_closest_cell_center(lat, lon)
 real(r8), intent(in)  :: lat, lon
 integer               :: find_closest_cell_center
 
-type(location_type) :: pointloc
-integer :: i, closest_cell, num_close
+type(xyz_location_type) :: pointloc
+integer :: i, closest_cell, num_close, rc
 real(r8) :: closest_dist, dist
 logical, save :: search_initialized = .false.
-
-real(r8) :: l(3)
 
 ! do this exactly once.
 if (.not. search_initialized) then
@@ -4945,33 +5049,17 @@ if (.not. search_initialized) then
    search_initialized = .true.
 endif
 
-pointloc = set_location(lon, lat, 0.0_r8, VERTISSURFACE)
+pointloc = xyz_set_location(lon, lat, 0.0_r8, radius)
 
-! set up a GC in the locations mod
-! call get_close()
-! find the closest distance
-! return the cell index number
+call xyz_find_nearest(cc_gc, pointloc, cell_locs, closest_cell, rc)
 
-call loc_get_close_obs(cc_gc, pointloc, 0, cell_locs, dummy, num_close, close_ind)
-
-closest_cell = -1
-closest_dist = 1.0e9_r8  ! something large in radians
-do i=1, num_close
-l = get_location(cell_locs(close_ind(i)))
-   dist = get_dist(pointloc, cell_locs(close_ind(i)), no_vert = .true.)
-   if (dist < closest_dist) then
-      closest_dist = dist
-      closest_cell = close_ind(i)
-   endif
-enddo
- 
 ! decide what to do if we don't find anything.
-if (closest_cell < 0) then
+if (rc /= 0 .or. closest_cell < 0) then
    if (debug > 8) print *, 'cannot find nearest cell to lon, lat: ', lon, lat
    find_closest_cell_center = -1
    return
 endif
-
+ 
 ! this is the cell index for the closest center
 find_closest_cell_center = closest_cell
 
@@ -4983,7 +5071,7 @@ subroutine finalize_closest_center()
 
 ! get rid of storage associated with GC for cell centers.
 
-call get_close_obs_destroy(cc_gc)
+call xyz_get_close_obs_destroy(cc_gc)
 
 end subroutine finalize_closest_center
 
@@ -5904,6 +5992,7 @@ real(r8)  :: theta_to_tk          ! sensible temperature [K]
 ! Local variables
 real(r8) :: theta_m               ! potential temperature modified by qv
 real(r8) :: exner                 ! exner function
+
 
 theta_m = (1.0_r8 + 1.61_r8 * (max(qv, 0.0_r8)))*theta
 exner = ( (rgas/p0) * (rho*theta_m) )**rcv
