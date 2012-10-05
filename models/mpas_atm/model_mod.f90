@@ -66,7 +66,8 @@ use     obs_kind_mod, only : paramname_length,        &
                              KIND_V_WIND_COMPONENT,   &
                              KIND_PRESSURE,           &
                              KIND_DENSITY,            & 
-                             KIND_VAPOR_MIXING_RATIO
+                             KIND_VAPOR_MIXING_RATIO, &
+                             KIND_SPECIFIC_HUMIDITY
 
 use mpi_utilities_mod, only: my_task_id
 
@@ -618,7 +619,7 @@ do ivar = 1, nfields
    progvar(ivar)%indexN      = index1 + varsize - 1
    index1                    = index1 + varsize      ! sets up for next variable
 
-   !if ( debug > 0 ) call dump_progvar(ivar)
+   if ( debug > 4 ) call dump_progvar(ivar)
 
 enddo
 
@@ -875,8 +876,7 @@ integer,             intent(out) :: istatus
 integer  :: ivar, obs_kind
 integer  :: tvars(3)
 logical  :: goodkind
-real(r8) :: values(3), loc_array(3), lpres
-type(location_type) :: new_location
+real(r8) :: values(3), lpres
 
 if ( .not. module_initialized ) call static_init_model
 
@@ -887,35 +887,23 @@ istatus    = 99           ! must be positive (and integer)
 ! to this subroutine, but this really is a kind.
 obs_kind = obs_type
 
+if (debug > 0) then
+   call write_location(0,location,charstring=string1)
+   print *, my_task_id(), 'stt x(1), kind, loc ', x(1), obs_kind, trim(string1)
+endif
+
+! Reject obs above a user specified pressure level.
 ! this is expensive - only do it if users want to reject observations
 ! at the top of the model.  negative values mean ignore this test.
 if (highest_obs_pressure_mb > 0.0) then
-   ! Reject obs above a user specified pressure level
-   if(vert_is_pressure(location)) then
-      loc_array = get_location(location)
-      lpres = loc_array(3)
-
-   else if(vert_is_height(location) .or. vert_is_level(location)) then
-      new_location = location
-      call vert_convert(ens_mean, new_location, obs_kind, VERTISPRESSURE, istatus)
-      if(istatus == 0) then
-         loc_array = get_location(new_location) 
-         lpres = loc_array(3)
-      else
-         interp_val = MISSING_R8
-         istatus = 200
-         return
-      endif
-
-   else    ! VERTISUNDEF or VERTISSURFACE
-      lpres = 200100.    ! VERTISUNDEF should impact entire column
-   endif
-   
+   lpres = compute_pressure_at_loc(x, location)
    if (lpres < highest_obs_pressure_mb * 100.0_r8) then
-        ! Exclude from assimilation the obs above a user specified level
-        interp_val = MISSING_R8
-        istatus = 201
-        return
+
+      if (debug > 4) print *, 'rejected, pressure < upper limit', lpres, highest_obs_pressure_mb
+      ! Exclude from assimilation the obs above a user specified level
+      interp_val = MISSING_R8
+      istatus = 201
+      goto 100
    endif
 endif
 
@@ -927,37 +915,48 @@ endif
 ! also there are options for the winds because mpas has both
 ! winds on the cell edges (normal only) and reconstructed winds
 ! at the cell centers (U,V).  there are namelist options to control
-! which to use if both are in the state vector.
+! which to use if both are in the state vector.  we can compute
+! specific humidity from the vapor mixing ratio (which we know
+! we have because we require potential temp, mixing ratio, and 
+! density to be in the state vector in all cases.)
 
-ivar = get_progvar_index_from_kind(obs_kind)
-if (ivar > 0) then
+if (get_progvar_index_from_kind(obs_kind) > 0) then
    goodkind = .true.
-
 else
    goodkind = .false.
-
-   ! exceptions 1 and 2:
-   if (obs_kind == KIND_TEMPERATURE) goodkind = .true.
-
-   if ((obs_kind == KIND_U_WIND_COMPONENT) .or. obs_kind == KIND_V_WIND_COMPONENT) then
-      ivar = get_progvar_index_from_kind(KIND_EDGE_NORMAL_SPEED)
-      if (ivar > 0 .and. use_u_for_wind) goodkind = .true.
-   endif
+   ! exceptions if the kind isn't directly
+   ! a field in the state vector:
+   select case (obs_kind)
+      case (KIND_TEMPERATURE)
+         goodkind = .true.
+      case (KIND_PRESSURE) 
+         goodkind = .true.
+      case (KIND_SPECIFIC_HUMIDITY)
+         goodkind = .true.
+      case (KIND_U_WIND_COMPONENT,KIND_V_WIND_COMPONENT)
+         ! if the reconstructed winds at the cell centers aren't there,
+         ! we can use the edge normal winds, if the user allows it.
+         ivar = get_progvar_index_from_kind(KIND_EDGE_NORMAL_SPEED)
+         if (ivar > 0 .and. use_u_for_wind) goodkind = .true.
+   end select
 endif
 
 ! this kind is not in the state vector and it isn't one of the exceptions
 ! that we know how to handle.
 if (.not. goodkind) then
+   if (debug > 4) print *, 'kind rejected', obs_kind
    istatus = 88
-   return
+   goto 100
 endif
 
 ! Not prepared to do w interpolation at this time
 if(obs_kind == KIND_VERTICAL_VELOCITY) then
+   if (debug > 4) print *, 'no vert vel yet'
    istatus = 16
-   return
+   goto 100
 endif
 
+! winds
 if ((obs_kind == KIND_U_WIND_COMPONENT .or. &
      obs_kind == KIND_V_WIND_COMPONENT) .and. has_edge_u .and. use_u_for_wind) then
    if (obs_kind == KIND_U_WIND_COMPONENT) then
@@ -967,8 +966,8 @@ if ((obs_kind == KIND_U_WIND_COMPONENT .or. &
       ! return V
       call compute_u_with_rbf(x, location, .FALSE., interp_val, istatus)
    endif
-!print *, 'called u_with_rbf, kind, istatus: ', obs_kind, istatus
-   if (istatus /= 0) return
+   if (debug > 4) print *, 'called u_with_rbf, kind, val, istatus: ', obs_kind, interp_val, istatus
+   if (istatus /= 0) goto 100
 
 else if (obs_kind == KIND_TEMPERATURE) then
    ! need to get potential temp, pressure, qv here, but can
@@ -978,23 +977,53 @@ else if (obs_kind == KIND_TEMPERATURE) then
    tvars(3) = get_progvar_index_from_kind(KIND_VAPOR_MIXING_RATIO)
 
    call compute_scalar_with_barycentric(x, location, 3, tvars, values, istatus)
-   if (istatus /= 0) return
+   if (debug > 4) print *, 'called compute temp, kind, val, istatus: ', obs_kind, interp_val, istatus
+   if (istatus /= 0) goto 100
  
    ! convert pot_temp, density, vapor mixing ratio into sensible temperature
    interp_val = theta_to_tk(values(1), values(2), values(3))
 
-!print *, 'called compute temp, kind, istatus: ', obs_kind, istatus
+   if (debug > 4) then
+      call write_location(0,location,charstring=string1)
+      print *, 'T,loc,ivals,val ', trim(string1), values(1), values(2), values(3), interp_val
+   endif
+
+else if (obs_kind == KIND_PRESSURE) then
+   interp_val = compute_pressure_at_loc(x, location)
+   if (interp_val == MISSING_R8) then
+      if (debug > 4) print *, 'compute_pressure_at_loc failed'
+      istatus = 202
+      goto 100
+   endif
+   istatus = 0
+
+else if (obs_kind == KIND_SPECIFIC_HUMIDITY) then
+   ! compute vapor pressure, then: sh = vp / (1.0 + vp)
+   tvars(1) = get_progvar_index_from_kind(KIND_VAPOR_MIXING_RATIO)
+   call compute_scalar_with_barycentric(x, location, 1, tvars, values, istatus)
+   interp_val = values(1) 
+   if (debug > 4) print *, 'called compute SH, kind, val, istatus: ', obs_kind, interp_val, istatus
+   if (istatus /= 0) goto 100
+
+   if (interp_val > 0.0_r8) then
+      interp_val = interp_val / (1.0 + interp_val)
+   else
+      interp_val = 0.0_r8
+   endif
+   if (debug > 4) print *, 'return val is: ', interp_val
+
 else 
 
    ! direct interpolation, kind is in the state vector
    tvars(1) = ivar
    call compute_scalar_with_barycentric(x, location, 1, tvars, values, istatus)
    interp_val = values(1)
-   if (istatus /= 0) return
-!print *, 'called compute_w_bary, kind, istatus: ', obs_kind, istatus
+   if (debug > 4) print *, 'called generic compute_w_bary, kind, val, istatus: ', obs_kind, interp_val, istatus
+   if (istatus /= 0) goto 100
 
 endif
 
+100 continue
 
 ! this is for debugging - when we're confident the code is
 ! returning consistent values and rc codes, both these tests can
@@ -1010,9 +1039,10 @@ if (istatus == 0 .and. interp_val == MISSING_R8) then
    call error_handler(E_ERR,'model_interpolate',string1,source,revision,revdate)
 endif
 
-call write_location(0,location,charstring=string1)
-if (debug > 5) print *, 'x(1), kind, loc ', x(1), obs_kind, trim(string1)
-if (debug > 5) print *, 'returning value ', interp_val
+if (debug > 0) then
+   call write_location(0,location,charstring=string1)
+   print *, my_task_id(), 'end x(1), kind, loc, val, rc ', x(1), obs_kind, trim(string1), interp_val, istatus
+endif
 
 end subroutine model_interpolate
 
@@ -1722,9 +1752,18 @@ subroutine ens_mean_for_model(filter_ens_mean)
 
 real(r8), intent(in) :: filter_ens_mean(:)
 
+integer :: ivar
+
 if ( .not. module_initialized ) call static_init_model
 
 ens_mean = filter_ens_mean
+
+if (debug > 3) then
+   if (do_output()) print *, 'resetting ensemble mean: '
+   do ivar = 1, nfields
+      call dump_progvar(ivar, x=ens_mean, minmaxonly=.true.)
+   enddo
+endif
 
 end subroutine ens_mean_for_model
 
@@ -1948,6 +1987,11 @@ if (istatus1 == 0) then
       endif
 
    enddo
+endif
+
+if (debug > 2) then
+   call write_location(0,base_obs_loc,charstring=string2)
+   print *, 'get_close_obs: nclose, base_obs_loc ', num_close, trim(string2)
 endif
 
 end subroutine get_close_obs
@@ -3515,12 +3559,14 @@ end subroutine verify_state_variables
 
 !------------------------------------------------------------------
 
-subroutine dump_progvar(ivar, x)
+subroutine dump_progvar(ivar, x, minmaxonly)
 
  integer,  intent(in)           :: ivar
  real(r8), intent(in), optional :: x(:)
+ logical,  intent(in), optional :: minmaxonly
 
 ! if present, x is a state vector.  dump the data min/max for this var.
+
 
 !%! type progvartype
 !%!    private
@@ -3549,52 +3595,58 @@ integer :: i
 ! the output.
 if (.not. do_output()) return
 
-write(logfileunit,*)
-write(     *     ,*)
-write(logfileunit,*) 'variable number ',ivar,' is ',trim(progvar(ivar)%varname)
-write(     *     ,*) 'variable number ',ivar,' is ',trim(progvar(ivar)%varname)
-write(logfileunit,*) '  long_name   ',trim(progvar(ivar)%long_name)
-write(     *     ,*) '  long_name   ',trim(progvar(ivar)%long_name)
-write(logfileunit,*) '  units       ',trim(progvar(ivar)%units)
-write(     *     ,*) '  units       ',trim(progvar(ivar)%units)
-write(logfileunit,*) '  xtype       ',progvar(ivar)%xtype
-write(     *     ,*) '  xtype       ',progvar(ivar)%xtype
-write(logfileunit,*) '  dimlens     ',progvar(ivar)%dimlens(1:progvar(ivar)%numdims)
-write(     *     ,*) '  dimlens     ',progvar(ivar)%dimlens(1:progvar(ivar)%numdims)
-write(logfileunit,*) '  numdims     ',progvar(ivar)%numdims
-write(     *     ,*) '  numdims     ',progvar(ivar)%numdims
-write(logfileunit,*) '  numvertical ',progvar(ivar)%numvertical
-write(     *     ,*) '  numvertical ',progvar(ivar)%numvertical
-write(logfileunit,*) '  numcells    ',progvar(ivar)%numcells
-write(     *     ,*) '  numcells    ',progvar(ivar)%numcells
-write(logfileunit,*) '  numedges    ',progvar(ivar)%numedges
-write(     *     ,*) '  numedges    ',progvar(ivar)%numedges
-write(logfileunit,*) '  ZonHalf     ',progvar(ivar)%ZonHalf
-write(     *     ,*) '  ZonHalf     ',progvar(ivar)%ZonHalf
-write(logfileunit,*) '  varsize     ',progvar(ivar)%varsize
-write(     *     ,*) '  varsize     ',progvar(ivar)%varsize
-write(logfileunit,*) '  index1      ',progvar(ivar)%index1
-write(     *     ,*) '  index1      ',progvar(ivar)%index1
-write(logfileunit,*) '  indexN      ',progvar(ivar)%indexN
-write(     *     ,*) '  indexN      ',progvar(ivar)%indexN
-write(logfileunit,*) '  dart_kind   ',progvar(ivar)%dart_kind
-write(     *     ,*) '  dart_kind   ',progvar(ivar)%dart_kind
-write(logfileunit,*) '  kind_string ',progvar(ivar)%kind_string
-write(     *     ,*) '  kind_string ',progvar(ivar)%kind_string
-write(logfileunit,*) '  clamping    ',progvar(ivar)%clamping
-write(     *     ,*) '  clamping    ',progvar(ivar)%clamping
-write(logfileunit,*) '  clmp range  ',progvar(ivar)%range
-write(     *     ,*) '  clmp range  ',progvar(ivar)%range
-do i = 1,progvar(ivar)%numdims
-   write(logfileunit,*) '  dimension/length/name ',i,progvar(ivar)%dimlens(i),trim(progvar(ivar)%dimname(i))
-   write(     *     ,*) '  dimension/length/name ',i,progvar(ivar)%dimlens(i),trim(progvar(ivar)%dimname(i))
-enddo
+if (.not. minmaxonly) then
+
+   write(logfileunit,*)
+   write(     *     ,*)
+   write(logfileunit,*) 'variable number ',ivar,' is ',trim(progvar(ivar)%varname)
+   write(     *     ,*) 'variable number ',ivar,' is ',trim(progvar(ivar)%varname)
+   write(logfileunit,*) '  long_name   ',trim(progvar(ivar)%long_name)
+   write(     *     ,*) '  long_name   ',trim(progvar(ivar)%long_name)
+   write(logfileunit,*) '  units       ',trim(progvar(ivar)%units)
+   write(     *     ,*) '  units       ',trim(progvar(ivar)%units)
+   write(logfileunit,*) '  xtype       ',progvar(ivar)%xtype
+   write(     *     ,*) '  xtype       ',progvar(ivar)%xtype
+   write(logfileunit,*) '  dimlens     ',progvar(ivar)%dimlens(1:progvar(ivar)%numdims)
+   write(     *     ,*) '  dimlens     ',progvar(ivar)%dimlens(1:progvar(ivar)%numdims)
+   write(logfileunit,*) '  numdims     ',progvar(ivar)%numdims
+   write(     *     ,*) '  numdims     ',progvar(ivar)%numdims
+   write(logfileunit,*) '  numvertical ',progvar(ivar)%numvertical
+   write(     *     ,*) '  numvertical ',progvar(ivar)%numvertical
+   write(logfileunit,*) '  numcells    ',progvar(ivar)%numcells
+   write(     *     ,*) '  numcells    ',progvar(ivar)%numcells
+   write(logfileunit,*) '  numedges    ',progvar(ivar)%numedges
+   write(     *     ,*) '  numedges    ',progvar(ivar)%numedges
+   write(logfileunit,*) '  ZonHalf     ',progvar(ivar)%ZonHalf
+   write(     *     ,*) '  ZonHalf     ',progvar(ivar)%ZonHalf
+   write(logfileunit,*) '  varsize     ',progvar(ivar)%varsize
+   write(     *     ,*) '  varsize     ',progvar(ivar)%varsize
+   write(logfileunit,*) '  index1      ',progvar(ivar)%index1
+   write(     *     ,*) '  index1      ',progvar(ivar)%index1
+   write(logfileunit,*) '  indexN      ',progvar(ivar)%indexN
+   write(     *     ,*) '  indexN      ',progvar(ivar)%indexN
+   write(logfileunit,*) '  dart_kind   ',progvar(ivar)%dart_kind
+   write(     *     ,*) '  dart_kind   ',progvar(ivar)%dart_kind
+   write(logfileunit,*) '  kind_string ',progvar(ivar)%kind_string
+   write(     *     ,*) '  kind_string ',progvar(ivar)%kind_string
+   write(logfileunit,*) '  clamping    ',progvar(ivar)%clamping
+   write(     *     ,*) '  clamping    ',progvar(ivar)%clamping
+   write(logfileunit,*) '  clmp range  ',progvar(ivar)%range
+   write(     *     ,*) '  clmp range  ',progvar(ivar)%range
+   do i = 1,progvar(ivar)%numdims
+      write(logfileunit,*) '  dimension/length/name ',i,progvar(ivar)%dimlens(i),trim(progvar(ivar)%dimname(i))
+      write(     *     ,*) '  dimension/length/name ',i,progvar(ivar)%dimlens(i),trim(progvar(ivar)%dimname(i))
+   enddo
+
+endif
 
 if (present(x)) then
-   write(logfileunit, * )                 'min/max = ', &
+   write(logfileunit,*) 'variable ',ivar,' ',trim(progvar(ivar)%varname), &
+              ' min/max = ', &
               minval(x(progvar(ivar)%index1:progvar(ivar)%indexN)), &
               maxval(x(progvar(ivar)%index1:progvar(ivar)%indexN))
-   write(    *      , * )                 'min/max = ', &
+   write(    *      ,*) 'variable ',ivar,' ',trim(progvar(ivar)%varname), &
+              ' min/max = ', &
               minval(x(progvar(ivar)%index1:progvar(ivar)%indexN)), &
               maxval(x(progvar(ivar)%index1:progvar(ivar)%indexN))
 endif
@@ -3826,8 +3878,65 @@ return
 
 end function get_index_from_varname
 
+!------------------------------------------------------------------
+
+function compute_pressure_at_loc(x, location)
+ real(r8), intent(in) :: x(:)
+ type(location_type), intent(in) :: location
+ real(r8) :: compute_pressure_at_loc
+ 
+! convert the vertical coordinate at the given location
+! to a pressure.  if the vertical is undefined 
+! return a fixed 1000 mb.
+
+real(r8) :: loc_array(3), tk, values(3)
+type(location_type) :: new_location
+integer :: istatus, ivars(3)
+
+! default is failure
+compute_pressure_at_loc = MISSING_R8
+
+if(vert_is_pressure(location)) then
+   loc_array = get_location(location)
+   compute_pressure_at_loc = loc_array(3)
+
+else if(vert_is_height(location) .or. vert_is_level(location)) then
+   new_location = location
+   ! FIXME: pick a hardcoded obs_kind for this call.
+   call vert_convert(ens_mean, new_location, KIND_TEMPERATURE, VERTISPRESSURE, istatus)
+   if(istatus == 0) then
+      loc_array = get_location(new_location) 
+      compute_pressure_at_loc = loc_array(3)
+   endif
+
+else if(vert_is_surface(location)) then
+   loc_array = get_location(location)
+   new_location = set_location(loc_array(1), loc_array(2), 1.0_r8, VERTISLEVEL)
+
+   ! Need to get base offsets for the potential temperature, density, and water 
+   ! vapor mixing fields in the state vector
+   ivars(1) = get_progvar_index_from_kind(KIND_POTENTIAL_TEMPERATURE)
+   ivars(2) = get_progvar_index_from_kind(KIND_DENSITY)
+   ivars(3) = get_progvar_index_from_kind(KIND_VAPOR_MIXING_RATIO)
+
+   call compute_scalar_with_barycentric (x, new_location, 3, ivars, values, istatus)
+   if (istatus /= 0) return
+
+   ! Convert surface theta, rho, qv into pressure
+   call compute_full_pressure(values(1), values(2), values(3), compute_pressure_at_loc, tk)
+
+else if(vert_is_undef(location)) then    ! not error, but no exact vert loc either
+   compute_pressure_at_loc = 100000.    ! 1000mb is roughly sea level,  or 0? not error.
+
+else
+   call error_handler(E_ERR, 'compute_pressure:', 'internal error: unknown type of vertical', &
+        source, revision, revdate)
+endif
+
+end function compute_pressure_at_loc
 
 !------------------------------------------------------------------
+
 subroutine vert_convert(x, location, obs_kind, ztypeout, istatus)
 
 ! This subroutine converts a given ob/state vertical coordinate to
@@ -5992,9 +6101,12 @@ real(r8)  :: theta_to_tk          ! sensible temperature [K]
 ! Local variables
 real(r8) :: theta_m               ! potential temperature modified by qv
 real(r8) :: exner                 ! exner function
+real(r8) :: qv_nonzero            ! qv >= 0
 
+qv_nonzero = max(qv,0.0_r8)       
+theta_m = (1.0_r8 + 1.61_r8 * qv_nonzero)*theta
 
-theta_m = (1.0_r8 + 1.61_r8 * (max(qv, 0.0_r8)))*theta
+!theta_m = (1.0_r8 + 1.61_r8 * (max(qv, 0.0_r8)))*theta
 exner = ( (rgas/p0) * (rho*theta_m) )**rcv
 
 ! Temperature [K]
@@ -6016,8 +6128,15 @@ real(r8), intent(in)  :: qv       ! water vapor mixing ratio [kg/kg]
 real(r8), intent(out) :: pressure ! full pressure [Pa]
 real(r8), intent(out) :: tk       ! return sensible temperature to caller
 
-tk = theta_to_tk(theta, rho, max(qv,0.0_r8))
+! Local variables
+real(r8) :: qv_nonzero            ! qv >= 0
+
+qv_nonzero = max(qv,0.0_r8)
+tk = theta_to_tk(theta, rho, qv_nonzero)
+
+!tk = theta_to_tk(theta, rho, max(qv,0.0_r8))
 pressure = rho * rgas * tk * (1.0_r8 + 1.61_r8 * qv)
+!if (debug > 9) print *, 't,r,q,p,tk =', theta, rho, qv, pressure, tk
 
 end subroutine compute_full_pressure
 
