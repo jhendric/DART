@@ -1005,10 +1005,12 @@ else if (obs_kind == KIND_SPECIFIC_HUMIDITY) then
    if (debug > 4) print *, 'called compute SH, kind, val, istatus: ', obs_kind, interp_val, istatus
    if (istatus /= 0) goto 100
 
-   if (interp_val > 0.0_r8) then
+   if (interp_val >= 0.0_r8) then
       interp_val = interp_val / (1.0 + interp_val)
    else
-      interp_val = 0.0_r8
+      interp_val = MISSING_R8
+      istatus = 203
+      goto 100
    endif
    if (debug > 4) print *, 'return val is: ', interp_val
 
@@ -3903,7 +3905,7 @@ if(vert_is_pressure(location)) then
 else if(vert_is_height(location) .or. vert_is_level(location)) then
    new_location = location
    ! FIXME: pick a hardcoded obs_kind for this call.
-   call vert_convert(ens_mean, new_location, KIND_TEMPERATURE, VERTISPRESSURE, istatus)
+   call vert_convert(x, new_location, KIND_TEMPERATURE, VERTISPRESSURE, istatus)
    if(istatus == 0) then
       loc_array = get_location(new_location) 
       compute_pressure_at_loc = loc_array(3)
