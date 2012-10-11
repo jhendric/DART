@@ -920,7 +920,8 @@ endif
 ! we have because we require potential temp, mixing ratio, and 
 ! density to be in the state vector in all cases.)
 
-if (get_progvar_index_from_kind(obs_kind) > 0) then
+ivar = get_progvar_index_from_kind(obs_kind)
+if (ivar > 0) then
    goodkind = .true.
 else
    goodkind = .false.
@@ -936,8 +937,8 @@ else
       case (KIND_U_WIND_COMPONENT,KIND_V_WIND_COMPONENT)
          ! if the reconstructed winds at the cell centers aren't there,
          ! we can use the edge normal winds, if the user allows it.
-         ivar = get_progvar_index_from_kind(KIND_EDGE_NORMAL_SPEED)
-         if (ivar > 0 .and. use_u_for_wind) goodkind = .true.
+         if (get_progvar_index_from_kind(KIND_EDGE_NORMAL_SPEED) > 0 &
+             .and. use_u_for_wind) goodkind = .true.
    end select
 endif
 
@@ -6093,7 +6094,7 @@ end subroutine r3_normalize
 function theta_to_tk (theta, rho, qv)
 
 ! Compute sensible temperature [K] from potential temperature [K].
-! matches computation done in MPAS model
+! code matches computation done in MPAS model
 
 real(r8), intent(in)  :: theta    ! potential temperature [K]
 real(r8), intent(in)  :: rho      ! dry density
@@ -6122,7 +6123,10 @@ end function theta_to_tk
 subroutine compute_full_pressure(theta, rho, qv, pressure, tk)
 
 ! Compute full pressure from the equation of state.
-! matches computation done in MPAS model
+! since it has to compute sensible temp along the way,
+! make temp one of the return values rather than having 
+! to call theta_to_tk() separately.
+! code matches computation done in MPAS model
 
 real(r8), intent(in)  :: theta    ! potential temperature [K]
 real(r8), intent(in)  :: rho      ! dry density
