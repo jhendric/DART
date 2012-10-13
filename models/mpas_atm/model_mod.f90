@@ -3073,7 +3073,7 @@ allocate(vcell(nVertLevels, nCells))
 if (use_increments_for_u_update) then
    call read_2d_from_nc_file(ncid, 'u', u)
    call read_2d_from_nc_file(ncid, 'uReconstructZonal', ucell)
-   call read_2d_from_nc_file(ncid, 'uReconstructMeridonal', vcell)
+   call read_2d_from_nc_file(ncid, 'uReconstructMeridional', vcell)
 
    if ( debug > 8 ) then
       write(*,*)
