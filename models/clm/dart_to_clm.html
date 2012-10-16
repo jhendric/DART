@@ -35,22 +35,25 @@
 
 <P>
    <em class=program>dart_to_clm</em> is the program that <strong>updates</strong> 
-   a CLM netCDF-format restart file (usually <em class=file>clm_restart.nc</em>) 
+   a CLM netCDF-format restart file (usually linked to "<em class=file>clm_restart.nc</em>") 
    with the state information contained in a DART output/restart file 
    (e.g. <em class=file>perfect_ics, filter_ics, ... </em>).
-   Only the CURRENT values in the clm restart file will be updated. 
-   The DART model time is compared to the time in the clm restart file. 
-   If the last time in the restart file does not match the DART model time, 
+   The DART model time is compared to the time in the CLM restart file. 
+   If the time in the restart file does not match the DART model time, 
    the program issues an error message and aborts.
    <br />
    <br />
-   From the user perspective, most of the time 
-   <em class=program>dart_to_clm</em> will be used on DART files that
-   have a header containing one time stamp followed by the model state.
+   While setting up an experiment or for testing purposes,
+   <em class=program>dart_to_clm</em> may be used on DART files that
+   have a header containing one time stamp followed by the model state by
+   setting <em class=file>input.nml</em> 
+   <em class=code>&amp;dart_to_clm_nml:advance_time_present</em> = 
+   <em class=input>.false.</em>&nbsp;.
    <br />
    <br />
-   The <a href=#Namelist>dart_to_clm_nml</a> namelist allows 
-   <em class=program>dart_to_clm</em> to also read the 
+   During <em class=program>perfect_model_obs</em> or <em class=program>filter</em>,
+   the <em class=code>&amp;dart_to_clm_nml:advance_time_present</em> must be set 
+   to <em class=input>.true.</em> to also read the 
    <em class=file>assim_model_state_ic</em> files that have
    <em class=italic>two</em> timestamps in the header. These files are 
    temporarily generated when DART is used to advance the model. 
@@ -64,15 +67,18 @@
 <UL>
    <LI>a valid <em class=file>input.nml</em> namelist file for DART</LI>
    <LI>a DART file (typically linked to <em class=file>dart_restart</em>)</LI>
-   <LI>a clm history file (typically <em class=file>clm_history.nc</em>).</LI>
-   <LI>a clm restart file (typically <em class=file>clm_restart.nc</em>).</LI>
+   <LI>a CLM history file (typically linked to <em class=file>clm_history.nc</em>).</LI>
+   <LI>a CLM restart file (typically linked to <em class=file>clm_restart.nc</em>).</LI>
 </UL>
 
 <P>
+<em class=program>dart_to_clm</em> and 
+<em class=program>clm_to_dart</em> are used extensively in the shell script
+<em class=program>assimilate.csh</em>.
 Since this program is called repeatedly for every ensemble member,
 we have found it convenient to link the DART input file
 to the default input filename (<em class=file>dart_restart</em>). The same
-thing goes true for the clm history and restart filenames, 
+thing is true for the CLM history and restart filenames - 
 <em class=file>clm_history.nc</em> and 
 <em class=file>clm_restart.nc</em>, respectively.
 </P>
@@ -113,7 +119,7 @@ are always read from a file called <em class=file>input.nml</em>.
 <TR><!--contents--><TD valign=top>dart_to_clm_input_file&nbsp;&nbsp;&nbsp;</TD>
     <!--  type  --><TD valign=top>character(len=128)&nbsp;&nbsp;&nbsp;</TD>
     <!--descript--><TD>The name of the DART file containing the model state
-                       to insert into the clm restart file.
+                       to insert into the CLM restart file.
                        <em class=units>[default: 'dart_restart']</em></TD></TR>
 
 <TR><!--contents--><TD valign=top>advance_time_present</TD>
@@ -129,10 +135,10 @@ are always read from a file called <em class=file>input.nml</em>.
 		       <br />
 		       If <em class=code>.true.</em>, TWO timestamps are 
 		       expected to be the DART file header.  In this case, a 
-		       namelist for clm (called <em class=file>clm_in.DART</em>)
+		       namelist for CLM (called <em class=file>clm_in.DART</em>)
 		       is created that contains the 
 		       <em class=code>&amp;time_manager_nml</em> settings 
-		       appropriate to advance clm to the time 
+		       appropriate to advance CLM to the time 
 		       requested by DART.
                        <em class=units>[default: .false.]</em></TD></TR>
 </TABLE>
@@ -155,7 +161,7 @@ variable for <em class=program>dart_to_clm</em> is repeated here.
 <TR><!--contents--><TD valign=top>clm_state_variables&nbsp;&nbsp;&nbsp;</TD>
     <!--  type  --><TD valign=top>character(len=NF90_MAX_NAME)::<br />
                               dimension(160)&nbsp;&nbsp;&nbsp;</TD>
-    <!--descript--><TD>The list of variable names in the clm restart file to use to
+    <!--descript--><TD>The list of variable names in the CLM restart file to use to
                        create the DART state vector and their corresponding DART kind.
                        <em class=units>[default: <em>see example below</em>]</em></TD></TR>
 </TABLE>
@@ -200,12 +206,12 @@ utilities_mod
 <H2>FILES Read</H2>
 <UL><LI>DART initial conditions/restart file; e.g. <em class=file>dart_restart</em></LI>
     <LI>DART namelist file; <em class=file>input.nml</em></LI>
-    <LI>clm history file <em class=file>clm_history.nc</em></LI>
-    <LI>clm restart file <em class=file>clm_restart.nc</em></LI>
+    <LI>CLM history file <em class=file>clm_history.nc</em></LI>
+    <LI>CLM restart file <em class=file>clm_restart.nc</em></LI>
 </UL>
 
 <H2>FILES Written</H2>
-<UL><LI>clm restart file; <em class=file>clm_restart.nc</em></LI>
+<UL><LI>CLM restart file; <em class=file>clm_restart.nc</em></LI>
 </UL>
 
 <!--==================================================================-->

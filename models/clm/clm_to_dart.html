@@ -50,18 +50,19 @@
 
 <UL>
    <LI>a valid <em class=file>input.nml</em> namelist file for DART</LI>
-   <LI>the clm history file mentioned in the <em class=file>input.nml&amp;model_nml:clm_history_filename</em> variable.</LI>
+   <LI>the CLM history file mentioned in the <em class=file>input.nml</em> <em class=code>&amp;model_nml:clm_history_filename</em> variable.</LI>
 </UL>
-   <LI>the clm restart file mentioned in the <em class=file>input.nml&amp;model_nml:clm_restart_filename</em> variable.</LI>
+   <LI>the CLM restart file mentioned in the <em class=file>input.nml</em> <em class=code>&amp;model_nml:clm_restart_filename</em> variable.</LI>
 </UL>
 
 <P>
 Since this program is called repeatedly for every ensemble member,
-we have found it convenient to link the clm restart and history files
+we have found it convenient to link the CLM restart and history files
 to the default filenames <em class=file>clm_restart.nc</em>,
 <em class=file>clm_history.nc</em>, respectively.
 The default DART output filename is <em class=file>dart_ics</em> -
-this may be moved or linked as necessary.
+this may be moved or linked as necessary. The default filenames may be
+changed via the namelist. 
 </P>
 
 <!--==================================================================-->
@@ -99,7 +100,7 @@ are always read from a file called <em class=file>input.nml</em>.
 <TR><!--contents--><TD valign=top>clm_to_dart_output_file&nbsp;&nbsp;&nbsp;</TD>
     <!--  type  --><TD valign=top>character(len=128)&nbsp;&nbsp;&nbsp;</TD>
     <!--descript--><TD>The name of the DART file containing the model state
-                       derived from the clm restart file.
+                       derived from the CLM restart file.
                        <em class=units>[default: 'dart_ics']</em></TD></TR>
 </TABLE>
 
@@ -121,7 +122,7 @@ variable for <em class=program>clm_to_dart</em> is repeated here.
 <TR><!--contents--><TD valign=top>clm_state_variables&nbsp;&nbsp;&nbsp;</TD>
     <!--  type  --><TD valign=top>character(len=NF90_MAX_NAME)::<br />
                               dimension(160)&nbsp;&nbsp;&nbsp;</TD>
-    <!--descript--><TD>The list of variable names in the clm restart file to use to
+    <!--descript--><TD>The list of variable names in the CLM restart file to use to
                        create the DART state vector and their corresponding DART kind.
                        <em class=units>[default: <em>see example below</em>]</em></TD></TR>
 </TABLE>
