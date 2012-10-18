@@ -159,7 +159,6 @@ integer            :: vert_localization_coord = VERTISHEIGHT
 integer            :: assimilation_period_days = 0
 integer            :: assimilation_period_seconds = 60
 real(r8)           :: model_perturbation_amplitude = 0.0001   ! tiny amounts
-real(r8)           :: highest_obs_pressure_mb   = 100.0_r8    ! do not assimilate obs higher than this level.
 real(r8)           :: cell_size_meters = 100.0_r8    ! size of largest cell in r
 logical            :: output_state_vector = .false.  ! output prognostic variables (if .false.)
 logical            :: logp = .false.  ! if true, interpolate pres in log space
@@ -206,8 +205,7 @@ namelist /model_nml/             &
    use_u_for_wind,               &
    use_rbf_option,               &
    update_u_from_reconstruct,    &
-   use_increments_for_u_update,  &
-   highest_obs_pressure_mb
+   use_increments_for_u_update
 
 ! DART state vector contents are specified in the input.nml:&mpas_vars_nml namelist.
 integer, parameter :: max_state_variables = 80
@@ -882,8 +880,83 @@ if ( .not. module_initialized ) call static_init_model
 interp_val = MISSING_R8
 istatus    = 99           ! must be positive (and integer)
 
-write(string1,*) 'routine not written yet for the ocean.'
-call error_handler(E_ERR,'model_interpolate',string1,source,revision,revdate)
+! rename for sanity - we can't change the argument names
+! to this subroutine, but this really is a kind.
+obs_kind = obs_type
+
+if (debug > 0) then
+   call write_location(0,location,charstring=string1)
+   print *, my_task_id(), 'stt x(1), kind, loc ', x(1), obs_kind, trim(string1)
+endif
+
+! if we can interpolate any other kinds that are not directly in the
+! state vector, then add those cases here.
+ivar = get_progvar_index_from_kind(obs_kind)
+if (ivar > 0) then
+   goodkind = .true.
+else
+   goodkind = .false.
+   ! exceptions if the kind isn't directly
+   ! a field in the state vector: 
+   select case (obs_kind) 
+      !case (KIND_PRESSURE)
+      !   goodkind = .true.
+   end select
+endif
+
+! this kind is not in the state vector and it isn't one of the exceptions
+! that we know how to handle.
+if (.not. goodkind) then
+   if (debug > 4) print *, 'kind rejected', obs_kind
+   istatus = 88
+   goto 100
+endif
+
+! if you add exceptions above, then you need code like this:
+! if (obs_kind == KIND_xxx) then
+!   add code here for how to interpolate it.
+!
+!   compute_scalar_with_barycentric() can take up to 3 kinds at one location
+!   and return up to 3 values which can be combined or computed on here.
+! 
+!   to use the RBF functions, here is an example call.  the third arg
+!   controls whether to return the meridional (.false.) or zonal (.true.) component.
+!   call compute_u_with_rbf(x, location, .TRUE., interp_val, istatus)
+!
+!   on error, goto 100 to get the final error checking code
+!
+! else
+
+   ! direct interpolation, kind is in the state vector
+   tvars(1) = ivar
+   call compute_scalar_with_barycentric(x, location, 1, tvars, values, istatus)
+   interp_val = values(1)
+   if (debug > 4) print *, 'called generic compute_w_bary, kind, val, istatus: ', obs_kind, interp_val, istatus
+   if (istatus /= 0) goto 100
+
+!endif
+
+100 continue
+
+! this is for debugging - when we're confident the code is
+! returning consistent values and rc codes, both these tests can
+! be removed for speed.  FIXME.
+if (istatus /= 0 .and. interp_val /= MISSING_R8) then
+   write(string1,*) 'interp routine returned a bad status but not a MISSING_R8 value'
+   write(string2,*) 'value = ', interp_val, ' istatus = ', istatus
+   call error_handler(E_ERR,'model_interpolate',string1,source,revision,revdate, &
+                      text2=string2)
+endif
+if (istatus == 0 .and. interp_val == MISSING_R8) then
+   write(string1,*) 'interp routine returned a good status but set value to MISSING_R8'
+   call error_handler(E_ERR,'model_interpolate',string1,source,revision,revdate)
+endif
+
+if (debug > 0) then
+   call write_location(0,location,charstring=string1)
+   print *, my_task_id(), 'end x(1), kind, loc, val, rc ', x(1), obs_kind, trim(string1), interp_val, istatus
+endif
+
 
 end subroutine model_interpolate
 
