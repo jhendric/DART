@@ -1476,10 +1476,11 @@ end subroutine to_upper
 subroutine find_textfile_dims( fname, nlines, linelen )
 ! Determines the number of lines and maximum line length
 ! of the file. Sometimes you need to know this stuff.
-character(len=*), intent(IN)  :: fname
-integer,          intent(OUT) :: nlines, linelen
+character(len=*),  intent(IN)  :: fname
+integer,           intent(OUT) :: nlines
+integer, optional, intent(OUT) :: linelen
 
-integer :: i, mylen, ios, funit
+integer :: i, maxlen, mylen, ios, funit
 
 character(len=1024) :: oneline
 character(len=129)  :: error_msg
@@ -1487,13 +1488,13 @@ character(len=129)  :: error_msg
 ! if there is no file, return -1 for both counts
 if (.not. file_exist(fname)) then
   nlines = -1
-  linelen = -1
+  if (present(linelen)) linelen = -1
   return
 endif
 
 ! the file exists, go count things up.
 nlines  = 0
-linelen = 0
+maxlen  = 0
 funit   = open_file(fname, form="FORMATTED", action="READ")
 
 READLOOP : do i = 1,100000
@@ -1509,11 +1510,13 @@ READLOOP : do i = 1,100000
    nlines = nlines + 1
    mylen  = len_trim(oneline)
 
-   if (mylen > linelen) linelen = mylen
+   if (mylen > maxlen) maxlen = mylen
 
 enddo READLOOP
 
 call close_file(funit)
+
+if (present(linelen)) linelen = maxlen
 
 end subroutine find_textfile_dims
 
