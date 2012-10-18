@@ -121,7 +121,8 @@
    /
 
 &obs_kind_nml
-   assimilate_these_obs_types = 'ARGO_TEMPERATURE'
+   assimilate_these_obs_types = 'null',
+   evaluate_these_obs_types = 'ARGO_TEMPERATURE'
    /
 
 &assim_model_nml
@@ -234,16 +235,22 @@
    /
 
 &obs_diag_nml
-   obs_sequence_name  = 'obs_seq.final',
-   iskip_days         = 0,
-   obs_select         = 1,
-   rat_cri            = 4.0,
+   obs_sequence_name = '',
+   obs_sequence_list = 'file_list.txt',
+   first_bin_center =  2007,  1,  1, 6, 0, 0 ,
+   last_bin_center  =  2007,  2,  1, 0, 0, 0 ,
+   bin_separation   =     0, 0, 0, 6, 0, 0 ,
+   bin_width        =     0, 0, 0, 6, 0, 0 ,
+   time_to_skip     =     0, 0, 0, 0, 0, 0 ,
+   max_num_bins     = 1000,
+   rat_cri            = 3.0,
    input_qc_threshold = 3.0,
-   bin_width_seconds = 0,
-   lonlim1   = 0.0, 0.0, 0.5, -1.0,
-   lonlim2   = 1.0, 0.5, 1.5, -1.0,
-   reg_names = 'whole', 'yin', 'yang', 'bogus',
-   verbose   = .false.
+   Nregions   = 3,
+   lonlim1    = 285.0,  20.0, 120.0,
+   lonlim2    =  20.0, 120.0, 270.0,
+   latlim1    = -90.0, -90.0, -90.0,
+   latlim2    =  90.0,  25.0,  90.0,
+   reg_names  = 'Atlantic', 'Indian', 'Pacific',
    /
 
 
