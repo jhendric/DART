@@ -2,7 +2,29 @@
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
-! Created by Rafael Rosolem (09/30/2011) for COSMOS based on file by Ave Arellano
+!----------------------------------------------------------------------
+! This module provides support for observations from COSMOS.
+! Each COSMOS installation has soil properties that have been measured
+! and are needed by the COSMIC algorithm that converts moisture to
+! counts of neutron intensity. These properties constitute additional
+! metadata for each observation. The routines in this module read and
+! write that metadata and provide the 'get_expected_neutron_intensity()'
+! routine that is the 'observation operator'
+!
+!  OBS            1
+!           -1           2          -1
+! obdef
+! loc3d
+!      4.188790204786391        0.6986026390077337         137.7093918137252      3
+! kind
+!            1
+! cosmic
+!    <an array of 4 parameters>
+!    <an array of 4 parameters>
+!    <neutron_intensity_key>
+!      0          0
+!    4.0000000000000000
+!----------------------------------------------------------------------
 
 ! BEGIN DART PREPROCESS KIND LIST
 ! COSMOS_NEUTRON_INTENSITY,    KIND_NEUTRON_INTENSITY
@@ -10,14 +32,12 @@
 
 
 ! BEGIN DART PREPROCESS USE OF SPECIAL OBS_DEF MODULE
-!   use obs_def_COSMOS_mod, only : read_neutron_intensity, &
-!                                 write_neutron_intensity, &
-!                          get_expected_neutron_intensity, &
-!                           set_obs_def_neutron_intensity, &
-!                           interactive_neutron_intensity
+!   use obs_def_COSMOS_mod, only : read_cosmos_metadata, &
+!                                 write_cosmos_metadata, &
+!                           interactive_cosmos_metadata, &
+!                          get_expected_neutron_intensity
 ! END DART PREPROCESS USE OF SPECIAL OBS_DEF MODULE
 
-! TJH Questions for Nancy: AFAICT none of this should be public ... 
 
 ! BEGIN DART PREPROCESS GET_EXPECTED_OBS_FROM_DEF
 !      case(COSMOS_NEUTRON_INTENSITY)
@@ -26,27 +46,21 @@
 
 
 ! BEGIN DART PREPROCESS READ_OBS_DEF
-!      case(COSMOS_NEUTRON_INTENSITY)
-!         call read_neutron_intensity(obs_def%key, ifile, fform)
+!   case(COSMOS_NEUTRON_INTENSITY)
+!      call read_cosmos_metadata(obs_def%key, key, ifile, fform)
 ! END DART PREPROCESS READ_OBS_DEF
 
 
 ! BEGIN DART PREPROCESS WRITE_OBS_DEF
-!      case(COSMOS_NEUTRON_INTENSITY)
-!         call write_neutron_intensity(obs_def%key, ifile, fform)
+!   case(COSMOS_NEUTRON_INTENSITY)
+!      call write_cosmos_metadata(obs_def%key, ifile, fform)
 ! END DART PREPROCESS WRITE_OBS_DEF
 
 
 ! BEGIN DART PREPROCESS INTERACTIVE_OBS_DEF
-!      case(COSMOS_NEUTRON_INTENSITY)
-!         call interactive_neutron_intensity(obs_def%key)
+!   case(COSMOS_NEUTRON_INTENSITY)
+!      call interactive_cosmos_metadata(obs_def%key)
 ! END DART PREPROCESS INTERACTIVE_OBS_DEF
-
-
-! BEGIN DART PREPROCESS SET_OBS_DEF_NEUTRON_INTENSITY
-!      case(COSMOS_NEUTRON_INTENSITY)
-!         call set_obs_def_neutron_intensity(obs_def%key)
-! END DART PREPROCESS SET_OBS_DEF_NEUTRON_INTENSITY
 
 
 ! BEGIN DART PREPROCESS MODULE CODE
@@ -58,109 +72,336 @@ module obs_def_COSMOS_mod
 ! $Revision$
 ! $Date$
 
-use        types_mod, only : r8, PI
+use        types_mod, only : r8, PI, metadatalength, MISSING_R8
 use    utilities_mod, only : register_module, error_handler, E_ERR, E_WARN, E_MSG, &
-                             logfileunit, get_unit, open_file, close_file
+                             logfileunit, get_unit, open_file, close_file, nc_check, &
+                             file_exist, ascii_file_format
 use     location_mod, only : location_type, set_location, get_location, &
                              vert_is_height,   VERTISHEIGHT,            &
-                             vert_is_level,    VERTISLEVEL
+                             vert_is_level,    VERTISLEVEL,             &
+                             set_location_missing
 use        model_mod, only : model_interpolate
 use     obs_kind_mod, only : KIND_GEOPOTENTIAL_HEIGHT, KIND_SOIL_MOISTURE
+
+use typesizes
+use netcdf
 
 implicit none
 private
 
-public :: set_obs_def_neutron_intensity,  &
-          get_expected_neutron_intensity, &
-          interactive_neutron_intensity,  &
-          read_neutron_intensity,         &
-          write_neutron_intensity
+public ::            set_cosmos_metadata, &
+                     get_cosmos_metadata, &
+                    read_cosmos_metadata, &
+                   write_cosmos_metadata, &
+             interactive_cosmos_metadata, &
+          get_expected_neutron_intensity
 
-integer, parameter :: nlayers        = 4 ! Number of soil layers used in Noah model
-integer            :: num_neutron_intensity = 0 ! observation counter
+integer :: num_neutron_intensity = 0 ! observation counter ... useful length of metadata arrays
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
    source   = "$URL$", &
-   revision = "$Revision $", &
+   revision = "$Revision$", &
    revdate  = "$Date$"
 
-character(len=256) :: string1
+character(len=256) :: string1, string2
 logical, save      :: module_initialized = .false.
+
+! Metadata for COSMOS observations.
+! There are soil parameters for each site that must be added to each
+! observation in the sequence. Also COSMIC parameters ...
+
+type site_metadata
+   private
+!  character(len=metadatalength) :: sitename
+!  type(location_type) :: location
+!  real(r8)            :: latitude
+!  real(r8)            :: longitude
+!  real(r8)            :: elevation
+   real(r8)            :: bd         ! Dry Soil Bulk Density [  g / cm^3]
+   real(r8)            :: lattwat    ! Lattice Water Content [M^3 /  M^3]
+   real(r8)            :: N          ! High Energy Neutron Intensity
+   real(r8)            :: alpha      ! Ratio of Fast Neutron Creation Factor
+   real(r8)            :: L1         ! High Energy   Soil Attenuation Length
+   real(r8)            :: L2         ! High Energy  Water Attenuation Length
+   real(r8)            :: L3         ! Fast Neutron  Soil Attenuation Length
+   real(r8)            :: L4         ! Fast Neutron Water Attenuation Length
+end type site_metadata
+
+type(site_metadata), allocatable, dimension(:) :: observation_metadata
+character(len=6), parameter :: COSMOSSTRING = 'cosmic'
+
+logical :: debug = .FALSE.
+integer :: MAXcosmoskey = 24*366  ! one year of hourly data - to start
+integer ::    cosmoskey = 0
 
 !----------------------------------------------------------------------------
 contains
 !----------------------------------------------------------------------------
 
 
+
   subroutine initialize_module
 !----------------------------------------------------------------------------
 ! subroutine initialize_module
 !
-! a DART tradition
+
+integer :: i
+
 call register_module(source, revision, revdate)
 
 module_initialized = .true.
 
+allocate(observation_metadata(MAXcosmoskey))
+
+do i = 1,MAXcosmoskey
+   observation_metadata(i)%bd       = MISSING_R8
+   observation_metadata(i)%lattwat  = MISSING_R8
+   observation_metadata(i)%N        = MISSING_R8
+   observation_metadata(i)%alpha    = MISSING_R8
+   observation_metadata(i)%L1       = MISSING_R8
+   observation_metadata(i)%L2       = MISSING_R8
+   observation_metadata(i)%L3       = MISSING_R8
+   observation_metadata(i)%L4       = MISSING_R8
+!  observation_metadata(i)%location = set_location_missing()
+enddo
+
 end subroutine initialize_module
 
 
- subroutine read_neutron_intensity(key, ifile, fform)
+
+ subroutine set_cosmos_metadata(key, bd, lattwat, N, alpha, L1, L2, L3, L4)
 !----------------------------------------------------------------------
-!subroutine read_neutron_intensity(key, ifile, fform)
+!subroutine set_cosmos_metadata(key, bd, lattwat, N, alpha, L1, L2, L3, L4)
 !
-integer,          intent(out)          :: key
+! Fill the module storage metadata for a particular observation.
+
+integer,  intent(out) :: key
+real(r8), intent(in)  :: bd, lattwat, N, alpha, L1, L2, L3, L4
+
+if ( .not. module_initialized ) call initialize_module
+
+cosmoskey = cosmoskey + 1  ! increase module storage used counter
+
+! Make sure the new key is within the length of the metadata arrays.
+call key_out_of_range(cosmoskey,'set_cosmos_metadata')
+
+key = cosmoskey ! now that we know its legal
+
+observation_metadata(key)%bd      = bd
+observation_metadata(key)%lattwat = lattwat
+observation_metadata(key)%N       = N
+observation_metadata(key)%alpha   = alpha
+observation_metadata(key)%L1      = L1
+observation_metadata(key)%L2      = L2
+observation_metadata(key)%L3      = L3
+observation_metadata(key)%L4      = L4
+
+end subroutine set_cosmos_metadata
+
+
+
+ subroutine get_cosmos_metadata(key, bd, lattwat, N, alpha, L1, L2, L3, L4)
+!----------------------------------------------------------------------
+!subroutine get_cosmos_metadata(key, bd, lattwat, N, alpha, L1, L2, L3, L4)
+!
+! Query the metadata in module storage for a particular observation.
+! This can be useful for post-processing routines, etc.
+
+integer,  intent(in)  :: key
+real(r8), intent(out) :: bd, lattwat, N, alpha, L1, L2, L3, L4
+
+if ( .not. module_initialized ) call initialize_module
+
+! Make sure the desired key is within the length of the metadata arrays.
+call key_out_of_range(key,'get_cosmos_metadata')
+
+bd       = observation_metadata(key)%bd
+lattwat  = observation_metadata(key)%lattwat
+N        = observation_metadata(key)%N
+alpha    = observation_metadata(key)%alpha
+L1       = observation_metadata(key)%L1
+L2       = observation_metadata(key)%L2
+L3       = observation_metadata(key)%L3
+L4       = observation_metadata(key)%L4
+
+end subroutine get_cosmos_metadata
+
+
+
+ subroutine read_cosmos_metadata(key,       obsID, ifile, fform)
+!----------------------------------------------------------------------
+!subroutine read_cosmos_metadata(obs_def%key, key, ifile, fform)
+!
+! This routine reads the metadata for neutron intensity observations.
+!
+integer,          intent(out)          :: key    ! index into local metadata
+integer,          intent(in)           :: obsID
 integer,          intent(in)           :: ifile
 character(len=*), intent(in), optional :: fform
 
 ! temp variables
-integer           :: keyin
-integer           :: counts1
-character(len=32) :: fileformat
+logical           :: is_asciifile
+integer           :: ierr
+character(len=6)  :: header
+integer           :: oldkey
+real(r8)          :: bd, lattwat, N, alpha, L1, L2, L3, L4
 
 if ( .not. module_initialized ) call initialize_module
 
-fileformat = "ascii"   ! supply default
-if(present(fform)) fileformat = trim(adjustl(fform))
+is_asciifile = ascii_file_format(fform)
 
-SELECT CASE (fileformat)
-   CASE ("unf", "UNF", "unformatted", "UNFORMATTED")
-!      read(ifile) keyin
-   CASE DEFAULT
-!      read(ifile, *) keyin
-END SELECT
+write(string2,*)'observation #',obsID
 
-counts1 = counts1 + 1
-key     = counts1
-call set_obs_def_neutron_intensity(key)
+if ( is_asciifile ) then
+   read(ifile, *, iostat=ierr) header
+   call check_iostat(ierr,'read_cosmos_metadata','header',string2)
+   if (trim(header) /= trim(COSMOSSTRING)) then
+       write(string1,*)"Expected neutron_intensity header ["//COSMOSSTRING//"] in input file, got ["//header//"]"
+       call error_handler(E_ERR, 'read_cosmos_metadata', string1, source, revision, revdate, text2=string2)
+   endif
+   read(ifile, *, iostat=ierr) bd, lattwat, N, alpha
+   call check_iostat(ierr,'read_cosmos_metadata','bd -> alpha',string2)
+   read(ifile, *, iostat=ierr) L1, L2, L3, L4
+   call check_iostat(ierr,'read_cosmos_metadata','L1 -> L4',string2)
+   read(ifile, *, iostat=ierr) oldkey
+   call check_iostat(ierr,'read_cosmos_metadata','oldkey',string2)
+else
+   read(ifile, iostat=ierr) header
+   call  check_iostat(ierr,'read_cosmos_metadata','header',string2)
+   if (trim(header) /= trim(COSMOSSTRING)) then
+       write(string1,*)"Expected neutron_intensity header ["//COSMOSSTRING//"] in input file, got ["//header//"]"
+       call error_handler(E_ERR, 'read_cosmos_metadata', string1, source, revision, revdate, text2=string2)
+   endif
+   read(ifile, iostat=ierr) bd, lattwat, N, alpha
+   call  check_iostat(ierr,'read_cosmos_metadata','bd -> alpha',string2)
+   read(ifile, iostat=ierr) L1, L2, L3, L4
+   call  check_iostat(ierr,'read_cosmos_metadata','L1 -> L4',string2)
+   read(ifile, iostat=ierr) oldkey
+   call  check_iostat(ierr,'read_cosmos_metadata','oldkey',string2)
+endif
 
-end subroutine read_neutron_intensity
+! The oldkey is thrown away.
+
+! Store the metadata in module storage and record the new length of the metadata arrays.
+call set_cosmos_metadata(key, bd, lattwat, N, alpha, L1, L2, L3, L4)
+
+! The new 'key' is returned.
+
+end subroutine read_cosmos_metadata
 
 
 
- subroutine write_neutron_intensity(key, ifile, fform)
+ subroutine write_cosmos_metadata(key, ifile, fform)
 !----------------------------------------------------------------------
-!subroutine write_neutron_intensity(key, ifile, fform)
+!subroutine write_cosmos_metadata(key, ifile, fform)
+!
+! writes the metadata for neutron intensity observations.
 
-integer,          intent(in)           :: key
-integer,          intent(in)           :: ifile
-character(len=*), intent(in), optional :: fform
+integer,           intent(in)           :: key
+integer,           intent(in)           :: ifile
+character(len=*),  intent(in), optional :: fform
 
-character(len=32)                      :: fileformat
+logical  :: is_asciifile
+real(r8) :: bd, lattwat, N, alpha, L1, L2, L3, L4
 
 if ( .not. module_initialized ) call initialize_module
 
-fileformat = "ascii"   ! supply default
-if(present(fform)) fileformat = trim(adjustl(fform))
+! given the index into the local metadata arrays - retrieve
+! the metadata for this particular observation.
 
-SELECT CASE (fileformat)
-   CASE ("unf", "UNF", "unformatted", "UNFORMATTED")
-!         write(ifile) key
-   CASE DEFAULT
-!         write(ifile, *) key
-END SELECT
+call get_cosmos_metadata(key, bd, lattwat, N, alpha, L1, L2, L3, L4)
 
-end subroutine write_neutron_intensity
+is_asciifile = ascii_file_format(fform)
+
+if (is_asciifile) then
+   write(ifile, *) trim(COSMOSSTRING)
+   write(ifile, *) bd, lattwat, N, alpha
+   write(ifile, *) L1, L2, L3, L4
+   write(ifile, *) key
+else
+   write(ifile   ) trim(COSMOSSTRING)
+   write(ifile   ) bd, lattwat, N, alpha
+   write(ifile   ) L1, L2, L3, L4
+   write(ifile   ) key
+endif
+
+end subroutine write_cosmos_metadata
+
+
+
+ subroutine interactive_cosmos_metadata(key)
+!----------------------------------------------------------------------
+!subroutine interactive_cosmos_metadata(key)
+!
+integer, intent(out) :: key
+
+real(r8) :: bd, lattwat, N, alpha, L1, L2, L3, L4
+
+if ( .not. module_initialized ) call initialize_module
+
+! Prompt for input for the required metadata
+
+bd      = interactive('"bd"      dry soil bulk density [g/cm^3]'                ,minvalue = 0.0_r8)
+lattwat = interactive('"lattwat" lattice water content [m^3/m^3]'               ,minvalue = 0.0_r8)
+N       = interactive('"N"       high energy neutron intensity [count]'         ,minvalue = 0.0_r8)
+alpha   = interactive('"alpha"   ratio of fast neutron creation factor [Soil to Water]',minvalue=0.0_r8)
+L1      = interactive('"L1"      high energy soil attenuation length [g/cm^2]'  ,minvalue = 0.0_r8)
+L2      = interactive('"L2"      high energy water attenuation length [g/cm^2]' ,minvalue = 0.0_r8)
+L3      = interactive('"L3"      fast neutron soil attenuation length [g/cm^2]' ,minvalue = 0.0_r8)
+L4      = interactive('"L4"      fast neutron water attenuation length [g/cm^2]',minvalue = 0.0_r8)
+
+call set_cosmos_metadata(key, bd, lattwat, N, alpha, L1, L2, L3, L4)
+
+end subroutine interactive_cosmos_metadata
+
+
+
+function interactive(str1,minvalue,maxvalue)
+real(r8)                       :: interactive
+character(len=*),   intent(in) :: str1
+real(r8), optional, intent(in) :: minvalue
+real(r8), optional, intent(in) :: maxvalue
+
+integer :: i
+
+interactive = MISSING_R8
+
+! Prompt with a minimum amount of error checking
+
+if     (present(minvalue) .and. present(maxvalue)) then
+
+   interactive = minvalue - 1.0_r8
+   MINMAXLOOP : do i = 1,10
+      if ((interactive >= minvalue) .and. (interactive <= maxvalue)) exit MINMAXLOOP
+      write(*, *) 'Enter '//str1
+      read( *, *) interactive
+   end do MINMAXLOOP
+
+elseif (present(minvalue)) then
+
+   interactive = minvalue - 1.0_r8
+   MINLOOP : do i=1,10
+      if (interactive >= minvalue) exit MINLOOP
+      write(*, *) 'Enter '//str1
+      read( *, *) interactive
+   end do MINLOOP
+
+elseif (present(maxvalue)) then
+
+   interactive = maxvalue + 1.0_r8
+   MAXLOOP : do i=1,10
+      if (interactive <= maxvalue) exit MAXLOOP
+      write(*, *) 'Enter '//str1
+      read( *, *) interactive
+   end do MAXLOOP
+
+else ! anything goes ... cannot check
+      write(*, *) 'Enter '//str1
+      read( *, *) interactive
+endif
+
+end function interactive
 
 
 
@@ -172,7 +413,7 @@ end subroutine write_neutron_intensity
 
 real(r8),            intent(in)  :: state(:) ! state vector
 type(location_type), intent(in)  :: location ! location of obs
-integer,             intent(in)  :: key      ! obs key
+integer,             intent(in)  :: key      ! key into module metadata
 real(r8),            intent(out) :: val      ! value of obs
 integer,             intent(out) :: istatus  ! status of the calculation
 
@@ -209,9 +450,9 @@ real(r8) :: bd     = 0.0_r8 ! Dry soil bulk density (g/m3)
 real(r8) :: vwclat = 0.0_r8 ! Volumetric "lattice" water content (m3/m3)
 real(r8) :: N      = 0.0_r8 ! High energy neutron flux (-)
 real(r8) :: alpha  = 0.0_r8 ! Ratio of Fast Neutron Creation Factor (Soil to Water), alpha (-)
-real(r8) :: L1     = 0.0_r8 ! High Energy Soil Attenuation Length (g/cm2)
-real(r8) :: L2     = 0.0_r8 ! High Energy Water Attenuation Length (g/cm2)
-real(r8) :: L3     = 0.0_r8 ! Fast Neutron Soil Attenuation Length (g/cm2)
+real(r8) :: L1     = 0.0_r8 ! High Energy Soil   Attenuation Length (g/cm2)
+real(r8) :: L2     = 0.0_r8 ! High Energy Water  Attenuation Length (g/cm2)
+real(r8) :: L3     = 0.0_r8 ! Fast Neutron Soil  Attenuation Length (g/cm2)
 real(r8) :: L4     = 0.0_r8 ! Fast Neutron Water Attenuation Length (g/cm2)
 real(r8) :: zdeg
 real(r8) :: zrad
@@ -253,36 +494,60 @@ if ( .not. module_initialized ) call initialize_module
 val = 0.0_r8 ! set return value early
 
 !=================================================================================
+! COSMIC: Site specific-parameters come from the observation metadata
+!=================================================================================
+
+! Make sure the desired key is within the length of the metadata arrays.
+call key_out_of_range(key,'get_expected_neutron_intensity')
+
+bd     = observation_metadata(key)%bd
+vwclat = observation_metadata(key)%lattwat
+N      = observation_metadata(key)%N
+alpha  = observation_metadata(key)%alpha
+L1     = observation_metadata(key)%L1
+L2     = observation_metadata(key)%L2
+L3     = observation_metadata(key)%L3
+L4     = observation_metadata(key)%L4
+
+write(*,*)'TJH debug '
+write(*,*)bd, vwclat, N, alpha
+write(*,*)L1,L2,L3,L4
+write(*,*)
+
+!=================================================================================
 ! Determine the number of soil layers and their depths
 ! using only the standard DART interfaces to model
 ! set the locations for each of the model levels
+!=================================================================================
 
 loc_array = get_location(location) ! loc is in DEGREES
 loc_lon   = loc_array(1)
 loc_lat   = loc_array(2)
 
 nlevels = 0
-COUNTLEVELS : do i = 1,maxlayers 
+COUNTLEVELS : do i = 1,maxlayers
    loc = set_location(loc_lon, loc_lat, real(i,r8), VERTISLEVEL)
    call model_interpolate(state,loc,KIND_GEOPOTENTIAL_HEIGHT,obs_val,istatus)
    if (istatus /= 0) exit COUNTLEVELS
    nlevels = nlevels + 1
 enddo COUNTLEVELS
 
-if (nlevels == maxlayers) then
+if ((nlevels == maxlayers) .or. (nlevels == 0)) then
    write(string1,*) 'FAILED to determine number of soil layers in model.'
-   call error_handler(E_ERR,'get_expected_neutron_intensity',string1,source,revision,revdate)
+   if (debug) call error_handler(E_MSG,'get_expected_neutron_intensity',string1,source,revision,revdate)
+   istatus = 1
+   val     = MISSING_R8
+   return 
 else
-   write(*,*)'get_expected_neutron_intensity: we have ',nlevels,' soil layers'
+!   write(*,*)'get_expected_neutron_intensity: we have ',nlevels,' soil layers'
 endif
 
-!=================================================================================
 ! Now actually find the depths at each level
 ! While we're at it, might as well get the soil moisture there, too.
 
 allocate(layerz(nlevels),soil_moisture(nlevels))
 
-FINDLEVELS : do i = 1,nlevels 
+FINDLEVELS : do i = 1,nlevels
    loc = set_location(loc_lon, loc_lat, real(i,r8), VERTISLEVEL)
    call model_interpolate(state,loc,KIND_GEOPOTENTIAL_HEIGHT,layerz(i),istatus)
    ! not checking this error code because it worked just a few lines earlier
@@ -292,11 +557,14 @@ FINDLEVELS : do i = 1,nlevels
 
    if (istatus /= 0) then
       write(string1,*) 'FAILED to determine soil moisture for layer',i
-      call error_handler(E_ERR,'get_expected_neutron_intensity',string1,source,revision,revdate)
+      if (debug) call error_handler(E_MSG,'get_expected_neutron_intensity',string1,source,revision,revdate)
+      istatus = 2
+      val     = MISSING_R8
+      return
    endif
 
-   soil_moisture(i) = obs_val 
-   
+   soil_moisture(i) = obs_val
+
 enddo FINDLEVELS
 
 !rr: DART soil layers are negative and given in meters while COSMIC needs them to be
@@ -307,24 +575,6 @@ elseif ( any(layerz < 0.0_r8) )then
    write(string1,*) 'unusual values of soil layers in model.'
    call error_handler(E_ERR,'get_expected_neutron_intensity',string1,source,revision,revdate)
 endif
-
-!=================================================================================
-! COSMIC: Site specific-parameters
-!=================================================================================
-
-!rr: #####
-!rr: I will need to change find a way to read those parameters externally
-!rr: #####
-
-! SANTA RITA SITE
-bd     = 1.4620_r8
-vwclat = 0.0366_r8
-N      = 399.05099359_r8
-alpha  = 0.25985853017_r8
-L1     = 161.98621864_r8
-L2     = 129.14558985_r8
-L3     = 114.04156391_r8
-L4     = 3.8086191933_r8
 
 !=================================================================================
 ! COSMIC: Allocate arrays and initialize variables
@@ -379,14 +629,14 @@ deallocate(layerz ,soil_moisture)
 ! COSMIC: Neutron flux calculation
 !=================================================================================
 
-! At some point, you might want to tinker around with non-uniform 
+! At some point, you might want to tinker around with non-uniform
 ! soil layer thicknesses.
 zthick(1) = dz(1) - 0.0_r8 ! Surface layer
 do i = 2,nlyr
    zthick(i) = dz(i) - dz(i-1) ! Remaining layers
 enddo
 
-if ( 2 == 1 ) then ! TJH DEBUG OUTPUT BLOCK 
+if ( 2 == 1 ) then ! TJH DEBUG OUTPUT BLOCK
    iunit = open_file('cosmos_layers.txt',form='formatted',action='write')
    do i = 1,nlyr
       write(iunit,*)dz(i),vwc(i),zthick(i)
@@ -431,7 +681,7 @@ do i = 1,nlyr
 
    ! This second loop needs to be done for the distribution of angles for fast neutron release
    ! the intent is to loop from 0 to 89.5 by 0.5 degrees - or similar.
-   ! Because Fortran loop indices are integers, we have to divide the indices by 10 - you get the idea.  
+   ! Because Fortran loop indices are integers, we have to divide the indices by 10 - you get the idea.
 
    do angle=0,maxangle,angledz
       zdeg     = real(angle,r8)/10.0_r8   ! 0.0  0.5  1.0  1.5 ...
@@ -452,50 +702,59 @@ do i = 1,nlyr
 
 enddo
 
-!=================================================================================
-
-! ... and finally calculated what the neutron intensity (which is basically totflux)
-val = totflux
-
 deallocate(dz, zthick, vwc, hiflux, fastpot, &
            h2oeffdens, idegrad, fastflux, isoimass, iwatmass)
 
-! assume all is well for now
-istatus = 0
+!=================================================================================
+! ... and finally set the return the neutron intensity (i.e. totflux)
+
+val     = totflux
+istatus = 0        ! assume all is well if we get this far
 
 return
 end subroutine get_expected_neutron_intensity
 
 
 
- subroutine interactive_neutron_intensity(key)
+
+
+ subroutine check_iostat(istat, routine, varname, msgstring)
 !----------------------------------------------------------------------
-!subroutine interactive_neutron_intensity(key)
 !
-integer, intent(out) :: key
 
-if ( .not. module_initialized ) call initialize_module
+integer,          intent(in) :: istat
+character(len=*), intent(in) :: routine
+character(len=*), intent(in) :: varname
+character(len=*), intent(in) :: msgstring
 
-! Increment the index
-num_neutron_intensity = num_neutron_intensity + 1
-key = num_neutron_intensity
+if ( istat /= 0 ) then
+   write(string1,*)'istat should be 0 but is ',istat,' for '//varname
+   call error_handler(E_ERR, routine, string1, source, revision, revdate, text2=msgstring)
+end if
 
-! Otherwise, prompt for input for the three required beasts
-write(*, *) 'Creating an interactive_COSMOS observation'
-
-end subroutine interactive_neutron_intensity
+end subroutine check_iostat
 
 
 
- subroutine set_obs_def_neutron_intensity(key)
+subroutine key_out_of_range(key, routine)
 !----------------------------------------------------------------------
-! Allows passing of obs_def special information
+! Make sure we are addrssing within the metadata arrays
 
-integer, intent(in) :: key
+integer,          intent(in) :: key
+character(len=*), intent(in) :: routine
 
-if ( .not. module_initialized ) call initialize_module
+! fine -- no problem.
+if (key <= MAXcosmoskey) return
 
-end subroutine set_obs_def_neutron_intensity
+! Bad news.  Tell the user.
+write(string1, *) 'key (',key,') exceeds Nmax_neutron_intensity (', MAXcosmoskey,')'
+write(string2, *) 'Increase MAXcosmoskey in namelist and rerun.'
+call error_handler(E_ERR,routine,string1,source,revision,revdate,text2=string2)
+
+! FIXME ... reallocate and get on with it.
+
+end subroutine key_out_of_range
+
 
 
 end module obs_def_COSMOS_mod
