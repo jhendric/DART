@@ -138,25 +138,31 @@
    output_state_vector          = .true., 
    model_perturbation_amplitude = 0.0001,
    calendar                     = 'Gregorian',
-   debug = 1
+   use_u_for_wind               = .false.,
+   use_rbf_option               = 2,
+   update_u_from_reconstruct    = .false.,
+   use_increments_for_u_update  = .false.,
+   xyzdebug                     = 0,
+   debug                        = 2
    /
 
+# NOTE: since h(nVertLevels,nCells,Time) ... it is not really KIND_SEA_SURFACE_HEIGHT
+
 &mpas_vars_nml
-   mpas_state_variables = 
-                          't',                     'KIND_TEMPERATURE',
-                          'uReconstructZonal',     'KIND_U_CURRENT_COMPONENT',
-                          'uReconstructMeridional','KIND_V_CURRENT_COMPONENT',
-                          'w',                     'KIND_VERTICAL_VELOCITY',
-                          'p',                     'KIND_PRESSURE',
-                          'rho',                   'KIND_DENSITY',
+   mpas_state_variables = 'temperature',  'KIND_TEMPERATURE',
+                          'salinity',     'KIND_SALINITY',
+                          'rho',          'KIND_DENSITY',
+                          'u',            'KIND_EDGE_NORMAL_SPEED',
+                          'h',            'KIND_SEA_SURFACE_HEIGHT' 
+                          'tracer1',      'KIND_TRACER_CONCENTRATION' 
   /
 
 &model_to_dart_nml
-   model_to_dart_output_file  = 'dart.second',
+   model_to_dart_output_file  = 'dart_ics',
   /
 
 &dart_to_model_nml
-   dart_to_model_input_file = 'perfect_restart',
+   dart_to_model_input_file = 'dart_restart',
    advance_time_present     = .true.,
   / 
 

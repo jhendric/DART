@@ -88,8 +88,10 @@ x_size = get_model_size()
 allocate(statevector(x_size))
 
 write(*,*)
-write(*,*) 'dart_to_model: converting DART file ', "'"//trim(dart_to_model_input_file)//"'"
-write(*,*) 'to model analysis file ', "'"//trim(model_analysis_filename)//"'" 
+write(*,*) 'dart_to_model: converting DART file ', &
+           "'"//trim(dart_to_model_input_file)//"'"
+write(*,*) '             to model analysis file ', &
+           "'"//trim(model_analysis_filename)//"'" 
 
 !----------------------------------------------------------------------
 ! Reads the valid time, the state, and the target time.
@@ -104,14 +106,12 @@ else
 endif
 call close_restart(iunit)
 
-print *, 'read state vector'
 !----------------------------------------------------------------------
 ! update the current model state vector
 ! Convey the amount of time to integrate the model ...
 ! time_manager_nml: stop_option, stop_count increments
 !----------------------------------------------------------------------
 
-print *, 'calling analysis file to state vector'
 call statevector_to_analysis_file(statevector, model_analysis_filename, model_time)
 
 ! write time into in text format (YYYY-MM-DD_hh:mm:ss) into a file.

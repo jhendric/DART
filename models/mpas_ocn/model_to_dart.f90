@@ -85,7 +85,8 @@ allocate(statevector(x_size))
 write(*,*)
 write(*,*) 'model_to_dart: converting model analysis file ', &
            "'"//trim(model_analysis_filename)//"'" 
-write(*,*) ' to DART file ', "'"//trim(model_to_dart_output_file)//"'"
+write(*,*) '                                 to DART file ', &
+           "'"//trim(model_to_dart_output_file)//"'"
 
 !----------------------------------------------------------------------
 ! Read the valid time and the state from the MPAS netcdf file

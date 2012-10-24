@@ -130,3 +130,47 @@ the general flow is:
 
 TJH - aka - SoYoung ... making changes to test the whole svn commit concept.
 
+
+From: Mark Petersen [mpetersen@lanl.gov]
+Sent: Thursday, September 13, 2012 3:50 PM
+To: Urban, Nathan
+Subject: restart variables
+
+Nathan,
+
+For next week, you should take a look at the restart variables in the
+Registry file at
+mpas_repo/trunk/mpas/src/core_ocean
+
+Every variable in mpas-o is listed there with a line like
+var persistent real    h ( nVertLevels nCells Time ) 2 iro h state - -
+
+iro means that the variable is specified in input, restart, and output
+files.  For you, you need to know what is required in the restart
+files.  The great majority of these variables are grid variables, like
+
+var persistent real    latVertex ( nVertices ) 0 iro latVertex mesh - -
+var persistent integer cellsOnEdge ( TWO nEdges ) 0 iro cellsOnEdge mesh - -
+etc.
+
+The important lines for you are:
+% Prognostic variables: read from input, saved in restart, and written to output
+var persistent real          u (nVertLevels nEdges Time) 2 ir  u state - -
+var persistent real          h (nVertLevels nCells Time) 2 iro h state - -
+var persistent real        rho (nVertLevels nCells Time) 2 iro rho state - -
+var persistent real temperature(nVertLevels nCells Time) 2 iro temperature state tracers dynamics
+var persistent real    salinity(nVertLevels nCells Time) 2 iro salinity state tracers dynamics
+var persistent real     tracer1(nVertLevels nCells Time) 2 iro tracer1 state tracers testing
+
+The variables you need to modify with DART are u,h,temperature, salinity.
+Rho is recomputed by the EOS upon start-up for our runs.
+It is in the restart file when config_vert_grid_type = 'isopycnal'
+in which case rho is specified rather than computed from the EOS.
+You can ignore tracer1 as well as it is just used for a test variable to
+test conservation.  Or you can think of tracer1 as nitrogen, carbon,etc
+if that is helpful.
+
+Feel free to write me with questions next week while you are at NCAR, if
+that is helpful.
+
+Mark
