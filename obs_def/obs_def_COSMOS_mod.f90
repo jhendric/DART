@@ -96,8 +96,6 @@ public ::            set_cosmos_metadata, &
              interactive_cosmos_metadata, &
           get_expected_neutron_intensity
 
-integer :: num_neutron_intensity = 0 ! observation counter ... useful length of metadata arrays
-
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
    source   = "$URL$", &
@@ -113,11 +111,6 @@ logical, save      :: module_initialized = .false.
 
 type site_metadata
    private
-!  character(len=metadatalength) :: sitename
-!  type(location_type) :: location
-!  real(r8)            :: latitude
-!  real(r8)            :: longitude
-!  real(r8)            :: elevation
    real(r8)            :: bd         ! Dry Soil Bulk Density [  g / cm^3]
    real(r8)            :: lattwat    ! Lattice Water Content [M^3 /  M^3]
    real(r8)            :: N          ! High Energy Neutron Intensity
@@ -129,16 +122,16 @@ type site_metadata
 end type site_metadata
 
 type(site_metadata), allocatable, dimension(:) :: observation_metadata
+type(site_metadata) :: missing_metadata
 character(len=6), parameter :: COSMOSSTRING = 'cosmic'
 
 logical :: debug = .FALSE.
 integer :: MAXcosmoskey = 24*366  ! one year of hourly data - to start
-integer ::    cosmoskey = 0
+integer ::    cosmoskey = 0       ! useful length of metadata arrays
 
 !----------------------------------------------------------------------------
 contains
 !----------------------------------------------------------------------------
-
 
 
   subroutine initialize_module
@@ -152,19 +145,18 @@ call register_module(source, revision, revdate)
 
 module_initialized = .true.
 
+missing_metadata%bd       = MISSING_R8
+missing_metadata%lattwat  = MISSING_R8
+missing_metadata%N        = MISSING_R8
+missing_metadata%alpha    = MISSING_R8
+missing_metadata%L1       = MISSING_R8
+missing_metadata%L2       = MISSING_R8
+missing_metadata%L3       = MISSING_R8
+missing_metadata%L4       = MISSING_R8
+
 allocate(observation_metadata(MAXcosmoskey))
 
-do i = 1,MAXcosmoskey
-   observation_metadata(i)%bd       = MISSING_R8
-   observation_metadata(i)%lattwat  = MISSING_R8
-   observation_metadata(i)%N        = MISSING_R8
-   observation_metadata(i)%alpha    = MISSING_R8
-   observation_metadata(i)%L1       = MISSING_R8
-   observation_metadata(i)%L2       = MISSING_R8
-   observation_metadata(i)%L3       = MISSING_R8
-   observation_metadata(i)%L4       = MISSING_R8
-!  observation_metadata(i)%location = set_location_missing()
-enddo
+observation_metadata(:) = missing_metadata
 
 end subroutine initialize_module
 
@@ -184,7 +176,7 @@ if ( .not. module_initialized ) call initialize_module
 cosmoskey = cosmoskey + 1  ! increase module storage used counter
 
 ! Make sure the new key is within the length of the metadata arrays.
-call key_out_of_range(cosmoskey,'set_cosmos_metadata')
+call grow_metadata(cosmoskey,'set_cosmos_metadata')
 
 key = cosmoskey ! now that we know its legal
 
@@ -214,7 +206,7 @@ real(r8), intent(out) :: bd, lattwat, N, alpha, L1, L2, L3, L4
 if ( .not. module_initialized ) call initialize_module
 
 ! Make sure the desired key is within the length of the metadata arrays.
-call key_out_of_range(key,'get_cosmos_metadata')
+call key_within_range(key,'get_cosmos_metadata')
 
 bd       = observation_metadata(key)%bd
 lattwat  = observation_metadata(key)%lattwat
@@ -407,8 +399,7 @@ end function interactive
 
  subroutine get_expected_neutron_intensity(state, location, key, val, istatus)
 !----------------------------------------------------------------------
-!subroutine get_expected_neutron_intensity(state, location, key, val, istatus)
-! uses a weighting function calculated by COSMIC (COsmic-ray Soil
+! Uses a weighting function calculated by COSMIC (COsmic-ray Soil
 ! Moisture Interaction Code)
 
 real(r8),            intent(in)  :: state(:) ! state vector
@@ -484,7 +475,7 @@ real(r8), allocatable :: soil_moisture(:) ! original soil layer moistures
 integer  :: angle, angledz, maxangle  ! loop indices for an integration interval
 integer  :: i, zi, nlevels, iunit
 real(r8) :: loc_array(3)
-real(r8) :: loc_lon, loc_lat, obs_val
+real(r8) :: loc_lon, loc_lat, loc_value
 type(location_type) :: loc
 
 !=================================================================================
@@ -498,7 +489,7 @@ val = 0.0_r8 ! set return value early
 !=================================================================================
 
 ! Make sure the desired key is within the length of the metadata arrays.
-call key_out_of_range(key,'get_expected_neutron_intensity')
+call key_within_range(key,'get_expected_neutron_intensity')
 
 bd     = observation_metadata(key)%bd
 vwclat = observation_metadata(key)%lattwat
@@ -508,11 +499,6 @@ L1     = observation_metadata(key)%L1
 L2     = observation_metadata(key)%L2
 L3     = observation_metadata(key)%L3
 L4     = observation_metadata(key)%L4
-
-write(*,*)'TJH debug '
-write(*,*)bd, vwclat, N, alpha
-write(*,*)L1,L2,L3,L4
-write(*,*)
 
 !=================================================================================
 ! Determine the number of soil layers and their depths
@@ -527,7 +513,7 @@ loc_lat   = loc_array(2)
 nlevels = 0
 COUNTLEVELS : do i = 1,maxlayers
    loc = set_location(loc_lon, loc_lat, real(i,r8), VERTISLEVEL)
-   call model_interpolate(state,loc,KIND_GEOPOTENTIAL_HEIGHT,obs_val,istatus)
+   call model_interpolate(state,loc,KIND_GEOPOTENTIAL_HEIGHT,loc_value,istatus)
    if (istatus /= 0) exit COUNTLEVELS
    nlevels = nlevels + 1
 enddo COUNTLEVELS
@@ -553,7 +539,7 @@ FINDLEVELS : do i = 1,nlevels
    ! not checking this error code because it worked just a few lines earlier
 
    loc = set_location(loc_lon, loc_lat, layerz(i), VERTISHEIGHT)
-   call model_interpolate(state,loc,KIND_SOIL_MOISTURE,obs_val,istatus)
+   call model_interpolate(state,loc,KIND_SOIL_MOISTURE,loc_value,istatus)
 
    if (istatus /= 0) then
       write(string1,*) 'FAILED to determine soil moisture for layer',i
@@ -563,7 +549,7 @@ FINDLEVELS : do i = 1,nlevels
       return
    endif
 
-   soil_moisture(i) = obs_val
+   soil_moisture(i) = loc_value
 
 enddo FINDLEVELS
 
@@ -635,14 +621,6 @@ zthick(1) = dz(1) - 0.0_r8 ! Surface layer
 do i = 2,nlyr
    zthick(i) = dz(i) - dz(i-1) ! Remaining layers
 enddo
-
-if ( 2 == 1 ) then ! TJH DEBUG OUTPUT BLOCK
-   iunit = open_file('cosmos_layers.txt',form='formatted',action='write')
-   do i = 1,nlyr
-      write(iunit,*)dz(i),vwc(i),zthick(i)
-   enddo
-   call close_file(iunit)
-endif
 
 ! Angle distribution parameters (HARDWIRED)
 !rr: Using 0.5 deg angle intervals appears to be sufficient
@@ -736,24 +714,68 @@ end subroutine check_iostat
 
 
 
-subroutine key_out_of_range(key, routine)
+subroutine key_within_range(key, routine)
 !----------------------------------------------------------------------
-! Make sure we are addrssing within the metadata arrays
+! Make sure we are addressing within the metadata arrays
 
 integer,          intent(in) :: key
 character(len=*), intent(in) :: routine
 
 ! fine -- no problem.
-if (key <= MAXcosmoskey) return
+if ((key > 0) .and. (key <= cosmoskey)) return
 
-! Bad news.  Tell the user.
-write(string1, *) 'key (',key,') exceeds Nmax_neutron_intensity (', MAXcosmoskey,')'
-write(string2, *) 'Increase MAXcosmoskey in namelist and rerun.'
-call error_handler(E_ERR,routine,string1,source,revision,revdate,text2=string2)
+! Bad news. Tell the user.
+write(string1, *) 'key (',key,') not within known range ( 1,', cosmoskey,')'
+call error_handler(E_ERR,routine,string1,source,revision,revdate)
 
-! FIXME ... reallocate and get on with it.
+end subroutine key_within_range
 
-end subroutine key_out_of_range
+
+
+subroutine grow_metadata(key, routine)
+!----------------------------------------------------------------------
+! If the allocatable metadata arrays are not big enough ... try again
+
+integer,          intent(in) :: key
+character(len=*), intent(in) :: routine
+
+integer :: i, orglength
+type(site_metadata), allocatable, dimension(:) :: safe_metadata
+
+! fine -- no problem.
+if ((key > 0) .and. (key <= MAXcosmoskey)) return
+
+orglength    =     MAXcosmoskey
+MAXcosmoskey = 2 * orglength
+
+! Check for some error conditions.
+if (key < 1) then
+   write(string1, *) 'key (',key,') must be >= 1'
+   call error_handler(E_ERR,routine,string1,source,revision,revdate)
+elseif (key >= 2*MAXcosmoskey) then
+   write(string1, *) 'key (',key,') really unexpected.'
+   write(string2, *) 'doubling storage will not help.'
+   call error_handler(E_ERR,routine,string1,source,revision,revdate, &
+                      text2=string2)
+endif
+
+! News. Tell the user we are increasing storage.
+write(string1, *) 'key (',key,') exceeds Nmax_neutron_intensity (',orglength,')'
+write(string2, *) 'Increasing Nmax_neutron_intensity to ',MAXcosmoskey
+call error_handler(E_MSG,routine,string1,source,revision,revdate,text2=string2)
+
+allocate(safe_metadata(orglength))
+safe_metadata(:) = observation_metadata(:)
+
+deallocate(observation_metadata)
+  allocate(observation_metadata(MAXcosmoskey))
+
+observation_metadata(1:orglength)              = safe_metadata(:)
+observation_metadata(orglength+1:MAXcosmoskey) = missing_metadata
+
+deallocate(safe_metadata)
+
+end subroutine grow_metadata
 
 
 

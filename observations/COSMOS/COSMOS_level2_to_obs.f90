@@ -83,12 +83,11 @@ character(len=256) :: site_metadata_file = 'COSMIC_parlist.nc'
 character(len=128) :: text_input_file = 'corcounts.txt'
 character(len=128) :: obs_out_file    = 'obs_seq.out'
 character(len=128) :: sitename        = 'missing'
-integer            :: year
 real(r8)           :: maxgoodqc       = 3
 logical            :: verbose         = .false.
 
 namelist /COSMOS_to_obs_nml/ site_metadata_file, text_input_file, &
-   obs_out_file, sitename, year, maxgoodqc, verbose
+   obs_out_file, sitename, maxgoodqc, verbose
 
 !-----------------------------------------------------------------------
 ! globally-scoped variables
@@ -179,7 +178,7 @@ prev_time = set_time(0, 0)
 
 ! Read the COSMOS metadata/parameters for each site.
 ! These will be added to the metadata for neutron intensity observations.
-nSites   = read_cosmos_metadata(site_metadata_file)
+nSites   = read_site_metadata(site_metadata_file)
 siteIndx = find_site_index(sitename)
 bd       = cosmos_metadata(siteIndx)%bd
 lattwat  = cosmos_metadata(siteIndx)%lattwat
@@ -203,6 +202,14 @@ if (verbose) print *, 'COSMOS site located at lat, lon, elev  =', &
 ! in observation sequence - the other is for the new observation.
 
 call find_textfile_dims(text_input_file, max_obs)
+
+if (max_obs < 0) then
+   write (string1,*) '<'//trim(text_input_file)//'> does not exist.'
+   call error_handler(E_ERR,'main', string1, source, revision, revdate)
+elseif (max_obs < 2) then
+   write (string1,*) trim(text_input_file)//' has no observation values in it.'
+   call error_handler(E_ERR,'main', string1, source, revision, revdate)
+endif
 
 iunit = open_file(text_input_file, 'formatted', 'read')
 if (verbose) print *, 'opened input file ' // trim(text_input_file)
@@ -413,14 +420,14 @@ end subroutine stringparse
 
 
 
-  function read_cosmos_metadata(site_metadata_file)
+  function read_site_metadata(site_metadata_file)
 !----------------------------------------------------------------------------
-! nsites = read_cosmos_metadata(site_metadata_file)
+! nsites = read_site_metadata(site_metadata_file)
 !
 ! Read the list of parameters for every site we know about and
 ! return the number of sites we know about.
 
-integer                      :: read_cosmos_metadata
+integer                      :: read_site_metadata
 character(len=*), intent(in) :: site_metadata_file
 
 integer                               :: strlength
@@ -432,34 +439,34 @@ character(len=metadatalength)         :: sitename
 
 if ( .not. file_exist(site_metadata_file) ) then
    write(string1,*) 'COSMIC parameter file [', trim(site_metadata_file),'] does not exist.'
-   call error_handler(E_ERR,'read_cosmos_metadata',string1,source,revision,revdate)
+   call error_handler(E_ERR,'read_site_metadata',string1,source,revision,revdate)
 endif
 
 call nc_check(nf90_open(site_metadata_file, NF90_NOWRITE, ncid), &
-                   'read_cosmos_metadata', 'open '//trim(site_metadata_file))
+                   'read_site_metadata', 'open '//trim(site_metadata_file))
 
 call nc_check(nf90_inq_dimid(ncid, 'nsites', dimIDs(1)), &
-                  'read_cosmos_metadata','inq_dimid nsites '//trim(site_metadata_file))
-call nc_check(nf90_inquire_dimension(ncid, dimIDs(1), len=read_cosmos_metadata), &
-                  'read_cosmos_metadata','inquire_dimension nsites '//trim(site_metadata_file))
+                  'read_site_metadata','inq_dimid nsites '//trim(site_metadata_file))
+call nc_check(nf90_inquire_dimension(ncid, dimIDs(1), len=read_site_metadata), &
+                  'read_site_metadata','inquire_dimension nsites '//trim(site_metadata_file))
 
 call nc_check(nf90_inq_dimid(ncid, 'strlength', dimIDs(2)), &
-                  'read_cosmos_metadata','inq_dimid strlength '//trim(site_metadata_file))
+                  'read_site_metadata','inq_dimid strlength '//trim(site_metadata_file))
 call nc_check(nf90_inquire_dimension(ncid, dimIDs(2), len=strlength), &
-                  'read_cosmos_metadata','inquire_dimension strlength '//trim(site_metadata_file))
+                  'read_site_metadata','inquire_dimension strlength '//trim(site_metadata_file))
 
 call nc_check(nf90_inq_varid(ncid, 'sitenames', VarID), &
-                 'read_cosmos_metadata','inq_varid sitenames '//trim(site_metadata_file))
+                 'read_site_metadata','inq_varid sitenames '//trim(site_metadata_file))
 
-allocate(cosmos_metadata(read_cosmos_metadata))
+allocate(cosmos_metadata(read_site_metadata))
 
-do isite = 1,read_cosmos_metadata
+do isite = 1,read_site_metadata
 
    sitename = ''
 
    write(string1,*)'get_var sitename site ',isite,' '//trim(site_metadata_file)
    call nc_check(nf90_get_var(ncid, VarID, sitename(1:strlength), &
-           start=(/1, isite/), count=(/strlength,1/)), 'read_cosmos_metadata', string1)
+           start=(/1, isite/), count=(/strlength,1/)), 'read_site_metadata', string1)
 
    cosmos_metadata(isite)%sitename = trim(sitename(1:strlength))
 
@@ -467,10 +474,10 @@ do isite = 1,read_cosmos_metadata
 
 enddo
 
-call nc_check(nf90_close(ncid), 'read_cosmos_metadata', 'close '//trim(site_metadata_file))
+call nc_check(nf90_close(ncid), 'read_site_metadata', 'close '//trim(site_metadata_file))
 
 if (verbose) then
-do isite = 1,read_cosmos_metadata
+do isite = 1,read_site_metadata
    write(*,*)
    write(*,*)'site name ',cosmos_metadata(isite)%sitename
    write(*,*)'longitude ',cosmos_metadata(isite)%longitude 
@@ -488,7 +495,7 @@ do isite = 1,read_cosmos_metadata
 enddo
 endif
 
-end function read_cosmos_metadata
+end function read_site_metadata
 
 
 
@@ -534,9 +541,9 @@ integer :: VarID, start(1), count(1)
 start(1) = siteindx
 count(1) = 1
 
-call nc_check(nf90_inq_varid(ncid, varname, VarID), 'read_cosmos_metadata', 'inq_varid '//trim(varname))
+call nc_check(nf90_inq_varid(ncid, varname, VarID), 'read_site_metadata', 'inq_varid '//trim(varname))
 call nc_check(nf90_get_var(ncid, VarID, tempspace, start=start, count=count ), &
-                     'read_cosmos_metadata', 'get_var '//trim(varname))
+                     'read_site_metadata', 'get_var '//trim(varname))
 slot = tempspace(1)
 
 end subroutine get_var
