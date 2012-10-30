@@ -2,14 +2,14 @@
           "http://www.w3.org/TR/html4/strict.dtd">
 <HTML>
 <HEAD>
-<TITLE>program COSMOS_level2_to_obs</TITLE>
+<TITLE>program COSMOS_to_obs</TITLE>
 <link rel="stylesheet" type="text/css" href="../../doc/html/doc.css">
 <link href="../../doc/html/dart.ico" rel="shortcut icon" />
 </HEAD>
 <BODY>
 <A NAME="TOP"></A>
 
-<H1>PROGRAM <em class=program>COSMOS_level2_to_obs</em></H1>
+<H1>PROGRAM <em class=program>COSMOS_to_obs</em></H1>
 
 <table border=0 summary="" cellpadding=5>
 <tr>
@@ -76,7 +76,7 @@ The workflow is usually:
     <em class=file>observations/COSMOS/data/COSMIC_parlist.nc</em>
     (more on this in <a href="#COSMICparameters">the section on COSMIC parameters</a>)</li>
 
-<li>run <em class=program>COSMOS_level2_to_obs</em> to generate a DART observation sequence 
+<li>run <em class=program>COSMOS_to_obs</em> to generate a DART observation sequence 
     file for the station and rename the output file if necessary
     (you can explicity name the output file via the namelist).</li>
 
@@ -118,11 +118,11 @@ YYYY-MM-DD HH:MM  MOD PROBE PRESS  SCALE SANPE INTEN OTHER CORR ERR
 <div class="top">[<a href="#">top</a>]</div><hr />
 <H2>PROGRAMS</H2>
 <P>
-The <em class=file>COSMOS_level2_to_obs.f90</em> file is the source code
+The <em class=file>COSMOS_to_obs.f90</em> file is the source code
 for the main converter program.
 At present there is an uncomfortable assumption that the order of the columns
 in the Level 2 data is fixed. I hope to relax that requirement in the near future.
-<em class=program>COSMOS_level2_to_obs</em>
+<em class=program>COSMOS_to_obs</em>
 reads each text line into a character buffer
 and then reads from that buffer to parse up the data items.
 The items are then combined with the COSMIC parameters for that site 
@@ -159,7 +159,7 @@ DART observation operator.
 It is a bit redundant as currently implemented, but it is convenient.
 <br />
 <br />
-<em class=program>COSMOS_level2_to_obs</em> reads the site name from
+<em class=program>COSMOS_to_obs</em> reads the site name from
 the input namelist and the known station information from 
 <em class=file>COSMIC_parlist.nc</em>. The simplest way to add a new station to
 <em class=file>COSMIC_parlist.nc</em> is probably to:

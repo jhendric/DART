@@ -2,7 +2,7 @@
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
-program COSMOS_level2_to_obs
+program COSMOS_to_obs
 
 ! <next few lines under version control, do not edit>
 ! $URL$
@@ -12,7 +12,7 @@ program COSMOS_level2_to_obs
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
-! COSMOS_level2_to_obs - reads the COSMOS data as defined in the level 2 
+! COSMOS_to_obs - reads the COSMOS data as defined in the level 2 
 !     product available from the COSMOS data portal at:
 !     http://cosmos.hwr.arizona.edu/Probes/probemap.php
 !
@@ -158,7 +158,7 @@ real(r8) :: bd, lattwat, N, alpha, L1, L2, L3, L4
 ! start of executable code
 !-----------------------------------------------------------------------
 
-call initialize_utilities('COSMOS_level2_to_obs')
+call initialize_utilities('COSMOS_to_obs')
 
 ! Print module information to log file and stdout.
 call register_module(source, revision, revdate)
@@ -608,4 +608,4 @@ end function find_site_index
 
 
 
-end program COSMOS_level2_to_obs
+end program COSMOS_to_obs
