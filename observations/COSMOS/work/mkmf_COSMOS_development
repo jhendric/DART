@@ -6,8 +6,8 @@
 #
 # $Id$
 
-../../../mkmf/mkmf -p COSMOS_to_obs -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
- -a "../../.." path_names_COSMOS_to_obs
+../../../mkmf/mkmf -p COSMOS_development -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+ -a "../../.." path_names_COSMOS_development
 
 exit $status
 
