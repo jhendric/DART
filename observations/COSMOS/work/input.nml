@@ -22,7 +22,6 @@
    write_binary_obs_sequence = .false.  
    /
 
-
 &COSMOS_to_obs_nml
    site_metadata_file = '../data/COSMIC_parlist.nc',
    text_input_file    = '../data/SantaRita.corcounts.txt',
@@ -32,8 +31,15 @@
    verbose            = .TRUE.
    /
 
-# For COSMOS_level2_to_obs, the filename is data/corcounts.txt
-# For COSMOS_to_obs,        the filename is data/COSMOS_SantaRita_2011.dat
+&COSMOS_development_nml
+   site_metadata_file = '../data/COSMIC_parlist.nc',
+   text_input_file    = '../data/COSMOS_SantaRita_2011.dat',
+   obs_out_file       = 'SantaRita.obs_seq.out',
+   sitename           = 'Santa_Rita_Creosote',
+   year               = 2011,
+   maxgoodqc          =    1,
+   verbose            = .TRUE.
+   /
 
 &obs_sequence_tool_nml
    filename_seq         = 'Austin_Cary.obs_seq.out', 'SantaRita.obs_seq.out',

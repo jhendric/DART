@@ -49,7 +49,7 @@ have a correction for the amount of hydrogen in the atmospheric volume near the 
 To this end, Rafael Rosolem has a separate data stream.  <em class=program>COSMOS_development</em>
 reads Rafaels data streams and converts them to DART observation sequence files. 
 <b>Since these data streams are not widespread, we recommend using 
-<a href="COSMOS_level2_to_obs.html"> COSMOS_level2_to_obs.f90</a>.</b>
+<a href="COSMOS_to_obs.html"> COSMOS_to_obs.f90</a>.</b>
 <br />
 <br />
 The workflow is usually: 
@@ -92,7 +92,7 @@ http://cosmos.hwr.arizona.edu/Probes/probemap.php</a>
 The development observation data for each station is generally not available.
 The metadata for each station (location, height, etc) is also
 available from the data portal. The <b>Level 2 Data</b> is most suited for use with DART.
-<b>We recommend using <a href="COSMOS_level2_to_obs.html"> COSMOS_level2_to_obs.f90</a>.</b>
+<b>We recommend using <a href="COSMOS_to_obs.html"> COSMOS_to_obs.f90</a>.</b>
 An example of the development observation data follows:
 </P>
 <pre>
@@ -288,8 +288,8 @@ kind
           20
 <div style="color: yellow"> cosmic
   0.88500000000000001       5.84099999999999966E-002   336.95696938999998       0.31918025877000000
-   161.98621864285701        129.14558984999999        55.311849408000000        3.8086191933000002</div>
-           1
+   161.98621864285701        129.14558984999999        55.311849408000000        3.8086191933000002
+           1</div>
  77340     150034
    1225.0000000000000
    ...
