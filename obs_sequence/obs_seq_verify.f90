@@ -1537,7 +1537,20 @@ if (verbose) call error_handler(E_MSG,'find_ensemble_size:',string1,source,revis
 
 if (find_ensemble_size < 1) then
    write(string1,*)'no ensemble member info in ', trim(obs_seq_in_file_name)
-   write(string2,*)'Unable to continue.'
+   write(string2,*)'looking for a prior ensemble mean'
+   call error_handler(E_MSG,'find_ensemble_size', string1, &
+                 source, revision, revdate, text2=string2)
+
+   ! could be a 'deterministic' forecast from the ensemble mean
+   do i=1, get_num_copies(seq)
+      if( index(get_copy_meta_data(seq,i), 'prior ensemble mean') > 0) &
+         find_ensemble_size = find_ensemble_size + 1
+   enddo
+endif
+
+if (find_ensemble_size < 1) then
+   write(string1,*)'no ensemble member info in ', trim(obs_seq_in_file_name)
+   write(string2,*)'cannot continue'
    call error_handler(E_ERR,'find_ensemble_size', string1, &
                  source, revision, revdate, text2=string2)
 endif
@@ -1678,12 +1691,22 @@ MetaDataLoop : do i=1, get_num_copies(myseq)
 
    if( index(metadata, 'prior ensemble member') > 0) then
       myindex = myindex + 1
-
       if ( myindex > size(indices) ) then
          write(string1,*)'Found too many prior copies in metadata.'
          call error_handler(E_ERR,'find_our_copies',string1,source,revision,revdate)
       endif
       indices(myindex) = i
+   endif
+
+   ! Check for deterministic forecast, apparently
+   if ( (ensemble_size == 1) .and. (index(metadata, 'prior ensemble mean') > 0) ) then 
+      myindex = myindex + 1
+      if ( myindex > size(indices) ) then
+         write(string1,*)'Found too many prior copies in metadata.'
+         call error_handler(E_ERR,'find_our_copies',string1,source,revision,revdate)
+      endif
+      indices(myindex) = i
+      exit MetaDataLoop
    endif
 
 enddo MetaDataLoop
