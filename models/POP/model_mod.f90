@@ -3370,13 +3370,13 @@ if(hstatus /= 0) then
 endif
 
 
-! salinity
+! salinity - in msu (kg/kg).  converter will want psu (g/kg).
 call do_interp(x, start_index(S_index), hgt_bot, hgt_top, hgt_fract, llon, llat, &
                KIND_SALINITY, salinity_val, istatus)
 if(istatus /= 0) return
 if (debug > 8) print *, 'salinity: ', salinity_val
 
-! potential temperature
+! potential temperature - degrees C.
 call do_interp(x, start_index(T_index), hgt_bot, hgt_top, hgt_fract, llon, llat, &
                KIND_POTENTIAL_TEMPERATURE, potential_temp, istatus)
 if(istatus /= 0) return
@@ -3391,8 +3391,9 @@ if (debug > 8) then
                                  hgt_top, pressure(hgt_top), pres_val
 endif
 
-! and finally, convert to sensible (in-situ) temperature
-call insitu_temp(potential_temp, salinity_val, pres_val*10.0_r8, interp_val)
+! and finally, convert to sensible (in-situ) temperature.
+! potential temp in degrees C, pressure in decibars, salinity in psu or pss (g/kg).
+call insitu_temp(potential_temp, salinity_val*1000.0_r8, pres_val*10.0_r8, interp_val)
 if (debug > 2) print *, 's,pt,pres,t: ', salinity_val, potential_temp, pres_val, interp_val
 
 end subroutine compute_temperature
