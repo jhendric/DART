@@ -136,7 +136,8 @@ innovative atmospheric sounding group of visible, infrared, and microwave
 sensors. AIRS data will be generated continuously. Global coverage will
 be obtained twice daily (day and night) on a 1:30pm sun synchronous orbit
 from a 705-km altitude.
-
+</P>
+<P>
 The AIRS Standard Retrieval Product consists of retrieved estimates of cloud
 and surface properties, plus profiles of retrieved temperature, water vapor,
 ozone, carbon monoxide and methane. Estimates of the errors associated with
@@ -150,8 +151,26 @@ set as 6 minutes of data, 30 footprints cross track by 45 lines along track.
 </P>
 
 <P>
+The converter outputs temperature observations at the corresponding vertical
+pressure levels.  However, the moisture obs are the mean for the layer, so
+the location in the vertical is the midpoint, in log space, of the current 
+layer and the layer above it.   There is an alternative computation for the
+moisture across the layer which may be more accurate, but requires a
+forward operator subroutine to be written and for the observation to
+contain metadata.  The observation could be defined with a layer top,
+in pressure, and a number of points to use for the integration across
+the layer.  Then the forward operator would query the model at each of
+the N points in the vertical for a given horizontal location, and compute
+the mean moisture value.  This code has not been implemented yet, and
+would require a different KIND_xxx to distinguish it from the
+simple location/value moisture obs.  See the GPS non-local operator
+code for an example of how this would need to be implemented.
+</P>
+
+<P>
 Getting the data currently means putting in a start/stop time at
-<a href="http://mirador.gsfc.nasa.gov/cgi-bin/mirador/homepageAlt.pl?keyword=AIRX2RET">this web page</a>.  The keyword is <tt>AIRX2RET</tt> and put in
+<a href="http://mirador.gsfc.nasa.gov/cgi-bin/mirador/homepageAlt.pl?keyword=AIRX2RET">this web page</a>.
+The keyword is <tt>AIRX2RET</tt> and put in
 the time range of interest and optionally a geographic region.  
 Each file contains 6 minutes of data, is
 about 2.3 Megabytes, and globally there are 240 files/day 
@@ -164,6 +183,8 @@ created by the web page after adding the selected files to a 'cart'
 and 'checking out'.  The script has a series of <tt>wget</tt> commands
 which downloads each file, one at a time, which is run on the machine
 where you want the data to end up.
+</P>
+
 
 <!--==================================================================-->
 
@@ -178,14 +199,7 @@ on one of these levels.  The moisture observations, however, are an
 integrated quantity for the space between the levels; in their terminology
 the fixed heights are 'levels' and the space between them are 'layers'.
 The current converter locates the moisture obs at the midpoint, in log
-space, between the levels.  A more accurate computation of moisture would
-be to add metadata to the moisture obs with a number of points between
-the layers and have the forward operator integrate the real moisture
-values at intermediate points from the model and sum the moisture.
-We have not written the more complex forward operator because
-at this point we're getting reasonable results from the better-located
-moisture obs (the first version of this converter incorrectly located
-them at the lower level instead of the middle of the layer).
+space, between the levels.
 </P>
 <P>
 The hdf files need to be downloaded from the data server, in any manner
