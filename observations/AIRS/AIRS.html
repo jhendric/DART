@@ -128,9 +128,23 @@ data set <tt>AIRS_DP</tt> and data product <tt>AIRX2RET</tt> without
 </P>
 
 <P>
-The Atmospheric Infrared Sounder (AIRS) is a facility instrument aboard the second Earth Observing System (EOS) polar-orbiting platform, EOS Aqua. In combination with the Advanced Microwave Sounding Unit (AMSU) and the Humidity Sounder for Brazil (HSB), AIRS constitutes an innovative atmospheric sounding group of visible, infrared, and microwave sensors. AIRS data will be generated continuously. Global coverage will be obtained twice daily (day and night) on a 1:30pm sun synchronous orbit from a 705-km altitude.
+The Atmospheric Infrared Sounder (AIRS) is a facility instrument aboard
+the second Earth Observing System (EOS) polar-orbiting platform,
+EOS Aqua. In combination with the Advanced Microwave Sounding Unit
+(AMSU) and the Humidity Sounder for Brazil (HSB), AIRS constitutes an
+innovative atmospheric sounding group of visible, infrared, and microwave
+sensors. AIRS data will be generated continuously. Global coverage will
+be obtained twice daily (day and night) on a 1:30pm sun synchronous orbit
+from a 705-km altitude.
 
-The AIRS Standard Retrieval Product consists of retrieved estimates of cloud and surface properties, plus profiles of retrieved temperature, water vapor, ozone, carbon monoxide and methane. Estimates of the errors associated with these quantities will also be part of the Standard Product. The temperature profile vertical resolution is 28 levels total between 1100 mb and 0.1 mb, while moisture profile is reported at 14 atmospheric layers between 1100 mb and 50 mb. The horizontal resolution is 50 km. An AIRS granule has been set as 6 minutes of data, 30 footprints cross track by 45 lines along track.
+The AIRS Standard Retrieval Product consists of retrieved estimates of cloud
+and surface properties, plus profiles of retrieved temperature, water vapor,
+ozone, carbon monoxide and methane. Estimates of the errors associated with
+these quantities will also be part of the Standard Product. The temperature
+profile vertical resolution is 28 levels total between 1100 mb and 0.1 mb,
+while moisture profile is reported at 14 atmospheric layers between 1100
+mb and 50 mb. The horizontal resolution is 50 km. An AIRS granule has been
+set as 6 minutes of data, 30 footprints cross track by 45 lines along track.
 
 (The Shortname for this product is AIRX2RET).
 </P>
@@ -158,15 +172,38 @@ where you want the data to end up.
 <H2>PROGRAMS</H2>
 
 <P>
+The temperature observations are located on standard levels; there is a
+single array of heights in each file and all temperature data is located
+on one of these levels.  The moisture observations, however, are an
+integrated quantity for the space between the levels; in their terminology
+the fixed heights are 'levels' and the space between them are 'layers'.
+The current converter locates the moisture obs at the midpoint, in log
+space, between the levels.  A more accurate computation of moisture would
+be to add metadata to the moisture obs with a number of points between
+the layers and have the forward operator integrate the real moisture
+values at intermediate points from the model and sum the moisture.
+We have not written the more complex forward operator because
+at this point we're getting reasonable results from the better-located
+moisture obs (the first version of this converter incorrectly located
+them at the lower level instead of the middle of the layer).
+</P>
+<P>
 The hdf files need to be downloaded from the data server, in any manner
 you choose.   The converter program reads each hdf granule and outputs
 a DART obs_seq file containing up to 56700 observations.  Only those with
 a quality control of 0 (Best) are kept.
-<br />
-<br />
 The resulting obs_seq files can be merged with the 
 <a href="../../obs_sequence/obs_sequence_tool.html">obs_sequence_tool</a> 
 into larger time periods.
+</P>
+<P>
+The scripts directory here includes some shell scripts that
+make use of the fact that the AIRS data is also archived on the NCAR
+HPSS (tape library) in daily tar files.  The script has options 
+to download a day of granule files, convert them, merge them 
+into daily files, and remove the
+original data files and repeat the process for any specified
+time period.  (See <tt>oneday_down.sh</tt>)
 </P>
 
 <!--==================================================================-->
