@@ -26,13 +26,13 @@ program noah_to_dart
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8
-use    utilities_mod, only : initialize_utilities, timestamp, &
+use    utilities_mod, only : initialize_utilities, finalize_utilities, &
                              find_namelist_in_file, check_namelist_read, &
-                             logfileunit, do_output
-use        model_mod, only : get_model_size, noah_to_dart_vector, &
-                             get_noah_restart_filename
+                             logfileunit
 use  assim_model_mod, only : awrite_state_restart, open_restart_write, close_restart
 use time_manager_mod, only : time_type, print_time, print_date
+use        model_mod, only : static_init_model, get_model_size, noah_to_dart_vector, &
+                             get_noah_restart_filename, get_debug_level
 
 implicit none
 
@@ -54,7 +54,6 @@ namelist /noah_to_dart_nml/ noah_to_dart_output_file
 ! global storage
 !----------------------------------------------------------------------
 
-logical               :: verbose = .TRUE.
 integer               :: io, iunit, x_size
 type(time_type)       :: model_time
 real(r8), allocatable :: statevector(:)
@@ -62,28 +61,32 @@ character(len=256)    :: noah_restart_filename
 
 !======================================================================
 
-call initialize_utilities(progname='noah_to_dart', output_flag=verbose)
+call initialize_utilities(progname='noah_to_dart')
 
 !----------------------------------------------------------------------
 ! Read the namelist to get the output filename.
 !----------------------------------------------------------------------
 
+call static_init_model()
+
+! Read the namelist to get the input filename.
+
 call find_namelist_in_file("input.nml", "noah_to_dart_nml", iunit)
 read(iunit, nml = noah_to_dart_nml, iostat = io)
-call check_namelist_read(iunit, io, "noah_to_dart_nml") ! closes, too.
+call check_namelist_read(iunit, io, "noah_to_dart_nml")
+
+! the output filename comes from the initialization of model_mod
 
 call get_noah_restart_filename( noah_restart_filename )
 
-if (do_output()) then
-   write(*,*)
-   write(*,'(''noah_to_dart:converting noah restart file '',A, &
-      &'' to DART file '',A)') &
+write(*,*)
+write(*,'(''noah_to_dart:converting noah restart file <'',A, &
+      &''> to DART file <'',A,''>'')') &
        trim(noah_restart_filename), trim(noah_to_dart_output_file)
-   write(logfileunit,*)
-   write(logfileunit,'(''noah_to_dart:converting noah restart file '',A, &
-      &'' to DART file '',A)') &
+write(logfileunit,*)
+write(logfileunit,'(''noah_to_dart:converting noah restart file <'',A, &
+      &''> to DART file <'',A,''>'')') &
        trim(noah_restart_filename), trim(noah_to_dart_output_file)
-endif
 
 !----------------------------------------------------------------------
 ! get to work
@@ -100,17 +103,17 @@ call awrite_state_restart(model_time, statevector, iunit)
 call close_restart(iunit)
 
 !----------------------------------------------------------------------
-! When called with 'end', timestamp will call finalize_utilities()
+! call finalize_utilities()
 !----------------------------------------------------------------------
 
-if (do_output()) then
+if (get_debug_level() > 0) then
    call print_date(model_time, str='noah_to_dart:DART model date',iunit=logfileunit)
    call print_date(model_time, str='noah_to_dart:DART model date')
    call print_time(model_time, str='noah_to_dart:DART model time')
    call print_time(model_time, str='noah_to_dart:DART model time',iunit=logfileunit)
 endif
 
-call timestamp(string1=source, pos='end')
+call finalize_utilities()
 
 end program noah_to_dart
 

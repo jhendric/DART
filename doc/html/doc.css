@@ -205,12 +205,12 @@ em.optionalcode{
 em.program{
     color:green; 
     font-style:oblique;
-    font-family:"Courier",monospace;}
+    font-family:"Lucida Console",monospace;}
 
 em.file{
     color:green; 
     font-style:normal;
-    font-family:"Courier",monospace;}
+    font-family:"Lucida Console",monospace;}
 
 em.nav{
     font-family:sans-serif;

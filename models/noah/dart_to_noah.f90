@@ -27,7 +27,7 @@ program dart_to_noah
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8, obstypelength
-use    utilities_mod, only : initialize_utilities, timestamp, &
+use    utilities_mod, only : initialize_utilities, finalize_utilities, &
                              find_namelist_in_file, check_namelist_read, &
                              logfileunit, open_file, close_file, &
                              error_handler, E_ERR
@@ -36,7 +36,7 @@ use time_manager_mod, only : time_type, print_time, print_date, get_date, &
                              set_time, operator(+), operator(-), operator(<=)
 use        model_mod, only : static_init_model, dart_vector_to_model_file, &
                              get_model_size, get_noah_restart_filename, &
-                             get_noah_timestepping
+                             get_noah_timestepping, get_debug_level
 
 implicit none
 
@@ -46,20 +46,20 @@ character(len=128), parameter :: &
    revision = "$Revision$", &
    revdate  = "$Date$"
 
-!------------------------------------------------------------------
-! The namelist variables
-!------------------------------------------------------------------
+!-----------------------------------------------------------------------
+! namelist parameters with default values.
+!-----------------------------------------------------------------------
 
 character (len = 128) :: dart_to_noah_input_file = 'dart_restart'
-character (len = 128) :: noah_reqd_file_list = 'ldasin_files_needed'
 character (len=obstypelength), dimension(40) :: skip_variables = ' '
 logical               :: advance_time_present   = .true.
 
 namelist /dart_to_noah_nml/ dart_to_noah_input_file, &
-                            noah_reqd_file_list,     &
                             skip_variables, &
                             advance_time_present
 
+!----------------------------------------------------------------------
+! global storage
 !----------------------------------------------------------------------
 
 character(len=20)     :: noah_restart_filename
@@ -67,7 +67,6 @@ integer               :: ifile, nfiles, iunit, io, x_size
 type(time_type)       :: model_time, adv_to_time, mytime
 type(time_type)       :: forcingtimestep, nexttimestep
 real(r8), allocatable :: statevector(:)
-logical               :: verbose              = .FALSE.
 integer               :: kday, khour, noah_timestep, output_timestep
 integer               :: forcing_timestep, restart_frequency_seconds
 
@@ -77,7 +76,7 @@ character(len=128)           :: string1,string2,string3
 
 !----------------------------------------------------------------------
 
-call initialize_utilities(progname='dart_to_noah', output_flag=verbose)
+call initialize_utilities(progname='dart_to_noah')
 
 !----------------------------------------------------------------------
 ! Call model_mod:static_init_model() which reads the NOAH namelist
@@ -85,9 +84,6 @@ call initialize_utilities(progname='dart_to_noah', output_flag=verbose)
 !----------------------------------------------------------------------
 
 call static_init_model()
-
-x_size = get_model_size()
-allocate(statevector(x_size))
 
 ! Read the namelist to get the input filename.
 
@@ -100,13 +96,20 @@ call check_namelist_read(iunit, io, "dart_to_noah_nml")
 call get_noah_restart_filename( noah_restart_filename )
 
 write(*,*)
-write(*,'(''dart_to_noah:converting DART file '',A, &
-      &'' to NOAH restart file '',A)') &
+write(*,'(''dart_to_noah:converting DART file <'',A, &
+      &''> to NOAH restart file <'',A,''>'')') &
+     trim(dart_to_noah_input_file), trim(noah_restart_filename)
+write(logfileunit,*)
+write(logfileunit,'(''dart_to_noah:converting DART file <'',A, &
+      &''> to NOAH restart file <'',A,''>'')') &
      trim(dart_to_noah_input_file), trim(noah_restart_filename)
 
 !----------------------------------------------------------------------
 ! Reads the valid time, the state, and the target time.
 !----------------------------------------------------------------------
+
+x_size = get_model_size()
+allocate(statevector(x_size))
 
 iunit = open_restart_read(dart_to_noah_input_file)
 
@@ -126,7 +129,7 @@ call dart_vector_to_model_file(statevector, noah_restart_filename, model_time, &
 
 !----------------------------------------------------------------------
 ! Convey adv_to_time to noah by updating kday or khour in the namelist.
-! We should be able to predict the names of the LDASIN files needed -
+! Predict the names of the LDASIN files needed -
 !    write these to a file that will be queried by advance_model.csh
 !    so they get staged appropriately.
 !----------------------------------------------------------------------
@@ -160,6 +163,7 @@ if ( advance_time_present ) then
       mytime = mytime + nexttimestep
    enddo TIMELOOP
 
+   if (get_debug_level() > 0) &
    write(*,*)'needed ',nfiles,' LDASIN files to get from model_time to adv_to_time.'
 
    iunit = open_file('noah_advance_information.txt',form='formatted',action='write')
@@ -190,32 +194,26 @@ if ( advance_time_present ) then
 
    call close_file(iunit)
 
-!  We know we need the forcing file for the timestring contained in the restart file.
-!  This is a direct consequence of requiring the noah_timestep to be the same as the restart_frequency.
-!  determine how many forcing files are needed
-!  determine the setting of kday or khour
-
-!  convey kday or khour in some fashion
-
 endif
 
 !----------------------------------------------------------------------
 ! Log what we think we're doing, and exit.
 !----------------------------------------------------------------------
 
-call print_date( model_time,'dart_to_noah:noah model date')
-call print_time( model_time,'dart_to_noah:DART model time')
-call print_date( model_time,'dart_to_noah:noah model date',logfileunit)
-call print_time( model_time,'dart_to_noah:DART model time',logfileunit)
+if (get_debug_level() > 0) then
+   call print_date( model_time,'dart_to_noah:noah model date')
+   call print_time( model_time,'dart_to_noah:DART model time')
+   call print_date( model_time,'dart_to_noah:noah model date',logfileunit)
+   call print_time( model_time,'dart_to_noah:DART model time',logfileunit)
 
-if ( advance_time_present ) then
-   call print_time(adv_to_time,'dart_to_noah:advance_to time')
-   call print_date(adv_to_time,'dart_to_noah:advance_to date')
-   call print_time(adv_to_time,'dart_to_noah:advance_to time',logfileunit)
-   call print_date(adv_to_time,'dart_to_noah:advance_to date',logfileunit)
+   if ( advance_time_present ) then
+      call print_time(adv_to_time,'dart_to_noah:advance_to time')
+      call print_date(adv_to_time,'dart_to_noah:advance_to date')
+      call print_time(adv_to_time,'dart_to_noah:advance_to time',logfileunit)
+      call print_date(adv_to_time,'dart_to_noah:advance_to date',logfileunit)
+   endif
 endif
 
-! When called with 'end', timestamp will call finalize_utilities()
-call timestamp(string1=source, pos='end')
+call finalize_utilities()
 
 end program dart_to_noah

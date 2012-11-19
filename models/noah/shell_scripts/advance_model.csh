@@ -101,6 +101,7 @@ while($state_copy <= $num_states)
    # Block 2: copy/convert the DART state vector to something the 
    #          model can ingest.
    #
+   #          * remove any NOAH scraps from previous advances
    #          * copy/link ensemble-member-specific files
    #          * convey the advance-to-time to the model
    #          * convert the DART state vector to model format 
@@ -108,6 +109,7 @@ while($state_copy <= $num_states)
 
    # echo "advance_model.csh block 2 converting ensemble member $instance"
 
+   \rm -f *.LDASIN* *.LDASOUT*
    \rm -f restart.nc dart_restart noah_advance_information.txt
    \ln -v ../restart.$instance.nc  restart.nc   || exit 2
    \ln -s ../$input_file           dart_restart || exit 2
@@ -202,10 +204,12 @@ ex_end
    #-------------------------------------------------------------------
    # Block 4: convert the new model state into a DART-readable form. 
    #          rename the restart file to reflect the ensemble member ID
+   #
+   # We want the LAST restart file and the FIRST ldasout file.
    #-------------------------------------------------------------------
 
    set RESTART = `ls -1  RESTART* | tail -1`
-   set LDASOUT = `ls -1 *LDASOUT* | tail -1`
+   set LDASOUT = `ls -1 *LDASOUT* | head -1`
 
    \ln -s $RESTART  restart.nc  || exit 4
    ../noah_to_dart              || exit 4

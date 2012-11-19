@@ -6,9 +6,8 @@
      assimilation_period_seconds  = 3600,
      model_perturbation_amplitude = 0.0,
      output_state_vector          = .false.,
-     debug                        = 9,
-     calendar                     = 'Gregorian',
-     noah_variables               = 'SOIL_T',   'KIND_SOIL_TEMPERATURE',
+     debug                        = 1,
+     noah_state_variables         = 'SOIL_T',   'KIND_SOIL_TEMPERATURE',
                                     'SOIL_M',   'KIND_SOIL_MOISTURE',
                                     'SOIL_W',   'KIND_SOIL_LIQUID_WATER',
                                     'SKINTEMP', 'KIND_SKIN_TEMPERATURE',
@@ -118,9 +117,9 @@
   /
 
 &ensemble_manager_nml
-   single_restart_file_in  = .true.,
-   single_restart_file_out = .true.,
-   perturbation_amplitude  = 0.2
+   single_restart_file_in  = .false.,
+   single_restart_file_out = .false.,
+   perturbation_amplitude  = 0.002
   /
 
 &cov_cutoff_nml

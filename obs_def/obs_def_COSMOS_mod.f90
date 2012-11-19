@@ -139,8 +139,6 @@ contains
 ! subroutine initialize_module
 !
 
-integer :: i
-
 call register_module(source, revision, revdate)
 
 module_initialized = .true.
@@ -473,7 +471,7 @@ real(r8), allocatable :: layerz(:)        ! original soil layer depths
 real(r8), allocatable :: soil_moisture(:) ! original soil layer moistures
 
 integer  :: angle, angledz, maxangle  ! loop indices for an integration interval
-integer  :: i, zi, nlevels, iunit
+integer  :: i, zi, nlevels
 real(r8) :: loc_array(3)
 real(r8) :: loc_lon, loc_lat, loc_value
 type(location_type) :: loc
@@ -739,7 +737,7 @@ subroutine grow_metadata(key, routine)
 integer,          intent(in) :: key
 character(len=*), intent(in) :: routine
 
-integer :: i, orglength
+integer :: orglength
 type(site_metadata), allocatable, dimension(:) :: safe_metadata
 
 ! fine -- no problem.

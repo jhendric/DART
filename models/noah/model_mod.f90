@@ -78,7 +78,8 @@ public :: get_model_size,         &
 public :: noah_to_dart_vector, &
           dart_vector_to_model_file, &
           get_noah_restart_filename, &
-          get_noah_timestepping
+          get_noah_timestepping,     &
+          get_debug_level
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -87,26 +88,29 @@ character(len=128), parameter :: &
    revdate  = "$Date$"
 
 !------------------------------------------------------------------
-! The variables in the noah restart file that are used to create the
-! DART state vector are specified in the input.nml:model_nml namelist.
-!
-!    noah_variables  = 'STC',    'KIND_SOIL_TEMPERATURE',
-!                      'SMC',    'KIND_SOIL_MOISTURE',
-!                      'SH2O',   'KIND_LIQUID_SOIL_MOISTURE',
-!                      'T1',     'KIND_SKIN_TEMPERATURE',
-!                      'SNOWH',  'KIND_SNOW_DEPTH',
-!                      'SNEQV',  'KIND_LIQUID_EQUIVALENT',
-!                      'CMC',    'KIND_CANOPY_WATER',
+! The NSOLDX parameter comes from the NOAH source code. We need it
+! because we have to read the NOAH namelist for timestep information.
 !------------------------------------------------------------------
 
 integer :: nfields
 integer, parameter :: NSOLDX = 100
 integer, parameter :: MAX_STATE_VARIABLES = 40
 integer, parameter :: NUM_STATE_TABLE_COLUMNS = 2
-character(len=obstypelength) :: variable_table(MAX_STATE_VARIABLES, NUM_STATE_TABLE_COLUMNS)
 
 !------------------------------------------------------------------
 ! things which can/should be in the DART model_nml
+! The variables in the noah restart file that are used to create the
+! DART state vector are specified in the input.nml:model_nml namelist.
+! For example:
+!
+! noah_state_variables  = 'STC',    'KIND_SOIL_TEMPERATURE',
+!                         'SMC',    'KIND_SOIL_MOISTURE',
+!                         'SH2O',   'KIND_LIQUID_SOIL_MOISTURE',
+!                         'T1',     'KIND_SKIN_TEMPERATURE',
+!                         'SNOWH',  'KIND_SNOW_DEPTH',
+!                         'SNEQV',  'KIND_LIQUID_EQUIVALENT',
+!                         'CMC',    'KIND_CANOPY_WATER'
+!
 !------------------------------------------------------------------
 
 character(len=128)    :: noah_netcdf_filename   = 'restart.nc'
@@ -114,14 +118,13 @@ integer               :: assimilation_period_days     = 0
 integer               :: assimilation_period_seconds  = 60
 real(r8)              :: model_perturbation_amplitude = 0.2
 logical               :: output_state_vector          = .true.
-character(len=32)     :: calendar = 'Gregorian'
 integer               :: debug    = 0  ! turn up for more and more debug messages
-character(len=obstypelength) :: noah_variables(MAX_STATE_VARIABLES*NUM_STATE_TABLE_COLUMNS) = ' '
+character(len=obstypelength) :: noah_state_variables(NUM_STATE_TABLE_COLUMNS,MAX_STATE_VARIABLES) = ' '
 
 namelist /model_nml/ noah_netcdf_filename, &
           assimilation_period_days, assimilation_period_seconds,   &
           model_perturbation_amplitude, output_state_vector,       &
-          calendar, debug, noah_variables
+          debug, noah_state_variables
 
 !------------------------------------------------------------------
 ! Everything needed to recreate the NOAH METADTA_NAMELIST
@@ -137,10 +140,10 @@ namelist /model_nml/ noah_netcdf_filename, &
 
 character(len=128)    :: noah_namelist_filename = 'namelist.hrldas' ! mandate
 
-real(r8), dimension(nsoldx) :: zsoil
+real(r8), dimension(NSOLDX) :: zsoil
 integer                     :: nsoil
 
-CHARACTER(len=256) :: indir
+CHARACTER(len=256) :: indir = "."
 character(len=256) :: outdir = "."
 character(len=256) :: hrldas_constants_file = " "
 character(len=256) :: external_fpar_filename_template = " "
@@ -220,6 +223,7 @@ type(time_type)    :: model_time       ! valid time of the model state
 type(time_type)    :: model_time_step  ! smallest time to adv model
 character(len=256) :: string1, string2, string3
 logical, save      :: module_initialized = .false.
+character(len=32)  :: calendar = 'Gregorian'
 
 real(r8), allocatable, dimension(:,:) :: xlong, xlat
 integer :: south_north, west_east
@@ -322,7 +326,7 @@ model_time      = get_state_time(iunit, trim(noah_netcdf_filename))
 ! FIXME ... make sure model_time_step is attainable given OUTPUT_TIMESTEP
 model_time_step = set_time(assimilation_period_seconds, assimilation_period_days)
 
-if (do_output()) then
+if (do_output() .and. (debug > 0)) then
    call print_date(model_time     ,' static_init_model:model date')
    call print_time(model_time     ,' static_init_model:model time')
    call print_time(model_time_step,' static_init_model:model timestep')
@@ -333,7 +337,7 @@ endif
 call nc_check(nf90_inq_dimid(iunit, 'soil_layers_stag', dimIDs(1)), &
                   'static_init_model','inq_dimid soil_layers_stag '//trim(noah_netcdf_filename))
 call nc_check(nf90_inquire_dimension(iunit, dimIDs(1), len=nLayers), &
-                  'static_init_model','inquire_dimension Time '//trim(noah_netcdf_filename))
+                  'static_init_model','inquire_dimension soil_layers_stag '//trim(noah_netcdf_filename))
 
 if (nsoil /= nLayers) then
    write(string1,*) 'Expected ',nsoil,' soil layers ', &
@@ -341,11 +345,11 @@ if (nsoil /= nLayers) then
    call error_handler(E_ERR,'static_init_model',string1,source,revision,revdate)
 endif
 
-! TJH FIXME ... extend to 2D case ... should be in get_state_meta_data()
-! convert soil thicknesses to depths
-! closer to the center of the earth is an increasingly large negative number
+! FIXME ... extend to 2D case ... should be in get_state_meta_data()
+! Convert soil thicknesses (from namelist.hrldas) to "heights".
+! Closer to the center of the earth is an increasingly large negative number
 allocate(state_loc(0:nsoil))
-state_loc(0)   = set_location(xlong(1,1), xlat(1,1), 0.0_r8, VERTISSURFACE)
+state_loc(0)   = set_location(xlong(1,1), xlat(1,1), 0.0_r8, VERTISHEIGHT)
 do i = 1,nsoil
    state_loc(  i) = set_location(xlong(1,1), xlat(1,1), zsoil(i), VERTISHEIGHT)
 enddo
@@ -358,14 +362,13 @@ enddo
 ! Compute the offsets into the state vector for each variable type.
 ! Record the extent of the variable type in the state vector.
 
-call verify_state_variables( noah_variables, iunit, noah_netcdf_filename, &
-                             nfields, variable_table )
+call verify_state_variables(iunit, noah_netcdf_filename, nfields)
 
 index1  = 1
 FILL_PROGVAR : do ivar = 1, nfields
 
-   varname                   = trim(variable_table(ivar,1))
-   kind_string               = trim(variable_table(ivar,2))
+   varname                   = trim(noah_state_variables(1,ivar))
+   kind_string               = trim(noah_state_variables(2,ivar))
    progvar(ivar)%varname     = varname
    progvar(ivar)%kind_string = kind_string
    progvar(ivar)%dart_kind   = get_raw_obs_kind_index( progvar(ivar)%kind_string )
@@ -413,13 +416,14 @@ FILL_PROGVAR : do ivar = 1, nfields
       progvar(ivar)%stagger = '-'
    endif
 
+   ! This is fundamentally hardcoded clamping. See WRF/model_mod.f90 for a namelist-driven
+   ! example.  It would be nice to use the netCDF file valid_range attribute ...
+   !
    ! if the variable is bounded, then we need to know how to restrict it.
    ! rangeRestricted == 0 is unbounded
    ! rangeRestricted == 1 is bounded below
    ! rangeRestricted == 2 is bounded above           ( TJH unsupported )
    ! rangeRestricted == 3 is bounded above and below ( TJH unsupported )
-   ! Until we have more information ... (i.e. the netCDF files have the appropriate
-   ! valid_range attribute) ... we must guess.
 
    if ( varname == 'QFX' ) then
       progvar(ivar)%rangeRestricted = 0
@@ -457,7 +461,7 @@ FILL_PROGVAR : do ivar = 1, nfields
    progvar(ivar)%indexN      = index1 + varsize - 1
    index1                    = index1 + varsize      ! sets up for next variable
 
-   if ( debug > 99 ) then
+   if ( (do_output()) .and. debug > 10 ) then
       write(logfileunit,*)
       write(logfileunit,*) trim(progvar(ivar)%varname),' variable number ',ivar
       write(logfileunit,*) '  long_name   ',trim(progvar(ivar)%long_name)
@@ -497,7 +501,7 @@ call nc_check(nf90_close(iunit), 'static_init_model', 'close '//trim(noah_netcdf
 
 model_size = progvar(nfields)%indexN
 
-if ( debug > 99 ) then
+if ( (do_output()) .and. debug > 99 ) then
 
    write(*,*)
    do i=0,nsoil
@@ -513,7 +517,6 @@ end subroutine static_init_model
 
 subroutine init_conditions(x)
 !------------------------------------------------------------------
-! subroutine init_conditions(x)
 !
 ! Returns a model state vector, x, that is some sort of appropriate
 ! initial condition for starting up a long integration of the model.
@@ -527,6 +530,11 @@ real(r8), intent(out) :: x(:)
 
 if ( .not. module_initialized ) call static_init_model
 
+write(string1,*) 'PROBLEM: no known way to set arbitrary initial conditions.'
+write(string2,*) 'start_from_restart must be .true. in this model.'
+call error_handler(E_ERR,'init_conditions',string1,source,revision,revdate, &
+                               text2=string2)
+
 x = MISSING_R8
 
 end subroutine init_conditions
@@ -535,7 +543,6 @@ end subroutine init_conditions
 
 subroutine adv_1step(x, time)
 !------------------------------------------------------------------
-! subroutine adv_1step(x, time)
 !
 ! Does a single timestep advance of the model. The input value of
 ! the vector x is the starting condition and x is updated to reflect
@@ -694,13 +701,14 @@ else
          exit DEPTH
       endif
    enddo DEPTH
+   ! FIXME what if zlev is never set
    indx = progvar(ivar)%index1 + zlev - 1
 endif
 
 obs_val = x( indx )
 if (obs_val /= MISSING_R8) istatus = 0
 
-if ( debug > 99 ) then
+if ( (do_output()) .and. debug > 20 ) then
    write(*,*)'model_interpolate : progvar%kind_string is ',trim(progvar(ivar)%kind_string)
    write(*,*)'model_interpolate : state index         is ',indx
    write(*,*)'model_interpolate : value               is ',obs_val
@@ -765,7 +773,7 @@ FindIndex : do n = 1,nfields
    endif
 enddo FindIndex
 
-if ( debug > 99 ) then
+if ( (do_output()) .and. debug > 30 ) then
    write(*,*)'get_state_meta_data: index_in is ',index_in
    write(*,*)'get_state_meta_data: ivar     is ',ivar
    write(*,*)'get_state_meta_data: layer    is ',layer
@@ -983,8 +991,6 @@ else
   has_noah_namelist = .false.
 endif
 
-if ( debug > 99 ) print *, 'noah namelist: nlines, linelen = ', nlines, linelen
-
 if (has_noah_namelist) then
    allocate(textblock(nlines))
    textblock = ''
@@ -993,12 +999,12 @@ if (has_noah_namelist) then
           len = nlines, dimid = nlinesDimID), &
           'nc_write_model_atts', 'def_dim noahNMLnlines '//trim(filename))
 
-   call nc_check(nf90_def_var(ncFileID,name='noah_namelist', xtype=nf90_char,    &
+   call nc_check(nf90_def_var(ncFileID,name=trim(noah_namelist_filename), xtype=nf90_char,    &
           dimids = (/ linelenDimID, nlinesDimID /),  varid=nmlVarID), &
-          'nc_write_model_atts', 'def_var noah_namelist'//trim(filename))
+          'nc_write_model_atts', 'def_var noah_namelist '//trim(filename))
 
-   call nc_check(nf90_put_att(ncFileID, nmlVarID, 'long_name', 'contents of noah_namelist'), &
-          'nc_write_model_atts', 'put_att noah_namelist'//trim(filename))
+   call nc_check(nf90_put_att(ncFileID, nmlVarID, 'long_name', 'contents of '//trim(noah_namelist_filename)), &
+          'nc_write_model_atts', 'put_att noah_namelist '//trim(filename))
 
 endif
 
@@ -1328,10 +1334,10 @@ else
       where(dimIDs == TimeDimID) mystart = timeindex
       where(dimIDs == TimeDimID) mycount = 1
 
-      if ( debug > 99 ) then
+      if ( (do_output()) .and. debug > 10 ) then
          write(*,*)'nc_write_model_vars '//trim(varname)//' start is ',mystart(1:ncNdims)
          write(*,*)'nc_write_model_vars '//trim(varname)//' count is ',mycount(1:ncNdims)
-         write(*,*)'nc_write_model_vars ',dimnames(1:progvar(ivar)%numdims)
+         write(*,'(A20)')'nc_write_model_vars ',dimnames(1:progvar(ivar)%numdims)
       endif
 
       ! If the original variable is shaped:
@@ -1442,17 +1448,20 @@ logical,  intent(out) :: interf_provided
 
 if ( .not. module_initialized ) call static_init_model
 
-pert_state      = state
+call error_handler(E_ERR,'pert_model_state', &
+                  'NOAH cannot be started from a single vector', &
+                  source, revision, revdate, &
+                  text2='see comments in noah/model_mod.f90::pert_model_state()',&
+                  text3='or noah/model_mod.html#pert_model_state')
+
 interf_provided = .false.
 
 end subroutine pert_model_state
 
 
 
-
 subroutine ens_mean_for_model(ens_mean)
 !------------------------------------------------------------------
-! Not used in low-order models
 
 real(r8), intent(in) :: ens_mean(:)
 
@@ -1468,37 +1477,38 @@ end subroutine ens_mean_for_model
 ! with predefined file formats and control structures.)
 !==================================================================
 
+function get_debug_level()
+   integer :: get_debug_level
 
-subroutine verify_state_variables( state_variables, ncid, filename, ngood, table )
+   get_debug_level = debug
+
+end function
+
+
+
+subroutine verify_state_variables( ncid, filename, ngood )
 !------------------------------------------------------------------
 
-character(len=*), dimension(:),   intent(in)  :: state_variables
 integer,                          intent(in)  :: ncid
 character(len=*),                 intent(in)  :: filename
 integer,                          intent(out) :: ngood
-character(len=*), dimension(:,:), intent(out) :: table
 
-integer :: nrows, ncols, i, VarID
+integer :: i, VarID
 character(len=NF90_MAX_NAME) :: varname
 character(len=NF90_MAX_NAME) :: dartstr
 
 if ( .not. module_initialized ) call static_init_model
 
-nrows = size(table,1)
-ncols = size(table,2)
-
 ngood = 0
-MyLoop : do i = 1, nrows
+MyLoop : do i = 1, MAX_STATE_VARIABLES
 
-   varname    = trim(state_variables(2*i -1))
-   dartstr    = trim(state_variables(2*i   ))
-   table(i,1) = trim(varname)
-   table(i,2) = trim(dartstr)
+   varname    = trim(noah_state_variables(1,i))
+   dartstr    = trim(noah_state_variables(2,i))
 
-   if ( table(i,1) == ' ' .and. table(i,2) == ' ' ) exit MyLoop ! Found end of list.
+   if ( varname == ' ' .and. dartstr == ' ' ) exit MyLoop ! Found end of list.
 
-   if ( table(i,1) == ' ' .or. table(i,2) == ' ' ) then
-      string1 = 'model_nml:noah_variables not fully specified'
+   if ( varname == ' ' .or. dartstr == ' ' ) then
+      string1 = 'model_nml:noah_state_variables not fully specified'
       call error_handler(E_ERR,'verify_state_variables',string1,source,revision,revdate)
    endif
 
@@ -1517,22 +1527,21 @@ MyLoop : do i = 1, nrows
 
    ! Record the contents of the DART state vector
 
-   if (do_output()) then
-      write(logfileunit,*)'variable ',i,' is ',trim(table(i,1)), '   ', trim(table(i,2))
-      write(     *     ,*)'variable ',i,' is ',trim(table(i,1)), '   ', trim(table(i,2))
+   if (do_output() .and. (debug > 0)) then
+      write(logfileunit,*)'variable ',i,' is ',trim(varname), '   ', trim(dartstr)
+      write(     *     ,*)'variable ',i,' is ',trim(varname), '   ', trim(dartstr)
    endif
 
    ngood = ngood + 1
 enddo MyLoop
 
-if (ngood == nrows) then
+if (ngood == MAX_STATE_VARIABLES) then
    string1 = 'WARNING: There is a possibility you need to increase ''MAX_STATE_VARIABLES'''
    write(string2,'(''WARNING: you have specified at least '',i4,'' perhaps more.'')')ngood
    call error_handler(E_MSG,'verify_state_variables',string1,source,revision,revdate,text2=string2)
 endif
 
 end subroutine verify_state_variables
-
 
 
 
@@ -1548,15 +1557,14 @@ end subroutine get_noah_restart_filename
 
 
 
-
 subroutine noah_to_dart_vector(filename, state_vector, restart_time)
 !------------------------------------------------------------------
 ! Reads the current time and state variables from a model data
 ! file and packs them into a dart state vector.
 
-character(len=*), intent(in)    :: filename
-real(r8),         intent(inout) :: state_vector(:)
-type(time_type),  intent(out)   :: restart_time
+character(len=*), intent(in)  :: filename
+real(r8),         intent(out) :: state_vector(:)
+type(time_type),  intent(out) :: restart_time
 
 integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs, ncstart, nccount
 character(len=NF90_MAX_NAME) :: dimname, varname
@@ -1585,7 +1593,7 @@ call nc_check(nf90_open(adjustl(filename), NF90_NOWRITE, ncid), &
 
 restart_time = get_state_time(ncid, trim(filename))
 
-if ( debug > 99 ) then
+if ( (do_output()) .and. debug > 99 ) then
    call print_date(restart_time,'noah_to_dart_vector:date of restart file '//trim(filename))
    call print_time(restart_time,'noah_to_dart_vector:time of restart file '//trim(filename))
 endif
@@ -1609,10 +1617,11 @@ do ivar=1, nfields
    ! Check the shape of the variable
 
    if ( ncNdims /= progvar(ivar)%numdims ) then
-      write(string1, *) 'netCDF rank of '//trim(varname)//' does not match derived type knowledge'
+      write(string1, *) 'netCDF rank of '//trim(varname)//' does not agree with internal rank.'
       write(string2, *) 'netCDF rank is ',ncNdims,' expected ',progvar(ivar)%numdims
+      write(string3, *) 'should not happen'
       call error_handler(E_ERR,'noah_to_dart_vector', string1, &
-                        source,revision,revdate,text2=string2)
+                        source,revision,revdate,text2=string2,text3=string3)
    endif
 
    ! Check the memory order of the variable
@@ -1624,10 +1633,11 @@ do ivar=1, nfields
                         'noah_to_dart_vector',string1)
 
       if (trim(dimname) /= trim(progvar(ivar)%dimnames(i))) then
-         write(string1, *) 'netCDF dimnames of '//trim(varname)//' does not match derived type knowledge'
+         write(string1, *) 'netCDF dimnames of '//trim(varname)//' does not match expected dimname'
          write(string2, *) 'netCDF dimname is ',trim(dimname),' expected ',trim(progvar(ivar)%dimnames(i))
+         write(string3, *) 'should not happen'
          call error_handler(E_ERR,'noah_to_dart_vector', string1, &
-                           source,revision,revdate,text2=string2)
+                           source,revision,revdate,text2=string2,text3=string3)
       endif
 
       ncstart(i) = 1
@@ -1643,7 +1653,7 @@ do ivar=1, nfields
       endif
    enddo
 
-   if ( debug > 99 ) then
+   if ( (do_output()) .and. debug > 99 ) then
       write(*,*)
       write(*,*)'noah_to_dart_vector: variable ',trim(varname)
       write(*,*)'noah_to_dart_vector: ncstart ',ncstart(1:ncNdims)
@@ -1717,6 +1727,8 @@ do ivar=1, nfields
                      start=ncstart(1:ncNdims), count=nccount(1:ncNdims)), &
                   'noah_to_dart_vector', 'get_var '//trim(string3))
 
+      ! TJH RAFAEL transform goes here.
+
       do indx4 = 1, nccount(4)
       do indx3 = 1, nccount(3)
       do indx2 = 1, nccount(2)
@@ -1748,8 +1760,8 @@ do ivar=1, nfields
 
 enddo
 
-if ( debug > 99 ) then
-   write(*,*)progvar(ivar)%varname, 'newest time is ',ntimes
+if ( (do_output()) .and. debug > 99 ) then
+   write(*,*)'newest time is ',ntimes
    do i = 1,size(state_vector)
       write(*,*)'state vector(',i,') is',state_vector(i)
    enddo
@@ -1822,7 +1834,7 @@ if ( file_time /= dart_time ) then
    call error_handler(E_ERR,'dart_vector_to_model_file',string1,source,revision,revdate)
 endif
 
-if (do_output()) then
+if (do_output() .and. (debug > 0)) then
    call print_date(file_time,'dart_vector_to_model_file: date of restart file '//trim(filename))
    call print_time(file_time,'dart_vector_to_model_file: time of restart file '//trim(filename))
 endif
@@ -1839,7 +1851,7 @@ UPDATE : do ivar=1, nfields
 
    SKIPME : do i = 1,size(skip_variables)
       if (len_trim(skip_variables(i)) < 1) cycle SKIPME
-      if (trim(skip_variables(i)) == trim(varname)) cycle UPDATE
+      if (skip_variables(i) == varname) cycle UPDATE
    enddo SKIPME
 
    ! Ensure netCDF variable is conformable with DART progvar quantity.
@@ -1882,7 +1894,7 @@ UPDATE : do ivar=1, nfields
    where(dimIDs == TimeDimID) mystart = timeindex
    where(dimIDs == TimeDimID) mycount = 1
 
-   if ( debug > 99 ) then
+   if ( (do_output()) .and. debug > 99 ) then
       write(*,*)'dart_vector_to_model_file '//trim(varname)//' start is ',mystart(1:ncNdims)
       write(*,*)'dart_vector_to_model_file '//trim(varname)//' count is ',mycount(1:ncNdims)
       write(*,*)'dart_vector_to_model_file ',dimnames(1:progvar(ivar)%numdims)
@@ -1915,6 +1927,7 @@ UPDATE : do ivar=1, nfields
                              progvar(ivar)%dimlens(2), &
                              progvar(ivar)%dimlens(3)))
       call vector_to_prog_var(state_vector, ivar, data_3d_array,limit=.true.)
+      ! TJH RAFAEL undo transform goes here.
       call nc_check(nf90_put_var(ncFileID, VarID, data_3d_array, &
              start = mystart(1:ncNdims), count=mycount(1:ncNdims)), &
             'dart_vector_to_model_file', 'put_var '//trim(string2))
@@ -1987,7 +2000,7 @@ call nc_check(nf90_inquire_dimension(ncid, DimID, len=ntimes), &
 call nc_check(nf90_inq_dimid(ncid, 'DateStrLen', DimID), &
                   'get_state_time','inq_dimid DateStrLen '//trim(filename))
 call nc_check(nf90_inquire_dimension(ncid, DimID, len=strlen), &
-                  'get_state_time','inquire_dimension DatStrLen '//trim(filename))
+                  'get_state_time','inquire_dimension DateStrLen '//trim(filename))
 
 if (strlen /= len(datestring)) then
    write(string1,*)'DatStrLen string length ',strlen,' /= ',len(datestring)
@@ -2012,8 +2025,8 @@ get_state_time = filetime - timestep
 
 if (present(timeindex)) timeindex = ntimes
 
-if ( debug > 99 ) write(*,*)'get_state_time: Last time string is '//trim(datestring(ntimes))
-if ( debug > 99 ) call print_date(get_state_time,' get_state_time: means valid time is ')
+if ( (do_output()) .and. debug > 99 ) write(*,*)'get_state_time: Last time string is '//trim(datestring(ntimes))
+if ( (do_output()) .and. debug > 99 ) call print_date(get_state_time,' get_state_time: means valid time is ')
 
 deallocate(datestring)
 
@@ -2074,7 +2087,7 @@ do i = 1,numdims
 
    write(string1,'(''inquire dimension'',i2,A)') i,trim(filename)
    call nc_check(nf90_inquire_dimension(iunit, dimIDs(i), name=dimname, len=dimlen), &
-                                          'static_init_model', string1)
+                                          'get_hrldas_constants', string1)
    ncstart(i) = 1
    nccount(i) = dimlen
 
@@ -2085,8 +2098,8 @@ do i = 1,numdims
 
 enddo
 
-if ( debug > 99 ) write(*,*)'TJH DEBUG get_hrldas_constants ncstart is',ncstart(1:numdims)
-if ( debug > 99 ) write(*,*)'TJH DEBUG get_hrldas_constants nccount is',nccount(1:numdims)
+if ( (do_output()) .and. debug > 99 ) write(*,*)'DEBUG get_hrldas_constants ncstart is',ncstart(1:numdims)
+if ( (do_output()) .and. debug > 99 ) write(*,*)'DEBUG get_hrldas_constants nccount is',nccount(1:numdims)
 
 ! finally get the longitudes
 
@@ -2095,6 +2108,7 @@ call nc_check(nf90_get_var(iunit, VarID, xlong, &
                   'get_hrldas_constants', 'get_var XLONG '//trim(filename))
 
 where(xlong < 0.0_r8) xlong = xlong + 360.0_r8
+where(xlong == 360.0_r8) xlong = 0.0_r8
 
 ! finally get the latitudes
 
@@ -2105,11 +2119,10 @@ call nc_check(nf90_get_var(iunit, VarID, xlat, &
                   start=ncstart(1:numdims), count=nccount(1:numdims)), &
                   'get_hrldas_constants', 'get_var XLAT '//trim(filename))
 
-write(string1,*) 'get_hrldas_constants() not verified for full 2D scenario.'
-call error_handler(E_MSG,'static_init_model',string1,source,revision,revdate)
+write(string1,*) 'get_hrldas_constants() not verified for multiple gridcells.'
+call error_handler(E_MSG,'get_hrldas_constants',string1,source,revision,revdate)
 
 end subroutine get_hrldas_constants
-
 
 
 
@@ -2149,7 +2162,7 @@ dimids(ndims) = memberdimid
 ndims = ndims + 1
 dimids(ndims) = unlimitedDimid
 
-if ( debug > 99 ) then
+if ( (do_output()) .and. debug > 99 ) then
    write(logfileunit,*)
    write(logfileunit,*)'define_var_dims knowledge'
    write(logfileunit,*)trim(progvar(ivar)%varname),' has dimnames ', &
@@ -2222,7 +2235,6 @@ end subroutine vector_to_1d_prog_var
 
 
 
-
 subroutine vector_to_2d_prog_var(x, ivar, data_2d_array, limit)
 !------------------------------------------------------------------
 ! convert the values from a 1d array, starting at an offset,
@@ -2270,7 +2282,6 @@ if ( ii /= progvar(ivar)%indexN ) then
 endif
 
 end subroutine vector_to_2d_prog_var
-
 
 
 

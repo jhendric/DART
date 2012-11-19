@@ -129,6 +129,11 @@ else
 
 endif
 
+# These files are binary and are of no use to anyone, really.
+# The assim_model_state_ud.???? file format is controlled
+# by input.nml:assim_model_nml:write_binary_restart_files 
+${REMOVE} assim_model_state_ic.????
+
 exit 0
 
 # <next few lines under version control, do not edit>

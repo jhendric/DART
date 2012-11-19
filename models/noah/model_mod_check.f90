@@ -27,8 +27,7 @@ use  assim_model_mod, only : open_restart_read, open_restart_write, close_restar
                              aread_state_restart, awrite_state_restart, &
                              netcdf_file_type, aoutput_diagnostics, &
                              init_diag_output, finalize_diag_output
-use time_manager_mod, only : time_type, set_calendar_type, GREGORIAN, &
-                             read_time, get_time, set_time,  &
+use time_manager_mod, only : time_type, read_time, get_time, set_time,  &
                              print_date, get_date, &
                              print_time, write_time, &
                              operator(-)
@@ -80,7 +79,6 @@ real(r8) :: interp_val
 !----------------------------------------------------------------------
 
 call initialize_utilities(progname='model_mod_check',output_flag=.TRUE.)
-call set_calendar_type(GREGORIAN)
 
 write(*,*)
 write(*,*)'Reading the namelist to get the input filename.'
