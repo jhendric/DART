@@ -141,7 +141,7 @@
    input_obs_kind_mod_file = '../../../obs_kind/DEFAULT_obs_kind_mod.F90', 
   output_obs_kind_mod_file = '../../../obs_kind/obs_kind_mod.f90', 
                input_files = '../../../obs_def/obs_def_1d_state_mod.f90',
-  /
+   /
 
 
 &restart_file_tool_nml
@@ -214,11 +214,11 @@
 
 &schedule_nml
    calendar        = 'Gregorian',
-   first_bin_start =  1601, 1,  1,  0, 0, 0 ,
-   first_bin_end   =  1601, 1,  1,  6, 0, 0 ,
-   last_bin_end    =  1601, 1,  2,  0, 0, 0 ,
-   bin_interval_days    = 0,
-   bin_interval_seconds = 21600,
+   first_bin_start =  1601,  1,  1,  0,  0,  0,
+   first_bin_end   =  2999,  1,  1,  0,  0,  0,
+   last_bin_end    =  2999,  1,  1,  0,  0,  0,
+   bin_interval_days    = 1000000,
+   bin_interval_seconds = 0,
    max_num_bins         = 1000,
    print_table          = .true.
    /

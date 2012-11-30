@@ -30,10 +30,11 @@
 
 &obs_def_gps_nml
    max_gpsro_obs = 100000,
-  / 
+   / 
 
 &obs_sequence_nml
-   write_binary_obs_sequence = .false.  /
+   write_binary_obs_sequence = .false.
+   /
 
 &utilities_nml
    TERMLEVEL = 1,
@@ -42,14 +43,13 @@
    nmlfilename = 'dart_log.nml'
    /
 
-#  bin_interval_seconds = 21600,
 &schedule_nml
    calendar        = 'Gregorian',
-   first_bin_start =  2006, 8, 1, 0, 0, 0 ,
-   first_bin_end   =  2006, 8, 1, 6, 0, 0 ,
-   last_bin_end    =  2006, 8, 5, 0, 0, 0 ,
-   bin_interval_days    = 0,
-   bin_interval_seconds = 21600,
+   first_bin_start =  1601,  1,  1,  0,  0,  0,
+   first_bin_end   =  2999,  1,  1,  0,  0,  0,
+   last_bin_end    =  2999,  1,  1,  0,  0,  0,
+   bin_interval_days    = 1000000,
+   bin_interval_seconds = 0,
    max_num_bins         = 1000,
    print_table          = .true.
    /
@@ -110,7 +110,7 @@
    selections_file     = 'obs_defs.txt', 
    print_only          = .false., 
    calendar            = 'gregorian',
-/
+   /
 
 &restart_file_tool_nml
    input_file_name              = "filter_restart",        

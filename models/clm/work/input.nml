@@ -299,15 +299,15 @@
    first_obs_seconds = 0,
    last_obs_days     = GREG1,
    last_obs_seconds  = 86399,
-/
+   /
 
 
 &schedule_nml
    calendar        = 'Gregorian',
-   first_bin_start =  2002, 11,  1, 12, 0, 0 ,
-   first_bin_end   =  2002, 11,  2, 12, 0, 0 ,
-   last_bin_end    =  2003,  2,  1, 12, 0, 0 ,
-   bin_interval_days    = 1,
+   first_bin_start =  1601,  1,  1,  0,  0,  0,
+   first_bin_end   =  2999,  1,  1,  0,  0,  0,
+   last_bin_end    =  2999,  1,  1,  0,  0,  0,
+   bin_interval_days    = 1000000,
    bin_interval_seconds = 0,
    max_num_bins         = 1000,
    print_table          = .true.

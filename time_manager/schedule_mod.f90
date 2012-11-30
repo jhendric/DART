@@ -58,14 +58,14 @@ type schedule_type
 end type schedule_type
 
 !-----------------------------------------------------------------------
-! Namelist with default values
+! Namelist with default values (put all possible obs into one file)
 !-----------------------------------------------------------------------
 
-integer, dimension(6) :: first_bin_start = (/ 2008, 9, 7, 0, 0, 0 /)
-integer, dimension(6) :: first_bin_end   = (/ 2008, 9, 7, 2, 0, 0 /)
-integer, dimension(6) :: last_bin_end    = (/ 2008, 9,11, 0, 0, 0 /)
-integer               :: bin_interval_days    = 0
-integer               :: bin_interval_seconds = 21600
+integer, dimension(6) :: first_bin_start = (/ 1601, 1, 1, 0, 0, 0 /)
+integer, dimension(6) :: first_bin_end   = (/ 2999, 1, 1, 0, 0, 0 /)
+integer, dimension(6) :: last_bin_end    = (/ 2999, 1, 1, 0, 0, 0 /)
+integer               :: bin_interval_days    = 1000000
+integer               :: bin_interval_seconds = 0
 integer               :: max_num_bins         = 1000
 character(len=32)     :: calendar             = 'Gregorian'
 logical               :: print_table          = .false.

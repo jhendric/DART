@@ -19,7 +19,7 @@
    output_forward_op_errors = .false.,
    print_every_nth_obs   = 100,
    silence               = .false.,
-   /
+  /
 
 &filter_nml
    async                    = 2,
@@ -63,10 +63,10 @@
    inf_lower_bound             = 1.0,                     1.0,
    inf_upper_bound             = 1000000.0,               1000000.0,
    inf_sd_lower_bound          = 0.0,                     0.0
-   /
+  /
 
 &mpi_utilities_nml
-   /
+  /
 
 &smoother_nml
    num_lags              = 0,
@@ -74,13 +74,13 @@
    output_restart        = .false.,
    restart_in_file_name  = 'smoother_ics',
    restart_out_file_name = 'smoother_restart'
-   /
+  /
 
 &ensemble_manager_nml
    single_restart_file_in  = .true.,
    single_restart_file_out = .true.,
    perturbation_amplitude  = 0.2
-   /
+  /
 
 &assim_tools_nml
    filter_kind                     = 1,
@@ -92,7 +92,7 @@
    output_localization_diagnostics = .false.,
    localization_diagnostics_file   = 'localization_diagnostics',
    print_every_nth_obs             = 0
-   /
+  /
 
 &location_nml
    horiz_dist_only             = .true.,
@@ -108,29 +108,29 @@
 
 &cov_cutoff_nml
    select_localization = 1
-   /
+  /
 
 &reg_factor_nml
    select_regression    = 1,
    input_reg_file       = "time_mean_reg",
    save_reg_diagnostics = .false.,
    reg_diagnostics_file = "reg_diagnostics"
-   /
+  /
 
 &obs_sequence_nml
    write_binary_obs_sequence = .false.
-   /
+  /
 
 &obs_kind_nml
    assimilate_these_obs_types = 'RADIOSONDE_TEMPERATURE',
                                 'RADIOSONDE_U_WIND_COMPONENT',
                                 'RADIOSONDE_V_WIND_COMPONENT',
-   /
+  /
 
 &assim_model_nml
    write_binary_restart_files = .true.,
    netCDF_large_file_support  = .false.
-   /
+  /
 
    model_analysis_filename      = '../data/mpas_output.2010-10-23_03:00:00.nc'
 &model_nml
@@ -146,7 +146,7 @@
    use_u_for_wind               = .true.
    use_rbf_option               = 2
    update_u_from_reconstruct    = .false.
-   /
+  /
 
                           'theta',                 'KIND_POTENTIAL_TEMPERATURE',
                           'surface_pressure',      'KIND_SURFACE_PRESSURE'
@@ -188,7 +188,7 @@
    logfilename = 'dart_log.out',
    nmlfilename = 'dart_log.nml',
    write_nml   = 'file'
-   /
+  /
 
 &preprocess_nml
     input_obs_def_mod_file = '../../../obs_def/DEFAULT_obs_def_mod.F90', 
@@ -197,7 +197,7 @@
   output_obs_kind_mod_file = '../../../obs_kind/obs_kind_mod.f90', 
                input_files = '../../../obs_def/obs_def_reanalysis_bufr_mod.f90'
                      force = .true.
-   /
+  /
 
 &obs_sequence_tool_nml
    num_input_files   = 1,
@@ -214,7 +214,7 @@
    min_lon           =   0.0,
    max_lon           = 360.0,
    gregorian_cal     = .true.
-   /
+  /
 
 # other possible obs tool namelist items:
 #
@@ -256,18 +256,20 @@
    new_advance_days             = -1,
    new_advance_secs             = -1,
    gregorian_cal                = .true.
-   /
+  /
+
 
 &schedule_nml
    calendar             = 'Gregorian',
-   first_bin_start      =  2008, 7, 1, 4,30, 0 ,
-   first_bin_end        =  2008, 7, 1, 7,30, 0 ,
-   last_bin_end         =  2008, 7, 1, 7,30, 0 ,
-   bin_interval_days    = 0,
-   bin_interval_seconds = 10800,
+   first_bin_start      =  1601,  1,  1,  0,  0,  0,
+   first_bin_end        =  2999,  1,  1,  0,  0,  0,
+   last_bin_end         =  2999,  1,  1,  0,  0,  0,
+   bin_interval_days    = 1000000,
+   bin_interval_seconds = 0,
    max_num_bins         = 1000,
    print_table          = .true.
-   /
+  /
+
 
 &obs_seq_to_netcdf_nml
    obs_sequence_name = 'obs_seq.raobT1.final',
@@ -278,7 +280,8 @@
    latlim1           =  -90.0,
    latlim2           =   90.0,
    verbose           = .true.
-   /
+  /
+
 
 &obs_diag_nml
    obs_sequence_name  = 'obs_seq.final',
@@ -291,7 +294,7 @@
    lonlim2   = 1.0, 0.5, 1.5, -1.0,
    reg_names = 'whole', 'yin', 'yang', 'bogus',
    verbose   = .false.
-   /
+  /
 
 
 # possible vertical coordinate systems are:
@@ -321,7 +324,7 @@
    interp_test_vertrange = 100.0,  20100.0,
    interp_test_dvert     = 2000.0,
    interp_test_vertcoord = 'VERTISHEIGHT'
-   /
+  /
 
 &exhaustion_nml
    dart_input_file       = 'dart.ud',
@@ -337,9 +340,9 @@
    interp_test_dlat      = 1.0,
    interp_test_vertrange = 7000.0, 7000.0,
    interp_test_dvert     = 1000.0,
-   interp_test_vertcoord = 'VERTISHEIGHT'
-   hscale                = 100.0
-   diff_threshold        = 2.0
+   interp_test_vertcoord = 'VERTISHEIGHT',
+   hscale                = 100.0,
+   diff_threshold        = 2.0,
    pointcount            = 100000
-   /
+  /
 

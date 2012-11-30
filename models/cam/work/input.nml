@@ -40,7 +40,7 @@
    inf_lower_bound             = 1.0,                     1.0,
    inf_upper_bound             = 1000000.0,               1000000.0,
    inf_sd_lower_bound          = 0.0,                     0.0
-/
+   /
 ! ! inf_flavor is 0:none, 1:obs space, 2: varying state space, 3: fixed state_space
 
 &perfect_model_obs_nml
@@ -70,7 +70,7 @@
    output_localization_diagnostics = .false.,
    localization_diagnostics_file   = 'localization_diagnostics',
    print_every_nth_obs             = 10000,
-/
+   /
 
 &cov_cutoff_nml
    select_localization = 1
@@ -155,7 +155,7 @@
    nlat                        = 36,
    output_box_info             = .false.,
    print_box_level             = 0,
-  /
+   /
 
 
 &preprocess_nml
@@ -181,7 +181,7 @@
                                 'SAT_U_WIND_COMPONENT',
                                 'SAT_V_WIND_COMPONENT',
                                 'GPSRO_REFRACTIVITY', 
-  /
+   /
 
 !   evaluate_these_obs_types = 'RADIOSONDE_SURFACE_PRESSURE'
 
@@ -199,7 +199,7 @@
 
 &obs_def_gps_nml
    max_gpsro_obs = 1000000
-  / 
+   / 
 
 &restart_file_tool_nml
    input_file_name              = "filter_restart",
@@ -232,7 +232,7 @@
    max_lon            =  360.0,
    gregorian_cal      = .true.
    print_only         =  .false.,
-/
+   /
 
 # other possible obs tool namelist items:
 #
@@ -292,11 +292,11 @@
 
 &schedule_nml
    calendar        = 'Gregorian',
-   first_bin_start =  2007, 1, 01, 3, 0, 0 ,
-   first_bin_end   =  2007, 1, 01, 9, 0, 0 ,
-   last_bin_end    =  2007, 1, 15, 0, 0, 0 ,
-   bin_interval_days    = 0,
-   bin_interval_seconds = 21600,
+   first_bin_start =  1601,  1,  1,  0,  0,  0,
+   first_bin_end   =  2999,  1,  1,  0,  0,  0,
+   last_bin_end    =  2999,  1,  1,  0,  0,  0,
+   bin_interval_days    = 1000000,
+   bin_interval_seconds = 0,
    max_num_bins         = 1000,
    print_table          = .true.
    /
@@ -335,5 +335,5 @@
    ens_size               = 20,
    single_restart_file_in = .true.,
    difference_method      = 4,
- /
+   /
 

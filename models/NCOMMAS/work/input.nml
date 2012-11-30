@@ -124,7 +124,7 @@
    input_files              = '../../../obs_def/obs_def_reanalysis_bufr_mod.f90',
                               '../../../obs_def/obs_def_radar_mod.f90',
                               '../../../obs_def/obs_def_metar_mod.f90',
-   /
+  /
 
    
 &obs_kind_nml
@@ -134,7 +134,7 @@
                                 'SAT_U_WIND_COMPONENT',
                                 'SAT_V_WIND_COMPONENT',
    evaluate_these_obs_types   = 'RADIOSONDE_SPECIFIC_HUMIDITY',
-   /
+  /
 
 
 &assim_model_nml
@@ -190,7 +190,7 @@
 
 &mpi_utilities_nml
    reverse_task_layout = .true.,
-   /
+  /
 
 
 # Gregorian: 12 Z 1 January 1996 <==> DART: 144270 days 43200 seconds
@@ -251,10 +251,10 @@
 
 &schedule_nml
    calendar        = 'Gregorian',
-   first_bin_start =  1997, 12, 31, 12, 0, 0 ,
-   first_bin_end   =  1998,  1,  7, 12, 0, 0 ,
-   last_bin_end    =  1998,  2,  1, 12, 0, 0 ,
-   bin_interval_days    = 7,
+   first_bin_start =  1601,  1,  1,  0,  0,  0,
+   first_bin_end   =  2999,  1,  1,  0,  0,  0,
+   last_bin_end    =  2999,  1,  1,  0,  0,  0,
+   bin_interval_days    = 1000000,
    bin_interval_seconds = 0,
    max_num_bins         = 1000,
    print_table          = .true.
