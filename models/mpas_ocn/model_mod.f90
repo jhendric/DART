@@ -396,7 +396,6 @@ subroutine static_init_model()
 
 ! Local variables - all the important ones have module scope
 
-
 integer, dimension(NF90_MAX_VAR_DIMS) :: dimIDs
 character(len=NF90_MAX_NAME)          :: varname,dimname
 character(len=paramname_length)       :: kind_string
@@ -2654,11 +2653,11 @@ integer :: iyear, imonth, iday, ihour, imin, isec
 read( s ,'(i4,5(1x,i2))') iyear, imonth, iday, ihour, imin, isec
 
 if (iyear < 1601) then
-   write(string1,*)'WARNING: Converting YEAR ',iyear,' to ',iyear+1600
+   write(string1,*)'WARNING: Converting YEAR ',iyear,' to ',iyear+1601
    write(string2,*)'original time (string) is <',trim(s),'>'
    call error_handler(E_MSG, 'string_to_time', string1, &
                source, revision, revdate, text2=string2)
-   iyear = iyear + 1600
+   iyear = iyear + 1601
 endif
 
 string_to_time = set_date(iyear, imonth, iday, ihour, imin, isec)
@@ -2736,11 +2735,16 @@ call nc_check(nf90_inquire_dimension(grid_id, dimid, len=nVertLevels), &
             'read_grid_dims','inquire_dimension nVertLevels '//trim(grid_definition_filename))
 
 ! nVertLevelsP1 : get dimid for 'nVertLevelsP1' and then get value
+! This exists in the atmosphere, but not in the ocean - at this point.
+! In the hopes we can consolidate this function to be useful in both instances,
+! I am extending this to work in both scenarios.
 
-call nc_check(nf90_inq_dimid(grid_id, 'nVertLevelsP1', dimid), &
-              'read_grid_dims','inq_dimid nVertLevelsP1 '//trim(grid_definition_filename))
-call nc_check(nf90_inquire_dimension(grid_id, dimid, len=nVertLevelsP1), &
-            'read_grid_dims','inquire_dimension nVertLevelsP1 '//trim(grid_definition_filename))
+if( nf90_inq_dimid(grid_id, 'nVertLevelsP1', dimid) == NF90_NOERR ) then
+   call nc_check(nf90_inquire_dimension(grid_id, dimid, len=nVertLevelsP1), &
+         'read_grid_dims','inquire_dimension nVertLevelsP1 '//trim(grid_definition_filename))
+else
+   nVertLevelsP1 = nVertLevels + 1
+endif
 
 ! vertexDegree : get dimid for 'vertexDegree' and then get value
 
