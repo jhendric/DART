@@ -77,6 +77,12 @@ set time_window = +1h
 # set it to false if the input files are hourly.
 set daily = true
 
+# set this to true if you want the script to fail if any
+# input files are missing.  if it is ok for some files to
+# not exist at some times, set this to false and the script
+# will continue to run even if no output files are created.
+set missing_fatal = true
+
 # set this list to all the types that should be processed
 # if you reorder or change this list, you must also update
 # the win_xxx and file_win_xxx lines below.
@@ -126,6 +132,22 @@ set file_win_after =(+45m +59m +59m +45m +30m)
 # are < 10.  do the end time first so we can use the same values
 # to set the initial hour while we are doing the total hours calc.
 
+if ( ! -x ./advance_time ) then
+   echo 'FATAL ERROR:'
+   echo 'advance_time program not found in current directory.'
+   echo 'should be built by the quickbuild.csh script in the'
+   echo 'MADIS/work directory. put a copy here and try again.'
+   exit 1
+endif
+
+if ( ! -x ./obs_sequence_tool ) then
+   echo 'FATAL ERROR:'
+   echo 'obs_sequence_tool program not found in current directory.'
+   echo 'should be built by the quickbuild.csh script in the'
+   echo 'MADIS/work directory. put a copy here and try again.'
+   exit 1
+endif
+
 # the output of advance time with the -g input is:
 #   gregorian_day_number  seconds
 # use $var[1] to return just the day number, $var[2] for secs.
@@ -162,7 +184,11 @@ while ( 1 )
   set gregday=$g[1]
   set gregsec=$g[2]
 
-  if ($gregday >= $end_t[1]  &&  $gregsec > $end_t[2]) break
+  # if the current day is beyond the end day, we are done.  break out of loop.
+  # if the current day is equal to end day, check the seconds to see if we quit.
+  # otherwise, do the loop again.
+  if ($gregday > $end_t[1]) break
+  if ($gregday == $end_t[1]  &&  $gregsec > $end_t[2]) break
 
   # status/debug - comment in or out as desired.
   echo ' '
@@ -295,9 +321,21 @@ while ( 1 )
     set out_name = $out_dir/obs_seq_${this_type}_${curtime}
 
     # move output to name by type, time, and save a copy
-    # in a list for a final merge of all types
-    mv obs_seq.out $out_name
-    echo $out_name >>! newobslist
+    # in a list for a final merge of all types.  make sure
+    # the output file was created before adding it to the
+    # list of files to be merged.
+
+    if ( -e obs_seq.out ) then
+       mv obs_seq.out $out_name
+       echo $out_name >>! newobslist
+    else
+       echo "$out_name not created; merge was unsuccessful."
+       echo ' execution error, or input file(s) do not exist.'
+       if ($missing_fatal == 'true') then
+          echo 'exiting with fatal error'
+          exit 1
+       endif
+    endif
 
     rm -f obsflist
 
