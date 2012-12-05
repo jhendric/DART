@@ -292,6 +292,8 @@ real(r8), allocatable :: zGridFace(:,:)   ! geometric depth at cell faces   (nVe
 real(r8), allocatable :: zGridCenter(:,:) ! geometric depth at cell centers (nVertLevels,  nCells)
 real(r8), allocatable :: zGridEdge(:,:)   ! geometric depth at edge centers (nVertLevels,  nEdges)
 
+real(r8), allocatable :: zMid(:,:)    ! depths at midpoints - may be able to be computed instead
+                                      !  of requiring it in the input file (save file space). FIXME
 real(r8), allocatable :: hZLevel(:)   ! layer thicknesses - maybe - FIXME
 !real(r8), allocatable :: zEdgeCenter(:,:) ! geometric height at edges faces  (nVertLevels  ,nEdges)
 
@@ -460,7 +462,7 @@ allocate(latCell(nCells), lonCell(nCells))
 allocate(zGridFace(nVertLevelsP1, nCells))
 allocate(zGridCenter(nVertLevels, nCells))
 allocate(zGridEdge(nVertLevels, nEdges))
-allocate(hZLevel(  nVertLevels))
+allocate(hZLevel(nVertLevels), zMid(nVertLevels, nCells))
 !allocate(zEdgeCenter(nVertLevels,   nEdges))
 
 allocate(cellsOnVertex(vertexDegree, nVertices))
@@ -473,7 +475,7 @@ allocate(latEdge(nEdges), lonEdge(nEdges))
 allocate(xVertex(nVertices), yVertex(nVertices), zVertex(nVertices))
 allocate(xEdge(nEdges), yEdge(nEdges), zEdge(nEdges))
 
-! this reads in latCell, lonCell, hZLevel, cellsOnVertex
+! this reads in latCell, lonCell, hZLevel, zMid, cellsOnVertex
 call get_grid()
 
 ! FIXME: This code is supposed to check whether an edge has 2 neighbours or 1 neighbour and then
@@ -903,6 +905,8 @@ else
    ! exceptions if the kind isn't directly
    ! a field in the state vector:
    select case (obs_kind)
+      !case (KIND_TEMPERATURE)  ! potential temperature is in state vector not in-situ temp
+      !   goodkind = .true.
       !case (KIND_PRESSURE)
       !   goodkind = .true.
    end select
@@ -1329,6 +1333,11 @@ else
                  'nc_write_model_atts', 'hZLevel inq_varid '//trim(filename))
    call nc_check(nf90_put_var(ncFileID, VarID, hZLevel ), &
                 'nc_write_model_atts', 'hZLevel put_var '//trim(filename))
+
+   call nc_check(NF90_inq_varid(ncFileID, 'zMid', VarID), &
+                 'nc_write_model_atts', 'zMid inq_varid '//trim(filename))
+   call nc_check(nf90_put_var(ncFileID, VarID, zMid ), &
+                'nc_write_model_atts', 'zMid put_var '//trim(filename))
 
    call nc_check(NF90_inq_varid(ncFileID, 'nEdgesOnCell', VarID), &
                  'nc_write_model_atts', 'nEdgesOnCell inq_varid '//trim(filename))
@@ -2809,6 +2818,11 @@ call nc_check(nf90_inq_varid(ncid, 'hZLevel', VarID), &
 call nc_check(nf90_get_var( ncid, VarID, hZLevel), &
       'get_grid', 'get_var hZLevel '//trim(grid_definition_filename))
 
+call nc_check(nf90_inq_varid(ncid, 'zMid', VarID), &
+      'get_grid', 'inq_varid zMid '//trim(grid_definition_filename))
+call nc_check(nf90_get_var( ncid, VarID, zMid), &
+      'get_grid', 'get_var zMid '//trim(grid_definition_filename))
+
 call nc_check(nf90_inq_varid(ncid, 'cellsOnVertex', VarID), &
       'get_grid', 'inq_varid cellsOnVertex '//trim(grid_definition_filename))
 call nc_check(nf90_get_var( ncid, VarID, cellsOnVertex), &
@@ -2931,7 +2945,7 @@ call nc_check(nf90_close(ncid), 'get_grid','close '//trim(grid_definition_filena
 ! FIXME : Use layer thicknesses (perhaps hZLevel) to determine all layer information
 
 zGridFace(:,:)   = MISSING_R8
-zGridCenter(:,:) = MISSING_R8
+zGridCenter(:,:) = -1.0_r8 * zMid(:,:)    ! all depths are negative in the input file; obs are +
 zGridEdge(:,:)   = MISSING_R8
 
 ! A little sanity check
@@ -4153,7 +4167,7 @@ end subroutine vert_interp
 
 !------------------------------------------------------------------
 
-subroutine find_height_bounds(depth, nbounds, bounds, lower, upper, fract, ier)
+subroutine find_depth_bounds(depth, nbounds, bounds, lower, upper, fract, ier)
 
 ! Finds position of a given height in an array of height grid points and returns
 ! the index of the lower and upper bounds and the fractional offset.  ier
@@ -4179,10 +4193,21 @@ fract = -1.0_r8
 lower = -1
 upper = -1
 
+if (debug > 7) then
+   print *, 'ready to check height bounds'
+   print *, 'array ranges from 1 to ', nbounds
+   print *, 'depth to check is ' , depth
+   print *, 'array(1) = ', bounds(1)
+   print *, 'array(nbounds) = ', bounds(nbounds)
+endif
+
 ! Bounds check
 if(depth < bounds(1)) ier = 998
 if(depth > bounds(nbounds)) ier = 9998
-if (ier /= 0) return
+if (ier /= 0) then
+   if (debug > 7) print *, 'could not find vertical location'
+   return
+endif
 
 ! Search two adjacent layers that enclose the given point
 do i = 2, nbounds
@@ -4190,6 +4215,7 @@ do i = 2, nbounds
       lower = i - 1
       upper = i
       fract = (depth - bounds(lower)) / (bounds(upper) - bounds(lower))
+      if (debug > 7) print *, 'found it.  lower, upper, fract = ', lower, upper, fract
       return
    endif
 end do
@@ -4198,8 +4224,9 @@ end do
 ! are tested for at the start of this routine.  if you get here
 ! there is a coding error.
 ier = 3
+if (debug > 7) print *, 'internal code inconsistency: could not find vertical location'
 
-end subroutine find_height_bounds
+end subroutine find_depth_bounds
 
 !------------------------------------------------------------------
 
@@ -4332,11 +4359,11 @@ if(vert_is_height(loc)) then
    ! Get the lower and upper bounds and fraction for each column
    do i=1, nc
       if (oncenters) then
-         call find_height_bounds(vert, nVertLevels, zGridCenter(:, ids(i)), &
+         call find_depth_bounds(vert, nVertLevels, zGridCenter(:, ids(i)), &
                                  lower(i), upper(i), fract(i), ier)
       else
 
-         call find_height_bounds(vert, nVertLevels, zGridEdge(:, ids(i)), &
+         call find_depth_bounds(vert, nVertLevels, zGridEdge(:, ids(i)), &
                                  lower(i), upper(i), fract(i), ier)
       endif
       if (ier /= 0) return
