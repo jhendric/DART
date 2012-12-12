@@ -2430,10 +2430,10 @@ PROGVARLOOP : do ivar=1, nfields
    endif
 
    ! Make note that the variable has been updated by DART
-   call nc_check(nf90_Redef(ncFileID),'statevector_to_analysis_file', 'redef '//trim(filename))
-   call nc_check(nf90_put_att(ncFileID, VarID,'DART','variable modified by DART'),&
-                 'statevector_to_analysis_file', 'modified '//trim(varname))
-   call nc_check(nf90_enddef(ncfileID),'statevector_to_analysis_file','state enddef '//trim(filename))
+   !call nc_check(nf90_Redef(ncFileID),'statevector_to_analysis_file', 'redef '//trim(filename))
+   !call nc_check(nf90_put_att(ncFileID, VarID,'DART','variable modified by DART'),&
+   !              'statevector_to_analysis_file', 'modified '//trim(varname))
+   !call nc_check(nf90_enddef(ncfileID),'statevector_to_analysis_file','state enddef '//trim(filename))
 
 enddo PROGVARLOOP
 
