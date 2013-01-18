@@ -57,7 +57,7 @@ set zeroZ = no
 # it is not needed for ibm power systems.  any value other than 'yes' will
 # skip the convert step.
 
-set  convert = no 
+set  convert = yes 
 
 # if block is 'yes', then the cword program will be run to convert an
 # unblocked file into a blocked one.  this is not required for recent
@@ -88,8 +88,8 @@ if ($commline == 'yes') then
 else
   set year     = 2010
   set month    = 12
-  set beginday = 20
-  set endday   = 30
+  set beginday = 22
+  set endday   = 22
 endif
 
 # directory where the BUFR files are located.  the script assumes the
