@@ -15,8 +15,8 @@ echo "starting assimilate script at "`date`
 switch ("`hostname`")
    case be*:
       # NCAR "bluefire"
-# The FORCE options are not optional.
-# the VERBOSE options are useful for debugging.
+      # The FORCE options are not optional.
+      # the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
       set  FLINK = '/usr/local/bin/ln -fvs'
@@ -24,6 +24,21 @@ switch ("`hostname`")
       set REMOVE = '/usr/local/bin/rm -fr'
 
       set BASEOBSDIR = /glade/proj3/image/Observations/FluxTower
+      set DARTDIR    = ${HOME}/svn/DART/dev
+      set LAUNCHCMD  = mpirun.lsf
+   breaksw
+
+   case ys*:
+      # NCAR "yellowstone"
+      # The FORCE options are not optional.
+      # the VERBOSE options are useful for debugging.
+      set   MOVE = 'mv -fv'
+      set   COPY = 'cp -fv --preserve=timestamps'
+      set  FLINK = 'ln -fvs'
+      set   LINK = 'ln -vs'
+      set REMOVE = 'rm -fr'
+
+      set BASEOBSDIR = /glade/p/image/Observations/FluxTower
       set DARTDIR    = ${HOME}/svn/DART/dev
       set LAUNCHCMD  = mpirun.lsf
    breaksw
@@ -130,7 +145,7 @@ ex_end
 set  MYSTRING = `grep sampling_error_correction input.nml`
 set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,'\.]# #g"`
 set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
-set SECSTRING = `echo $MYSTRING[2] | tr 'A-Z' 'a-z'`
+set SECSTRING = `echo $MYSTRING[2] | tr '[:upper:]' '[:lower:]'`
 
 if ( $SECSTRING == true ) then
    set SAMP_ERR_FILE = ${DARTDIR}/system_simulation/final_full_precomputed_tables/final_full.${ensemble_size}
@@ -181,31 +196,31 @@ endif
 #=========================================================================
 
 set  MYSTRING = `grep inf_flavor input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,'\.]# #g"`
 set  PRIOR_INF = $MYSTRING[2]
 set  POSTE_INF = $MYSTRING[3]
 
 set  MYSTRING = `grep inf_initial_from_restart input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,]# #g"`
-set  PRIOR_TF = `echo $MYSTRING[2] | tr [A-Z] [a-z]`
-set  POSTE_TF = `echo $MYSTRING[3] | tr [A-Z] [a-z]`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,'\.]# #g"`
+set  PRIOR_TF = `echo $MYSTRING[2] | tr '[:upper:]' '[:lower:]'`
+set  POSTE_TF = `echo $MYSTRING[3] | tr '[:upper:]' '[:lower:]'`
 
 # its a little tricky to remove both styles of quotes from the string.
 
 set  MYSTRING = `grep inf_in_file_name input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,'\.]# #g"`
 set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
 set  PRIOR_INF_IFNAME = $MYSTRING[2]
 set  POSTE_INF_IFNAME = $MYSTRING[3]
 
 set  MYSTRING = `grep inf_out_file_name input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,'\.]# #g"`
 set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
 set  PRIOR_INF_OFNAME = $MYSTRING[2]
 set  POSTE_INF_OFNAME = $MYSTRING[3]
 
 set  MYSTRING = `grep inf_diag_file_name input.nml`
-set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,']# #g"`
+set  MYSTRING = `echo $MYSTRING | sed -e "s#[=,'\.]# #g"`
 set  MYSTRING = `echo $MYSTRING | sed -e 's#"# #g'`
 set  PRIOR_INF_DIAG = $MYSTRING[2]
 set  POSTE_INF_DIAG = $MYSTRING[3]
@@ -214,7 +229,7 @@ set  POSTE_INF_DIAG = $MYSTRING[3]
 
 if ( $PRIOR_INF > 0 ) then
 
-   if ($PRIOR_TF == ".false.") then
+   if ($PRIOR_TF == false) then
       echo "ERROR: inf_flavor(1) = $PRIOR_INF, yet inf_initial_from_restart = $PRIOR_TF"
       echo "ERROR: fix input.nml to reflect whether you want prior inflation or not."
       exit 3
@@ -233,15 +248,15 @@ if ( $PRIOR_INF > 0 ) then
       echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
       exit 4
    endif
-   else
-   echo "Prior Inflation not requested for this assimilation."
-   endif
+else
+   echo "Prior Inflation           not requested for this assimilation."
+endif
 
 # POSTERIOR: We look for the 'newest' and use it - IFF we need it.
 
 if ( $POSTE_INF > 0 ) then
 
-   if ($POSTE_TF == ".false.") then
+   if ($POSTE_TF == false) then
       echo "ERROR: inf_flavor(2) = $POSTE_INF, yet inf_initial_from_restart = $POSTE_TF"
       echo "ERROR: fix input.nml to reflect whether you want posterior inflation or not."
       exit 5
@@ -261,7 +276,7 @@ if ( $POSTE_INF > 0 ) then
       exit 6
    endif
 else
-   echo "Posterior Inflation not requested for this assimilation."
+   echo "Posterior Inflation       not requested for this assimilation."
 endif
 
 #=========================================================================
@@ -358,14 +373,14 @@ ${FLINK} $LND_RESTART_FILENAME clm_restart.nc
 ${FLINK} $LND_HISTORY_FILENAME clm_history.nc
 
 # FIXME: special for trying out non-monotonic task layouts.
-setenv ORG_PATH "${PATH}"
-setenv LSF_BINDIR /contrib/lsf/tgmpatch
-setenv PATH ${LSF_BINDIR}:${PATH}
+# setenv ORG_PATH "${PATH}"
+# setenv LSF_BINDIR /contrib/lsf/tgmpatch
+# setenv PATH ${LSF_BINDIR}:${PATH}
 
 # layout: flat
-setenv NANCY_GEOMETRY_54_1NODE \
-	"{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53)}";
-setenv LSB_PJL_TASK_GEOMETRY "${NANCY_GEOMETRY_54_1NODE}"
+# setenv NANCY_GEOMETRY_54_1NODE \
+# 	"{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53)}";
+# setenv LSB_PJL_TASK_GEOMETRY "${NANCY_GEOMETRY_54_1NODE}"
 
 ${LAUNCHCMD} ${EXEROOT}/filter || exit 7
 echo "assimilate:finished filter at "`date`
@@ -389,7 +404,7 @@ foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE
 end
 
 # FIXME: special for trying out non-monotonic task layouts.
-setenv PATH "${ORG_PATH}"
+# setenv PATH "${ORG_PATH}"
 
 #=========================================================================
 # Block 6: Update the clm restart files.

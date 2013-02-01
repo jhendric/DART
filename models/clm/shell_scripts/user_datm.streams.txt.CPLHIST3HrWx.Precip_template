@@ -16,7 +16,7 @@
              /glade/p/image/thoar/CAM_DATM/annual
          </filePath>
          <fileNames>
-             CAM_DATM.cpl_ninst.ha2x1dx6h.2000.nc
+             CAM_DATM.cpl_NINST.ha2x1dx6h.REFYEAR.nc
          </fileNames>
       </domainInfo>
       <fieldInfo>
@@ -30,12 +30,8 @@
              /glade/p/image/thoar/CAM_DATM/annual
          </filePath>
          <fileNames>
-            CAM_DATM.cpl_ninst.ha2x1dx6h.2000.nc
-            CAM_DATM.cpl_ninst.ha2x1dx6h.2001.nc
+            CAM_DATM.cpl_NINST.ha2x1dx6h.REFYEAR.nc
          </fileNames>
-         <tInterpAlgo>
-            nearest
-         </tInterpAlgo>
          <offset>
             -10800
          </offset>
