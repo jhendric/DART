@@ -1,4 +1,4 @@
-# Template for GNU gfortran on Linux or Mac OSX
+# Template for Intel Fortran Compiler on Linux clusters and workstations.
 #
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -11,75 +11,103 @@
 # $Date$
 
 # typical use with mkmf
-# mkmf -t mkmf.template.xxxx -c"-Duse_netCDF" ...
+# mkmf -t mkmf.template.xxxx ...
 #
-# Most likely NETCDF (and maybe LIBS) will need to be customized for your site
+# If NETCDF is set in your environment you do not need to set it here.
+# If you need additional libraries you may need to adjust LIBS below.
 #
-# 
-# Building DART with open-source software:
-# 
-# All the parts (except matlab, which is optional and only used to display results)
-# needed to build and run the DART package are now possible to get free from 
-# the open-source community.  To compile and run DART, you will need:
-# 
+# FFLAGS   useful for debugging
+#     -g       include debugging information.  these are all synonyms.
+#     -debug full
+#     -debug all
+#     -O0      setting -g will make this the default (no optimization).  
+#              it is possible to set -g and then explicitly set -O2 if 
+#              the behavior being debugged depends on optimization changes.
+#     -ftrapuv   traps if a local variable is used before being set
+#     -C       enables all runtime checks.  -C and -check all are synonyms.
+#     -check all
+#     -check <keywords>    enables/disables more specific runtime checks.
+#           keywords:  [arg_temp_created,bounds,overflow,format,pointers,uninit]
+#     -warn <keywords>  the level of warning messages issued.
+#           keywords:  [alignments, argument_checking, declarations,
+#                      errors, fileopt, general, ignore_loc, 
+#                      stderrors, truncated_source, uncalled,
+#                      uninitialized, unused, usage, all]
+#     -fp-stack-check  catches conditions where the FP stack is not correct.
+#           Typically this is when a real function is called as if it were a
+#           subroutine, OR a subroutine is called as if it were a function (return
+#           values left of FP stack OR too much data is taken off the FP stack)
+#     -vec-reportN  controls how much diagnostic output is printed about
+#                   loops vectorized by the compiler. N = 0 is silent,
+#                   N can have values up to 5.
 #
-# 1. The GNU GCC 4.2.0 version of the gfortran compiler.  See this web page for
-#    information on supported platforms and downloads: 
-#      http://gcc.gnu.org/wiki/GFortran
-# 
-#    (Note that there is a separate G95 project which distributes an alternate
-#    open-source fortran distribution, and I have heard that others have 
-#    successfully compiled other fortran code with that compiler, but we have
-#    not tried it with DART yet.)
-# 
-# 
-# 2. The netCDF software library package.  See:
-#      http://www.unidata.ucar.edu/software/netcdf
-# 
-#    The 3.6.2 version compiled for us with this:
-# 
-#     ./configure CC=gcc FC=gfortran
-#     make check
-#     make install
+# FFLAGS   useful for bitwise reproducibility and accuracy control
+#          (these will certainly slow down performance)
+#     -fp-model precise    more rigorous numerics in the face of optimization
+#                          (in my limited tests this is sufficient by itself to
+#                          create bitwise reproducible runs)
+#     -fpeN       controls floating point exception handling.  -fpe0 recommended.
+#     -ftz        'flush to zero' underflows result in zero.  set by default if
+#                 any -O other than -O0 set, or if -fpe0 or -fpe1 set.
+#     -pc80       set internal FPU precision to 64 bit significand
+#                 (default is -pc64 with 53 internal bits)
 #
-#    You can add the argument --prefix=/dir to configure to make the install
-#    location for the includes and libs someplace other than /usr/local.
-# 
-# 
-# If you want to try the *optional* parallel execution option, you will
-# need a version of the MPI libs.  There are at least two open source options:
+# FFLAGS   useful for production
+#     -O2        default.  optimize without too much unrepeatable numerical games
+#     -O3,-O4    more aggressive optimizations.  check numerical differences
+#                before using these indiscriminately.
+#     -heap-arrays 10    allocate arrays from the heap instead of putting them
+#                on the stack.  the number is the limit in KB for when arrays
+#                move from the stack to the heap.  this can help if you get stack
+#                overflow errors and cannot increase the stack size more.
+#     -x, -m, -ax, -mcode, -march   all these flags tell the compiler to generate
+#                processor-specific or vector instructions.  either 'man ifort' or
+#                ifort --help to see what the current list of options are and
+#                which have priority over the others.
 #
-# 3. For parallel execution, OpenMPI 1.2 from:
-#       http://www.open-mpi.org/
+# FFLAGS   possibly useful, not normally used by DART 
+#     -fpp     run Fortran preprocessor on source files prior to compilation
+#     -free    interpret source as free-format, regardless of file extension
+#     -r8      specify default real size.  note that for DART we use explicit
+#              types on all our real values so this will not change anything
+#              inside DART.   see DART/common/types_mod.f90 if you must run
+#              with single precision reals.
+#     -convert big_endian         useful if you're on the wrong architecture.
+#              however this controls both reading and writing so you can't
+#              use it as a conversion mechanism unless you write files out
+#              in ascii format.  applies to all unformatted fortran i/o.
+#     -assume  byterecl ... more 'industry-standard' direct-access behavior
+#              controls what units the RECL (record length) specifier returns.
 #
-#     or mpich from:
-#       http://http://www-unix.mcs.anl.gov/mpi/mpich/
 #
-# Note that MPI IS NOT REQUIRED to build and run DART.  
-#
-# 
-# Possibly useful flags:
-#
-# -ffree-form          forces input file to be read as free format regardless 
-#                      of what file extension is has.
-#
-# -fdefault-real-8     force all real variables to be real*8.
-#
-# 
+# The PBL_1d model needs this flag added to whatever others are used:
+#FFLAGS = -r8 
 
 MPIFC = mpif90
 MPILD = mpif90
-FC = gfortran
-LD = gfortran
+FC = ifort
+LD = ifort
 
-# if $NETCDF in your environment is set to the location of the
-# include and lib directories, you are ok.  otherwise set the
-# next line to the location and uncomment it.
-# NETCDF = /usr/local
+# If your NETCDF environment variable is not set correctly, 
+# uncomment the following line and set value to where lib and include
+# are found for the netcdf files that match this compiler.
+# 
+# If you get an error about libnetcdff (note 2 f's) not found,
+# remove it from the libs line.  when building netcdf there are
+# options to put all the fortran interfaces into a separate library
+# and so there's no way to know ahead of time how the lib was
+# configured - single lib with all code, or two separate libs.
+#
+# NETCDF = /contrib/netcdf
 
-INCS = ${NETCDF}/include
-FFLAGS = -O2 -I$(INCS) -ffree-line-length-none
+INCS = -I$(NETCDF)/include
+LIBS = -L$(NETCDF)/lib -lnetcdff -lnetcdf
+FFLAGS  = -O3 -axavx -ipo -vec-report0 $(INCS)
+LDFLAGS = $(FFLAGS) $(LIBS)
 
-LIBS = -L${NETCDF}/lib -lnetcdf -lnetcdff
-LDFLAGS = -I$(INCS) $(LIBS)
+# for development or debugging, use this instead:
+# FFLAGS = -g -C -check noarg_temp_created -fpe0 -vec-report0 -fp-model precise  \
+#        -warn argument_checking,declarations,uncalled,unused -ftrapuv $(INCS)
+# Some optimized (BLAS, LAPACK) libraries may be available with:
+# LIBS = -L$(NETCDF)/lib -lnetcdf -lnetcdff -lmkl -lmkl_lapack -lguide -lpthread
 
