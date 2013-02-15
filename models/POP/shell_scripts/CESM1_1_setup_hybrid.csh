@@ -50,7 +50,9 @@
 #
 # and you may be able to salvage something with
 # ./cesm_setup -clean
-# ./${CASENAME}.clean_build
+# ./cesm_setup
+# ./${case}.clean_build
+# ./${case}.build
 #
 # ==============================================================================
 # ====  Set case options
@@ -61,11 +63,11 @@
 #    script names; so consider it's length and information content.
 # num_instances:  Number of ensemble members
 
-setenv case                 pop_hybrid
+setenv case                 pop_hybrid_opt
 setenv compset              GIAF
 setenv cesmtag              cesm1_1_1
 setenv resolution           T62_gx1v6
-setenv num_instances        4
+setenv num_instances        30
 
 # ==============================================================================
 # define machines and directories
@@ -131,7 +133,7 @@ setenv stop_n        2
 
 setenv ACCOUNT      P86850054
 setenv timewall     0:30
-setenv queue        premium
+setenv queue        regular
 setenv ptile        15
 
 # ==============================================================================
@@ -178,7 +180,7 @@ endsw
 
    if ( $status != 0 ) then
       echo "ERROR: Case could not be created."
-      exit 1
+      exit -1
    endif
 
 # ==============================================================================
@@ -192,34 +194,56 @@ foreach FILE ( *xml )
    ${COPY} $FILE ${FILE}.original
 end
 
-# This is only for the purpose of debugging the code.
-# A more efficient layout must be done when running a full assimilation.
+# Try to lay out the tasks in some sort of reasonable way.
+# The ocean root pe is the only one that is not zero.
 
-# 1/8 cpl, 1/8 cice, 1/8 atm, 1/8 lnd, 4/8 ocean
+if ($num_instances == 4) then
 
-@ total_nt = 128
-@ atm_pes  = $total_nt / 8
-@ cpl_pes  = $total_nt / 8
-@ ice_pes  = $total_nt / 8
-@ lnd_pes  = $total_nt / 8
-@ ocn_pes  = $total_nt - ($cpl_pes + $ice_pes + $lnd_pes + $atm_pes)
+   # This is only for the purpose of debugging the code.
+   # A more efficient layout must be done when running a full assimilation.
 
-echo "task partitioning ..."
+   @ atm_pes = $ptile
+   @ cpl_pes = $ptile
+   @ ice_pes = $ptile
+   @ lnd_pes = $ptile
+   @ glc_pes = $ptile
+   @ rof_pes = $ptile
+   @ ocn_pes = $ptile * 4
+
+else
+
+   # layout for 30 members.
+   # Made in conjunction with Mike Levy, David Bailey and Jim Edwards.
+
+   @ atm_pes = 450
+   @ cpl_pes = 450
+   @ ice_pes = 450
+   @ lnd_pes = 450
+   @ glc_pes = 450
+   @ rof_pes = 450
+   @ ocn_pes = 1800
+
+endif
+
+echo "task partitioning ... ice and ocean run at the same time."
 echo ""
-echo "LND gets $lnd_pes"
-echo "ATM gets $atm_pes"
-echo "ICE gets $ice_pes"
-echo "OCN gets $ocn_pes"
-echo "GLC gets $ocn_pes"
-echo "CPL gets $cpl_pes"
+echo "ATM  gets $atm_pes"
+echo "CPL  gets $cpl_pes"
+echo "ICE  gets $ice_pes"
+echo "LND  gets $lnd_pes"
+echo "GLC  gets $glc_pes"
+echo "DROF gets $rof_pes"
+echo "OCN  gets $ocn_pes"
 echo ""
 
-./xmlchange NTHRDS_ATM=1,NTASKS_ATM=$atm_pes,NINST_ATM=$num_instances
-./xmlchange NTHRDS_ICE=1,NTASKS_ICE=$ice_pes,NINST_ICE=$num_instances
-./xmlchange NTHRDS_OCN=1,NTASKS_OCN=$ocn_pes,NINST_OCN=$num_instances
-./xmlchange NTHRDS_GLC=1,NTASKS_GLC=$ocn_pes,NINST_GLC=1
-./xmlchange NTHRDS_LND=1,NTASKS_LND=$lnd_pes,NINST_LND=1
-./xmlchange NTHRDS_CPL=1,NTASKS_CPL=$cpl_pes
+./xmlchange ROOTPE_ATM=0,NTHRDS_ATM=1,NTASKS_ATM=$atm_pes,NINST_ATM=$num_instances
+./xmlchange ROOTPE_ICE=0,NTHRDS_ICE=1,NTASKS_ICE=$ice_pes,NINST_ICE=$num_instances
+./xmlchange ROOTPE_GLC=0,NTHRDS_GLC=1,NTASKS_GLC=$glc_pes,NINST_GLC=1
+./xmlchange ROOTPE_LND=0,NTHRDS_LND=1,NTASKS_LND=$lnd_pes,NINST_LND=1
+./xmlchange ROOTPE_ROF=0,NTHRDS_ROF=1,NTASKS_ROF=$rof_pes,NINST_ROF=1
+./xmlchange ROOTPE_CPL=0,NTHRDS_CPL=1,NTASKS_CPL=$cpl_pes
+./xmlchange              NTHRDS_OCN=1,NTASKS_OCN=$ocn_pes,NINST_OCN=$num_instances
+./xmlchange ROOTPE_OCN=$ice_pes
 
 # http://www.cesm.ucar.edu/models/cesm1.1/cesm/doc/usersguide/c1158.html#run_start_stop
 # "A hybrid run indicates that CESM is initialized more like a startup, but uses
@@ -242,15 +266,20 @@ echo ""
 ./xmlchange RUN_REFTOD=$run_reftod
 ./xmlchange BRNCH_RETAIN_CASENAME=FALSE
 ./xmlchange GET_REFCASE=FALSE
-./xmlchange CALENDAR=GREGORIAN
 ./xmlchange EXEROOT=${exeroot}
+
+# The streams files were generated with a NO_LEAP calendar in mind.
+# We need to test these with a GREGORIAN calendar.
+
+./xmlchange CALENDAR=GREGORIAN
 
 ./xmlchange STOP_OPTION=$stop_option
 ./xmlchange STOP_N=$stop_n
 ./xmlchange CONTINUE_RUN=FALSE
 ./xmlchange RESUBMIT=$resubmit
+./xmlchange PIO_TYPENAME=pnetcdf
 
-./xmlchange DOUT_S=FALSE
+./xmlchange DOUT_S=TRUE
 ./xmlchange DOUT_S_ROOT=${archdir}
 ./xmlchange DOUT_S_SAVE_INT_REST_FILES=FALSE
 ./xmlchange DOUT_L_MS=FALSE
@@ -265,13 +294,8 @@ echo ""
 
 # level of debug output, 0=minimum, 1=normal, 2=more, 3=too much, valid values: 0,1,2,3 (integer)
 
-./xmlchange DEBUG=TRUE
-./xmlchange INFO_DBUG=3
-
-# The river transport model ON is useful only when using an active ocean or
-# land surface diagnostics. Setting ROF_GRID to 'null' turns off the RTM.
-
-#./xmlchange ROF_GRID='null'
+./xmlchange DEBUG=FALSE
+./xmlchange INFO_DBUG=0
 
 # ==============================================================================
 # Set up the case.
@@ -282,7 +306,7 @@ echo ""
 
 if ( $status != 0 ) then
    echo "ERROR: Case could not be set up."
-   exit 2
+   exit -2
 endif
 
 # ==============================================================================
@@ -324,7 +348,7 @@ while ($inst <= $num_instances)
    # init_ts_suboption = 'data_assim'   for non bit-for-bit restarting (assimilation mode)
    # init_ts_suboption = 'null'         for 'perfect' restarting/forecasting
 
-   echo "init_ts_suboption = 'null'" >> user_nl_pop2_$instance
+   echo "init_ts_suboption = 'data_assim'" >> user_nl_pop2_$instance
 
    @ inst ++
 end
@@ -380,8 +404,7 @@ foreach FNAME (user*streams*)
    @ filename_index = $#name_parse - 1
    @ instance_index = $#name_parse
    set streamname = $name_parse[$filename_index]
-   set   instance = $name_parse[$instance_index]
-   set          n = `printf %d $instance`
+   set    n = `echo $name_parse[$instance_index] | sed 's/0*//'`
 
    if (-e $DARTroot/models/POP/shell_scripts/user_$streamname*template) then
 
@@ -395,7 +418,7 @@ foreach FNAME (user*streams*)
    else
       echo "DIED Looking for a DART stream txt template for $FNAME"
       echo "DIED Looking for a DART stream txt template for $FNAME"
-      exit 3
+      exit -3
    endif
 
 end
@@ -411,10 +434,17 @@ end
 #    mods and put in the SourceMods subdirectory found in the 'case' directory.
 # ==============================================================================
 
-if ( -d ~/${cesmtag}/SourceMods ) then
+if (    -d     ~/${cesmtag}/SourceMods ) then
    ${COPY} -r  ~/${cesmtag}/SourceMods/* ${caseroot}/SourceMods/
 else
-   echo "FYI - No SourceMods for this case"
+   echo "ERROR - No SourceMods for this case."
+   echo "ERROR - No SourceMods for this case."
+   echo "DART requires modifications to several src.pop2/ files."
+   echo "These files can be downloaded from:"
+   echo "http://www.image.ucar.edu/pub/DART/CESM/DART_SourceMods_cesm1_1_1.tar"
+   echo "untar these into your HOME directory - they will create a"
+   echo "~/cesm_1_1_1  directory with the appropriate SourceMods structure."
+   exit -4
 endif
 
 # ==============================================================================
@@ -429,14 +459,16 @@ echo ''
 
 if ( $status != 0 ) then
    echo "ERROR: Case could not be built."
-   exit 4
+   exit -5
 endif
 
 # ==============================================================================
 # Stage the restarts now that the run directory exists
+#
+# set stagedir = /glade/scratch/thoar/DART_POP_RESTARTS/2004-01-01-00000
 # ==============================================================================
 
-set stagedir = /glade/scratch/thoar/DART_POP_RESTARTS/2004-01-01-00000
+set stagedir = /glade/p/work/aliciak/DART_IC/CCSM4_ensembles/rest/2004-01-01-00000
 
 echo "Copying the restart files from ${stagedir}"
 
@@ -445,6 +477,7 @@ while ($i <= $num_instances)
    set n4 = `printf %04d $i`
    set n2 = `printf %02d $i`
 
+   echo ''
    echo "Staging restarts for instance $i of $num_instances"
    #AK: Note that the pop ocean must have the .hdr file to describe the
    #    metadata for binary restarts.
@@ -455,9 +488,6 @@ while ($i <= $num_instances)
    ${COPY} ${stagedir}/b40.20th.005_ens${n2}.pop.r.2004-01-01-00000.hdr ${rundir}
    ${COPY} ${stagedir}/b40.20th.005_ens${n2}.pop.ro.2004-01-01-00000    ${rundir}
    ${COPY} ${stagedir}/b40.20th.005_ens${n2}.cice.r.2004-01-01-00000.nc ${rundir}
-
-   #${COPY} ${stagedir}/rpointer.atm_${n4}                               ${rundir}
-   echo ""
 
    @ i ++
 
@@ -478,15 +508,11 @@ set BATCH = `echo $BATCHSUBMIT | sed 's/ .*$//'`
 switch ( $BATCH )
    case bsub*:
       # NCAR "bluefire", "yellowstone"
-      sed s/ptile=32/ptile=$ptile/ < ${case}.run >! temp.$$
-      ${MOVE} temp.$$  ${case}.run
-
       set TIMEWALL=`grep BSUB ${case}.run | grep -e '-W' `
-      sed s/$TIMEWALL[3]/$timewall/ < ${case}.run >! temp.$$
-      ${MOVE} temp.$$  ${case}.run
-
-      set QUEUE=`grep BSUB ${case}.run | grep -e '-q' `
-      sed s/$QUEUE[3]/$queue/ < ${case}.run >! temp.$$
+      set    QUEUE=`grep BSUB ${case}.run | grep -e '-q' `
+      sed -e "s/ptile=32/ptile=$ptile/" \
+          -e "s/$TIMEWALL[3]/$timewall/" \
+          -e "s/$QUEUE[3]/$queue/" < ${case}.run >! temp.$$
       ${MOVE} temp.$$  ${case}.run
    breaksw
 
@@ -513,13 +539,12 @@ cat << "EndOfText" >! add_to_run.txt
 # -------------------------------------------------------------------------
 # START OF DART: if CESM finishes correctly (pirated from ccsm_postrun.csh);
 # perform an assimilation with DART.
-# -------------------------------------------------------------------------
 
 set CplLogFile = `ls -1t cpl.log* | head -n 1`
 if ($CplLogFile == "") then
    echo 'ERROR: Model did not complete - no cpl.log file present - exiting.'
    echo 'ERROR: Assimilation will not be attempted.'
-   exit 1
+   exit -1
 endif
 
 grep 'SUCCESSFUL TERMINATION' $CplLogFile
@@ -530,12 +555,12 @@ if ( $status == 0 ) then
       echo "`date` -- DART HAS FINISHED"
    else
       echo "`date` -- DART FILTER ERROR - ABANDON HOPE"
-      exit 3
+      exit -3
    endif
 else
    echo 'ERROR: Model did not complete successfully - exiting.'
    echo 'ERROR: Assimilation will not be attempted.'
-   exit 2
+   exit -2
 endif
 
 # END OF DART BLOCK
@@ -563,7 +588,7 @@ else if ( ${STATUSCHECK} == 1 ) then
    cat                add_to_run.txt >> temp.$$
    tail -n $lastlines ${case}.run    >> temp.$$
 
-#  ${MOVE} temp.$$ ${case}.run    TJH DEBUG
+   ${MOVE} temp.$$ ${case}.run
 
 endif
 
@@ -602,7 +627,7 @@ foreach FILE ( filter pop_to_dart dart_to_pop )
    if ( $status != 0 ) then
       echo "ERROR: ${DARTroot}/models/POP/work/${FILE} not copied to ${exeroot}"
       echo "ERROR: ${DARTroot}/models/POP/work/${FILE} not copied to ${exeroot}"
-      exit 3
+      exit -3
    endif
 end
 
@@ -611,23 +636,24 @@ end
 # ==============================================================================
 
 echo ''
-echo 'Time to check the case.'
+echo "Time to check the case."
+echo ''
 echo "cd into ${caseroot}"
-echo 'Modify what you like in input.nml, make sure the observation directory'
-echo 'names set in assimilate.csh match those on your system, and submit'
-echo 'the CESM job by running:'
+echo "Modify what you like in input.nml, make sure the observation directory"
+echo "names set in assimilate.csh match those on your system, and submit"
+echo "the CESM job by running:"
 echo "./${case}.submit"
 echo ''
+echo "For continued submissions after the initial (hybrid) startup,"
+echo "make the following changes to the env_run variables:"
+echo ''
+echo "  ./xmlchange -file env_run.xml -id STOP_N        -val 1"
+echo "  ./xmlchange -file env_run.xml -id CONTINUE_RUN  -val TRUE"
+echo "  ./xmlchange -file env_run.xml -id RESUBMIT      -val <your_favorite_number>"
+echo ''
+echo "Check the streams listed in the streams text files.  If more or different"
+echo 'dates need to be added, then do this in the $CASEROOT/user_*files*'
+echo "then invoke 'preview_namelists' so you can check the information in the"
+echo "CaseDocs or ${rundir} directories."
+echo ''
 
-# ==============================================================================
-# for continued submissions after the initial startup one,
-# make the following changes to the env_run variables:
-#
-#    ./xmlchange -file env_run.xml -id STOP_N        -val 1
-#    ./xmlchange -file env_run.xml -id RESUBMIT      -val <your_favorite_number>
-#
-# Check the streams listed in the streams text files.  If more or different
-# dates need to be added, then do this in the $CASEROOT/user_*files*
-# then invoke "preview_namelists" for this information to be moved to
-# the CaseDocs and the executable directory.
-# ==============================================================================
