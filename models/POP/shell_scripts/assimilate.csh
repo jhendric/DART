@@ -10,7 +10,6 @@
 # changes to this script such that the same script can be used
 # on multiple platforms. This will help us maintain the script.
 
-echo "starting assimilate script at "`date`
 echo "`date` -- BEGIN ASSIMILATE"
 
 switch ("`hostname`")
@@ -75,6 +74,8 @@ cd $temp_dir
 #-------------------------------------------------------------------------
 # Determine time of model state ... from file name of first member
 # of the form "./${CASE}.pop.$ensemble_member.r.2000-01-06-00000.nc"
+#
+# Piping stuff through 'bc' strips off any preceeding zeros.
 #-------------------------------------------------------------------------
 
 set FILE = `head -1 ../rpointer.ocn_0001.restart`
@@ -83,10 +84,10 @@ set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
 set OCN_DATE_EXT = `echo $FILE:e`
 set OCN_DATE     = `echo $FILE:e | sed -e "s#-# #g"`
-set OCN_YEAR     = $OCN_DATE[1]
-set OCN_MONTH    = $OCN_DATE[2]
-set OCN_DAY      = $OCN_DATE[3]
-set OCN_SECONDS  = $OCN_DATE[4]
+set OCN_YEAR     = `echo $OCN_DATE[1] | bc`
+set OCN_MONTH    = `echo $OCN_DATE[2] | bc`
+set OCN_DAY      = `echo $OCN_DATE[3] | bc`
+set OCN_SECONDS  = `echo $OCN_DATE[4] | bc`
 set OCN_HOUR     = `echo $OCN_DATE[4] / 3600 | bc`
 
 echo "valid time of model is $OCN_YEAR $OCN_MONTH $OCN_DAY $OCN_SECONDS (seconds)"
@@ -100,7 +101,7 @@ echo "valid time of model is $OCN_YEAR $OCN_MONTH $OCN_DAY $OCN_HOUR (hours)"
 
 set YYYYMM   = `printf %04d%02d ${OCN_YEAR} ${OCN_MONTH}`
 set OBSFNAME = `printf obs_seq.0Z.%04d%02d%02d ${OCN_YEAR} ${OCN_MONTH} ${OCN_DAY}`
-set OBS_FILE = ${BASEOBSDIR}/${YYYYMM}/${OBSFNAME} 
+set OBS_FILE = ${BASEOBSDIR}/${YYYYMM}/${OBSFNAME}
 
 ${REMOVE}           obs_seq.out
 ${LINK} ${OBS_FILE} obs_seq.out
@@ -127,7 +128,7 @@ else
    exit -1
 endif
 
-# Since the obs sequence files are small, modify the DART input.nml such 
+# Since the obs sequence files are small, modify the DART input.nml such
 # that the num_output_obs_members matches the ensemble size.
 #
 # g;num_output_state_members ;s;= .*;= $ensemble_size;
@@ -148,8 +149,8 @@ echo "`date` -- END COPY BLOCK"
 #
 # The sampling error correction is a lookup table.
 # The tables are stored in the DART distribution.
-# Each ensemble size has its own (static) file. 
-# It is only needed if 
+# Each ensemble size has its own (static) file.
+# It is only needed if
 # input.nml:&assim_tools_nml:sampling_error_correction = .true.,
 #=========================================================================
 
@@ -299,8 +300,11 @@ endif
 #
 # DART namelist settings appropriate/required:
 # &filter_nml:           restart_in_file_name    = 'filter_ics'
+#                        restart_out_file_name   = 'filter_restart'
 # &ensemble_manager_nml: single_restart_file_in  = '.false.'
 # &pop_to_dart_nml:      pop_to_dart_output_file = 'dart_ics',
+# &dart_to_pop_nml:      dart_to_pop_input_file  = 'dart_restart',
+# &dart_to_pop_nml:      advance_time_present    = .false.
 #
 #=========================================================================
 
@@ -343,8 +347,7 @@ if ($status != 0) then
    exit -7
 endif
 
-echo "FINISHED pop_to_dart for all ${ensemble_size} members at"`date`
-echo "`date` -- END POP-TO-DART"
+echo "`date` -- END POP-TO-DART for all ${ensemble_size} members."
 
 #=========================================================================
 # Block 5: Actually run the assimilation.
@@ -399,11 +402,10 @@ end
 #=========================================================================
 # Block 6: Update the POP restart files ... simultaneously ...
 #
-# DART namelist settings required:
-# &filter_nml:           restart_out_file_name  = 'filter_restart'
-# &ensemble_manager_nml: single_restart_file_in = '.false.'
-# &dart_to_pop_nml:      dart_to_pop_input_file = 'dart_restart',
-# &dart_to_pop_nml:      advance_time_present   = .false.
+# Each member will do its job in its own directory.
+# That way, we can do N of them simultaneously.
+# The namelist already reflects the right filenames.
+# The right filenames are already linked from the pop_to_dart conversion.
 #=========================================================================
 
 echo "`date` -- BEGIN DART TO POP"
@@ -411,23 +413,10 @@ set member = 1
 while ( $member <= $ensemble_size )
 
    set m4 = `printf %04d $member`
-
-   # Each member will do its job in its own directory.
-   # That way, we can do N of them simultaneously -
-   # they all read their OWN 'input.nml' ... the output
-   # filenames must inserted into the appropriate input.nml
-
-   set MYTEMPDIR = member_${member}
-   mkdir -p $MYTEMPDIR
-   cd $MYTEMPDIR
-
-   set OCN_RESTART_FILENAME = `head -1 ../../rpointer.ocn_$m4.restart`
-
-   ${FLINK} ../../$OCN_RESTART_FILENAME pop.r.nc
-   ${FLINK} ../../pop2_in_$m4           pop_in
+   cd member_${member}
 
    echo "starting dart_to_pop for member ${member} at "`date`
-   ${EXEROOT}/dart_to_pop &
+   ${EXEROOT}/dart_to_pop >! output.${member}.dart_to_pop &
 
    cd ..
 
@@ -442,8 +431,8 @@ if ($status != 0) then
    exit -8
 endif
 
-echo "FINISHED dart_to_pop for all ${ensemble_size} members at"`date`
-echo "`date` -- END DART TO POP"
+echo "`date` -- END DART TO POP for all ${ensemble_size} members."
+echo "`date` -- END ASSIMILATE"
 
 #-------------------------------------------------------------------------
 # Cleanup
