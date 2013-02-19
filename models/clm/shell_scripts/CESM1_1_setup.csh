@@ -60,9 +60,9 @@
 #    script names; so consider it's length and information content.
 # num_instances:  Number of ensemble members
 
-setenv case                 clm_cesm1_1
+setenv case                 clm_test
 setenv compset              I_2000_CN
-setenv cesmtag              cesm1_1
+setenv cesmtag              cesm1_1_1
 setenv resolution           f19_f19
 setenv num_instances        4
 
@@ -125,7 +125,7 @@ setenv run_refdate $refyear-$refmon-$refday
 # stop_n        Number of time units in the forecast
 # ==============================================================================
 
-setenv resubmit      4
+setenv resubmit      1
 setenv stop_option   nhours
 setenv stop_n        24
 
@@ -139,8 +139,8 @@ setenv stop_n        24
 # ==============================================================================
 
 setenv ACCOUNT      P86850054
-setenv timewall     0:10
-setenv queue        premium
+setenv timewall     0:20
+setenv queue        regular
 setenv ptile        30
 
 # ==============================================================================
@@ -256,7 +256,7 @@ echo ""
 ./xmlchange CONTINUE_RUN=FALSE
 ./xmlchange RESUBMIT=$resubmit
 
-./xmlchange DOUT_S=FALSE
+./xmlchange DOUT_S=TRUE
 ./xmlchange DOUT_S_ROOT=${archdir}
 ./xmlchange DOUT_S_SAVE_INT_REST_FILES=FALSE
 ./xmlchange DOUT_L_MS=FALSE
@@ -394,9 +394,9 @@ foreach FNAME (user*streams*)
 
       ${COPY} $DARTroot/models/clm/shell_scripts/user_$streamname*template $FNAME
 
-      sed s/NINST/$instance/g   $FNAME >! out
-      sed s/REFYEAR/$refyear/g  out    >! $FNAME
-      \rm -f out
+      sed s/NINST/$instance/g   $FNAME >! out.$$
+      sed s/REFYEAR/$refyear/g  out.$$ >! $FNAME
+      \rm -f out.$$
 
    else
       echo "DIED Looking for a DART stream txt template for $FNAME"
@@ -417,10 +417,17 @@ end
 #    mods and put in the SourceMods subdirectory found in the 'case' directory.
 # ==============================================================================
 
-if ( -d ~/${cesmtag}/SourceMods ) then
+if (    -d     ~/${cesmtag}/SourceMods ) then
    ${COPY} -r  ~/${cesmtag}/SourceMods/* ${caseroot}/SourceMods/
-else 
-   echo "FYI - No SourceMods for this case"
+else
+   echo "ERROR - No SourceMods for this case."
+   echo "ERROR - No SourceMods for this case."
+   echo "DART requires modifications to several src.pop2/ files."
+   echo "These files can be downloaded from:"
+   echo "http://www.image.ucar.edu/pub/DART/CESM/DART_SourceMods_cesm1_1_1.tar"
+   echo "untar these into your HOME directory - they will create a"
+   echo "~/cesm_1_1_1  directory with the appropriate SourceMods structure."
+   exit -4
 endif
 
 # ==============================================================================
@@ -578,12 +585,12 @@ chmod 0744 ${case}.run
 # ==============================================================================
 
 if ( ~ -e  Tools/st_archive.sh.orig ) then
-   ${MOVE} Tools/st_archive.sh      Tools/st_archive.sh.orig
+   ${COPY} Tools/st_archive.sh      Tools/st_archive.sh.orig
 else
    echo "a Tools/st_archive.sh backup copy already exists"
 endif
 
-${COPY} ${DARTroot}/models/clm/shell_scripts/st_archive.sh   Tools/
+# ${COPY} ${DARTroot}/models/clm/shell_scripts/st_archive.sh   Tools/
 ${COPY} ${DARTroot}/models/clm/shell_scripts/assimilate.csh  assimilate.csh
 ${COPY} ${DARTroot}/models/clm/work/input.nml                input.nml
 

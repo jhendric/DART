@@ -1,4 +1,4 @@
-#!/bin/csh -f
+#!/bin/csh
 #
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -10,7 +10,7 @@
 # changes to this script such that the same script can be used
 # on multiple platforms. This will help us maintain the script.
 
-echo "starting assimilate script at "`date`
+echo "`date` -- BEGIN ASSIMILATE"
 
 switch ("`hostname`")
    case be*:
@@ -19,8 +19,7 @@ switch ("`hostname`")
       # the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
-      set  FLINK = '/usr/local/bin/ln -fvs'
-      set   LINK = '/usr/local/bin/ln -vs'
+      set   LINK = '/usr/local/bin/ln -fvs'
       set REMOVE = '/usr/local/bin/rm -fr'
 
       set BASEOBSDIR = /glade/proj3/image/Observations/FluxTower
@@ -34,8 +33,7 @@ switch ("`hostname`")
       # the VERBOSE options are useful for debugging.
       set   MOVE = 'mv -fv'
       set   COPY = 'cp -fv --preserve=timestamps'
-      set  FLINK = 'ln -fvs'
-      set   LINK = 'ln -vs'
+      set   LINK = 'ln -fvs'
       set REMOVE = 'rm -fr'
 
       set BASEOBSDIR = /glade/p/image/Observations/FluxTower
@@ -47,8 +45,7 @@ switch ("`hostname`")
       # NERSC "hopper"
       set   MOVE = 'mv -fv'
       set   COPY = 'cp -fv --preserve=timestamps'
-      set  FLINK = 'ln -fvs'
-      set   LINK = 'ln -vs'
+      set   LINK = 'ln -fvs'
       set REMOVE = 'rm -fr'
 
       set BASEOBSDIR = /scratch/scratchdirs/nscollin/ACARS
@@ -62,63 +59,70 @@ set ensemble_size = ${NINST_LND}
 # Create temporary working directory for the assimilation
 set temp_dir = assimilate_dir
 echo "temp_dir is $temp_dir"
-mkdir -p $temp_dir
+
+# Create a clean temporary directory and go there
+if ( -d $temp_dir ) then
+   ${REMOVE} $temp_dir/*
+else
+   mkdir -p $temp_dir
+endif
 cd $temp_dir
 
 #-------------------------------------------------------------------------
 # Determine time of model state ... from file name of first member
 # of the form "./${CASE}.clm2_${ensemble_member}.r.2000-01-06-00000.nc"
+#
+# Piping stuff through 'bc' strips off any preceeding zeros.
 #-------------------------------------------------------------------------
 
 set FILE = `head -1 ../rpointer.lnd_0001`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
-set MODEL_DATE_EXT = `echo $FILE:e`
-set MODEL_DATE     = `echo $FILE:e | sed -e "s#-# #g"`
-set MODEL_YEAR     = $MODEL_DATE[1]
-set MODEL_MONTH    = $MODEL_DATE[2]
-set MODEL_DAY      = $MODEL_DATE[3]
-set MODEL_SECONDS  = $MODEL_DATE[4]
-set MODEL_HOUR     = `echo $MODEL_DATE[4] / 3600 | bc`
+set LND_DATE_EXT = `echo $FILE:e`
+set LND_DATE     = `echo $FILE:e | sed -e "s#-# #g"`
+set LND_YEAR     = `echo $LND_DATE[1] | bc`
+set LND_MONTH    = `echo $LND_DATE[2] | bc`
+set LND_DAY      = `echo $LND_DATE[3] | bc`
+set LND_SECONDS  = `echo $LND_DATE[4] | bc`
+set LND_HOUR     = `echo $LND_DATE[4] / 3600 | bc`
 
-echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_SECONDS (seconds)"
-echo "valid time of model is $MODEL_YEAR $MODEL_MONTH $MODEL_DAY $MODEL_HOUR (hours)"
+echo "valid time of model is $LND_YEAR $LND_MONTH $LND_DAY $LND_SECONDS (seconds)"
+echo "valid time of model is $LND_YEAR $LND_MONTH $LND_DAY $LND_HOUR (hours)"
 
 #-----------------------------------------------------------------------------
-# Get observation sequence file ... or die right away. Cannot specify -f on
-# the link command and still check status. The observation file names have
-# a time that matches the stopping time of CLM. The contents of the file
-# must match the history file contents if one is using the obs_def_tower_mod
-# or could be the 'traditional' +/- 12Z ... or both. Since the history file
-# contains the previous days' history ... so must the obs file.
+# Get observation sequence file ... or die right away.
+# The observation file names have a time that matches the stopping time of CLM.
+# The contents of the file must match the history file contents if one is using 
+# the obs_def_tower_mod or could be the 'traditional' +/- 12Z ... or both.
+# Since the history file contains the previous days' history ... so must the obs file.
 #-----------------------------------------------------------------------------
 
-set OBSDIR   = ${BASEOBSDIR}/${MODEL_YEAR}${MODEL_MONTH}
-set OBSFNAME = obs_seq.daybefore.${MODEL_YEAR}${MODEL_MONTH}${MODEL_DAY}
-set OBS_FILE = ${OBSDIR}/${OBSFNAME}
+set YYYYMMDD = `printf %04d%02d%02d ${LND_YEAR} ${LND_MONTH} ${LND_DAY}`
+set YYYYMM   = `printf %04d%02d     ${LND_YEAR} ${LND_MONTH}`
+set OBSFNAME = obs_seq.daybefore.${YYYYMMDD}
+set OBS_FILE = ${BASEOBSDIR}/${YYYYMM}/${OBSFNAME}
 
-${REMOVE}           obs_seq.out
-${LINK} ${OBS_FILE} obs_seq.out
-
-set lnstat = $status
-if ($lnstat != 0) then
+if (  -e   ${OBS_FILE} ) then
+   ${LINK} ${OBS_FILE} obs_seq.out
+else
    echo "ERROR ... no observation file $OBS_FILE"
    echo "ERROR ... no observation file $OBS_FILE"
-   echo "ERROR ... ln died with status $lnstat"
-   exit 1
+   exit -1
 endif
 
 #=========================================================================
 # Block 1: Populate a run-time directory with the input needed to run DART.
 #=========================================================================
 
+echo "`date` -- BEGIN COPY BLOCK"
+
 if (  -e   ${CASEROOT}/input.nml ) then
    ${COPY} ${CASEROOT}/input.nml .
 else
    echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
    echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
-   exit 1
+   exit -2
 endif
 
 # Modify the DART input.nml such that
@@ -133,12 +137,16 @@ g;casename ;s;= .*;= "../$MYCASE",;
 wq
 ex_end
 
+#
+echo "`date` -- END COPY BLOCK"
+
 #=========================================================================
 # Block 2: Stage the files needed for SAMPLING ERROR CORRECTION
 #
-# The sampling error correction is a lookup table. The tables are stored
-# in the DART distribution. Each ensemble size has its own (static) file 
-# which does not need to be archived.  It is only needed if
+# The sampling error correction is a lookup table.
+# The tables are stored in the DART distribution.
+# Each ensemble size has its own (static) file.
+# It is only needed if
 # input.nml:&assim_tools_nml:sampling_error_correction = .true.,
 #=========================================================================
 
@@ -154,7 +162,7 @@ if ( $SECSTRING == true ) then
    else
       echo "ERROR: no sampling error correction file for this ensemble size."
       echo "ERROR: looking for ${SAMP_ERR_FILE}"
-      exit 2
+      exit -3
    endif
 else
    echo "Sampling Error Correction not requested for this assimilation."
@@ -230,23 +238,22 @@ set  POSTE_INF_DIAG = $MYSTRING[3]
 if ( $PRIOR_INF > 0 ) then
 
    if ($PRIOR_TF == false) then
-      echo "ERROR: inf_flavor(1) = $PRIOR_INF, yet inf_initial_from_restart = $PRIOR_TF"
-      echo "ERROR: fix input.nml to reflect whether you want prior inflation or not."
-      exit 3
-   endif
-
-   # Look for the output from the previous assimilation
-   (ls -rt1 ../${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
-   set nfiles = `cat latestfile | wc -l`
-
-   # If one exists, use it as input for this assimilation
-   if ( $nfiles > 0 ) then
-      set latest = `cat latestfile`
-      ${FLINK} $latest ${PRIOR_INF_IFNAME}
+      echo "inf_flavor(1) = $PRIOR_INF, using namelist values."
    else
-      echo "ERROR: Requested prior inflation but specified no incoming prior inflation file."
-      echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
-      exit 4
+      # Look for the output from the previous assimilation
+      (ls -rt1 ../${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      set nfiles = `cat latestfile | wc -l`
+
+      # If one exists, use it as input for this assimilation
+      if ( $nfiles > 0 ) then
+         set latest = `cat latestfile`
+         ${LINK} $latest ${PRIOR_INF_IFNAME}
+      else
+         echo "ERROR: Requested PRIOR inflation but specified no incoming inflation file."
+         echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+         exit -4
+      endif
+
    endif
 else
    echo "Prior Inflation           not requested for this assimilation."
@@ -257,59 +264,66 @@ endif
 if ( $POSTE_INF > 0 ) then
 
    if ($POSTE_TF == false) then
-      echo "ERROR: inf_flavor(2) = $POSTE_INF, yet inf_initial_from_restart = $POSTE_TF"
-      echo "ERROR: fix input.nml to reflect whether you want posterior inflation or not."
-      exit 5
-   endif
-
-   # Look for the output from the previous assimilation
-   (ls -rt1 ../${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
-   set nfiles = `cat latestfile | wc -l`
-
-   # If one exists, use it as input for this assimilation
-   if ( $nfiles > 0 ) then
-      set latest = `cat latestfile`
-      ${FLINK} $latest ${POSTE_INF_IFNAME}
+      echo "inf_flavor(2) = $POSTE_INF, using namelist values."
    else
-      echo "ERROR: Requested POSTERIOR inflation but specified no incoming POSTERIOR inflation file."
-      echo "ERROR: expected something like ../${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
-      exit 6
+
+      # Look for the output from the previous assimilation
+      (ls -rt1 ../${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      set nfiles = `cat latestfile | wc -l`
+
+      # If one exists, use it as input for this assimilation
+      if ( $nfiles > 0 ) then
+         set latest = `cat latestfile`
+         ${LINK} $latest ${POSTE_INF_IFNAME}
+      else
+         echo "ERROR: Requested POSTERIOR inflation but specified no incoming inflation file."
+         echo "ERROR: expected something like ../${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+         exit -5
+      endif
    endif
 else
    echo "Posterior Inflation       not requested for this assimilation."
 endif
 
 #=========================================================================
-#
-# Block 4: Convert CLM restart files to DART initial condition files.
+# Block 4: convert N CLM restart files to DART initial condition files.
 # clm_to_dart is serial code, we can do all of these at the same time
-# as long as we can have unique namelists for all of them.
+# as long as we have unique namelists for each of them.
 #
-# DART namelist settings appropriate/required:
+# At the end of the block, we have DART initial condition files  filter_ics.[1-N]
+# that came from pointer files ../rpointer.lnd_[1-N].restart
+#
+# REQUIRED DART namelist settings:
 # &filter_nml:           restart_in_file_name    = 'filter_ics'
+#                        restart_out_file_name   = 'filter_restart'
 # &ensemble_manager_nml: single_restart_file_in  = '.false.'
 # &clm_to_dart_nml:      clm_to_dart_output_file = 'dart_ics',
-#
+# &dart_to_clm_nml:      dart_to_clm_input_file  = 'dart_restart',
+#                        advance_time_present    = .false.
 #=========================================================================
+
+echo "`date` -- BEGIN CLM TO DART"
 
 set member = 1
 while ( ${member} <= ${ensemble_size} )
 
    # Each member will do its job in its own directory.
    # That way, we can do N of them simultaneously -
-   # they all read their OWN 'input.nml'
 
    set MYTEMPDIR = member_${member}
    mkdir -p $MYTEMPDIR
    cd $MYTEMPDIR
 
-   set LND_RESTART_FILENAME = `printf ../../${MYCASE}.clm2_%04d.r.${MODEL_DATE_EXT}.nc  ${member}`
-   set LND_HISTORY_FILENAME = `printf ../../${MYCASE}.clm2_%04d.h0.${MODEL_DATE_EXT}.nc ${member}`
-   set     DART_IC_FILENAME = `printf ../filter_ics.%04d ${member}`
+   set LND_RESTART_FILENAME = `printf ../../${MYCASE}.clm2_%04d.r.${LND_DATE_EXT}.nc  ${member}`
+   set LND_HISTORY_FILENAME = `printf ../../${MYCASE}.clm2_%04d.h0.${LND_DATE_EXT}.nc ${member}`
+   set     DART_IC_FILENAME = `printf filter_ics.%04d     ${member}`
+   set    DART_RESTART_FILE = `printf filter_restart.%04d ${member}`
 
-   ${FLINK} $LND_RESTART_FILENAME clm_restart.nc
-   ${FLINK} $LND_HISTORY_FILENAME clm_history.nc
-   ${FLINK}     $DART_IC_FILENAME dart_ics
+   sed -e "s/dart_ics/..\/${DART_IC_FILENAME}/" \
+       -e "s/dart_restart/..\/${DART_RESTART_FILE}/" < ../input.nml >! input.nml
+
+   ${LINK} $LND_RESTART_FILENAME clm_restart.nc
+   ${LINK} $LND_HISTORY_FILENAME clm_history.nc
 
    # patch the CLM restart files to ensure they have the proper
    # _FillValue and missing_value attributes.
@@ -324,11 +338,8 @@ while ( ${member} <= ${ensemble_size} )
 #  ncatted -O -a    _FillValue,T_SOISNO,o,d,1.0e+36   clm_restart.nc
 #  ncatted -O -a missing_value,T_SOISNO,o,d,1.0e+36   clm_restart.nc
 
-   cp ../input.nml .
-
    echo "starting clm_to_dart for member ${member} at "`date`
    ${EXEROOT}/clm_to_dart >! output.${member}.clm_to_dart &
-   echo "finished clm_to_dart for member ${member} at "`date`
 
    cd ..
 
@@ -340,8 +351,10 @@ wait
 if ($status != 0) then
    echo "ERROR ... DART died in 'clm_to_dart' ... ERROR"
    echo "ERROR ... DART died in 'clm_to_dart' ... ERROR"
-   exit 7
+   exit -6
 endif
+
+echo "`date` -- END CLM-TO-DART for all ${ensemble_size} members."
 
 #=========================================================================
 # Block 5: Actually run the assimilation.
@@ -360,35 +373,39 @@ endif
 # &filter_nml:           first_obs_seconds      = -1,
 # &filter_nml:           last_obs_days          = -1,
 # &filter_nml:           last_obs_seconds       = -1,
-# &ensemble_manager_nml: single_restart_file_in = .false.
+# &ensemble_manager_nml: single_restart_file_in = '.false.'
 #
 #=========================================================================
 
 # clm always needs a clm_restart.nc, clm_history.nc for geometry information, etc.
 
-set LND_RESTART_FILENAME = ../${MYCASE}.clm2_0001.r.${MODEL_DATE_EXT}.nc
-set LND_HISTORY_FILENAME = ../${MYCASE}.clm2_0001.h0.${MODEL_DATE_EXT}.nc
+set LND_RESTART_FILENAME = ../${MYCASE}.clm2_0001.r.${LND_DATE_EXT}.nc
+set LND_HISTORY_FILENAME = ../${MYCASE}.clm2_0001.h0.${LND_DATE_EXT}.nc
 
-${FLINK} $LND_RESTART_FILENAME clm_restart.nc
-${FLINK} $LND_HISTORY_FILENAME clm_history.nc
+${LINK} $LND_RESTART_FILENAME clm_restart.nc
+${LINK} $LND_HISTORY_FILENAME clm_history.nc
 
-# FIXME: special for trying out non-monotonic task layouts.
-# setenv ORG_PATH "${PATH}"
-# setenv LSF_BINDIR /contrib/lsf/tgmpatch
-# setenv PATH ${LSF_BINDIR}:${PATH}
+# On yellowstone, you can explore task layouts with the following:
+if ( $?LSB_PJL_TASK_GEOMETRY ) then
+   setenv ORIGINAL_LAYOUT "${LSB_PJL_TASK_GEOMETRY}"
 
-# layout: flat
-# setenv NANCY_GEOMETRY_54_1NODE \
-# 	"{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53)}";
-# setenv LSB_PJL_TASK_GEOMETRY "${NANCY_GEOMETRY_54_1NODE}"
+   # setenv NANCY_GEOMETRY_54_1NODE \
+   # 	"{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53)}";
+   # setenv LSB_PJL_TASK_GEOMETRY "${NANCY_GEOMETRY_54_1NODE}"
+endif
 
-${LAUNCHCMD} ${EXEROOT}/filter || exit 7
-echo "assimilate:finished filter at "`date`
+echo "`date` -- BEGIN FILTER"
+${LAUNCHCMD} ${EXEROOT}/filter || exit -7
+echo "`date` -- END FILTER"
 
-${MOVE} Prior_Diag.nc      ../Prior_Diag.${MODEL_DATE_EXT}.nc
-${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${MODEL_DATE_EXT}.nc
-${MOVE} obs_seq.final      ../obs_seq.${MODEL_DATE_EXT}.final
-${MOVE} dart_log.out       ../dart_log.${MODEL_DATE_EXT}.out
+if ( $?LSB_PJL_TASK_GEOMETRY ) then
+   setenv LSB_PJL_TASK_GEOMETRY "${ORIGINAL_LAYOUT}"
+endif
+
+${MOVE} Prior_Diag.nc      ../Prior_Diag.${LND_DATE_EXT}.nc
+${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${LND_DATE_EXT}.nc
+${MOVE} obs_seq.final      ../obs_seq.${LND_DATE_EXT}.final
+${MOVE} dart_log.out       ../dart_log.${LND_DATE_EXT}.out
 
 # Accomodate any possible inflation files
 # 1) rename file to reflect current date
@@ -397,39 +414,27 @@ ${MOVE} dart_log.out       ../dart_log.${MODEL_DATE_EXT}.out
 
 foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE_INF_DIAG} )
    if ( -e ${FILE} ) then
-      ${MOVE} ${FILE} ../${FILE}.${MODEL_DATE_EXT}
+      ${MOVE} ${FILE} ../${FILE}.${LND_DATE_EXT}
    else
-      echo "No ${FILE} for ${MODEL_DATE_EXT}"
+      echo "No ${FILE} for ${LND_DATE_EXT}"
    endif
 end
-
-# FIXME: special for trying out non-monotonic task layouts.
-# setenv PATH "${ORG_PATH}"
 
 #=========================================================================
 # Block 6: Update the clm restart files.
 #
-# DART namelist settings required:
-# &filter_nml:           restart_out_file_name  = 'filter_restart'
-# &ensemble_manager_nml: single_restart_file_in = '.false.'
-# &dart_to_clm_nml:      dart_to_clm_input_file = 'dart_restart',
-# &dart_to_clm_nml:      advance_time_present   = .false.
+# Each member will do its job in its own directory, which already exists
+# and has the required input files remaining from 'Block 4'
 #=========================================================================
 
+echo "`date` -- BEGIN DART TO CLM"
 set member = 1
-while ( ${member} <= ${ensemble_size} )
-
-   # Each member will do its job in its own directory, which already exists
-   # and has the required input files remaining from 'Block 4'
+while ( $member <= $ensemble_size )
 
    cd member_${member}
 
-   set DART_RESTART_FILE = `printf ../filter_restart.%04d ${member}`
-   ${FLINK} $DART_RESTART_FILE dart_restart
-
    echo "starting dart_to_clm for member ${member} at "`date`
    ${EXEROOT}/dart_to_clm >! output.${member}.dart_to_clm &
-   echo "finished dart_to_clm for member ${member} at "`date`
 
    cd ..
 
@@ -441,8 +446,11 @@ wait
 if ($status != 0) then
    echo "ERROR ... DART died in 'dart_to_clm' ... ERROR"
    echo "ERROR ... DART died in 'dart_to_clm' ... ERROR"
-   exit 8
+   exit -8
 endif
+
+echo "`date` -- END DART-TO-CLM for all ${ensemble_size} members."
+echo "`date` -- END ASSIMILATE"
 
 #-------------------------------------------------------------------------
 # Cleanup
