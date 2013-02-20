@@ -153,11 +153,11 @@
   /
 
 &pop_to_dart_nml
-   pop_to_dart_output_file  = 'dart.ud',
+   pop_to_dart_output_file  = 'dart_ics',
   /
 
 &dart_to_pop_nml
-   dart_to_pop_input_file   = 'dart.ic',
+   dart_to_pop_input_file   = 'dart_restart',
    advance_time_present     = .false.
   /
 
