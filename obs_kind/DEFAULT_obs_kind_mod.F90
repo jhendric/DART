@@ -266,6 +266,12 @@ integer, parameter, public :: &
 integer, parameter, public :: &
     KIND_VERTICAL_TEC                = 132  ! total electron content
 
+!! For now we have agreed to reserve kind numbers 151 to 250
+!! for chemistry types, specifically for WRF-Chem/DART, but
+!! possibly of interest to other models with Chemistry species.
+!! DO NOT USE numbers between 151-250 without talking to me, please?  (nancy)
+
+
 !! PRIVATE ONLY TO THIS MODULE. see comment below near the max_obs_specific
 !! declaration.
 integer, parameter :: max_obs_generic = 132
