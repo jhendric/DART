@@ -123,9 +123,9 @@
    input_files              = '../../../obs_def/obs_def_tower_mod.f90'
    /
 
-
+#  casename will get overwritten in the assimilate.csh script.
 &obs_def_tower_nml
-   casename = '../clm_tim',
+   casename = '../dummy',
    verbose  = .true.,
    debug    = .true.
    /
