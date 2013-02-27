@@ -125,7 +125,7 @@ setenv run_refdate $refyear-$refmon-$refday
 # stop_n        Number of time units in the forecast
 # ==============================================================================
 
-setenv resubmit      1
+setenv resubmit      8
 setenv stop_option   nhours
 setenv stop_n        24
 
@@ -141,7 +141,7 @@ setenv stop_n        24
 setenv ACCOUNT      P86850054
 setenv timewall     0:20
 setenv queue        regular
-setenv ptile        30
+setenv ptile        15
 
 # ==============================================================================
 # set these standard commands based on the machine you are running on.
@@ -187,7 +187,7 @@ endsw
 
    if ( $status != 0 ) then
       echo "ERROR: Case could not be created."
-      exit 1
+      exit -1
    endif
 
 # ==============================================================================
@@ -206,6 +206,7 @@ end
 @ cpl_pes  = $total_nt / 8
 @ ice_pes  = $total_nt / 8
 @ ocn_pes  = $total_nt / 8
+@ glc_pes  = $total_nt / 8
 @ rof_pes  = $total_nt / 8
 @ lnd_pes  = $total_nt - ($cpl_pes + $ice_pes + $ocn_pes + $rof_pes)
 
@@ -215,6 +216,7 @@ echo "ATM gets $atm_pes"
 echo "CPL gets $cpl_pes"
 echo "ICE gets $ice_pes"
 echo "OCN gets $ocn_pes"
+echo "GLC gets $glc_pes"
 echo "ROF gets $rof_pes"
 echo "LND gets $lnd_pes"
 echo ""
@@ -222,7 +224,7 @@ echo ""
 ./xmlchange NTHRDS_ATM=1,NTASKS_ATM=$atm_pes,NINST_ATM=$num_instances
 ./xmlchange NTHRDS_ICE=1,NTASKS_ICE=$ice_pes,NINST_ICE=1
 ./xmlchange NTHRDS_OCN=1,NTASKS_OCN=$ocn_pes,NINST_OCN=1
-./xmlchange NTHRDS_GLC=1,NTASKS_GLC=$ocn_pes,NINST_GLC=1
+./xmlchange NTHRDS_GLC=1,NTASKS_GLC=$glc_pes,NINST_GLC=1
 ./xmlchange NTHRDS_LND=1,NTASKS_LND=$lnd_pes,NINST_LND=$num_instances
 ./xmlchange NTHRDS_ROF=1,NTASKS_ROF=$rof_pes,NINST_ROF=$num_instances
 ./xmlchange NTHRDS_CPL=1,NTASKS_CPL=$cpl_pes
@@ -283,7 +285,7 @@ echo ""
 
 if ( $status != 0 ) then
    echo "ERROR: Case could not be set up."
-   exit 2
+   exit -2
 endif
 
 # ==============================================================================
@@ -401,7 +403,7 @@ foreach FNAME (user*streams*)
    else
       echo "DIED Looking for a DART stream txt template for $FNAME"
       echo "DIED Looking for a DART stream txt template for $FNAME"
-      exit 3
+      exit -3
    endif
 
 end
@@ -442,7 +444,7 @@ echo ''
 
 if ( $status != 0 ) then
    echo "ERROR: Case could not be built."
-   exit 4
+   exit -5
 endif
 
 # ==============================================================================
@@ -524,13 +526,12 @@ cat << "EndOfText" >! add_to_run.txt
 # -------------------------------------------------------------------------
 # START OF DART: if CESM finishes correctly (pirated from ccsm_postrun.csh);
 # perform an assimilation with DART.
-# -------------------------------------------------------------------------
 
 set CplLogFile = `ls -1t cpl.log* | head -n 1`
 if ($CplLogFile == "") then
    echo 'ERROR: Model did not complete - no cpl.log file present - exiting.'
    echo 'ERROR: Assimilation will not be attempted.'
-   exit 1
+   exit -1
 endif
 
 grep 'SUCCESSFUL TERMINATION' $CplLogFile
@@ -541,12 +542,12 @@ if ( $status == 0 ) then
       echo "`date` -- DART HAS FINISHED"
    else
       echo "`date` -- DART FILTER ERROR - ABANDON HOPE"
-      exit 3
+      exit -3
    endif
 else
    echo 'ERROR: Model did not complete successfully - exiting.'
    echo 'ERROR: Assimilation will not be attempted.'
-   exit 2
+   exit -2
 endif
 
 # END OF DART BLOCK
@@ -604,7 +605,7 @@ foreach FILE ( filter clm_to_dart dart_to_clm )
    if ( $status != 0 ) then
       echo "ERROR: ${DARTroot}/models/clm/work/${FILE} not copied to ${exeroot}"
       echo "ERROR: ${DARTroot}/models/clm/work/${FILE} not copied to ${exeroot}"
-      exit 5
+      exit -5
    endif
 end
 
