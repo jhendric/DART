@@ -6,8 +6,8 @@
    output_restart           = .true.,
    obs_sequence_in_name     = "obs_seq.out",
    obs_sequence_out_name    = "obs_seq.final",
-   restart_in_file_name     = "filter_ic_old",
-   restart_out_file_name    = "filter_ic_new", 
+   restart_in_file_name     = "filter_ics",
+   restart_out_file_name    = "filter_restart", 
    init_time_days           = -1,
    init_time_seconds        = -1,
    first_obs_days           = -1,
@@ -98,9 +98,9 @@
    /
 
 &dart_to_cam_nml
-  dart_to_cam_input_file  = 'temp_ic',
+  dart_to_cam_input_file  = 'dart_restart',
   dart_to_cam_output_file = 'caminput.nc',
-  advance_time_present    = .true.,
+  advance_time_present    = .false.,
    /
 
 # common setups:

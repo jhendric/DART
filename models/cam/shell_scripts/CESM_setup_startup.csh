@@ -80,7 +80,7 @@
 #    script names; so consider it's length and information content.
 # num_instances:  Number of ensemble members
 
-setenv case                 cam_test_1
+setenv case                 cam_test
 setenv compset              F_AMIP_CAM5
 setenv cesmtag              cesm1_1_1
 setenv resolution           f09_f09
@@ -116,17 +116,13 @@ setenv archdir      /glade/scratch/${USER}/archive/${case}
 setenv DARTroot     /glade/u/home/${USER}/svn/DART/dev
 
 # ==============================================================================
-# configure settings
+# configure settings ... run_startdate format is yyyy-mm-dd
 # ==============================================================================
-# yyyy-mm-dd
+#
 setenv run_startdate 2008-10-31
-
-setenv sst_dataset ${cesm_datadir}/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2008_c100127.nc
+setenv sst_dataset ${cesm_datadir}/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2011_c110307.nc
 setenv year_start  1850
 setenv year_end    2010
-
-# TJH FIXME ... the sst_dataset above does not appear in that directory._CAM5
-# Try this:  ${cesm_datadir}/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2011_c110307.nc
 
 # ==============================================================================
 # runtime settings --  How many assimilation steps will be done after this one
@@ -314,8 +310,8 @@ echo ""
 
 # level of debug output, 0=minimum, 1=normal, 2=more, 3=too much, valid values: 0,1,2,3 (integer)
 
-./xmlchange DEBUG=TRUE
-./xmlchange INFO_DBUG=2
+./xmlchange DEBUG=FALSE
+./xmlchange INFO_DBUG=0
 
 # ==============================================================================
 # Set up the case.
@@ -352,23 +348,26 @@ while ($inst <= $num_instances)
    # ===========================================================================
    # A lot of the files specified here are because the 'default' files only
    # contain data through 2005 and we are interested in timeframes after that.
+   #
+   # CAM5 does prognostic aerosols by default. If you want to prescribe them,
+   # use the following variables with your own settings ...
+#  echo " aerodep_flx_datapath  = '${chem_datapath}/aero' "                                      >> ${fname}
+#  echo " aerodep_flx_file      = 'aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc' "    >> ${fname}
+#  echo " aerodep_flx_cycle_yr  = 2000 "                                                         >> ${fname}
+#  echo " aerodep_flx_type      = 'CYCLICAL' "                                                   >> ${fname}
 
+   # This killed CAM5 ... but may work for some other compset
 #  echo " iradae               = -$stop_n "                                                      >> ${fname}
 
    echo " inithist = 'ENDOFRUN' "                                                                >> ${fname}
    echo " ncdata = 'cam_initial_${instance}.nc' "                                                >> ${fname}
-   echo " avgflag_pertape      = 'A','A' "                                                       >> ${fname}
+   echo " avgflag_pertape      = 'A' "                                                           >> ${fname}
    echo " div24del2flag        = 4 "                                                             >> ${fname}
    echo " empty_htapes         = .true. "                                                        >> ${fname}
    echo " fincl1               = 'PHIS:I' "                                                      >> ${fname}
-   echo " fincl2               = 'PS', 'Z3', 'T', 'U', 'V', 'FLNT', 'PSL', 'OMEGA' "             >> ${fname}
-   echo " nhtfrq               = -$stop_n,-1 "                                                   >> ${fname}
-   echo " mfilt                = 1,1 "                                                           >> ${fname}
+   echo " nhtfrq               = -$stop_n "                                                      >> ${fname}
+   echo " mfilt                = 1 "                                                             >> ${fname}
 
-   echo " aerodep_flx_datapath  = '${chem_datapath}/aero' "                                      >> ${fname}
-   echo " aerodep_flx_file      = 'aerosoldep_monthly_1849-2006_1.9x2.5_c090803.nc' "            >> ${fname}
-   echo " aerodep_flx_cycle_yr  = 2000 "                                                         >> ${fname}
-   echo " aerodep_flx_type      = 'CYCLICAL' "                                                   >> ${fname}
    echo " bndtvghg              = '${cesm_datadir}/atm/cam/ggas/ghg_hist_1765-2009_c100902.nc' " >> ${fname}
    echo " prescribed_ozone_file = 'ozone_1.9x2.5_L26_1850-2015_rcp45_c101108.nc' "               >> ${fname}
    echo " tracer_cnst_file      = 'oxid_1.9x2.5_L26_1850-2015_rcp45_c101108.nc' "                >> ${fname}
@@ -399,12 +398,10 @@ while ($inst <= $num_instances)
    # ===========================================================================
    set fname = "user_nl_clm_$instance"
    # ===========================================================================
-   # faerdep does not make its way to the final namelist in the F_AMIP_CAM5 case:
 
-#  echo "faerdep  = '${cesm_datadir}/atm/cam/chem/trop_mozart_aero/aero/aerosoldep_rcp4.5_monthly_1849-2104_0.9x1.25_c100407.nc' " >> ${fname}
    echo "hist_empty_htapes = .true. "                       >> ${fname}
    echo "finidat           = 'clm_restart_${instance}.nc' " >> ${fname}
-
+   echo "fpftdyn = '${cesm_datadir}/lnd/clm2/surfdata/surfdata.pftdyn_0.9x1.25_rcp4.5_simyr1850-2100_c100406.nc' " >> ${fname}
 
    # ===========================================================================
    set fname = "user_nl_cice_$instance"
@@ -500,11 +497,15 @@ endif
 # ==============================================================================
 
 echo ''
-echo 'Changing Tools/ccsm_postrun.csh such that all the resubmits are "startup",'
-echo 'which means CONTINUE_RUN should be FALSE in ccsm_postrun.csh'
+echo 'Changing Tools/ccsm_postrun_setup	such that all the resubmits are "startup",'
+echo 'which means CONTINUE_RUN should be FALSE in ccsm_postrun_setup'
 echo ''
 
-ex Tools/ccsm_postrun.csh <<ex_end
+if ( ~ -e  Tools/cesm_postrun_setup.original ) then
+   ${COPY} Tools/cesm_postrun_setup Tools/cesm_postrun_setup.original
+endif
+
+ex Tools/cesm_postrun_setup <<ex_end
 /use COMP_RUN_BARRIERS as surrogate for timing run logical/
 /CONTINUE_RUN/
 s;TRUE;FALSE;
@@ -519,7 +520,9 @@ echo ''
 echo 'Updating the run script to set wallclock and queue.'
 echo ''
 
-${COPY} ${case}.run ${case}.run.orig
+if ( ~ -e  ${case}.run.original ) then
+   ${COPY} ${case}.run ${case}.run.original
+endif
 
 source Tools/ccsm_getenv
 set BATCH = `echo $BATCHSUBMIT | sed 's/ .*$//'`
@@ -625,10 +628,8 @@ endif
 # provide the lt_archive.sh script, and the one in the repos
 # did not have the -p flag, which is a good idea. So, for now ...
 
-if ( ~ -e  Tools/st_archive.sh.orig ) then
-   ${COPY} Tools/st_archive.sh      Tools/st_archive.sh.orig
-else
-   echo "a Tools/st_archive.sh backup copy already exists"
+if ( ~ -e  Tools/st_archive.sh.original ) then
+   ${COPY} Tools/st_archive.sh Tools/st_archive.sh.original
 endif
 
 # ${COPY} ${DARTroot}/models/cam/shell_scripts/st_archive.sh  Tools/
@@ -650,35 +651,36 @@ foreach FILE ( filter cam_to_dart dart_to_cam )
 end
 
 # This script will copy an existing prior_inflate_restart to the run dir if found.
-if (-f ${stagedir}/DART/prior_inflate_restart) then
-   ${COPY} ${stagedir}/DART/prior_inflate_restart ${exeroot}/run/prior_inflate_restart.${run_startdate}-00000
-   echo ''
-   echo "${stagedir}/DART/prior_inflate_restart has been copied to "
-   echo "${exeroot}/run/prior_inflate_restart.${run_startdate}-00000"
-   echo 'If that has the wrong state vector, you will need to replace it before running.'
-   echo ''
-else
-   echo ''
-   echo 'If using inflation in DART you may need to copy an inflation restart file'
-   echo "to ${exeroot}/run/prior_inflate_restart.${run_startdate}-00000"
-   echo 'before running.  It must include the exact fields as your DART state vector.'
-   echo "You can make one with ${DARTroot}/models/cam/work/fill_inflation_restart"
-   echo ''
-endif
-
-
+# TJH FIXME and overwrite the one from the original stagedir!!!!!
+# if (-f ${stagedir}/DART/prior_inflate_restart) then
+#    ${COPY} ${stagedir}/DART/prior_inflate_restart ${rundir}/prior_inflate_restart.${run_startdate}-00000
+#    echo ''
+#    echo "${stagedir}/DART/prior_inflate_restart has been copied to "
+#    echo "${rundir}/prior_inflate_restart.${run_startdate}-00000"
+#    echo 'If that has the wrong state vector, you will need to replace it before running.'
+#    echo ''
+# else
+#    echo ''
+#    echo 'If using inflation in DART you may need to copy an inflation restart file'
+#    echo "to ${rundir}/prior_inflate_restart.${run_startdate}-00000"
+#    echo 'before running.  It must include the exact fields as your DART state vector.'
+#    echo "You can make one with ${DARTroot}/models/cam/work/fill_inflation_restart"
+#    echo ''
+# endif
+# 
+# 
 # only warn people if a precomputed final_full for this number of instances
 # does not already exist.
-if (! -f ${DARTroot}/system_simulation/final_full_precomputed_tables/final_full.${num_instances}) then
-   echo ''
-   echo 'If you are using the DART sampling error correction feature'
-   echo 'the assimilate.csh script will expect to copy this file:'
-   echo "${DARTroot}/system_simulation/final_full_precomputed_tables/final_full.${num_instances}"
-   echo 'and it does not exist for your number of ensemble members.'
-   echo "Generate one by building and running ${DARTroot}/system_simulation/work/full_error"
-   echo 'with the namelist set to your ensemble size.'
-   echo ''
-endif
+# if (! -f ${DARTroot}/system_simulation/final_full_precomputed_tables/final_full.${num_instances}) then
+#    echo ''
+#    echo 'If you are using the DART sampling error correction feature'
+#    echo 'the assimilate.csh script will expect to copy this file:'
+#    echo "${DARTroot}/system_simulation/final_full_precomputed_tables/final_full.${num_instances}"
+#    echo 'and it does not exist for your number of ensemble members.'
+#    echo "Generate one by building and running ${DARTroot}/system_simulation/work/full_error"
+#    echo 'with the namelist set to your ensemble size.'
+#    echo ''
+# endif
 
 # ==============================================================================
 # What to do next
