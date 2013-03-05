@@ -56,12 +56,14 @@ use    utilities_mod, only : register_module, error_handler,                   &
                              file_to_text
 
 use     obs_kind_mod, only : KIND_SOIL_TEMPERATURE,   &
+                             KIND_SOIL_MOISTURE,      &
                              KIND_LIQUID_WATER,       &
                              KIND_ICE,                &
                              KIND_SNOWCOVER_FRAC,     &
                              KIND_SNOW_THICKNESS,     &
                              KIND_LEAF_CARBON,        &
                              KIND_WATER_TABLE_DEPTH,  &
+                             KIND_GEOPOTENTIAL_HEIGHT,&
                              paramname_length,        &
                              get_raw_obs_kind_index
 
@@ -2042,6 +2044,8 @@ integer,             intent(out) :: istatus
 
 real(r8), dimension(3) :: loc_array
 real(r8) :: llon, llat, lheight
+real(r8) :: interp_val_2
+integer  :: istatus_2
 
 if ( .not. module_initialized ) call static_init_model
 
@@ -2051,7 +2055,8 @@ if ( .not. module_initialized ) call static_init_model
 ! good value, and the last line here sets istatus to 0.
 ! make any error codes set here be in the 10s
 
-interp_val = MISSING_R8     ! the DART bad value flag
+interp_val   = MISSING_R8     ! the DART bad value flag
+interp_val_2 = MISSING_R8     ! the DART bad value flag
 istatus = 99                ! unknown error
 
 ! Get the individual locations values
@@ -2069,6 +2074,19 @@ if ((debug > 6) .and. do_output()) print *, 'requesting interpolation at ', llon
 
 if (obs_kind == KIND_SOIL_TEMPERATURE) then
    call get_grid_vertval(x, location, 'T_SOISNO',  interp_val, istatus )
+
+elseif (obs_kind == KIND_SOIL_MOISTURE) then
+   ! TJH FIXME - actually ROLAND FIXME
+   ! This is terrible ... the COSMOS operator wants m3/m3 ... CLM is kg/m2
+   call get_grid_vertval(x, location, 'H2OSOI_LIQ',interp_val  , istatus   )
+   call get_grid_vertval(x, location, 'H2OSOI_ICE',interp_val_2, istatus_2 )
+   if ((istatus == 0) .and. (istatus_2 == 0)) then
+      interp_val = interp_val + interp_val_2
+   else
+      interp_val = MISSING_R8
+      istatus = 6
+   endif
+
 elseif (obs_kind == KIND_LIQUID_WATER ) then
    call get_grid_vertval(x, location, 'H2OSOI_LIQ',interp_val, istatus )
 elseif (obs_kind == KIND_ICE ) then
@@ -2083,6 +2101,14 @@ elseif (obs_kind == KIND_SNOW_THICKNESS ) then
    write(string1,*)'model_interpolate for DZSNO not written yet.'
    call error_handler(E_ERR,'compute_gridcell_value',string1,source,revision,revdate)
    istatus = 5
+elseif ((obs_kind == KIND_GEOPOTENTIAL_HEIGHT) .and. vert_is_level(location)) then
+   if (nint(lheight) > nlevgrnd) then
+      interp_val = MISSING_R8
+      istatus = 1
+   else
+      interp_val = LEVGRND(nint(lheight))
+      istatus = 0
+   endif
 else
    write(string1,*)'model_interpolate not written for (integer) kind ',obs_kind
    call error_handler(E_ERR,'compute_gridcell_value',string1,source,revision,revdate)
@@ -2370,11 +2396,15 @@ ELEMENTS : do indexi = index1, indexN
       counter1            = counter1 + 1
       above( counter1)    =        x(indexi)
       myarea(counter1,1)  = landarea(indexi)
-   elseif (levels(indexi) == depthbelow) then
+   endif
+   if (levels(indexi)     == depthbelow) then
       counter2            = counter2 + 1
       below( counter2)    =        x(indexi)
       myarea(counter2,2)  = landarea(indexi)
-   else
+   endif
+
+   if ((levels(indexi) /= depthabove) .and. &
+       (levels(indexi) /= depthbelow)) then
       cycle ELEMENTS
    endif
 
