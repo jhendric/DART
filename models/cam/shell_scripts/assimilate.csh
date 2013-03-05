@@ -86,7 +86,6 @@ echo "valid time of model is $ATM_YEAR $ATM_MONTH $ATM_DAY $ATM_HOUR (hours)"
 
 #-----------------------------------------------------------------------------
 # Get observation sequence file ... or die right away.
-# Cannot specify -f on the link command and still check status.
 # The observation file names have a time that matches the stopping time of CAM.
 #-----------------------------------------------------------------------------
 
@@ -370,9 +369,9 @@ ${LINK} $ATM_HISTORY_FILENAME cam_phis.nc
 if ( $?LSB_PJL_TASK_GEOMETRY ) then
    setenv ORIGINAL_LAYOUT "${LSB_PJL_TASK_GEOMETRY}"
 
-   # setenv NANCY_GEOMETRY_54_1NODE \
-   #    "{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53)}";
-   # setenv LSB_PJL_TASK_GEOMETRY "${NANCY_GEOMETRY_54_1NODE}"
+   # setenv GEOMETRY_32_1NODE \
+   #    "{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31)}";
+   # setenv LSB_PJL_TASK_GEOMETRY "${GEOMETRY_32_1NODE}"
 endif
 
 echo "`date` -- BEGIN FILTER"
@@ -451,13 +450,9 @@ while ( ${member} <= ${ensemble_size} )
 
    set n4 = `printf %04d $member`
 
-   set LND_POINTER_FILENAME = `printf rpointer.lnd_%04d ${member}`
-   set ICE_POINTER_FILENAME = `printf rpointer.ice_%04d ${member}`
-   # the ATM pointer file points to a restart file - which we cannot use
-
-   set LND_RESTART_FILENAME = `head -n 1 ${LND_POINTER_FILENAME}`
-   set ICE_RESTART_FILENAME = `head -n 1 ${ICE_POINTER_FILENAME}`
-   set ATM_INITIAL_FILENAME = `printf ${MYCASE}.cam_%04d.i.${ATM_DATE_EXT}.nc ${member}`
+   set LND_RESTART_FILENAME = `printf ${MYCASE}.clm2_%04d.r.${ATM_DATE_EXT}.nc ${member}`
+   set ICE_RESTART_FILENAME = `printf ${MYCASE}.cice_%04d.r.${ATM_DATE_EXT}.nc ${member}`
+   set ATM_INITIAL_FILENAME = `printf ${MYCASE}.cam_%04d.i.${ATM_DATE_EXT}.nc  ${member}`
 
    ${LINK} ${LND_RESTART_FILENAME} clm_restart_${n4}.nc || exit -9
    ${LINK} ${ICE_RESTART_FILENAME} ice_restart_${n4}.nc || exit -9
@@ -469,6 +464,9 @@ end
 
 #-------------------------------------------------------------------------
 # We have to communicate the current model time to the env_run.xml script
+# CAM is running in a 'perpetual startup' mode, so it constantly needs new
+# start time information. The other models are running 'restart', so they
+# keep track of it internally.
 #-------------------------------------------------------------------------
 
 cd ${CASEROOT}
@@ -479,20 +477,21 @@ set    SSSSS = `printf %05d ${ATM_SECONDS}`
 ./xmlchange RUN_STARTDATE=${YYYYMMDD}
 ./xmlchange START_TOD=${SSSSS}
 
-cd ${RUNDIR}
-
+#-------------------------------------------------------------------------
 # we (DART) do not need these files, and CESM does not need them either
 # to continue a run.  if we remove them here they do not get moved to
 # the short-term archiver.
+#-------------------------------------------------------------------------
 
-${REMOVE} ../*.rs.*
-${REMOVE} ../*.rh0.*
-${REMOVE} ../*.rs1.*
-${REMOVE} ../PET*ESMF_LogFile
+${REMOVE} ${RUNDIR}/*.rs.*
+${REMOVE} ${RUNDIR}/*.rh0.*
+${REMOVE} ${RUNDIR}/*.rs1.*
+${REMOVE} ${RUNDIR}/PET*ESMF_LogFile
 
 #-------------------------------------------------------------------------
 # Cleanup
 #-------------------------------------------------------------------------
+
 echo "finished assimilate script at "`date`
 echo "`date` -- END ASSIMILATE"
 

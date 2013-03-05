@@ -13,7 +13,8 @@
 # This script is designed to configure and build a multi-instance CESM model
 # that has POP as active components
 # and will use DART to assimilate observations at regular intervals.
-# This script does not build DART.
+# This script does not build DART. It works best if the appropriate DART
+# executables have been built, however.
 #
 # This script relies heavily on the information in:
 # http://www.cesm.ucar.edu/models/cesm1.1/cesm/doc/usersguide/book1.html
@@ -47,13 +48,7 @@
 # For the brave, read
 #
 # http://www.cesm.ucar.edu/models/cesm1.1/cesm/doc/usersguide/x1142.html
-#
-# and you may be able to salvage something with
-# ./cesm_setup -clean
-# ./cesm_setup
-# ./${case}.clean_build
-# ./${case}.build
-#
+
 # ==============================================================================
 # ====  Set case options
 # ==============================================================================
@@ -63,11 +58,11 @@
 #    script names; so consider it's length and information content.
 # num_instances:  Number of ensemble members
 
-setenv case                 pop_hybrid_opt
+setenv case                 pop_test
 setenv compset              GIAF
 setenv cesmtag              cesm1_1_1
 setenv resolution           T62_gx1v6
-setenv num_instances        30
+setenv num_instances        4
 
 # ==============================================================================
 # define machines and directories
@@ -75,9 +70,9 @@ setenv num_instances        30
 # mach            Computer name
 # cesm_datadir    Root path of the public CESM data files
 # cesmroot        Location of the cesm code base
-#                 For cesm1_1 on yellowstone
+#                    i.e. cesm1_1_1 on yellowstone
 # DARTroot        Location of DART code tree.
-#                    Executables, scripts and input in $DARTroot/models/dev/...
+#                    Executables, scripts and input in $DARTroot/models/POP/...
 # caseroot        Your (future) cesm case directory, where this CESM+DART will be built.
 #                    Preferably not a frequently scrubbed location.
 #                    This script will delete any existing caseroot, so this script,
@@ -99,7 +94,7 @@ setenv archdir      /glade/scratch/${USER}/archive/${case}
 setenv DARTroot     /glade/u/home/${USER}/svn/DART/dev
 
 # ==============================================================================
-# configure settings
+# configure settings ... run_startdate format is yyyy-mm-dd
 # ==============================================================================
 
 setenv stream_year_first 2004
@@ -131,7 +126,7 @@ setenv stop_n        2
 # TJH: How many T62_gx1v6 POP instances can fit on 1 node?
 # ==============================================================================
 
-setenv ACCOUNT      P86850054
+setenv ACCOUNT      P8685nnnn
 setenv timewall     0:30
 setenv queue        regular
 setenv ptile        15
@@ -157,6 +152,7 @@ switch ("`hostname`")
       set   COPY = '/bin/cp -fv --preserve=timestamps'
       set   LINK = '/bin/ln -fvs'
       set REMOVE = '/bin/rm -fr'
+      set nonomatch
 
    breaksw
 endsw
@@ -191,7 +187,9 @@ cd ${caseroot}
 
 # Save a copy for debug purposes
 foreach FILE ( *xml )
-   ${COPY} $FILE ${FILE}.original
+   if ( ~ -e        ${FILE}.original ) then
+      ${COPY} $FILE ${FILE}.original
+   endif
 end
 
 # Try to lay out the tasks in some sort of reasonable way.
@@ -202,46 +200,46 @@ if ($num_instances == 4) then
    # This is only for the purpose of debugging the code.
    # A more efficient layout must be done when running a full assimilation.
 
-   @ atm_pes = $ptile
    @ cpl_pes = $ptile
-   @ ice_pes = $ptile
+   @ atm_pes = $ptile * $num_instances
+   @ ice_pes = $ptile * $num_instances
    @ lnd_pes = $ptile
-   @ glc_pes = $ptile
    @ rof_pes = $ptile
-   @ ocn_pes = $ptile * 4
+   @ glc_pes = $ptile
+   @ ocn_pes = $ptile * $num_instances
 
 else
 
    # layout for 30 members.
    # Made in conjunction with Mike Levy, David Bailey and Jim Edwards.
 
-   @ atm_pes = 450
    @ cpl_pes = 450
+   @ atm_pes = 450
    @ ice_pes = 450
    @ lnd_pes = 450
-   @ glc_pes = 450
    @ rof_pes = 450
+   @ glc_pes = 450
    @ ocn_pes = 1800
 
 endif
 
 echo "task partitioning ... ice and ocean run at the same time."
 echo ""
-echo "ATM  gets $atm_pes"
-echo "CPL  gets $cpl_pes"
-echo "ICE  gets $ice_pes"
-echo "LND  gets $lnd_pes"
-echo "GLC  gets $glc_pes"
-echo "DROF gets $rof_pes"
-echo "OCN  gets $ocn_pes"
+echo "CPL gets $cpl_pes"
+echo "ATM gets $atm_pes"
+echo "ICE gets $ice_pes"
+echo "LND gets $lnd_pes"
+echo "ROF gets $rof_pes"
+echo "GLC gets $glc_pes"
+echo "OCN gets $ocn_pes"
 echo ""
 
+./xmlchange ROOTPE_CPL=0,NTHRDS_CPL=1,NTASKS_CPL=$cpl_pes
 ./xmlchange ROOTPE_ATM=0,NTHRDS_ATM=1,NTASKS_ATM=$atm_pes,NINST_ATM=$num_instances
 ./xmlchange ROOTPE_ICE=0,NTHRDS_ICE=1,NTASKS_ICE=$ice_pes,NINST_ICE=$num_instances
-./xmlchange ROOTPE_GLC=0,NTHRDS_GLC=1,NTASKS_GLC=$glc_pes,NINST_GLC=1
 ./xmlchange ROOTPE_LND=0,NTHRDS_LND=1,NTASKS_LND=$lnd_pes,NINST_LND=1
 ./xmlchange ROOTPE_ROF=0,NTHRDS_ROF=1,NTASKS_ROF=$rof_pes,NINST_ROF=1
-./xmlchange ROOTPE_CPL=0,NTHRDS_CPL=1,NTASKS_CPL=$cpl_pes
+./xmlchange ROOTPE_GLC=0,NTHRDS_GLC=1,NTASKS_GLC=$glc_pes,NINST_GLC=1
 ./xmlchange              NTHRDS_OCN=1,NTASKS_OCN=$ocn_pes,NINST_OCN=$num_instances
 ./xmlchange ROOTPE_OCN=$ice_pes
 
@@ -267,20 +265,13 @@ echo ""
 ./xmlchange BRNCH_RETAIN_CASENAME=FALSE
 ./xmlchange GET_REFCASE=FALSE
 ./xmlchange EXEROOT=${exeroot}
-
-# The streams files were generated with a NO_LEAP calendar in mind.
-# We need to test these with a GREGORIAN calendar.
-
-./xmlchange CALENDAR=GREGORIAN
-
-./xmlchange STOP_OPTION=$stop_option
-./xmlchange STOP_N=$stop_n
-./xmlchange CONTINUE_RUN=FALSE
-./xmlchange RESUBMIT=$resubmit
 ./xmlchange PIO_TYPENAME=pnetcdf
 
-./xmlchange DOUT_S=TRUE
+# DOUT_S     is to turn on/off the short-term archiving
+# DOUT_L_MS  is to store to the HPSS (formerly "MSS")
+
 ./xmlchange DOUT_S_ROOT=${archdir}
+./xmlchange DOUT_S=TRUE
 ./xmlchange DOUT_S_SAVE_INT_REST_FILES=FALSE
 ./xmlchange DOUT_L_MS=FALSE
 ./xmlchange DOUT_L_MSROOT="csm/${case}"
@@ -291,6 +282,22 @@ echo ""
 ./xmlchange DATM_CPLHIST_YR_ALIGN=$refyear
 ./xmlchange DATM_CPLHIST_YR_START=$refyear
 ./xmlchange DATM_CPLHIST_YR_END=$refyear
+
+# The streams files were generated with a NO_LEAP calendar in mind.
+# We need to test these with a GREGORIAN calendar.
+
+./xmlchange CALENDAR=GREGORIAN
+./xmlchange STOP_OPTION=$stop_option
+./xmlchange STOP_N=$stop_n
+./xmlchange CONTINUE_RUN=FALSE
+./xmlchange RESUBMIT=$resubmit
+
+# The river transport model ON is useful only when using an active ocean or
+# land surface diagnostics. Setting ROF_GRID to 'null' turns off the RTM.
+# TJH - guidance needed from Alicia
+
+# ./xmlchange ROF_GRID='null'
+# ./xmlchange ROF_GRID='r05'
 
 # level of debug output, 0=minimum, 1=normal, 2=more, 3=too much, valid values: 0,1,2,3 (integer)
 
@@ -326,7 +333,9 @@ while ($inst <= $num_instances)
    set instance  = `printf %04d $inst`
    set instance2 = `printf %02d $inst`
 
+   # ===========================================================================
    set fname = "user_nl_datm_$instance"
+   # ===========================================================================
 
    echo "streams = 'datm.streams.txt.CPLHIST3HrWx.Solar_$instance             $stream_year_align $stream_year_first $stream_year_last'," >> $fname
    echo "          'datm.streams.txt.CPLHIST3HrWx.nonSolarNonPrecip_$instance $stream_year_align $stream_year_first $stream_year_last'"  >> $fname
@@ -340,15 +349,23 @@ while ($inst <= $num_instances)
    echo "restfils = 'unset'"               >> $fname
    echo "restfilm = 'unset'"               >> $fname
 
+   # ===========================================================================
+   set fname = "user_nl_cice_$instance"
+   # ===========================================================================
    # CICE Namelists
    # this is only used for a hybrid start, else rpointers are used.
-   echo "ice_ic = 'b40.20th.005_ens"$instance2".cice.r.2004-01-01-00000.nc'" >> user_nl_cice_$instance
+
+   echo "ice_ic = 'b40.20th.005_ens"$instance2".cice.r.2004-01-01-00000.nc'" >> $fname
+
+   # ===========================================================================
+   set fname = "user_nl_pop2_$instance"
+   # ===========================================================================
 
    # POP Namelists
    # init_ts_suboption = 'data_assim'   for non bit-for-bit restarting (assimilation mode)
    # init_ts_suboption = 'null'         for 'perfect' restarting/forecasting
 
-   echo "init_ts_suboption = 'data_assim'" >> user_nl_pop2_$instance
+   echo "init_ts_suboption = 'data_assim'" >> $fname
 
    @ inst ++
 end
@@ -470,15 +487,19 @@ endif
 
 set stagedir = /glade/p/work/aliciak/DART_IC/CCSM4_ensembles/rest/2004-01-01-00000
 
+echo ''
 echo "Copying the restart files from ${stagedir}"
+echo 'into the CESM run directory.'
+echo ''
 
-@ i = 1
-while ($i <= $num_instances)
-   set n4 = `printf %04d $i`
-   set n2 = `printf %02d $i`
+@ inst = 1
+while ($inst <= $num_instances)
+   set n4 = `printf %04d $inst`
+   set n2 = `printf %02d $inst`
 
    echo ''
-   echo "Staging restarts for instance $i of $num_instances"
+   echo "Staging restarts for instance $inst of $num_instances"
+
    #AK: Note that the pop ocean must have the .hdr file to describe the
    #    metadata for binary restarts.
    ${COPY} ${stagedir}/rpointer.ocn_${n4}.restart                       ${rundir}
@@ -489,9 +510,12 @@ while ($i <= $num_instances)
    ${COPY} ${stagedir}/b40.20th.005_ens${n2}.pop.ro.2004-01-01-00000    ${rundir}
    ${COPY} ${stagedir}/b40.20th.005_ens${n2}.cice.r.2004-01-01-00000.nc ${rundir}
 
-   @ i ++
-
+   @ inst ++
 end
+
+if (  -e   ${stagedir}/prior_inflate_restart* ) then
+   ${COPY} ${stagedir}/prior_inflate_restart* ${rundir}/.
+endif
 
 # ==============================================================================
 # Edit the run script to reflect project, queue, and wallclock
@@ -501,7 +525,9 @@ echo ''
 echo 'Updating the run script to set wallclock and queue.'
 echo ''
 
-${COPY} ${case}.run ${case}.run.orig
+if ( ~ -e  ${case}.run.original ) then
+   ${COPY} ${case}.run ${case}.run.original
+endif
 
 source Tools/ccsm_getenv
 set BATCH = `echo $BATCHSUBMIT | sed 's/ .*$//'`
@@ -510,7 +536,7 @@ switch ( $BATCH )
       # NCAR "bluefire", "yellowstone"
       set TIMEWALL=`grep BSUB ${case}.run | grep -e '-W' `
       set    QUEUE=`grep BSUB ${case}.run | grep -e '-q' `
-      sed -e "s/ptile=32/ptile=$ptile/" \
+      sed -e "s/ptile=[0-9][0-9]*/ptile=$ptile/" \
           -e "s/$TIMEWALL[3]/$timewall/" \
           -e "s/$QUEUE[3]/$queue/" < ${case}.run >! temp.$$
       ${MOVE} temp.$$  ${case}.run
@@ -588,33 +614,37 @@ else if ( ${STATUSCHECK} == 1 ) then
    cat                add_to_run.txt >> temp.$$
    tail -n $lastlines ${case}.run    >> temp.$$
 
-   ${MOVE} temp.$$ ${case}.run
+   ${MOVE}   temp.$$ ${case}.run
+   ${REMOVE} add_to_run.txt
 
+else
+   echo "ERROR in grep of ${case}.run: aborting"
+   echo "status was ${STATUSCHECK}"
+   exit -6
 endif
 
-chmod 0744 ${case}.run
+chmod 0755 ${case}.run
 
 # ==============================================================================
 # Stage the required parts of DART in the CASEROOT directory.
 # ==============================================================================
 
-# AK: the standard CESM short-term archiving script may need to be altered
+# The standard CESM short-term archiving script may need to be altered
 # to archive addtional or subsets of things, or to reduce the amount of
-# data that is sent to the long-term archive.  Put a version of st_archive.sh
-# in  ${DARTroot}/models/POP/shell_scripts when/if necessary
-#
-if ( ~ -e  Tools/st_archive.sh.orig ) then
-   ${MOVE} Tools/st_archive.sh      Tools/st_archive.sh.orig
-else
-   echo "a Tools/st_archive.sh backup copy already exists"
+# data that is sent to the long-term archive.
+
+if ( ~ -e  Tools/st_archive.sh.original ) then
+   ${COPY} Tools/st_archive.sh Tools/st_archive.sh.original
 endif
 
-# AK note: you must use this assimilate.csh script.
-#          It has hardcoded variables that point to the location of
-#          the observations sequence files and the DART working
-#          directory and the PE layout for DART.
+# NOTE: the assimilate.csh script and input.nml must be modified for your
+#       situation. The script has variables that point to the location of
+#       the observations sequence files and the DART working directory
+#       and may be customized for a more efficient PE layout for DART.
+#       If you are running this, you know what to do with input.nml.
+#       If you don't, you should give up now. Really.
 
-# ${COPY} ${DARTroot}/models/POP/shell_scripts/st_archive.sh   Tools/ TJH DEBUG
+${COPY} ${DARTroot}/models/POP/shell_scripts/st_archive.sh   Tools/
 ${COPY} ${DARTroot}/models/POP/shell_scripts/assimilate.csh  assimilate.csh
 ${COPY} ${DARTroot}/models/POP/work/input.nml                input.nml
 
@@ -627,7 +657,7 @@ foreach FILE ( filter pop_to_dart dart_to_pop )
    if ( $status != 0 ) then
       echo "ERROR: ${DARTroot}/models/POP/work/${FILE} not copied to ${exeroot}"
       echo "ERROR: ${DARTroot}/models/POP/work/${FILE} not copied to ${exeroot}"
-      exit -3
+      exit -7
    endif
 end
 

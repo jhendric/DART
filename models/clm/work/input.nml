@@ -165,6 +165,8 @@
                                   'H2OSOI_LIQ',  'KIND_LIQUID_WATER',
                                   'H2OSOI_ICE',  'KIND_ICE',
                                   'T_SOISNO',    'KIND_SOIL_TEMPERATURE',
+   /
+
                                   'frootc',      'KIND_ROOT_CARBON',
                                   'livecrootc',  'KIND_ROOT_CARBON',
                                   'deadcrootc',  'KIND_ROOT_CARBON',
@@ -185,7 +187,6 @@
                                   'soil2c',      'KIND_SOIL_CARBON',
                                   'soil3c',      'KIND_SOIL_CARBON',
                                   'soil4c',      'KIND_SOIL_CARBON',
-   /
 
   frac_sno  is needed for the forward operator
   H2OSNO is updated by the filter,

@@ -286,9 +286,9 @@ else
 endif
 
 #=========================================================================
-# Block 4: convert N CLM restart files to DART initial condition files.
+# Block 4: Convert N CLM restart files to DART initial condition files.
 # clm_to_dart is serial code, we can do all of these at the same time
-# as long as we have unique namelists for each of them.
+# as long as we can have unique namelists for each of them.
 #
 # At the end of the block, we have DART initial condition files  filter_ics.[1-N]
 # that came from pointer files ../rpointer.lnd_[1-N].restart
@@ -373,7 +373,7 @@ echo "`date` -- END CLM-TO-DART for all ${ensemble_size} members."
 # &filter_nml:           first_obs_seconds      = -1,
 # &filter_nml:           last_obs_days          = -1,
 # &filter_nml:           last_obs_seconds       = -1,
-# &ensemble_manager_nml: single_restart_file_in = '.false.'
+# &ensemble_manager_nml: single_restart_file_in = .false.
 #
 #=========================================================================
 
@@ -389,9 +389,9 @@ ${LINK} $LND_HISTORY_FILENAME clm_history.nc
 if ( $?LSB_PJL_TASK_GEOMETRY ) then
    setenv ORIGINAL_LAYOUT "${LSB_PJL_TASK_GEOMETRY}"
 
-   # setenv NANCY_GEOMETRY_54_1NODE \
-   # 	"{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53)}";
-   # setenv LSB_PJL_TASK_GEOMETRY "${NANCY_GEOMETRY_54_1NODE}"
+   # setenv GEOMETRY_32_1NODE \
+   #    "{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31)}";
+   # setenv LSB_PJL_TASK_GEOMETRY "${GEOMETRY_32_1NODE}"
 endif
 
 echo "`date` -- BEGIN FILTER"

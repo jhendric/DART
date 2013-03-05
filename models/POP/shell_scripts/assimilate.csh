@@ -1,4 +1,4 @@
-#!/bin/tcsh
+#!/bin/csh
 #
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
@@ -19,8 +19,7 @@ switch ("`hostname`")
       # the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
-      set  FLINK = '/usr/local/bin/ln -fvs'
-      set   LINK = '/usr/local/bin/ln -vs'
+      set   LINK = '/usr/local/bin/ln -fvs'
       set REMOVE = '/usr/local/bin/rm -fr'
 
       set BASEOBSDIR = /glade/proj3/image/Observations/WOD09
@@ -34,8 +33,7 @@ switch ("`hostname`")
       # the VERBOSE options are useful for debugging.
       set   MOVE = 'mv -fv'
       set   COPY = 'cp -fv --preserve=timestamps'
-      set  FLINK = 'ln -fvs'
-      set   LINK = 'ln -vs'
+      set   LINK = 'ln -fvs'
       set REMOVE = 'rm -fr'
 
       set BASEOBSDIR = /glade/p/image/Observations/WOD09
@@ -47,8 +45,7 @@ switch ("`hostname`")
       # NERSC "hopper"
       set   MOVE = 'mv -fv'
       set   COPY = 'cp -fv --preserve=timestamps'
-      set  FLINK = 'ln -fvs'
-      set   LINK = 'ln -vs'
+      set   LINK = 'ln -fvs'
       set REMOVE = 'rm -fr'
 
       set BASEOBSDIR = /scratch/scratchdirs/nscollin/ACARS
@@ -73,7 +70,7 @@ cd $temp_dir
 
 #-------------------------------------------------------------------------
 # Determine time of model state ... from file name of first member
-# of the form "./${CASE}.pop.$ensemble_member.r.2000-01-06-00000.nc"
+# of the form "./${CASE}.pop_${ensemble_member}.r.2000-01-06-00000.nc"
 #
 # Piping stuff through 'bc' strips off any preceeding zeros.
 #-------------------------------------------------------------------------
@@ -95,22 +92,19 @@ echo "valid time of model is $OCN_YEAR $OCN_MONTH $OCN_DAY $OCN_HOUR (hours)"
 
 #-----------------------------------------------------------------------------
 # Get observation sequence file ... or die right away.
-# Cannot specify -f on the link command and still check status.
 # The observation file names have a time that matches the stopping time of POP.
 #-----------------------------------------------------------------------------
 
-set YYYYMM   = `printf %04d%02d ${OCN_YEAR} ${OCN_MONTH}`
-set OBSFNAME = `printf obs_seq.0Z.%04d%02d%02d ${OCN_YEAR} ${OCN_MONTH} ${OCN_DAY}`
+set YYYYMMDD = `printf %04d%02d%02d ${OCN_YEAR} ${OCN_MONTH} ${OCN_DAY}`
+set YYYYMM   = `printf %04d%02d     ${OCN_YEAR} ${OCN_MONTH}`
+set OBSFNAME = obs_seq.0Z.${YYYYMMDD}
 set OBS_FILE = ${BASEOBSDIR}/${YYYYMM}/${OBSFNAME}
 
-${REMOVE}           obs_seq.out
-${LINK} ${OBS_FILE} obs_seq.out
-
-set lnstat = $status
-if ($lnstat != 0) then
+if (  -e   ${OBS_FILE} ) then
+   ${LINK} ${OBS_FILE} obs_seq.out
+else
    echo "ERROR ... no observation file $OBS_FILE"
    echo "ERROR ... no observation file $OBS_FILE"
-   echo "ERROR ... ln died with status $lnstat"
    exit -1
 endif
 
@@ -125,13 +119,12 @@ if (  -e   ${CASEROOT}/input.nml ) then
 else
    echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
    echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
-   exit -1
+   exit -2
 endif
 
-# Since the obs sequence files are small, modify the DART input.nml such
-# that the num_output_obs_members matches the ensemble size.
-#
-# g;num_output_state_members ;s;= .*;= $ensemble_size;
+# Modify the DART input.nml such that
+# the DART ensemble size matches the CESM number of instances
+# WARNING: the output files contain ALL enemble members ==> BIG
 
 ex input.nml <<ex_end
 g;ens_size ;s;= .*;= $ensemble_size;
@@ -166,7 +159,7 @@ if ( $SECSTRING == true ) then
    else
       echo "ERROR: no sampling error correction file for this ensemble size."
       echo "ERROR: looking for ${SAMP_ERR_FILE}"
-      exit -2
+      exit -3
    endif
 else
    echo "Sampling Error Correction not requested for this assimilation."
@@ -251,11 +244,11 @@ if ( $PRIOR_INF > 0 ) then
       # If one exists, use it as input for this assimilation
       if ( $nfiles > 0 ) then
          set latest = `cat latestfile`
-         ${FLINK} $latest ${PRIOR_INF_IFNAME}
+         ${LINK} $latest ${PRIOR_INF_IFNAME}
       else
          echo "ERROR: Requested PRIOR inflation but specified no incoming inflation file."
          echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
-         exit 4
+         exit -4
       endif
 
    endif
@@ -278,11 +271,11 @@ if ( $POSTE_INF > 0 ) then
       # If one exists, use it as input for this assimilation
       if ( $nfiles > 0 ) then
          set latest = `cat latestfile`
-         ${FLINK} $latest ${POSTE_INF_IFNAME}
+         ${LINK} $latest ${POSTE_INF_IFNAME}
       else
          echo "ERROR: Requested POSTERIOR inflation but specified no incoming inflation file."
          echo "ERROR: expected something like ../${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
-         exit 6
+         exit -5
       endif
    endif
 else
@@ -290,22 +283,20 @@ else
 endif
 
 #=========================================================================
-# Block 4: convert N POP restart files to DART initial conditions file(s)
+# Block 4: Convert N POP restart files to DART initial condition files.
 # pop_to_dart is serial code, we can do all of these at the same time
-# and just wait for them to finish IFF it were not for the fact we'd have
-# to have unique namelists for all of them.
+# as long as we can have unique namelists for each of them.
 #
-# At the end of the block, we have DART restart files  filter_ics.[1-N]
-# that came from pointer files ../rpointer.ocn.[1-N].restart
+# At the end of the block, we have DART initial condition files  filter_ics.[1-N]
+# that came from pointer files ../rpointer.ocn_[1-N].restart
 #
-# DART namelist settings appropriate/required:
+# REQUIRED DART namelist settings:
 # &filter_nml:           restart_in_file_name    = 'filter_ics'
 #                        restart_out_file_name   = 'filter_restart'
 # &ensemble_manager_nml: single_restart_file_in  = '.false.'
 # &pop_to_dart_nml:      pop_to_dart_output_file = 'dart_ics',
 # &dart_to_pop_nml:      dart_to_pop_input_file  = 'dart_restart',
-# &dart_to_pop_nml:      advance_time_present    = .false.
-#
+#                        advance_time_present    = .false.
 #=========================================================================
 
 echo "`date` -- BEGIN POP TO DART"
@@ -328,8 +319,8 @@ while ( ${member} <= ${ensemble_size} )
    sed -e "s/dart_ics/..\/${DART_IC_FILENAME}/" \
        -e "s/dart_restart/..\/${DART_RESTART_FILE}/" < ../input.nml >! input.nml
 
-   ${FLINK} $OCN_RESTART_FILENAME pop.r.nc
-   ${FLINK}     $OCN_NML_FILENAME pop_in
+   ${LINK} $OCN_RESTART_FILENAME pop.r.nc
+   ${LINK}     $OCN_NML_FILENAME pop_in
 
    echo "starting pop_to_dart for member ${member} at "`date`
    ${EXEROOT}/pop_to_dart >! output.${member}.pop_to_dart &
@@ -344,7 +335,7 @@ wait
 if ($status != 0) then
    echo "ERROR ... DART died in 'pop_to_dart' ... ERROR"
    echo "ERROR ... DART died in 'pop_to_dart' ... ERROR"
-   exit -7
+   exit -6
 endif
 
 echo "`date` -- END POP-TO-DART for all ${ensemble_size} members."
@@ -366,7 +357,7 @@ echo "`date` -- END POP-TO-DART for all ${ensemble_size} members."
 # &filter_nml:           first_obs_seconds      = -1,
 # &filter_nml:           last_obs_days          = -1,
 # &filter_nml:           last_obs_seconds       = -1,
-# &ensemble_manager_nml: single_restart_file_in = '.false.'
+# &ensemble_manager_nml: single_restart_file_in = .false.
 #
 #=========================================================================
 
@@ -374,12 +365,26 @@ echo "`date` -- END POP-TO-DART for all ${ensemble_size} members."
 # Lots of ways to get the filename
 
 set OCN_RESTART_FILENAME = `head -1 ../rpointer.ocn_0001.restart`
+
 ${LINK} ../$OCN_RESTART_FILENAME pop.r.nc
 ${LINK} ../pop2_in_0001          pop_in
 
+# On yellowstone, you can explore task layouts with the following:
+if ( $?LSB_PJL_TASK_GEOMETRY ) then
+   setenv ORIGINAL_LAYOUT "${LSB_PJL_TASK_GEOMETRY}"
+
+   # setenv GEOMETRY_32_1NODE \
+   #    "{(0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31)}";
+   # setenv LSB_PJL_TASK_GEOMETRY "${GEOMETRY_32_1NODE}"
+endif
+
 echo "`date` -- BEGIN FILTER"
-${LAUNCHCMD} ${EXEROOT}/filter || exit -2
+${LAUNCHCMD} ${EXEROOT}/filter || exit -7
 echo "`date` -- END FILTER"
+
+if ( $?LSB_PJL_TASK_GEOMETRY ) then
+   setenv LSB_PJL_TASK_GEOMETRY "${ORIGINAL_LAYOUT}"
+endif
 
 ${MOVE} Prior_Diag.nc      ../Prior_Diag.${OCN_DATE_EXT}.nc
 ${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${OCN_DATE_EXT}.nc
@@ -402,17 +407,14 @@ end
 #=========================================================================
 # Block 6: Update the POP restart files ... simultaneously ...
 #
-# Each member will do its job in its own directory.
-# That way, we can do N of them simultaneously.
-# The namelist already reflects the right filenames.
-# The right filenames are already linked from the pop_to_dart conversion.
+# Each member will do its job in its own directory, which already exists
+# and has the required input files remaining from 'Block 4'
 #=========================================================================
 
 echo "`date` -- BEGIN DART TO POP"
 set member = 1
 while ( $member <= $ensemble_size )
 
-   set m4 = `printf %04d $member`
    cd member_${member}
 
    echo "starting dart_to_pop for member ${member} at "`date`
