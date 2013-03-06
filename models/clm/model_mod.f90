@@ -1997,11 +1997,13 @@ UPDATE : do ivar=1, nfields
                         source,revision,revdate)
    endif
 
+   ! TJH FIXME ... this works perfectly if it were not for a bug in netCDF.
+   ! When they fix the bug, this will be a useful thing to restore.
    ! Make note that the variable has been updated by DART
-   call nc_check(nf90_Redef(ncFileID),'sv_to_restart_file', 'redef '//trim(filename))
-   call nc_check(nf90_put_att(ncFileID, VarID,'DART','variable modified by DART'),&
-                 'sv_to_restart_file', 'modified '//trim(varname))
-   call nc_check(nf90_enddef(ncfileID),'sv_to_restart_file','state enddef '//trim(filename))
+!  call nc_check(nf90_Redef(ncFileID),'sv_to_restart_file', 'redef '//trim(filename))
+!  call nc_check(nf90_put_att(ncFileID, VarID,'DART','variable modified by DART'),&
+!                'sv_to_restart_file', 'modified '//trim(varname))
+!  call nc_check(nf90_enddef(ncfileID),'sv_to_restart_file','state enddef '//trim(filename))
 
 enddo UPDATE
 
