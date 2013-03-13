@@ -754,6 +754,15 @@ else
 ! Find value at a point one OLD sd above new mean value
    new_1_sd = compute_new_density(dist_2, sigma_p_2, sigma_o_2, lambda_mean, lambda_sd, gamma, &
       new_cov_inflate + lambda_sd)
+
+   ! If either the numerator or denominator of the following computation 
+   ! of 'ratio' is going to be zero (or almost so), return the original incoming
+   ! inflation value.  The computation would have resulted in either Inf or NaN.
+   if (abs(new_max) <= TINY(0.0_r8) .or. abs(new_1_sd) <= TINY(0.0_r8)) then
+      new_cov_inflate_sd = lambda_sd
+      return
+   endif
+
    ratio = new_1_sd / new_max 
 
    ! Another error for numerical issues; if ratio is larger than 0.99, bail out
