@@ -206,7 +206,7 @@ namelist /obs_diag_nml/ obs_sequence_name, obs_sequence_list,                 &
                        plevel, hlevel, mlevel, rat_cri, input_qc_threshold,   &
                        Nregions, lonlim1, lonlim2, latlim1, latlim2,          &
                        reg_names, print_mismatched_locs,                      &
-                       obs_sequence_list, verbose, outliers_in_histogram,     &
+                       verbose, outliers_in_histogram,                        &
                        create_rank_histogram, hlevel_edges, trusted_obs
 
 !-----------------------------------------------------------------------
@@ -2084,19 +2084,26 @@ CONTAINS
    endif
 
    ! Pressure levels
+   !  why is this test not == MISSING_R8 like the others below?
+   !  very high altitudes could have very low pressure levels, 
+   !  so for now make the test be <= 0.0 to catch unset levels.
+   !  uninitialized values are set to missing_r8, which is negative.
 
-   if (all(plevel <  1.0)) then
-       plevel(1:11) = (/ 1000,  925,  850,   700,   500,  400, &
-                          300,  250,  200,   150,   100        /)
-       Nplevels = Rlevels2edges(plevel, plevel_edges)
+   if (all(plevel <= 0.0_r8)) then
+       plevel(1:11) = (/ 1000.0_r8,  925.0_r8,  850.0_r8, &
+                          700.0_r8,  500.0_r8,  400.0_r8, &
+                          300.0_r8,  250.0_r8,  200.0_r8, &
+                          150.0_r8,  100.0_r8        /)
    endif
+   Nplevels = Rlevels2edges(plevel, plevel_edges)
 
    ! Height levels
 
    if( all(hlevel_edges == MISSING_R8) .and. & 
        all(hlevel       == MISSING_R8)) then
-       hlevel(1:11) = (/ 1000, 2000, 3000,  4000,  5000, 6000, &
-                         7000, 8000, 9000, 10000, 11000        /)
+       hlevel(1:11) = (/ 1000.0_r8,  2000.0_r8,  3000.0_r8, 4000.0_r8, &
+                         5000.0_r8,  6000.0_r8,  7000.0_r8, 8000.0_r8, &
+                         9000.0_r8, 10000.0_r8, 11000.0_r8        /)
        Nhlevels = Rlevels2edges(hlevel, hlevel_edges)
        hlevel_edges(1:Nhlevels+1) = sort(hlevel_edges(1:Nhlevels+1))
    elseif ( any(hlevel_edges /= MISSING_R8) ) then
@@ -2109,11 +2116,12 @@ CONTAINS
    endif
 
    ! Model levels
+   !  why is this test not == MISSING_R8 like the others?
 
    if (all(mlevel < 1)) then
        mlevel(1:11) = (/ (i,i=1,11) /)   ! set model levels to indices
-       Nmlevels = Ilevels2edges(mlevel, mlevel_edges)
    endif
+   Nmlevels = Ilevels2edges(mlevel, mlevel_edges)
 
    end Subroutine ActOnNamelist
 
