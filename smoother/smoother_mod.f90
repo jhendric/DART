@@ -12,7 +12,7 @@ module smoother_mod
 !
 ! Tools for turning the filter into a fixed lag smoother for the full state vector.
 
-use      types_mod,       only : r8
+use      types_mod,       only : r8, metadatalength
 use  mpi_utilities_mod,   only : my_task_id
 use  utilities_mod,       only : file_exist, get_unit, check_namelist_read, do_output,  &
                                  find_namelist_in_file, register_module, error_handler, &
@@ -266,7 +266,7 @@ logical, intent(in) :: output_inflation
 ! These are the prior and posterior state output files. 
 
 ! The 4 is for ensemble mean and spread plus inflation mean and spread
-character(len = 129) :: state_meta(num_output_state_members + 4)
+character(len = metadatalength) :: state_meta(num_output_state_members + 4)
 character(len = 14)  :: file_name
 character(len = 15)  :: meta_data_string
 integer              :: i, ensemble_offset, num_state_copies
