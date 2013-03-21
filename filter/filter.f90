@@ -40,7 +40,8 @@ use ensemble_manager_mod, only : init_ensemble_manager, end_ensemble_manager,   
                                  read_ensemble_restart, write_ensemble_restart,              &
                                  compute_copy_mean, compute_copy_mean_sd,                    &
                                  compute_copy_mean_var, duplicate_ens, get_copy_owner_index, &
-                                 get_ensemble_time, set_ensemble_time
+                                 get_ensemble_time, set_ensemble_time,                       &
+                                 my_pe , map_task_to_pe,  map_pe_to_task, deallocate_task_mapping !HK
 use adaptive_inflate_mod, only : adaptive_inflate_end, do_varying_ss_inflate,                &
                                  do_single_ss_inflate, inflate_ens, adaptive_inflate_init,   &
                                  do_obs_inflate, adaptive_inflate_type,                      &
@@ -188,6 +189,10 @@ real(r8), allocatable   :: ens_mean(:)
 
 logical                 :: ds, all_gone
 
+! HK  hk_time is just so task 0 can get and pass around the time if it does not have an ensemble copy.  ens_handle%time(1) is used multiple times in filter.f90, smoother_mod.f90 and possibly others. If task 0 does not have an ensemble copy, ens_handle%time(1) contains junk. If the just is negative, the code continues merrily on its way so be aware of anywhere ens_handl%time(1) is used. Maybe model time should just be somewhere everyone can access?
+type(time_type) :: hk_time
+real(r8), allocatable :: temp_ens(:)  ! This is a waste of an array, should just have a version on get_copy that just does get time (Maybe there is one?)
+integer :: alloc_stat  ! HK Helen put this in the utilities
 
 call filter_initialize_modules_used()
 
@@ -267,6 +272,10 @@ call trace_message('Before setting up space for ensembles')
 ! Allocate model size storage and ens_size storage for metadata for outputting ensembles
 model_size = get_model_size()
 
+
+! HK task zero temp_ens to get time for output_inflate_diagnostics - sort time out so this does not need to be done
+allocate(temp_ens(model_size))
+
 ! Have ens_mean on all processors for distance computations, really don't want to do this
 allocate(ens_mean(model_size))
 
@@ -314,6 +323,7 @@ call     trace_message('Before initializing output files')
 call timestamp_message('Before initializing output files')
 
 ! Initialize the output sequences and state files and set their meta data
+! HK task zero duties
 if(my_task_id() == 0) then
    call filter_generate_copy_meta_data(seq, prior_inflate, &
       PriorStateUnit, PosteriorStateUnit, in_obs_copy, output_state_mean_index, &
@@ -389,6 +399,9 @@ AdvanceTime : do
 
    ! Check the time before doing the first model advance.  Not all tasks
    ! might have a time, so only check on PE0 if running multitask.
+
+   ! HK - task 0 does not necessarily have an ensemble copy
+
    ! This will get broadcast (along with the post-advance time) to all
    ! tasks so everyone has the same times, whether they have copies or not.
    ! If smoothing, we need to know whether the move_ahead actually advanced
@@ -410,7 +423,7 @@ AdvanceTime : do
 
    call trace_message('After  move_ahead checks time of data and next obs')
 
-   ! Only processes with an ensemble copy know to exit; 
+   ! Only processes with an ensemble copy know to exit;     HK: Oh dear, now zero does not have an ensemble copy, use my_pe 0
    ! For now, let process 0 broadcast its value of key_bounds
    ! This will synch the loop here and allow everybody to exit
    ! Need to clean up and have a broadcast that just sends a single integer???
@@ -512,19 +525,21 @@ AdvanceTime : do
 
    ! Although they are integer, keys are one 'copy' of obs ensemble 
    ! (the last one?)
-   call put_copy(0, obs_ens_handle, OBS_KEY_COPY, keys * 1.0_r8)
+   call put_copy(map_task_to_pe(0), obs_ens_handle, OBS_KEY_COPY, keys * 1.0_r8)  !HK 
 
    ! Ship the ensemble mean to the model; some models need this for 
    ! computing distances.  find out who stores the ensemble mean copy.
    call get_copy_owner_index(ENS_MEAN_COPY, mean_owner, mean_owners_index)
+
+
    ! Broadcast it to everybody else
-   if(my_task_id() == mean_owner) then
-      ! Make sure the timestamp for the mean is the current time.
+   if(my_pe == mean_owner) then !HK
+   ! Make sure the timestamp for the mean is the current time.
       call set_ensemble_time(ens_handle, mean_owners_index, curr_ens_time)
       ens_mean = ens_handle%vars(:, mean_owners_index)
-      call broadcast_send(mean_owner, ens_mean)
+      call broadcast_send(map_pe_to_task(mean_owner), ens_mean)
    else
-      call broadcast_recv(mean_owner, ens_mean)
+      call broadcast_recv(map_pe_to_task(mean_owner), ens_mean)
    endif
 
    ! Now send the mean to the model in case it's needed
@@ -679,11 +694,12 @@ AdvanceTime : do
          ! Who stores the ensemble mean copy
          call get_copy_owner_index(ENS_MEAN_COPY, mean_owner, mean_owners_index)
          ! Broadcast it to everybody else
-         if(my_task_id() == mean_owner) then
+         !if(my_task_id() == mean_owner) then !HK
+         if(my_pe == mean_owner) then !HK
             ens_mean = ens_handle%vars(:, mean_owners_index)
-            call broadcast_send(mean_owner, ens_mean)
+            call broadcast_send(map_pe_to_task(mean_owner), ens_mean)
          else
-            call broadcast_recv(mean_owner, ens_mean)
+            call broadcast_recv(map_pe_to_task(mean_owner), ens_mean)
          endif
 
          ! Now send the mean to the model in case it's needed
@@ -709,8 +725,13 @@ AdvanceTime : do
 !-------- End of posterior  inflate ----------------
 
    ! If observation space inflation, output the diagnostics
-   if(do_obs_inflate(prior_inflate) .and. my_task_id() == 0) & 
-      call output_inflate_diagnostics(prior_inflate, ens_handle%time(1))
+
+  call get_copy(map_task_to_pe(0), ens_handle, 1, temp_ens, hk_time)  ! HK get time to task 0
+ 
+   !HK does task 0 have the time?
+   if(do_obs_inflate(prior_inflate) .and. my_task_id() == 0) then ! HK task zero duties
+      call output_inflate_diagnostics(prior_inflate, hk_time) ! HK model copy?
+   endif
 
    call trace_message('Near bottom of main loop, cleaning up obs space')
    ! Deallocate storage used for keys for each set
@@ -778,6 +799,16 @@ if(my_task_id() == 0) then
    write(logfileunit,*)'FINISHED filter.'
    write(logfileunit,*)
 endif
+
+if(my_task_id()==0) print*, '*** check what task 0 is writing, how does it get it all? ***'
+
+!HK deallocate all the junk you have alloacted 
+
+if (my_task_id()==0) then
+  deallocate(temp_ens, stat=alloc_stat)
+  call deallocate_task_mapping
+endif
+
 
 ! YOU CAN NO LONGER WRITE TO THE LOG FILE BELOW THIS!
 ! After the call to finalize below, you cannot write to
@@ -1143,6 +1174,7 @@ if (do_output()) then
    endif
 endif
 
+
 ! Only read in initial conditions for actual ensemble members
 if(init_time_days >= 0) then
    call read_ensemble_restart(ens_handle, 1, ens_size, &
@@ -1157,11 +1189,11 @@ if(init_time_days >= 0) then
 else
    call read_ensemble_restart(ens_handle, 1, ens_size, &
       start_from_restart, restart_in_file_name)
-   if (ens_handle%my_num_copies > 0) time = ens_handle%time(1)
+   if (ens_handle%my_num_copies > 0) time = ens_handle%time(1)  ! HK only tasks with ensemble members get time.  
 endif
 
 ! Temporary print of initial model time
-if(my_task_id() == 0) then
+if(my_task_id() == 0) then  ! HK: task zero duties - task 0 does not necessarily have a time
    call get_time(time, secs, days)
    write(msgstring, *) 'initial model time of 1st ensemble member (days,seconds) ',days,secs
    call error_handler(E_DBG,'filter_read_restart',msgstring,source,revision,revdate)
@@ -1358,7 +1390,7 @@ do_outlier = (prior_post == PRIOR_DIAG .and. outlier_threshold > 0.0_r8)
 ! Do verbose forward operator output if requested
 if(output_forward_op_errors) then
    ! Need to open a file for prior and posterior output
-   if(my_task_id() == 0) then
+   if(my_task_id() == 0) then  !HK: task 0 writing duties
       if(prior_post == PRIOR_DIAG) then
          forward_unit = open_file('prior_forward_op_errors', 'formatted', 'append')
       else
@@ -1368,9 +1400,16 @@ if(output_forward_op_errors) then
  
    allocate(forward_temp(num_obs_in_set))
 
+!HK this is two loops around ens_size and observations
+!HK If task 0 has an ensemble copy, everyone else has to wait for zero to finish for all_vars_to_all_copies
+!HK If task zero does not have a copy, all_vars_to_all_copies is still a synchonization point because task zero
+!HK has to recieve some variables from the tasks with copies.
+!
+!HK What if task zero (or multiple writers ) did not take part the all_vars all all_copies
+
    do k = 1, ens_size
       ! Get this copy to PE 0
-      call get_copy(0, forward_op_ens_handle, k, forward_temp)
+      call get_copy(map_task_to_pe(0), forward_op_ens_handle, k, forward_temp) !HK send to physical task 0
 
       ! Loop through each observation in set for this copy
       ! Forward temp is a real representing an integer; values /= 0 get written out
@@ -1390,6 +1429,8 @@ if(output_forward_op_errors) then
 endif
 
 !PAR DO THESE ALWAYS NEED TO BE DONE? SEE REVERSE ONES AT END, TOO
+! This is a big synchronization problem.  It would be better to have task 0 to not have any
+! copys/vars and do the writing independent of computation ( if there are lots of tasks)
 call all_vars_to_all_copies(obs_ens_handle)
 call all_vars_to_all_copies(forward_op_ens_handle)
 
@@ -1502,9 +1543,11 @@ call all_copies_to_all_vars(obs_ens_handle)
 ! allocate temp space for sending data
 allocate(obs_temp(num_obs_in_set))
 
+!HK: task zero duties
+
 ! Update the ensemble mean
 ! Get this copy to process 0
-call get_copy(0, obs_ens_handle, OBS_MEAN_START, obs_temp)
+call get_copy(map_task_to_pe(0), obs_ens_handle, OBS_MEAN_START, obs_temp) !HK get to physical task zero
 ! Only pe 0 gets to write the sequence
 if(my_task_id() == 0) then
      ! Loop through the observations for this time
@@ -1516,7 +1559,7 @@ if(my_task_id() == 0) then
 
 ! Update the ensemble spread
 ! Get this copy to process 0
-call get_copy(0, obs_ens_handle, OBS_VAR_START, obs_temp)
+call get_copy(map_task_to_pe(0), obs_ens_handle, OBS_VAR_START, obs_temp) !HK
 ! Only pe 0 gets to write the sequence
 if(my_task_id() == 0) then
    ! Loop through the observations for this time
@@ -1537,9 +1580,9 @@ ens_offset = members_index + 4
 ! Update all of these ensembles that are required to sequence file
 do k = 1, num_output_members
    ! Get this copy on pe 0
-   call get_copy(0, obs_ens_handle, k, obs_temp)
-   ! Only pe 0 gets to write the sequence
-   if(my_task_id() == 0) then
+   call get_copy(map_task_to_pe(0), obs_ens_handle, k, obs_temp) !HK
+   ! Only task 0 gets to write the sequence
+   if(my_task_id() == 0) then  !HK task zero duties 
       ! Loop through the observations for this time
       do j = 1, obs_ens_handle%num_vars
          ! update the obs values 
@@ -1550,9 +1593,11 @@ do k = 1, num_output_members
    endif
 end do
 
+! HK: task zero duties
+
 ! Update the qc global value
-call get_copy(0, obs_ens_handle, OBS_GLOBAL_QC_COPY, obs_temp)
-! Only pe 0 gets to write the observations for this time
+call get_copy(map_task_to_pe(0), obs_ens_handle, OBS_GLOBAL_QC_COPY, obs_temp)!HK
+! Only task 0 gets to write the observations for this time
 if(my_task_id() == 0) then
    ! Loop through the observations for this time
    do j = 1, obs_ens_handle%num_vars
@@ -1596,8 +1641,12 @@ end function input_qc_ok
 !-------------------------------------------------------------------------
 
 subroutine filter_sync_keys_time(key_bounds, num_obs_in_set, time1, time2)
+
+!use ensemble_manager_mod, only : my_pe, map_pe_to_task
+
 integer, intent(inout)         :: key_bounds(2), num_obs_in_set
 type(time_type), intent(inout) :: time1, time2
+
 
 ! Have task0 broadcast these values to all other tasks.
 ! Only tasks which contain copies have this info; doing it this way
@@ -1609,7 +1658,7 @@ integer  :: days, secs
 
 ! this should be 'do i own member 1' and not assume that task 0 gets
 ! member 1.
-if(my_task_id() == 0) then
+if(my_pe == 0) then !HK changed from my_task_id()==0
    rkey_bounds = key_bounds
    rnum_obs_in_set(1) = num_obs_in_set
    call get_time(time1, secs, days)
@@ -1618,9 +1667,9 @@ if(my_task_id() == 0) then
    call get_time(time2, secs, days)
    rtime(3) = secs
    rtime(4) = days
-   call broadcast_send(0, rkey_bounds, rnum_obs_in_set, rtime)
+   call broadcast_send(map_pe_to_task(0), rkey_bounds, rnum_obs_in_set, rtime)
 else
-   call broadcast_recv(0, rkey_bounds, rnum_obs_in_set, rtime)
+   call broadcast_recv(map_pe_to_task(0), rkey_bounds, rnum_obs_in_set, rtime)
    key_bounds =     nint(rkey_bounds)
    num_obs_in_set = nint(rnum_obs_in_set(1))
    time1 = set_time(nint(rtime(1)), nint(rtime(2)))
