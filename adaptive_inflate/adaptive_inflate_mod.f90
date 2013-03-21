@@ -18,7 +18,8 @@ use utilities_mod,        only : file_exist, get_unit, register_module, &
                                  error_handler, E_ERR, E_MSG
 use random_seq_mod,       only : random_seq_type, random_gaussian, init_random_seq
 use ensemble_manager_mod, only : ensemble_type, all_vars_to_all_copies, all_copies_to_all_vars, &
-                                 read_ensemble_restart, write_ensemble_restart, get_copy_owner_index
+                                 read_ensemble_restart, write_ensemble_restart, get_copy_owner_index, &
+                                 my_pe , map_task_to_pe,  map_pe_to_task ! HK
 use mpi_utilities_mod,    only : my_task_id, send_to, receive_from
 
 implicit none
@@ -203,13 +204,17 @@ if(inf_flavor >= 2) then
       ! if setting initial values from the namelist, find out which task has the
       ! inflation and inf sd values and set them only on that task.  this saves us
       ! a transpose.
+
+      ! HK logical and physical task id code change
       if (.not. mean_from_restart) then
          call get_copy_owner_index(ss_inflate_index, owner, owners_index)
-         if (owner == my_task_id()) ens_handle%vars(:, owners_index) = inf_initial
+         !if (owner == my_task_id()) ens_handle%vars(:, owners_index) = inf_initial !HK
+         if (owner == my_pe) ens_handle%vars(:, owners_index) = inf_initial !HK
       endif
       if (.not. sd_from_restart) then
          call get_copy_owner_index(ss_inflate_sd_index, owner, owners_index)
-         if (owner == my_task_id()) ens_handle%vars(:, owners_index) = sd_initial
+         !if (owner == my_task_id()) ens_handle%vars(:, owners_index) = sd_initial !HK
+          if (owner == my_pe) ens_handle%vars(:, owners_index) = sd_initial !HK
       endif
    endif
 
@@ -223,19 +228,20 @@ if(inf_flavor >= 2) then
       call get_copy_owner_index(ss_inflate_index, owner, owners_index)
       ! if inflation array is already on PE0, just figure out the
       ! largest value in the array and we're done.
-      if (owner == 0) then
+      if (owner == 0) then  
          minmax_mean(1) = minval(ens_handle%vars(:, owners_index))
          minmax_mean(2) = maxval(ens_handle%vars(:, owners_index))
       else
          ! someone else has the inf array.  have the owner send the min/max
          ! values to PE0.  after this point only PE0 has the right value
          ! in minmax_mean, but it is the only one who is going to print below.
-         if (my_task_id() == 0) then
-            call receive_from(owner, minmax_mean)
-         else if (my_task_id() == owner) then
+         !if (my_task_id() == 0) then  !HK
+          if (my_pe == 0) then  !HK
+            call receive_from(map_pe_to_task(owner), minmax_mean)
+         else if (my_pe == owner) then !HK
             minmax_mean(1) = minval(ens_handle%vars(:, owners_index))
             minmax_mean(2) = maxval(ens_handle%vars(:, owners_index))
-            call send_to(0, minmax_mean)
+            call send_to(map_pe_to_task(0), minmax_mean) !HK
          endif
       endif
    endif
@@ -243,19 +249,19 @@ if(inf_flavor >= 2) then
       call get_copy_owner_index(ss_inflate_sd_index, owner, owners_index)
       ! if inflation sd array is already on PE0, just figure out the
       ! largest value in the array and we're done.
-      if (owner == 0) then
+      if (owner == 0) then 
          minmax_sd(1) = minval(ens_handle%vars(:, owners_index))
          minmax_sd(2) = maxval(ens_handle%vars(:, owners_index))
       else
          ! someone else has the sd array.  have the owner send the min/max
          ! values to PE0.  after this point only PE0 has the right value
          ! in minmax_sd, but it is the only one who is going to print below.
-         if (my_task_id() == 0) then
-            call receive_from(owner, minmax_sd)
-         else if (my_task_id() == owner) then
+         if (my_pe == 0) then !HK
+            call receive_from(map_pe_to_task(owner), minmax_sd)
+         else if (my_pe == owner) then !HK
             minmax_sd(1) = minval(ens_handle%vars(:, owners_index))
             minmax_sd(2) = maxval(ens_handle%vars(:, owners_index))
-            call send_to(0, minmax_sd)
+            call send_to(map_pe_to_task(0), minmax_sd) !HK
          endif
       endif
    endif
@@ -268,9 +274,9 @@ if(inf_flavor >= 2) then
    ! ensure the entire array contains a single constant value to match what the code uses.
    if(inf_flavor == 3) then
       call get_copy_owner_index(ss_inflate_index, owner, owners_index)
-      if (owner == my_task_id()) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index)
+      if (owner == my_pe) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index) !HK
       call get_copy_owner_index(ss_inflate_sd_index, owner, owners_index)
-      if (owner == my_task_id()) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index)
+      if (owner == my_pe) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index) !HK
    endif
 
 !------ Block for obs. space inflation initialization ------
