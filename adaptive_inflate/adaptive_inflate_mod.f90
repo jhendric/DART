@@ -31,6 +31,7 @@ public :: update_inflation,           adaptive_inflate_end,          do_obs_infl
           get_sd,                     set_inflate,                   set_sd,             &
           output_inflate_diagnostics, deterministic_inflate,         solve_quadratic
 
+!HK Just a note - I hope this doesn't work
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
