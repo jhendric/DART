@@ -21,7 +21,8 @@ use  utilities_mod,       only : file_exist, get_unit, check_namelist_read, do_o
 use ensemble_manager_mod, only : ensemble_type, init_ensemble_manager, read_ensemble_restart, &
                                  write_ensemble_restart, all_vars_to_all_copies,              &
                                  duplicate_ens, compute_copy_mean, compute_copy_mean_sd,      &
-                                 all_copies_to_all_vars, get_copy
+                                 all_copies_to_all_vars, get_copy,                            &
+                                 my_pe , map_task_to_pe,  map_pe_to_task ! HK
 use time_manager_mod,     only : time_type, operator(==), print_time
 use assim_model_mod,      only : static_init_assim_model, get_model_size,                    &
                                  netcdf_file_type, init_diag_output, finalize_diag_output,   &
@@ -490,6 +491,8 @@ logical,                     intent(in)    :: output_inflation
 type(time_type) :: temp_time
 integer         :: ens_offset, j
 
+type(time_type) :: hk_time  !HK  - model time.  Task 0 does not have the model time, need a better name for this
+
 ! Assumes that mean and spread have already been computed
 
 ! must have called init_smoother() before using this routine
@@ -499,44 +502,64 @@ if ( .not. module_initialized ) then
 endif
 
 ! Output ensemble mean
-call get_copy(0, ens_handle, ENS_MEAN_COPY, temp_ens)
-if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%time(1), temp_ens, output_state_mean_index)
+
+!HK - I think the following call to aoutput_diagnostics assumes task 0 has a copy, because ens_handle%time(1) is passed to aoutput_diagnostics.  If task 0 does not have an ensemble copy, ens_hanlde%time is junk.  If it is negative, the code will happily run through without error ( but producing nonsense ).  Does the ensemble mean have the correct time though?  Do only 'real' copies have the time?
+
+! HK this is a bit awkard as get copy assumes you have given it my_pe, here we really do mean task 0.
+
+!HK extra call to get copy, just so task 0 has the time
+call get_copy(map_task_to_pe(0), ens_handle, 1, temp_ens, hk_time)
+call get_copy(map_task_to_pe(0), ens_handle, ENS_MEAN_COPY, temp_ens)
+
+if(my_task_id() == 0) then
+  call aoutput_diagnostics(out_unit, hk_time, temp_ens, output_state_mean_index) !HK
+endif
 
 ! Output ensemble spread
-call get_copy(0, ens_handle, ENS_SD_COPY, temp_ens)
-if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%time(1), temp_ens, output_state_spread_index)
+
+call get_copy(map_task_to_pe(0), ens_handle, ENS_SD_COPY, temp_ens) ! HK
+if(my_task_id() == 0) call aoutput_diagnostics(out_unit, hk_time, temp_ens, output_state_spread_index)
 
 ! Compute the offset for copies of the ensemble
-ens_offset = 2
+ens_offset = 2  !HK hard coded 2?
 
 ! Output state diagnostics as required: NOTE: Prior has been inflated
+
 do j = 1, num_output_state_members
    ! Get this state copy to PE 0; then output it
-   call get_copy(0, ens_handle, j, temp_ens, temp_time)
-   if(my_task_id() == 0) call aoutput_diagnostics( out_unit, temp_time, temp_ens, ens_offset + j)
+
+   !call get_copy(map_task_to_pe(0), ens_handle, j, temp_ens, temp_time) !HK why are we getting the time from each copy? Could they be different? Am I missing an earlier point where the time is distributed?
+   !if(my_task_id() == 0) call aoutput_diagnostics( out_unit, temp_time, temp_ens, ens_offset + j)
+
+   call get_copy(map_task_to_pe(0), ens_handle, j, temp_ens)  !HK not getting time from each state copy
+   if(my_task_id() == 0) call aoutput_diagnostics( out_unit, hk_time, temp_ens, ens_offset + j)
 end do
 
 ! Unless specifically asked not to, output inflation
 if (output_inflation) then
    ! Output the spatially varying inflation if used
    if(do_varying_ss_inflate(inflate) .or. do_single_ss_inflate(inflate)) then
-      call get_copy(0, ens_handle, INF_COPY, temp_ens)
+      call get_copy(map_task_to_pe(0), ens_handle, INF_COPY, temp_ens) !HK
    else
       ! Output inflation value as 1 if not in use (no inflation)
       temp_ens = 1.0_r8
    endif
-   if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%time(1), temp_ens, &
-      ens_offset + num_output_state_members + 1)
+
+   if(my_task_id() == 0) call aoutput_diagnostics(out_unit, hk_time, temp_ens, &
+     ens_offset + num_output_state_members + 1)
 
 
    if(do_varying_ss_inflate(inflate) .or. do_single_ss_inflate(inflate)) then
-      call get_copy(0, ens_handle, INF_SD_COPY, temp_ens)
+      call get_copy(map_task_to_pe(0), ens_handle, INF_SD_COPY, temp_ens)
    else
       ! Output inflation sd as 0 if not in use
       temp_ens = 0.0_r8
    endif
-   if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%time(1), temp_ens, &
+
+   if(my_task_id() == 0) call aoutput_diagnostics(out_unit, hk_time, temp_ens, &
       ens_offset + num_output_state_members + 2)
+
+
 endif
 
 end subroutine filter_state_space_diagnostics
