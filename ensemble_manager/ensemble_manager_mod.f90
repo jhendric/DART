@@ -85,7 +85,6 @@ integer              ::  num_pes, my_pe
 
 !HK: List of tasks
 integer, allocatable :: master_task_list(:), pe_to_task_list(:) 
-integer :: tasks_per_node
 public :: map_task_to_pe,  map_pe_to_task, my_pe  ! HK is there a better way to do this?
 
 !HK: Allocation Status - is there one of these in the utilies or common modules?
@@ -106,12 +105,18 @@ real(r8) :: perturbation_amplitude  = 0.2_r8
 !HK options to change order of communiation loops
 logical  :: use_copy2var_send_loop = .true.
 logical  :: use_var2copy_rec_loop = .true.
+integer :: layout = 1 ! HK default my_pe = my_task_id()
+integer :: tasks_per_node = 16 ! HK set for yellowstone 
+
+!HK need to deal with situation when ens_size > task_count()
 
 namelist / ensemble_manager_nml / single_restart_file_in,  &
                                   single_restart_file_out, &
                                   perturbation_amplitude,  &
                                   use_copy2var_send_loop,  &
-                                  use_var2copy_rec_loop
+                                  use_var2copy_rec_loop,   &
+                                  layout, tasks_per_node
+
 !-----------------------------------------------------------------
 
 contains
@@ -156,15 +161,12 @@ if ( .not. module_initialized ) then
 num_pes = task_count()
 
 !HK:
-tasks_per_node = 2  ! just for testing, should be a namelist option
-
 allocate( master_task_list(num_pes), stat=alloc_stat )
   if(alloc_stat /= 0) print*, 'Allocation problem master_task_list, rank', my_task_id()
 allocate( pe_to_task_list(num_pes), stat=alloc_stat )
   if(alloc_stat /= 0) print*, 'Allocation problem pe_to_task_list, rank', my_task_id()
 
-!master_task_list = task_list(tasks_per_node, num_copies, 1)
-call task_list(master_task_list, pe_to_task_list, tasks_per_node, num_copies, 1)
+call task_list(tasks_per_node, num_copies, layout)
 
 my_pe = map_task_to_pe(my_task_id())   ! my_pe possibly different for each ensmeble (ens_handle%my_pe)
 
@@ -1341,34 +1343,45 @@ end subroutine timestamp_message
 
 !--------------------------------------------------------------------------------
 
-subroutine task_list(task_list_out, inverse_task_list_out, tasks_per_node, nEns_members, layout_type)
+subroutine task_list(tasks_per_node, nEns_members, layout_type)
 !> Calulate the task layout based on the task per node, the total number of tasks,
 !> the tasks per node, and the ensemble_handle
+!> If the nEns_members >= task_count(), my_pe will default to my_task_id()
 !>
 !> Possible options:
 !>   1. Spread the ensemble members out as much as possible to spread memory usage out
 !>     between nodes
 !>   2. Standard task layout, first n tasks have the ensemble members
 !>   3. Custom task list
-!
+!>
+!> Q. Is this going to affect scaling?  
+!> memory wise, if you used all 72 288 cores on Yellowstone, you would need 1.1 megabytes on each core
+!> for the arrays task_list_out, inverse_task_list_out
+
 implicit none
 
-integer, intent(in) :: tasks_per_node, nEns_members
-integer, intent(in) :: layout_type
-integer, intent(out) :: task_list_out(num_pes)
-integer, intent(out) :: inverse_task_list_out(num_pes)
+integer, intent(in)    :: tasks_per_node, nEns_members
+integer, intent(inout) :: layout_type
+integer                :: idx(num_pes) !> sorted index
+integer                :: leftovers 
+integer                :: ii, count, col, row
+integer                :: temp(tasks_per_node), temp_sort(num_pes)
+integer, allocatable   :: per_node(:)
+integer                :: nodes !> number of nodes
+integer                :: alloc_stat !> check memory was allocated / deallocated correctly
 
-integer :: idx(num_pes) !> sorted index
-integer leftovers
-integer ii, count, col, row
-!type(ensemble_type) :: ens_handle
-integer :: temp(tasks_per_node), temp_sort(num_pes)
-integer, allocatable :: per_node(:)
-integer :: nodes !> number of nodes
-
-integer :: alloc_stat
+if (layout_type /= 1 .and. layout_type /=2 ) layout_type = 1 ! Junk input, so try to spread out the ensemble members
 
 if ( layout_type == 1 ) then
+
+  ! HK if nEns_members >= task_count() then don't try to spread them out
+  ! HK what to do if you want to specify task 0 not having an ensemble member?
+  if (nEns_members >= task_count()) then  !HK in other words, my_pe = my_task_id()
+
+    call simple_layout(num_pes)
+
+    return
+  endif
 
   nodes = task_count() / tasks_per_node
 
@@ -1392,7 +1405,7 @@ if ( layout_type == 1 ) then
      do col = 1, nodes
         do row = 1, per_node(col)
 
-          task_list_out(row + (col-1)*tasks_per_node) = count
+          master_task_list(row + (col-1)*tasks_per_node) = count
           count = count + 1
 
         enddo
@@ -1404,7 +1417,7 @@ if ( layout_type == 1 ) then
     do col = 1, nodes
       do row = per_node(col) + 1, tasks_per_node
 
-        task_list_out(row + (col-1)*tasks_per_node) = count
+        master_task_list(row + (col-1)*tasks_per_node) = count
         count = count + 1
 
       enddo
@@ -1418,33 +1431,45 @@ if ( layout_type == 1 ) then
   !    If ens_size + extras > tasks this becomes irrelevant,
   !       in this case, how about 0 is not given an ensemble member in set_up_ens_distribution?
   !       Maybe 0 should not get vars or copies with lots of tasks?
-   temp = task_list_out(1:tasks_per_node)
+  !  You would not need to flip if you shifted the ensemble processors and had the first n processors 
+  !  as writers
+   temp = master_task_list(1:tasks_per_node)
 
      do ii = 0, tasks_per_node - 1
-       task_list_out(ii + 1) = temp(tasks_per_node - ii)
+       master_task_list(ii + 1) = temp(tasks_per_node - ii)
      enddo
 
   deallocate(per_node, stat = alloc_stat)
     if(alloc_stat /= 0) print*, 'Deallocation problem'
 
   ! create list to map from physical task to logical task number
-  temp_sort = task_list_out
+  temp_sort = master_task_list
   call sort_task_list(temp_sort, idx, num_pes)
 
   do ii = 1, num_pes
-    inverse_task_list_out(ii) = temp_sort(idx(ii))  ! I think temp_sort(idx(ii)) is just idx(ii) - 1 ?
+    pe_to_task_list(ii) = temp_sort(idx(ii))  ! I think temp_sort(idx(ii)) is just idx(ii) - 1 ?
   enddo
 
-elseif (layout_type == 2) then
+else
 
- !how it is now
-  do ii = 0, num_pes - 1
-    task_list_out(ii + 1) = ii
-  enddo
+  call simple_layout(num_pes)
 
 endif
 
 end subroutine task_list
+
+!-----------------------------------------------------------------------------
+subroutine simple_layout(n)
+implicit none
+integer n, ii
+
+do ii = 0, num_pes - 1
+master_task_list(ii + 1) = ii
+enddo
+
+pe_to_task_list = master_task_list
+
+end subroutine simple_layout
 
 !------------------------------------------------------------------------------
 ! HK TEMPORARY DO NOT USE THIS 
