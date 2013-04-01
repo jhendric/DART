@@ -204,13 +204,33 @@ foreach FILE ( *xml )
    endif
 end
 
-@ cpl_pes  = $ptile
-@ atm_pes  = $ptile * $num_instances
-@ ice_pes  = $ptile
-@ lnd_pes  = $ptile * $num_instances
-@ rof_pes  = $ptile * $num_instances
-@ glc_pes  = $ptile
-@ ocn_pes  = $ptile
+if ($num_instances == 4) then
+
+   # This is only for the purpose of debugging the code.
+   # A more efficient layout must be done when running a full assimilation.
+
+   @ cpl_pes  = $ptile
+   @ atm_pes  = $ptile * $num_instances
+   @ ice_pes  = $ptile
+   @ lnd_pes  = $ptile * $num_instances
+   @ rof_pes  = $ptile * $num_instances
+   @ glc_pes  = $ptile
+   @ ocn_pes  = $ptile
+
+else
+
+   # layout for 30 members.
+   # Made in conjunction with Mike Levy, David Bailey and Jim Edwards.
+   
+   @ cpl_pes = 450
+   @ atm_pes = 450
+   @ ice_pes = 450
+   @ lnd_pes = 450
+   @ rof_pes = 450
+   @ glc_pes = 450
+   @ ocn_pes = 1800
+   
+endif
 
 echo "task layout"
 echo ""
@@ -635,7 +655,7 @@ ${COPY} ${DARTroot}/models/clm/work/input.nml                input.nml
 # Stage the DART executables in the CESM execution root directory: EXEROOT
 # ==============================================================================
 
-foreach FILE ( filter clm_to_dart dart_to_clm )
+foreach FILE ( perfect_model_obs filter clm_to_dart dart_to_clm )
    ${COPY} ${DARTroot}/models/clm/work/${FILE} ${exeroot}/
    if ( $status != 0 ) then
       echo "ERROR: ${DARTroot}/models/clm/work/${FILE} not copied to ${exeroot}"
