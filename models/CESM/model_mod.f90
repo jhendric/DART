@@ -21,7 +21,8 @@ use time_manager_mod, only : time_type, set_time, set_date, get_date, get_time,&
                              operator(/=), operator(<=)
 use     location_mod, only : location_type, get_dist, get_close_maxdist_init,  &
                              get_close_obs_init, set_location,                 &
-                             get_location, get_close_type
+                             get_location, loc_get_close_obs => get_close_obs, &
+                             get_close_type
 use    utilities_mod, only : register_module, error_handler,                   &
                              E_ERR, E_WARN, E_MSG, logfileunit, get_unit,      &
                              nc_check, do_output, to_upper,                    &
@@ -236,7 +237,7 @@ subroutine model_interpolate(x, location, obs_type, interp_val, istatus)
 
 real(r8) :: llon, llat, lvert, loc_array(3)
 integer  :: x_start, x_end
-character :: modelname(32)
+character(len=32) :: modelname
 
 if ( .not. module_initialized ) call static_init_model
 
@@ -315,12 +316,12 @@ subroutine get_state_meta_data(index_in, location, var_type)
 
 real(r8) :: lat, lon, vert
 integer  :: x_start, x_end
-character :: modelname(32)
+character(len=32) :: modelname
 
 ! figure out what offset in the state vector we are at, and then
 ! call the right sub-model
 
-call which_model_state(x_offset, modelname)
+call which_model_state(index_in, modelname)
 call set_start_end(modelname, x_start, x_end)
 
 if (modelname == 'CAM') then
@@ -549,7 +550,7 @@ subroutine get_close_obs(gc, base_obs_loc, base_obs_kind, &
 ! in the namelist with the variable "vert_localization_coord".
 
 integer :: t_ind, k
-character :: modelname(32)
+character(len=32) :: modelname
 
 ! Initialize variables to missing status
 num_close = 0
@@ -652,7 +653,7 @@ select case (obs_type)
    case (XBT_TEMPERATURE)
       modelname = 'POP'
 
-   case (CARBON_LEAF)
+   case (LEAF_CARBON)
       modelname = 'CLM'
 
    case default
@@ -669,6 +670,4 @@ end subroutine which_model_obs
 
 end module model_mod
 
-
-end module
 
