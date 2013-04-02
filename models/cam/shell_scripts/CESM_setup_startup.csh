@@ -97,7 +97,7 @@ setenv DARTroot     /glade/u/home/${USER}/svn/DART/dev
 # configure settings ... run_startdate format is yyyy-mm-dd
 # ==============================================================================
 
-setenv run_startdate 2008-10-31
+setenv run_startdate 2008-11-01
 setenv sst_dataset ${cesm_datadir}/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2011_c110307.nc
 setenv year_start  1850
 setenv year_end    2010
