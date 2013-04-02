@@ -23,5 +23,8 @@ will have to change start date and the IC
 files in each of the user_nl_* namelists
 
 
+look for name conflicts - the run directory
+for filter, the assimilate scripts themselves,
+the inflation files, etc.
  
 

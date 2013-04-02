@@ -13,8 +13,10 @@
 echo "`date` -- BEGIN CESM ASSIMILATE"
 
 ./cam_assimilate.csh
-./pop_assimilate.csh
-./clm_assimilate.csh
+
+# for now, just call the cam script
+#./pop_assimilate.csh
+#./clm_assimilate.csh
 
 exit 0
 
