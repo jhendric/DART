@@ -1,0 +1,27 @@
+
+plan of attack for the CESM1_1_setup_script.csh:
+
+
+configure with a 'B' compset - all components 
+fully active
+
+will have to change the number of PEs to match
+the number of ensemble members
+
+keep the 'here' document that inserts a call to
+a single assimilate.csh script that in turn calls
+each of the component assimilate scripts.
+
+start with assimilating only into CAM, so the
+calls to the pop and clm assimilate script can
+be stubs for now.
+
+start by running with identical ensemble members.
+
+have to run as a continuous 'startup' run.
+will have to change start date and the IC
+files in each of the user_nl_* namelists
+
+
+ 
+
