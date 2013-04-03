@@ -306,6 +306,9 @@ while ( ${member} <= ${ensemble_size} )
    mkdir -p $MYTEMPDIR
    cd $MYTEMPDIR
 
+   # make sure there are no old output logs hanging around
+   $REMOVE output.${member}.cam_to_dart
+
    set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${ATM_DATE_EXT}.nc ${member}`
    set ATM_HISTORY_FILENAME = `ls -1t ../../${MYCASE}.cam*.h0.* | head -n 1`
    set     DART_IC_FILENAME = `printf filter_ics.%04d     ${member}`
@@ -327,7 +330,8 @@ end
 
 wait
 
-if ($status != 0) then
+set nsuccess = `fgrep 'Finished ... at YYYY' member*/output.[0-9]*.cam_to_dart | wc -l`
+if (${nsuccess} != ${ensemble_size}) then
    echo "ERROR ... DART died in 'cam_to_dart' ... ERROR"
    echo "ERROR ... DART died in 'cam_to_dart' ... ERROR"
    exit -6
@@ -413,6 +417,8 @@ while ( $member <= $ensemble_size )
 
    cd member_${member}
 
+   ${REMOVE} output.${member}.dart_to_cam
+
    echo "starting dart_to_cam for member ${member} at "`date`
    ${EXEROOT}/dart_to_cam >! output.${member}.dart_to_cam &
 
@@ -423,7 +429,8 @@ end
 
 wait
 
-if ($status != 0) then
+set nsuccess = `fgrep 'Finished ... at YYYY' member*/output.[0-9]*.dart_to_cam | wc -l`
+if (${nsuccess} != ${ensemble_size}) then
    echo "ERROR ... DART died in 'dart_to_cam' ... ERROR"
    echo "ERROR ... DART died in 'dart_to_cam' ... ERROR"
    exit -8
