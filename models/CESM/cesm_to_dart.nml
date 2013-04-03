@@ -1,3 +1,4 @@
-&pop_to_dart_nml
-   pop_to_dart_output_file = 'dart.ud'  /
+&cesm_to_dart_nml
+   cesm_to_dart_output_file = 'dart_ics'
+   /
 
