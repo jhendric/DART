@@ -4,7 +4,7 @@
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
-# $Id: run_filter.batch 5074 2011-07-15 17:06:58Z thoar $
+# $Id$
 #
 # Script to assimilate observations using DART and the POP ocean model.
 # This presumes two directories exists that contain all the required bits
@@ -516,7 +516,7 @@ ls -lrt
 exit 0
 
 # <next few lines under version control, do not edit>
-# $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/development/models/POP/shell_scripts/run_filter.batch $
-# $Revision: 5074 $
-# $Date: 2011-07-15 11:06:58 -0600 (Fri, 15 Jul 2011) $
+# $URL$
+# $Revision$
+# $Date$
 
