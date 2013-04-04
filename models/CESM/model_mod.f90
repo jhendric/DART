@@ -60,7 +60,10 @@ public :: get_model_size,         &
           get_close_maxdist_init, &
           get_close_obs_init,     &
           get_close_obs,          &
-          ens_mean_for_model
+          ens_mean_for_model, &
+  restart_file_to_sv, &
+  sv_to_restart_file, &
+  get_cesm_restart_filename
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -73,18 +76,18 @@ integer :: cam_model_size, clm_model_size, pop_model_size
 character(len=256) :: msgstring
 logical, save :: module_initialized = .false.
 
-logical :: output_state_vector
-integer :: assimilation_period_days, assimilation_period_seconds
-real(r8) :: model_perturbation_amplitude
+! FIXME: for now make cam the only default
+logical :: include_CAM = .true.
+logical :: include_POP = .false.
+logical :: include_CLM = .false.
 
 integer  :: debug = 0   ! turn up for more and more debug messages
 
 
 namelist /model_nml/  &
-   output_state_vector,         &
-   assimilation_period_days,    &  ! for now, this is the timestep
-   assimilation_period_seconds, &
-   model_perturbation_amplitude,&
+   include_CAM, &
+   include_POP, &
+   include_CLM, &
    debug
 
 type(time_type) :: model_time, model_timestep
@@ -120,9 +123,9 @@ if (do_output()) write(logfileunit, nml=model_nml)
 if (do_output()) write(     *     , nml=model_nml)
 
 
-call cam_static_init_model()
-call pop_static_init_model()
-call clm_static_init_model()
+if (include_CAM) call cam_static_init_model()
+if (include_POP) call pop_static_init_model()
+if (include_CLM) call clm_static_init_model()
 
 
 model_timestep = get_model_time_step()
@@ -187,9 +190,13 @@ function get_model_size()
 
 if ( .not. module_initialized ) call static_init_model
 
-pop_model_size = pop_get_model_size()
-clm_model_size = clm_get_model_size()
-cam_model_size = cam_get_model_size()
+cam_model_size = 0
+pop_model_size = 0
+clm_model_size = 0
+
+if (include_CAM) cam_model_size = cam_get_model_size()
+if (include_POP) pop_model_size = pop_get_model_size()
+if (include_CLM) clm_model_size = clm_get_model_size()
 
 get_model_size = cam_model_size + clm_model_size + pop_model_size
 
@@ -289,9 +296,9 @@ type(time_type) :: cam_time, clm_time, pop_time
 
 if ( .not. module_initialized ) call static_init_model
 
-cam_time = cam_get_model_time_step()
-pop_time = pop_get_model_time_step()
-clm_time = clm_get_model_time_step()
+if (include_CAM) cam_time = cam_get_model_time_step()
+if (include_POP) pop_time = pop_get_model_time_step()
+if (include_CLM) clm_time = clm_get_model_time_step()
 
 ! FIXME:
 ! make sure they are compatible here
@@ -347,9 +354,9 @@ subroutine end_model()
 
 ! Shutdown and clean-up.
 
-call cam_end_model()
-call pop_end_model()
-call clm_end_model()
+if (include_CAM) call cam_end_model()
+if (include_POP) call pop_end_model()
+if (include_CLM) call clm_end_model()
 
 end subroutine end_model
 
@@ -363,22 +370,28 @@ integer :: rc
 
 if ( .not. module_initialized ) call static_init_model
 
-rc = cam_nc_write_model_atts(ncFileID)
-if (rc /= 0) then
-   nc_write_model_atts = rc
-   return
+if (include_CAM) then
+   rc = cam_nc_write_model_atts(ncFileID)
+   if (rc /= 0) then
+      nc_write_model_atts = rc
+      return
+   endif
 endif
 
-rc = pop_nc_write_model_atts(ncFileID)
-if (rc /= 0) then
-   nc_write_model_atts = rc
-   return
+if (include_POP) then
+   rc = pop_nc_write_model_atts(ncFileID)
+   if (rc /= 0) then
+      nc_write_model_atts = rc
+      return
+   endif
 endif
 
-rc = clm_nc_write_model_atts(ncFileID)
-if (rc /= 0) then
-   nc_write_model_atts = rc
-   return
+if (include_CLM) then
+   rc = clm_nc_write_model_atts(ncFileID)
+   if (rc /= 0) then
+      nc_write_model_atts = rc
+      return
+   endif
 endif
 
 nc_write_model_atts = 0 ! If we got here, things went well.
@@ -394,26 +407,35 @@ function nc_write_model_vars(ncFileID, statevec, copyindex, timeindex)
  integer,                intent(in) :: timeindex
  integer                            :: nc_write_model_vars ! function return value
 
-integer :: rc
+integer :: rc, x_start, x_end
 
 if ( .not. module_initialized ) call static_init_model
 
-rc = cam_nc_write_model_vars(ncFileID, statevec, copyindex, timeindex) 
-if (rc /= 0) then
-   nc_write_model_vars = rc
-   return
+if (include_CAM) then
+   call set_start_end('CAM', x_start, x_end)
+   rc = cam_nc_write_model_vars(ncFileID, statevec(x_start:x_end), copyindex, timeindex) 
+   if (rc /= 0) then
+      nc_write_model_vars = rc
+      return
+   endif
 endif
 
-rc = pop_nc_write_model_vars(ncFileID, statevec+cam_model_size, copyindex, timeindex) 
-if (rc /= 0) then
-   nc_write_model_vars = rc
-   return
+if (include_POP) then
+   call set_start_end('POP', x_start, x_end)
+   rc = pop_nc_write_model_vars(ncFileID, statevec(x_start:x_end), copyindex, timeindex) 
+   if (rc /= 0) then
+      nc_write_model_vars = rc
+      return
+   endif
 endif
 
-rc = clm_nc_write_model_vars(ncFileID, statevec+cam_model_size+pop_model_size, copyindex, timeindex) 
-if (rc /= 0) then
-   nc_write_model_vars = rc
-   return
+if (include_CLM) then
+   call set_start_end('CLM', x_start, x_end)
+   rc = clm_nc_write_model_vars(ncFileID, statevec(x_start:x_end), copyindex, timeindex) 
+   if (rc /= 0) then
+      nc_write_model_vars = rc
+      return
+   endif
 endif
 
 nc_write_model_vars = 0 ! If we got here, things went well.
@@ -441,14 +463,20 @@ integer :: x_start, x_end
 
 if ( .not. module_initialized ) call static_init_model
 
-call set_start_end('CAM', x_start, x_end)
-call cam_pert_model_state(state(x_start:x_end), pert_state(x_start:x_end), interf_provided)
+if (include_CAM) then
+   call set_start_end('CAM', x_start, x_end)
+   call cam_pert_model_state(state(x_start:x_end), pert_state(x_start:x_end), interf_provided)
+endif
 
-call set_start_end('POP', x_start, x_end)
-call pop_pert_model_state(state(x_start:x_end), pert_state(x_start:x_end), interf_provided)
+if (include_POP) then
+   call set_start_end('POP', x_start, x_end)
+   call pop_pert_model_state(state(x_start:x_end), pert_state(x_start:x_end), interf_provided)
+endif
 
-call set_start_end('CLM', x_start, x_end)
-call clm_pert_model_state(state(x_start:x_end), pert_state(x_start:x_end), interf_provided)
+if (include_CLM) then
+   call set_start_end('CLM', x_start, x_end)
+   call clm_pert_model_state(state(x_start:x_end), pert_state(x_start:x_end), interf_provided)
+endif
 
 end subroutine pert_model_state
 
@@ -466,14 +494,20 @@ integer :: x_start, x_end
 
 if ( .not. module_initialized ) call static_init_model
 
-call set_start_end('CAM', x_start, x_end)
-call cam_ens_mean_for_model(ens_mean(x_start:x_end))
+if (include_CAM) then
+   call set_start_end('CAM', x_start, x_end)
+   call cam_ens_mean_for_model(ens_mean(x_start:x_end))
+endif
 
-call set_start_end('POP', x_start, x_end)
-call pop_ens_mean_for_model(ens_mean(x_start:x_end))
+if (include_POP) then
+   call set_start_end('POP', x_start, x_end)
+   call pop_ens_mean_for_model(ens_mean(x_start:x_end))
+endif
 
-call set_start_end('CLM', x_start, x_end)
-call clm_ens_mean_for_model(ens_mean(x_start:x_end))
+if (include_CLM) then
+   call set_start_end('CLM', x_start, x_end)
+   call clm_ens_mean_for_model(ens_mean(x_start:x_end))
+endif
 
 end subroutine ens_mean_for_model
 
@@ -493,16 +527,32 @@ if ( .not. module_initialized ) call static_init_model
 
 state_vector = MISSING_R8
 
-call set_start_end('CAM', x_start, x_end)
-call cam_restart_file_to_sv(filename, state_vector(x_start:x_end), model_time)
+if (include_CAM) then
+   call set_start_end('CAM', x_start, x_end)
+   call cam_restart_file_to_sv(filename, state_vector(x_start:x_end), model_time)
+endif
 
-call set_start_end('POP', x_start, x_end)
-call pop_restart_file_to_sv(filename, state_vector(x_start:x_end), model_time)
+if (include_POP) then
+   call set_start_end('POP', x_start, x_end)
+   call pop_restart_file_to_sv(filename, state_vector(x_start:x_end), model_time)
+endif
 
-call set_start_end('CLM', x_start, x_end)
-call clm_restart_file_to_sv(filename, state_vector(x_start:x_end), model_time)
+if (include_CLM) then
+   call set_start_end('CLM', x_start, x_end)
+   call clm_restart_file_to_sv(filename, state_vector(x_start:x_end), model_time)
+endif
 
 end subroutine restart_file_to_sv
+
+!------------------------------------------------------------------
+
+subroutine get_cesm_restart_filename(filename)
+ character(len=*), intent(out) :: filename
+
+! FIXME:
+filename = 'dummy'
+
+end subroutine get_cesm_restart_filename
 
 !------------------------------------------------------------------
 

@@ -34,7 +34,7 @@ use  assim_model_mod, only : open_restart_read, aread_state_restart, close_resta
 use time_manager_mod, only : time_type, print_time, print_date, operator(-)
 use        model_mod, only : static_init_model, sv_to_restart_file, &
                              get_model_size, get_cesm_restart_filename
-use     dart_cesm_mod, only : write_cesm_namelist
+!use     dart_cesm_mod, only : write_cesm_namelist
 
 implicit none
 
@@ -110,7 +110,7 @@ call close_restart(iunit)
 call sv_to_restart_file(statevector, cesm_restart_filename, model_time)
 
 if ( advance_time_present ) then
-   call write_cesm_namelist(model_time, adv_to_time)
+   ! call write_cesm_namelist(model_time, adv_to_time)
 endif
 
 !----------------------------------------------------------------------
