@@ -1,40 +1,8 @@
 
-plan of attack for the CESM1_1_setup_script.csh:
 
+This document has been replaced by:
 
-configure with a 'B' compset - all components 
-fully active
+https://wiki.ucar.edu/display/DARTdev/CESM+fully+active+B+compset+cycling+test
 
-will have to change the number of PEs to match
-the number of ensemble members
-
-keep the 'here' document that inserts a call to
-a single assimilate.csh script that in turn calls
-each of the component assimilate scripts.
-
-start with assimilating only into CAM, so the
-calls to the pop and clm assimilate script can
-be stubs for now.
-
-make it so we don't have duplicate scripts
-running around.  i copied the cam, pop and clm
-assimilate scripts here, but that may have been
-a mistake - unless the coupled scripts have to
-be different from the stand-alone ones?
-
-start by running with identical ensemble members
-so we don't have to worry about gathering initial
-condition files for all components for the same date.
-
-have to run as a continuous 'startup' run.
-will have to change start date and the IC
-files in each of the user_nl_* namelists
-between steps.  use xmlchange at the end
-of the run script.
-
-
-look for name conflicts - the run directory
-for filter, the assimilate scripts themselves,
-the inflation files, etc.
- 
+TJH Thu Apr  4 12:42:23 MDT 2013
 
