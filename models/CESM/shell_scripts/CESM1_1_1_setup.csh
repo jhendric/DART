@@ -11,7 +11,7 @@
 # ---------------------
 #
 # This script is designed to configure and build a multi-instance CESM model
-# that has POP as active components
+# that has XXX,YYY,ZZZZ as active components
 # and will use DART to assimilate observations at regular intervals.
 # This script does not build DART.
 #
@@ -21,7 +21,7 @@
 # ---------------------
 # How to set up the script
 # ---------------------
-# -- Either edit and run this script in the $DART/models/POP/shell_scripts
+# -- Either edit and run this script in the $DART/models/CESM/shell_scripts
 #    directory where it first appears,
 #    or copy it to somewhere that it will be preserved and run it there.
 #    It will create a 'case' directory, where the model will be built,
@@ -32,7 +32,7 @@
 # -- Provide any initial files needed by your run:
 #       inflation
 #       sampling error correction
-#       POP initial ensemble
+#       CESM initial ensemble
 #       ...
 # -- Run this script.
 # -- Edit the DART input.nml that appears in the $CASEROOT directory.
@@ -63,11 +63,11 @@
 #    script names; so consider it's length and information content.
 # num_instances:  Number of ensemble members
 
-setenv case                 pop_hybrid_opt
-setenv compset              GIAF
+setenv case                 cesm_test3
+setenv compset              B_RCP4.5_CAM5_CN
 setenv cesmtag              cesm1_1_1
-setenv resolution           T62_gx1v6
-setenv num_instances        30
+setenv resolution           0.9x1.25_gx1v6
+setenv num_instances        2
 
 # ==============================================================================
 # define machines and directories
@@ -102,9 +102,6 @@ setenv DARTroot     /glade/u/home/${USER}/svn/DART/dev
 # configure settings
 # ==============================================================================
 
-setenv stream_year_first 2004
-setenv stream_year_last  2004
-setenv stream_year_align 2004
 setenv refyear     2004
 setenv refmon      01
 setenv refday      01
@@ -119,8 +116,8 @@ setenv run_refdate $refyear-$refmon-$refday
 # ==============================================================================
 
 setenv resubmit      0
-setenv stop_option   ndays
-setenv stop_n        2
+setenv stop_option   nhours
+setenv stop_n        72
 
 # ==============================================================================
 # job settings
@@ -128,12 +125,12 @@ setenv stop_n        2
 # timewall   can be changed during a series by changing the ${case}.run
 # queue      can be changed during a series by changing the ${case}.run
 #
-# TJH: How many T62_gx1v6 POP instances can fit on 1 node?
+# TJH: How many T62_gx1v6 CESM instances can fit on 1 node?
 # ==============================================================================
 
 setenv ACCOUNT      P86850054
-setenv timewall     0:30
-setenv queue        regular
+setenv timewall     1:00
+setenv queue        small
 setenv ptile        15
 
 # ==============================================================================
@@ -194,38 +191,20 @@ foreach FILE ( *xml )
    ${COPY} $FILE ${FILE}.original
 end
 
-# Try to lay out the tasks in some sort of reasonable way.
-# The ocean root pe is the only one that is not zero.
-
-if ($num_instances == 4) then
-
    # This is only for the purpose of debugging the code.
-   # A more efficient layout must be done when running a full assimilation.
+   # A more efficient layout must be found
+   @ atm_pes = $ptile * $num_instances * 4
+   @ ocn_pes = $ptile * $num_instances * 4
+   @ lnd_pes = $ptile * $num_instances * 4
+   @ ice_pes = $ptile * $num_instances * 1
+   @ glc_pes = $ptile * $num_instances
+   @ rof_pes = $ptile * $num_instances
+   @ cpl_pes = $ptile * 4
 
-   @ atm_pes = $ptile
-   @ cpl_pes = $ptile
-   @ ice_pes = $ptile
-   @ lnd_pes = $ptile
-   @ glc_pes = $ptile
-   @ rof_pes = $ptile
-   @ ocn_pes = $ptile * 4
+   @ glc_root = $lnd_pes + $ice_pes
+   @ rof_root = $lnd_pes + $ice_pes + $glc_pes
 
-else
-
-   # layout for 30 members.
-   # Made in conjunction with Mike Levy, David Bailey and Jim Edwards.
-
-   @ atm_pes = 450
-   @ cpl_pes = 450
-   @ ice_pes = 450
-   @ lnd_pes = 450
-   @ glc_pes = 450
-   @ rof_pes = 450
-   @ ocn_pes = 1800
-
-endif
-
-echo "task partitioning ... ice and ocean run at the same time."
+echo "task partitioning ... atm+ocn // lnd+ice+glc+rof"
 echo ""
 echo "ATM  gets $atm_pes"
 echo "CPL  gets $cpl_pes"
@@ -236,14 +215,30 @@ echo "DROF gets $rof_pes"
 echo "OCN  gets $ocn_pes"
 echo ""
 
-./xmlchange ROOTPE_ATM=0,NTHRDS_ATM=1,NTASKS_ATM=$atm_pes,NINST_ATM=$num_instances
-./xmlchange ROOTPE_ICE=0,NTHRDS_ICE=1,NTASKS_ICE=$ice_pes,NINST_ICE=$num_instances
-./xmlchange ROOTPE_GLC=0,NTHRDS_GLC=1,NTASKS_GLC=$glc_pes,NINST_GLC=1
-./xmlchange ROOTPE_LND=0,NTHRDS_LND=1,NTASKS_LND=$lnd_pes,NINST_LND=1
-./xmlchange ROOTPE_ROF=0,NTHRDS_ROF=1,NTASKS_ROF=$rof_pes,NINST_ROF=1
-./xmlchange ROOTPE_CPL=0,NTHRDS_CPL=1,NTASKS_CPL=$cpl_pes
-./xmlchange              NTHRDS_OCN=1,NTASKS_OCN=$ocn_pes,NINST_OCN=$num_instances
-./xmlchange ROOTPE_OCN=$ice_pes
+#   total number of hw pes = 240 
+#   cpl hw pe range ~ from 0 to 59 
+#   cam hw pe range ~ from 0 to 119 
+#   pop2 hw pe range ~ from 120 to 239 
+#   clm hw pe range ~ from 0 to 59 
+#   cice hw pe range ~ from 60 to 89 
+#   sglc hw pe range ~ from 90 to 119 
+#   rtm hw pe range ~ from 120 to 149 
+#   TJH FIXME ... CLM could use a lot more processors.
+
+./xmlchange NTHRDS_CPL=1,NTASKS_CPL=$cpl_pes
+./xmlchange NTHRDS_GLC=1,NTASKS_GLC=$glc_pes,NINST_GLC=1
+./xmlchange NTHRDS_ATM=1,NTASKS_ATM=$atm_pes,NINST_ATM=$num_instances
+./xmlchange NTHRDS_LND=1,NTASKS_LND=$lnd_pes,NINST_LND=$num_instances
+./xmlchange NTHRDS_ICE=1,NTASKS_ICE=$ice_pes,NINST_ICE=$num_instances
+./xmlchange NTHRDS_ROF=1,NTASKS_ROF=$rof_pes,NINST_ROF=$num_instances
+./xmlchange NTHRDS_OCN=1,NTASKS_OCN=$ocn_pes,NINST_OCN=$num_instances
+./xmlchange ROOTPE_ATM=0
+./xmlchange ROOTPE_OCN=$atm_pes
+./xmlchange ROOTPE_CPL=0
+./xmlchange ROOTPE_LND=0
+./xmlchange ROOTPE_ICE=$lnd_pes
+./xmlchange ROOTPE_GLC=$glc_root
+./xmlchange ROOTPE_ROF=$rof_root
 
 # http://www.cesm.ucar.edu/models/cesm1.1/cesm/doc/usersguide/c1158.html#run_start_stop
 # "A hybrid run indicates that CESM is initialized more like a startup, but uses
@@ -259,17 +254,10 @@ echo ""
 # model does not start until the second ocean coupling (normally the second day),
 # and the coupler does a "cold start" without a restart file.
 
-./xmlchange RUN_TYPE=hybrid
+./xmlchange RUN_TYPE=startup
 ./xmlchange RUN_STARTDATE=$run_refdate
-./xmlchange RUN_REFCASE=b40.20th.005
-./xmlchange RUN_REFDATE=$run_refdate
-./xmlchange RUN_REFTOD=$run_reftod
-./xmlchange BRNCH_RETAIN_CASENAME=FALSE
-./xmlchange GET_REFCASE=FALSE
+./xmlchange START_TOD=$run_reftod
 ./xmlchange EXEROOT=${exeroot}
-
-# The streams files were generated with a NO_LEAP calendar in mind.
-# We need to test these with a GREGORIAN calendar.
 
 ./xmlchange CALENDAR=GREGORIAN
 
@@ -279,23 +267,17 @@ echo ""
 ./xmlchange RESUBMIT=$resubmit
 ./xmlchange PIO_TYPENAME=pnetcdf
 
-./xmlchange DOUT_S=TRUE
+./xmlchange DOUT_S=FALSE
 ./xmlchange DOUT_S_ROOT=${archdir}
 ./xmlchange DOUT_S_SAVE_INT_REST_FILES=FALSE
 ./xmlchange DOUT_L_MS=FALSE
 ./xmlchange DOUT_L_MSROOT="csm/${case}"
 ./xmlchange DOUT_L_HTAR=FALSE
 
-./xmlchange DATM_MODE=CPLHIST3HrWx
-./xmlchange DATM_CPLHIST_CASE=$case
-./xmlchange DATM_CPLHIST_YR_ALIGN=$refyear
-./xmlchange DATM_CPLHIST_YR_START=$refyear
-./xmlchange DATM_CPLHIST_YR_END=$refyear
-
 # level of debug output, 0=minimum, 1=normal, 2=more, 3=too much, valid values: 0,1,2,3 (integer)
 
-./xmlchange DEBUG=FALSE
-./xmlchange INFO_DBUG=0
+./xmlchange DEBUG=TRUE
+./xmlchange INFO_DBUG=2
 
 # ==============================================================================
 # Set up the case.
@@ -308,122 +290,6 @@ if ( $status != 0 ) then
    echo "ERROR: Case could not be set up."
    exit -2
 endif
-
-# ==============================================================================
-# Modify namelist templates for each instance.
-#
-# hist_empty_htapes = .true.     suppresses the creation of all history files
-# hist_fincl1 = 'TG',            except the first one, which will have one variable
-# hist_nhtfrq = -$stop_n,        create one every $stop_n HOURS
-# hist_mfilt  =  1,              with precisely one day in it
-# hist_avgflag_pertape = 'I'     use instantaneous values - no average
-#
-# ==============================================================================
-
-@ inst = 1
-while ($inst <= $num_instances)
-
-   set instance  = `printf %04d $inst`
-   set instance2 = `printf %02d $inst`
-
-   set fname = "user_nl_datm_$instance"
-
-   echo "streams = 'datm.streams.txt.CPLHIST3HrWx.Solar_$instance             $stream_year_align $stream_year_first $stream_year_last'," >> $fname
-   echo "          'datm.streams.txt.CPLHIST3HrWx.nonSolarNonPrecip_$instance $stream_year_align $stream_year_first $stream_year_last'"  >> $fname
-   echo "dtlimit = 1.5, 1.5"               >> $fname
-   echo "fillalgo = 'nn', 'nn'"            >> $fname
-   echo "fillmask = 'nomask','nomask'"     >> $fname
-   echo "mapalgo = 'bilinear','bilinear'"  >> $fname
-   echo "mapmask = 'nomask','nomask'"      >> $fname
-   echo "taxmode = 'cycle','cycle'"        >> $fname
-   echo "tintalgo = 'linear','linear'"     >> $fname
-   echo "restfils = 'unset'"               >> $fname
-   echo "restfilm = 'unset'"               >> $fname
-
-   # CICE Namelists
-   # this is only used for a hybrid start, else rpointers are used.
-   echo "ice_ic = 'b40.20th.005_ens"$instance2".cice.r.2004-01-01-00000.nc'" >> user_nl_cice_$instance
-
-   # POP Namelists
-   # init_ts_suboption = 'data_assim'   for non bit-for-bit restarting (assimilation mode)
-   # init_ts_suboption = 'null'         for 'perfect' restarting/forecasting
-
-   echo "init_ts_suboption = 'data_assim'" >> user_nl_pop2_$instance
-
-   @ inst ++
-end
-
-# DLND
-
-echo "streams = 'drof.streams.txt.rof.diatren_iaf_rx1" 1 1948 2009"'" >> user_nl_drof
-
-# ==============================================================================
-# to create custom streamfiles ...
-# "To modify the contents of a stream txt file, first use preview_namelists to
-#  obtain the contents of the stream txt files in CaseDocs, and then place a copy
-#  of the modified stream txt file in $CASEROOT with the string user_ prepended."
-#
-# -or-
-#
-# we copy a template stream txt file from the
-# $DARTroot/models/POP/shell_scripts directory and modify one for each instance.
-#
-# ==============================================================================
-
-./preview_namelists
-
-# This gives us a stream txt file for each instance that we can
-# modify for our own purpose.
-
-foreach FILE (CaseDocs/*streams*)
-   set FNAME = $FILE:t
-
-   switch ( ${FNAME} )
-      case *presaero*:
-         echo "Using default prescribed aerosol stream.txt file ${FNAME}"
-         breaksw
-      case *diatren*:
-         echo "Using default runoff stream.txt file ${FNAME}"
-         breaksw
-      case *\.Precip_*:
-         echo "Precipitation in nonSolarNonPrecip stream.txt file - not ${FNAME}"
-         breaksw
-      default:
-         ${COPY} $FILE user_$FNAME
-         chmod   644   user_$FNAME
-         breaksw
-   endsw
-
-end
-
-# Replace each default stream txt file with one that uses the CAM DATM
-# conditions for a default year and modify the instance number.
-
-foreach FNAME (user*streams*)
-   set name_parse = `echo $FNAME | sed 's/\_/ /g'`
-   @ filename_index = $#name_parse - 1
-   @ instance_index = $#name_parse
-   set streamname = $name_parse[$filename_index]
-   set    n = `echo $name_parse[$instance_index] | sed 's/0*//'`
-
-   if (-e $DARTroot/models/POP/shell_scripts/user_$streamname*template) then
-
-      echo "Copying DART template for $FNAME and changing instances."
-
-      ${COPY} $DARTroot/models/POP/shell_scripts/user_$streamname*template $FNAME
-
-      sed s/NINST/$n/g $FNAME >! out.$$
-      ${MOVE} out.$$ $FNAME
-
-   else
-      echo "DIED Looking for a DART stream txt template for $FNAME"
-      echo "DIED Looking for a DART stream txt template for $FNAME"
-      exit -3
-   endif
-
-end
-
-./preview_namelists
 
 # ==============================================================================
 # Update source files if need be
@@ -464,34 +330,7 @@ endif
 
 # ==============================================================================
 # Stage the restarts now that the run directory exists
-#
-# set stagedir = /glade/scratch/thoar/DART_POP_RESTARTS/2004-01-01-00000
 # ==============================================================================
-
-set stagedir = /glade/p/work/aliciak/DART_IC/CCSM4_ensembles/rest/2004-01-01-00000
-
-echo "Copying the restart files from ${stagedir}"
-
-@ i = 1
-while ($i <= $num_instances)
-   set n4 = `printf %04d $i`
-   set n2 = `printf %02d $i`
-
-   echo ''
-   echo "Staging restarts for instance $i of $num_instances"
-   #AK: Note that the pop ocean must have the .hdr file to describe the
-   #    metadata for binary restarts.
-   ${COPY} ${stagedir}/rpointer.ocn_${n4}.restart                       ${rundir}
-   ${COPY} ${stagedir}/rpointer.ocn_${n4}.ovf                           ${rundir}
-   ${COPY} ${stagedir}/rpointer.ice_${n4}                               ${rundir}
-   ${COPY} ${stagedir}/b40.20th.005_ens${n2}.pop.r.2004-01-01-00000     ${rundir}
-   ${COPY} ${stagedir}/b40.20th.005_ens${n2}.pop.r.2004-01-01-00000.hdr ${rundir}
-   ${COPY} ${stagedir}/b40.20th.005_ens${n2}.pop.ro.2004-01-01-00000    ${rundir}
-   ${COPY} ${stagedir}/b40.20th.005_ens${n2}.cice.r.2004-01-01-00000.nc ${rundir}
-
-   @ i ++
-
-end
 
 # ==============================================================================
 # Edit the run script to reflect project, queue, and wallclock
@@ -510,7 +349,7 @@ switch ( $BATCH )
       # NCAR "bluefire", "yellowstone"
       set TIMEWALL=`grep BSUB ${case}.run | grep -e '-W' `
       set    QUEUE=`grep BSUB ${case}.run | grep -e '-q' `
-      sed -e "s/ptile=32/ptile=$ptile/" \
+      sed -e "s/ptile=[0-9][0-9]*/ptile=$ptile/" \
           -e "s/$TIMEWALL[3]/$timewall/" \
           -e "s/$QUEUE[3]/$queue/" < ${case}.run >! temp.$$
       ${MOVE} temp.$$  ${case}.run
@@ -549,7 +388,7 @@ endif
 
 grep 'SUCCESSFUL TERMINATION' $CplLogFile
 if ( $status == 0 ) then
-   ${CASEROOT}/assimilate.csh
+#  ${CASEROOT}/assimilate.csh
 
    if ( $status == 0 ) then
       echo "`date` -- DART HAS FINISHED"
@@ -600,10 +439,10 @@ chmod 0744 ${case}.run
 # Stage the required parts of DART in the CASEROOT directory.
 # ==============================================================================
 
-# AK: the standard CESM short-term archiving script may need to be altered
+# The standard CESM short-term archiving script may need to be altered
 # to archive addtional or subsets of things, or to reduce the amount of
 # data that is sent to the long-term archive.  Put a version of st_archive.sh
-# in  ${DARTroot}/models/POP/shell_scripts when/if necessary
+# in  ${DARTroot}/models/CESM/shell_scripts when/if necessary
 #
 if ( ~ -e  Tools/st_archive.sh.orig ) then
    ${MOVE} Tools/st_archive.sh      Tools/st_archive.sh.orig
@@ -611,25 +450,22 @@ else
    echo "a Tools/st_archive.sh backup copy already exists"
 endif
 
-# AK note: you must use this assimilate.csh script.
-#          It has hardcoded variables that point to the location of
-#          the observations sequence files and the DART working
-#          directory and the PE layout for DART.
-
-# ${COPY} ${DARTroot}/models/POP/shell_scripts/st_archive.sh   Tools/ TJH DEBUG
-${COPY} ${DARTroot}/models/POP/shell_scripts/assimilate.csh  assimilate.csh
-${COPY} ${DARTroot}/models/POP/work/input.nml                input.nml
+# ${COPY} ${DARTroot}/models/CESM/shell_scripts/st_archive.sh   Tools/ TJH DEBUG
+${COPY} ${DARTroot}/models/CESM/shell_scripts/assimilate.csh  assimilate.csh
+${COPY} ${DARTroot}/models/CESM/work/input.nml                input.nml
 
 # ==============================================================================
 # Stage the DART executables in the CESM execution root directory: EXEROOT
 # ==============================================================================
 
-foreach FILE ( filter pop_to_dart dart_to_pop )
-   ${COPY} ${DARTroot}/models/POP/work/${FILE} ${exeroot}/
+foreach FILE ( filter pop_to_dart dart_to_pop \
+                      clm_to_dart dart_to_clm \
+                      cam_to_dart dart_to_cam )
+   ${COPY} ${DARTroot}/models/CESM/work/${FILE} ${exeroot}/
    if ( $status != 0 ) then
-      echo "ERROR: ${DARTroot}/models/POP/work/${FILE} not copied to ${exeroot}"
-      echo "ERROR: ${DARTroot}/models/POP/work/${FILE} not copied to ${exeroot}"
-      exit -3
+      echo "WARNING: ${DARTroot}/models/CESM/work/${FILE} not copied to ${exeroot}"
+      echo "WARNING: ${DARTroot}/models/CESM/work/${FILE} not copied to ${exeroot}"
+   #  exit -3  TJH FIXME
    endif
 end
 
