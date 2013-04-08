@@ -10,7 +10,7 @@
 # changes to this script such that the same script can be used
 # on multiple platforms. This will help us maintain the script.
 
-echo "`date` -- BEGIN ASSIMILATE"
+echo "`date` -- BEGIN POP_ASSIMILATE"
 
 switch ("`hostname`")
    case be*:
@@ -299,7 +299,7 @@ endif
 #                        advance_time_present    = .false.
 #=========================================================================
 
-echo "`date` -- BEGIN POP TO DART"
+echo "`date` -- BEGIN POP-TO-DART"
 
 set member = 1
 while ( ${member} <= ${ensemble_size} )
@@ -415,7 +415,7 @@ end
 # and has the required input files remaining from 'Block 4'
 #=========================================================================
 
-echo "`date` -- BEGIN DART TO POP"
+echo "`date` -- BEGIN DART-TO-POP"
 set member = 1
 while ( $member <= $ensemble_size )
 
@@ -440,14 +440,13 @@ if (${nsuccess} != ${ensemble_size}) then
    exit -8
 endif
 
-echo "`date` -- END DART TO POP for all ${ensemble_size} members."
-echo "`date` -- END ASSIMILATE"
+echo "`date` -- END DART-TO-POP for all ${ensemble_size} members."
 
 #-------------------------------------------------------------------------
 # Cleanup
 #-------------------------------------------------------------------------
 
-ls -lrt
+echo "`date` -- END POP_ASSIMILATE"
 
 exit 0
 

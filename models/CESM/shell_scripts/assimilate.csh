@@ -18,5 +18,7 @@ echo "`date` -- BEGIN CESM ASSIMILATE"
 #./pop_assimilate.csh
 #./clm_assimilate.csh
 
+echo "`date` -- END CESM ASSIMILATE"
+
 exit 0
 

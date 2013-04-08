@@ -10,7 +10,7 @@
 # changes to this script such that the same script can be used
 # on multiple platforms. This will help us maintain the script.
 
-echo "`date` -- BEGIN ASSIMILATE"
+echo "`date` -- BEGIN CLM_ASSIMILATE"
 
 switch ("`hostname`")
    case be*:
@@ -302,7 +302,7 @@ endif
 #                        advance_time_present    = .false.
 #=========================================================================
 
-echo "`date` -- BEGIN CLM TO DART"
+echo "`date` -- BEGIN CLM-TO-DART"
 
 set member = 1
 while ( ${member} <= ${ensemble_size} )
@@ -431,7 +431,7 @@ end
 # and has the required input files remaining from 'Block 4'
 #=========================================================================
 
-echo "`date` -- BEGIN DART TO CLM"
+echo "`date` -- BEGIN DART-TO-CLM"
 set member = 1
 while ( $member <= $ensemble_size )
 
@@ -457,17 +457,16 @@ if (${nsuccess} != ${ensemble_size}) then
 endif
 
 echo "`date` -- END DART-TO-CLM for all ${ensemble_size} members."
-echo "`date` -- END ASSIMILATE"
 
 #-------------------------------------------------------------------------
 # Cleanup
 #-------------------------------------------------------------------------
 
-#\rm -f ../$CASE.*.rh0.* 
-#\rm -f ../$CASE.*.rs1.* 
-#\rm -f ../PET*.ESMF_LogFile 
+# ${REMOVE} ../$CASE.*.rh0.* 
+# ${REMOVE} ../$CASE.*.rs1.* 
+# ${REMOVE} ../PET*.ESMF_LogFile 
 
-ls -lrt
+echo "`date` -- END CLM_ASSIMILATE"
 
 exit 0
 

@@ -10,7 +10,7 @@
 # changes to this script such that the same script can be used
 # on multiple platforms. This will help us maintain the script.
 
-echo "`date` -- BEGIN ASSIMILATE"
+echo "`date` -- BEGIN CAM_ASSIMILATE"
 
 switch ("`hostname`")
    case be*:
@@ -59,7 +59,13 @@ set ensemble_size = ${NINST_ATM}
 # Create temporary working directory for the assimilation
 set temp_dir = assimilate_dir
 echo "temp_dir is $temp_dir"
-mkdir -p $temp_dir
+
+# Create a clean temporary directory and go there
+if ( -d $temp_dir ) then
+   ${REMOVE} $temp_dir/*
+else
+   mkdir -p $temp_dir
+endif
 cd $temp_dir
 
 #-------------------------------------------------------------------------
@@ -290,7 +296,7 @@ endif
 #                        advance_time_present    = .false.
 #=========================================================================
 
-echo "`date` -- BEGIN CAM TO DART"
+echo "`date` -- BEGIN CAM-TO-DART"
 
 set member = 1
 while ( ${member} <= ${ensemble_size} )
@@ -411,7 +417,7 @@ end
 # and has the required input files remaining from 'Block 4'
 #=========================================================================
 
-echo "`date` -- BEGIN DART TO CAM"
+echo "`date` -- BEGIN DART-TO-CAM"
 set member = 1
 while ( $member <= $ensemble_size )
 
@@ -436,7 +442,7 @@ if (${nsuccess} != ${ensemble_size}) then
    exit -8
 endif
 
-echo "`date` -- END DART TO CAM for all ${ensemble_size} members."
+echo "`date` -- END DART-TO-CAM for all ${ensemble_size} members."
 
 #=========================================================================
 # Block 7: The cam files have now been updated, move them into position.
@@ -457,12 +463,8 @@ while ( ${member} <= ${ensemble_size} )
 
    set n4 = `printf %04d $member`
 
-   set LND_RESTART_FILENAME = `printf ${MYCASE}.clm2_%04d.r.${ATM_DATE_EXT}.nc ${member}`
-   set ICE_RESTART_FILENAME = `printf ${MYCASE}.cice_%04d.r.${ATM_DATE_EXT}.nc ${member}`
    set ATM_INITIAL_FILENAME = `printf ${MYCASE}.cam_%04d.i.${ATM_DATE_EXT}.nc  ${member}`
 
-   ${LINK} ${LND_RESTART_FILENAME} clm_restart_${n4}.nc || exit -9
-   ${LINK} ${ICE_RESTART_FILENAME} ice_restart_${n4}.nc || exit -9
    ${LINK} ${ATM_INITIAL_FILENAME} cam_initial_${n4}.nc || exit -9
 
    @ member++
@@ -485,22 +487,16 @@ set    SSSSS = `printf %05d ${ATM_SECONDS}`
 ./xmlchange START_TOD=${SSSSS}
 
 #-------------------------------------------------------------------------
+# Cleanup
 # we (DART) do not need these files, and CESM does not need them either
 # to continue a run.  if we remove them here they do not get moved to
 # the short-term archiver.
 #-------------------------------------------------------------------------
 
-${REMOVE} ${RUNDIR}/*.rs.*
-${REMOVE} ${RUNDIR}/*.rh0.*
-${REMOVE} ${RUNDIR}/*.rs1.*
-${REMOVE} ${RUNDIR}/PET*ESMF_LogFile
+# ${REMOVE} ${RUNDIR}/*.rh0.*
+# ${REMOVE} ${RUNDIR}/*.rs1.*
 
-#-------------------------------------------------------------------------
-# Cleanup
-#-------------------------------------------------------------------------
-
-echo "finished assimilate script at "`date`
-echo "`date` -- END ASSIMILATE"
+echo "`date` -- END CAM_ASSIMILATE"
 
 exit 0
 
