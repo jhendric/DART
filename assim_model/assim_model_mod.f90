@@ -602,7 +602,7 @@ subroutine get_initial_condition(x)
 
 implicit none
 
-type(assim_model_type), intent(out) :: x
+type(assim_model_type), intent(inout) :: x
 
 call aget_initial_condition(x%time, x%state_vector)
 
@@ -623,7 +623,7 @@ subroutine aget_initial_condition(time, x)
 implicit none
 
 type(time_type), intent(out) :: time
-real(r8), intent(out) :: x(:)
+real(r8),        intent(out) :: x(:)
 
 call init_conditions(x)
 
@@ -640,7 +640,7 @@ function get_model_time(assim_model)
 
 implicit none
 
-type(time_type) :: get_model_time
+type(time_type)                    :: get_model_time
 type(assim_model_type), intent(in) :: assim_model
 
 get_model_time = assim_model%time
@@ -660,8 +660,8 @@ subroutine copy_assim_model(model_out, model_in)
 
 implicit none
 
-type(assim_model_type), intent(out) :: model_out
-type(assim_model_type), intent(in)  :: model_in
+type(assim_model_type), intent(inout) :: model_out
+type(assim_model_type), intent(in)    :: model_in
 
 integer :: i
 
@@ -839,8 +839,8 @@ subroutine read_state_restart(assim_model, funit, target_time)
 
 implicit none
 
-type(assim_model_type), intent(out)          :: assim_model
-integer,                intent(in)           :: funit
+type(assim_model_type), intent(inout)         :: assim_model
+integer,                intent(in)            :: funit
 type(time_type),        optional, intent(out) :: target_time
 
 if ( .not. module_initialized ) call static_init_assim_model()
