@@ -1433,11 +1433,14 @@ if ( layout_type == 1 ) then
   !       Maybe 0 should not get vars or copies with lots of tasks?
   !  You would not need to flip if you shifted the ensemble processors and had the first n processors 
   !  as writers
-   temp = master_task_list(1:tasks_per_node)
 
-     do ii = 0, tasks_per_node - 1
-       master_task_list(ii + 1) = temp(tasks_per_node - ii)
-     enddo
+! HK commented out flipping for now. Aim: to test the startup time of laying out the ensemble in the 
+! code versus using LSF
+!   temp = master_task_list(1:tasks_per_node)
+!
+!     do ii = 0, tasks_per_node - 1
+!       master_task_list(ii + 1) = temp(tasks_per_node - ii)
+!     enddo
 
   deallocate(per_node, stat = alloc_stat)
     if(alloc_stat /= 0) print*, 'Deallocation problem'
