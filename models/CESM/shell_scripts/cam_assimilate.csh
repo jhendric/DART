@@ -57,7 +57,7 @@ endsw
 set ensemble_size = ${NINST_ATM}
 
 # Create temporary working directory for the assimilation
-set temp_dir = assimilate_dir
+set temp_dir = assimilate_cam
 echo "temp_dir is $temp_dir"
 
 # Create a clean temporary directory and go there
@@ -75,7 +75,7 @@ cd $temp_dir
 # Piping stuff through 'bc' strips off any preceeding zeros.
 #-------------------------------------------------------------------------
 
-set FILE = `ls -1t ../*.cam_0001.i.* | head -n 1`
+set FILE = `head -1 ../rpointer.atm_0001`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
@@ -113,11 +113,11 @@ endif
 
 echo "`date` -- BEGIN COPY BLOCK"
 
-if (  -e   ${CASEROOT}/input.nml ) then
-   ${COPY} ${CASEROOT}/input.nml .
+if (  -e   ${CASEROOT}/cam_input.nml ) then
+   ${COPY} ${CASEROOT}/cam_input.nml input.nml
 else
-   echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
-   echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
+   echo "ERROR ... DART required file ${CASEROOT}/cam_input.nml not found ... ERROR"
+   echo "ERROR ... DART required file ${CASEROOT}/cam_input.nml not found ... ERROR"
    exit -2
 endif
 
@@ -385,17 +385,17 @@ if ( $?LSB_PJL_TASK_GEOMETRY ) then
 endif
 
 echo "`date` -- BEGIN FILTER"
-${LAUNCHCMD} ${EXEROOT}/filter || exit -7
+${LAUNCHCMD} ${EXEROOT}/filter_cam || exit -7
 echo "`date` -- END FILTER"
 
 if ( $?LSB_PJL_TASK_GEOMETRY ) then
    setenv LSB_PJL_TASK_GEOMETRY "${ORIGINAL_LAYOUT}"
 endif
 
-${MOVE} Prior_Diag.nc      ../Prior_Diag.${ATM_DATE_EXT}.nc
-${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${ATM_DATE_EXT}.nc
-${MOVE} obs_seq.final      ../obs_seq.${ATM_DATE_EXT}.final
-${MOVE} dart_log.out       ../dart_log.${ATM_DATE_EXT}.out
+${MOVE} Prior_Diag.nc      ../cam_Prior_Diag.${ATM_DATE_EXT}.nc
+${MOVE} Posterior_Diag.nc  ../cam_Posterior_Diag.${ATM_DATE_EXT}.nc
+${MOVE} obs_seq.final      ../cam_obs_seq.${ATM_DATE_EXT}.final
+${MOVE} dart_log.out       ../cam_dart_log.${ATM_DATE_EXT}.out
 
 # Accomodate any possible inflation files
 # 1) rename file to reflect current date
@@ -404,7 +404,7 @@ ${MOVE} dart_log.out       ../dart_log.${ATM_DATE_EXT}.out
 
 foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE_INF_DIAG} )
    if ( -e ${FILE} ) then
-      ${MOVE} ${FILE} ../${FILE}.${ATM_DATE_EXT}
+      ${MOVE} ${FILE} ../cam_${FILE}.${ATM_DATE_EXT}
    else
       echo "No ${FILE} for ${ATM_DATE_EXT}"
    endif

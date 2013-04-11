@@ -63,9 +63,9 @@
 #    script names; so consider it's length and information content.
 # num_instances:  Number of ensemble members
 
-setenv case                 cesm_test3
-setenv compset              B_RCP4.5_CAM5_CN
+setenv case                 cesm_test
 setenv cesmtag              cesm1_1_1
+setenv compset              B_RCP4.5_CAM5_CN
 setenv resolution           0.9x1.25_gx1v6
 setenv num_instances        2
 
@@ -113,11 +113,13 @@ setenv run_refdate $refyear-$refmon-$refday
 #
 # stop_option   Units for determining the forecast length between assimilations
 # stop_n        Number of time units in the forecast
+# assim_n       Number of time units between assimilations
 # ==============================================================================
 
 setenv resubmit      0
 setenv stop_option   nhours
 setenv stop_n        72
+setenv assim_n       24
 
 # ==============================================================================
 # job settings
@@ -129,7 +131,7 @@ setenv stop_n        72
 # ==============================================================================
 
 setenv ACCOUNT      P86850054
-setenv timewall     1:00
+setenv timewall     0:30
 setenv queue        small
 setenv ptile        15
 
@@ -215,14 +217,14 @@ echo "DROF gets $rof_pes"
 echo "OCN  gets $ocn_pes"
 echo ""
 
-#   total number of hw pes = 240 
-#   cpl hw pe range ~ from 0 to 59 
-#   cam hw pe range ~ from 0 to 119 
-#   pop2 hw pe range ~ from 120 to 239 
-#   clm hw pe range ~ from 0 to 59 
-#   cice hw pe range ~ from 60 to 89 
-#   sglc hw pe range ~ from 90 to 119 
-#   rtm hw pe range ~ from 120 to 149 
+#   total number of hw pes = 240
+#   cpl hw pe range ~ from 0 to 59
+#   cam hw pe range ~ from 0 to 119
+#   pop2 hw pe range ~ from 120 to 239
+#   clm hw pe range ~ from 0 to 59
+#   cice hw pe range ~ from 60 to 89
+#   sglc hw pe range ~ from 90 to 119
+#   rtm hw pe range ~ from 120 to 149
 #   TJH FIXME ... CLM could use a lot more processors.
 
 ./xmlchange NTHRDS_CPL=1,NTASKS_CPL=$cpl_pes
@@ -265,7 +267,7 @@ echo ""
 ./xmlchange STOP_N=$stop_n
 ./xmlchange CONTINUE_RUN=FALSE
 ./xmlchange RESUBMIT=$resubmit
-./xmlchange PIO_TYPENAME=pnetcdf
+#./xmlchange PIO_TYPENAME=pnetcdf
 
 ./xmlchange DOUT_S=FALSE
 ./xmlchange DOUT_S_ROOT=${archdir}
@@ -290,6 +292,58 @@ if ( $status != 0 ) then
    echo "ERROR: Case could not be set up."
    exit -2
 endif
+
+# ==============================================================================
+# Modify namelist templates for each instance.
+# ==============================================================================
+
+@ inst = 1
+while ($inst <= $num_instances)
+
+   set instance  = `printf %04d $inst`
+
+   # ===========================================================================
+   set fname = "user_nl_cam_$instance"
+   # ===========================================================================
+
+   echo " inithist      = 'DAILY'"                      >> ${fname}
+   echo " ncdata        = 'cam_initial_${instance}.nc'" >> ${fname}
+   echo " empty_htapes  = .true. "                      >> ${fname}
+   echo " fincl1        = 'PHIS:I' "                    >> ${fname}
+   echo " nhtfrq        = -$assim_n "                   >> ${fname}
+   echo " mfilt         = 1 "                           >> ${fname}
+
+   # ===========================================================================
+   set fname = "user_nl_pop2_$instance"
+   # ===========================================================================
+
+   # POP Namelists
+   # init_ts_suboption = 'data_assim'   for non bit-for-bit restarting (assimilation mode)
+   # init_ts_suboption = 'null'         for 'perfect' restarting/forecasting
+
+   echo "init_ts_suboption = 'null'" >> $fname
+
+   # ===========================================================================
+   set fname = "user_nl_clm_$instance"
+   # ===========================================================================
+   
+   # Customize the land namelists
+   # The history tapes are a work in progress. If you write out the instantaneous
+   # flux variables every 30 minutes to the .h1. file, the forward observation
+   # operators for these fluxes should just read them from the .h1. file rather
+   # than trying to create them from the (incomplete DART) CLM state.
+
+   echo "hist_empty_htapes = .false."                >> $fname
+   echo "hist_fincl1 = 'NEP'"                        >> $fname
+   echo "hist_fincl2 = 'NEP','FSH','EFLX_LH_TOT_R'"  >> $fname
+   echo "hist_nhtfrq = -$assim_n,1,"                 >> $fname
+   echo "hist_mfilt  = 1,48"                         >> $fname
+   echo "hist_avgflag_pertape = 'A','A'"             >> $fname
+
+   @ inst ++
+end
+
+./preview_namelists
 
 # ==============================================================================
 # Update source files if need be
@@ -330,7 +384,29 @@ endif
 
 # ==============================================================================
 # Stage the restarts now that the run directory exists
+# I ran this compset once without setting user_nl_atm_00nn to see where the
+# initial files come from.
 # ==============================================================================
+
+set stagedir = /glade/p/cesm/cseg/inputdata/atm/cam/inic/fv
+
+echo ''
+echo "Copying the restart files from ${stagedir}"
+echo 'into the CESM run directory.'
+echo ''
+
+@ inst = 1
+while ($inst <= $num_instances)
+   set instance  = `printf %04d $inst`
+
+   echo ''
+   echo "Staging restarts for instance $inst of $num_instances"
+
+   ${COPY} ${stagedir}/cami-mam3_0000-01-01_0.9x1.25_L30_c100618.nc \
+             ${rundir}/cam_initial_${instance}.nc
+
+   @ inst ++
+end
 
 # ==============================================================================
 # Edit the run script to reflect project, queue, and wallclock
@@ -451,23 +527,35 @@ else
 endif
 
 # ${COPY} ${DARTroot}/models/CESM/shell_scripts/st_archive.sh   Tools/ TJH DEBUG
-${COPY} ${DARTroot}/models/CESM/shell_scripts/assimilate.csh  assimilate.csh
-${COPY} ${DARTroot}/models/CESM/work/input.nml                input.nml
+${COPY} ${DARTroot}/models/CESM/shell_scripts/assimilate.csh          assimilate.csh
+${COPY} ${DARTroot}/models/CESM/shell_scripts/cam_assimilate.csh  cam_assimilate.csh
+${COPY} ${DARTroot}/models/CESM/shell_scripts/pop_assimilate.csh  pop_assimilate.csh
+${COPY} ${DARTroot}/models/CESM/shell_scripts/clm_assimilate.csh  clm_assimilate.csh
 
 # ==============================================================================
 # Stage the DART executables in the CESM execution root directory: EXEROOT
 # ==============================================================================
 
-foreach FILE ( filter pop_to_dart dart_to_pop \
-                      clm_to_dart dart_to_clm \
-                      cam_to_dart dart_to_cam )
-   ${COPY} ${DARTroot}/models/CESM/work/${FILE} ${exeroot}/
-   if ( $status != 0 ) then
-      echo "WARNING: ${DARTroot}/models/CESM/work/${FILE} not copied to ${exeroot}"
-      echo "WARNING: ${DARTroot}/models/CESM/work/${FILE} not copied to ${exeroot}"
-   #  exit -3  TJH FIXME
-   endif
-end
+${COPY} ${DARTroot}/models/cam/work/cam_to_dart   ${exeroot}/.
+${COPY} ${DARTroot}/models/cam/work/dart_to_cam   ${exeroot}/.
+${COPY} ${DARTroot}/models/cam/work/filter        ${exeroot}/filter_cam
+${COPY} ${DARTroot}/models/cam/work/filter        ${exeroot}/filter
+${COPY} ${DARTroot}/models/cam/work/input.nml                cam_input.nml
+
+${COPY} ${DARTroot}/models/clm/work/clm_to_dart   ${exeroot}/.
+${COPY} ${DARTroot}/models/clm/work/dart_to_clm   ${exeroot}/.
+${COPY} ${DARTroot}/models/clm/work/filter        ${exeroot}/filter_clm
+${COPY} ${DARTroot}/models/clm/work/input.nml                clm_input.nml
+
+${COPY} ${DARTroot}/models/POP/work/pop_to_dart   ${exeroot}/.
+${COPY} ${DARTroot}/models/POP/work/dart_to_pop   ${exeroot}/.
+${COPY} ${DARTroot}/models/POP/work/filter        ${exeroot}/filter_pop
+${COPY} ${DARTroot}/models/POP/work/input.nml                pop_input.nml
+
+${COPY} ${DARTroot}/models/CESM/work/cesm_to_dart ${exeroot}/.
+${COPY} ${DARTroot}/models/CESM/work/dart_to_cesm ${exeroot}/.
+${COPY} ${DARTroot}/models/CESM/work/filter       ${exeroot}/filter_cesm
+${COPY} ${DARTroot}/models/CESM/work/input.nml               input.nml
 
 # ==============================================================================
 # What to do next
@@ -485,7 +573,7 @@ echo ''
 echo "For continued submissions after the initial (hybrid) startup,"
 echo "make the following changes to the env_run variables:"
 echo ''
-echo "  ./xmlchange -file env_run.xml -id STOP_N        -val 1"
+echo "  ./xmlchange -file env_run.xml -id STOP_N        -val 24"
 echo "  ./xmlchange -file env_run.xml -id CONTINUE_RUN  -val TRUE"
 echo "  ./xmlchange -file env_run.xml -id RESUBMIT      -val <your_favorite_number>"
 echo ''

@@ -57,7 +57,7 @@ endsw
 set ensemble_size = ${NINST_OCN}
 
 # Create temporary working directory for the assimilation
-set temp_dir = assimilate_dir
+set temp_dir = assimilate_pop
 echo "temp_dir is $temp_dir"
 
 # Create a clean temporary directory and go there
@@ -114,11 +114,11 @@ endif
 
 echo "`date` -- BEGIN COPY BLOCK"
 
-if (  -e   ${CASEROOT}/input.nml ) then
-   ${COPY} ${CASEROOT}/input.nml .
+if (  -e   ${CASEROOT}/pop_input.nml ) then
+   ${COPY} ${CASEROOT}/pop_input.nml input.nml
 else
-   echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
-   echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
+   echo "ERROR ... DART required file ${CASEROOT}/pop_input.nml not found ... ERROR"
+   echo "ERROR ... DART required file ${CASEROOT}/pop_input.nml not found ... ERROR"
    exit -2
 endif
 
@@ -383,17 +383,17 @@ if ( $?LSB_PJL_TASK_GEOMETRY ) then
 endif
 
 echo "`date` -- BEGIN FILTER"
-${LAUNCHCMD} ${EXEROOT}/filter || exit -7
+${LAUNCHCMD} ${EXEROOT}/filter_pop || exit -7
 echo "`date` -- END FILTER"
 
 if ( $?LSB_PJL_TASK_GEOMETRY ) then
    setenv LSB_PJL_TASK_GEOMETRY "${ORIGINAL_LAYOUT}"
 endif
 
-${MOVE} Prior_Diag.nc      ../Prior_Diag.${OCN_DATE_EXT}.nc
-${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${OCN_DATE_EXT}.nc
-${MOVE} obs_seq.final      ../obs_seq.${OCN_DATE_EXT}.final
-${MOVE} dart_log.out       ../dart_log.${OCN_DATE_EXT}.out
+${MOVE} Prior_Diag.nc      ../pop_Prior_Diag.${OCN_DATE_EXT}.nc
+${MOVE} Posterior_Diag.nc  ../pop_Posterior_Diag.${OCN_DATE_EXT}.nc
+${MOVE} obs_seq.final      ../pop_obs_seq.${OCN_DATE_EXT}.final
+${MOVE} dart_log.out       ../pop_dart_log.${OCN_DATE_EXT}.out
 
 # Accomodate any possible inflation files
 # 1) rename file to reflect current date
@@ -402,7 +402,7 @@ ${MOVE} dart_log.out       ../dart_log.${OCN_DATE_EXT}.out
 
 foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE_INF_DIAG} )
    if ( -e ${FILE} ) then
-      ${MOVE} ${FILE} ../${FILE}.${OCN_DATE_EXT}
+      ${MOVE} ${FILE} ../pop_${FILE}.${OCN_DATE_EXT}
    else
       echo "No ${FILE} for ${OCN_DATE_EXT}"
    endif

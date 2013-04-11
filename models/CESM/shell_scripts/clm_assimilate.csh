@@ -57,7 +57,7 @@ endsw
 set ensemble_size = ${NINST_LND}
 
 # Create temporary working directory for the assimilation
-set temp_dir = assimilate_dir
+set temp_dir = assimilate_clm
 echo "temp_dir is $temp_dir"
 
 # Create a clean temporary directory and go there
@@ -100,7 +100,7 @@ echo "valid time of model is $LND_YEAR $LND_MONTH $LND_DAY $LND_HOUR (hours)"
 
 set YYYYMMDD = `printf %04d%02d%02d ${LND_YEAR} ${LND_MONTH} ${LND_DAY}`
 set YYYYMM   = `printf %04d%02d     ${LND_YEAR} ${LND_MONTH}`
-set OBSFNAME = obs_seq.daybefore.${YYYYMMDD}
+set OBSFNAME = obs_seq.${LND_DATE_EXT}
 set OBS_FILE = ${BASEOBSDIR}/${YYYYMM}/${OBSFNAME}
 
 if (  -e   ${OBS_FILE} ) then
@@ -117,11 +117,11 @@ endif
 
 echo "`date` -- BEGIN COPY BLOCK"
 
-if (  -e   ${CASEROOT}/input.nml ) then
-   ${COPY} ${CASEROOT}/input.nml .
+if (  -e   ${CASEROOT}/clm_input.nml ) then
+   ${COPY} ${CASEROOT}/clm_input.nml input.nml
 else
-   echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
-   echo "ERROR ... DART required file ${CASEROOT}/input.nml not found ... ERROR"
+   echo "ERROR ... DART required file ${CASEROOT}/clm_input.nml not found ... ERROR"
+   echo "ERROR ... DART required file ${CASEROOT}/clm_input.nml not found ... ERROR"
    exit -2
 endif
 
@@ -399,17 +399,17 @@ if ( $?LSB_PJL_TASK_GEOMETRY ) then
 endif
 
 echo "`date` -- BEGIN FILTER"
-${LAUNCHCMD} ${EXEROOT}/filter || exit -7
+${LAUNCHCMD} ${EXEROOT}/filter_clm || exit -7
 echo "`date` -- END FILTER"
 
 if ( $?LSB_PJL_TASK_GEOMETRY ) then
    setenv LSB_PJL_TASK_GEOMETRY "${ORIGINAL_LAYOUT}"
 endif
 
-${MOVE} Prior_Diag.nc      ../Prior_Diag.${LND_DATE_EXT}.nc
-${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${LND_DATE_EXT}.nc
-${MOVE} obs_seq.final      ../obs_seq.${LND_DATE_EXT}.final
-${MOVE} dart_log.out       ../dart_log.${LND_DATE_EXT}.out
+${MOVE} Prior_Diag.nc      ../clm_Prior_Diag.${LND_DATE_EXT}.nc
+${MOVE} Posterior_Diag.nc  ../clm_Posterior_Diag.${LND_DATE_EXT}.nc
+${MOVE} obs_seq.final      ../clm_obs_seq.${LND_DATE_EXT}.final
+${MOVE} dart_log.out       ../clm_dart_log.${LND_DATE_EXT}.out
 
 # Accomodate any possible inflation files
 # 1) rename file to reflect current date
@@ -418,7 +418,7 @@ ${MOVE} dart_log.out       ../dart_log.${LND_DATE_EXT}.out
 
 foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE_INF_DIAG} )
    if ( -e ${FILE} ) then
-      ${MOVE} ${FILE} ../${FILE}.${LND_DATE_EXT}
+      ${MOVE} ${FILE} ../clm_${FILE}.${LND_DATE_EXT}
    else
       echo "No ${FILE} for ${LND_DATE_EXT}"
    endif
