@@ -235,7 +235,7 @@ if ( $PRIOR_INF > 0 ) then
       echo "inf_flavor(1) = $PRIOR_INF, using namelist values."
    else
       # Look for the output from the previous assimilation
-      (ls -rt1 ../${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../cam_${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -244,7 +244,7 @@ if ( $PRIOR_INF > 0 ) then
          ${LINK} $latest ${PRIOR_INF_IFNAME}
       else
          echo "ERROR: Requested PRIOR inflation but specified no incoming inflation file."
-         echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+         echo "ERROR: expected something like ../cam_${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
          exit -4
       endif
 
@@ -262,7 +262,7 @@ if ( $POSTE_INF > 0 ) then
    else
 
       # Look for the output from the previous assimilation
-      (ls -rt1 ../${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../cam_${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -271,7 +271,7 @@ if ( $POSTE_INF > 0 ) then
          ${LINK} $latest ${POSTE_INF_IFNAME}
       else
          echo "ERROR: Requested POSTERIOR inflation but specified no incoming inflation file."
-         echo "ERROR: expected something like ../${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+         echo "ERROR: expected something like ../cam_${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
          exit -5
       endif
    endif
