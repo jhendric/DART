@@ -14,7 +14,7 @@ echo "`date` -- BEGIN CESM ASSIMILATE"
 
 ${CASEROOT}/cam_assimilate.csh
 ${CASEROOT}/pop_assimilate.csh
-# ${CASEROOT}/clm_assimilate.csh
+${CASEROOT}/clm_assimilate.csh
 
 echo "`date` -- END CESM ASSIMILATE"
 

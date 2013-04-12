@@ -130,7 +130,7 @@ setenv assim_n       24
 # TJH: How many T62_gx1v6 CESM instances can fit on 1 node?
 # ==============================================================================
 
-setenv ACCOUNT      P86850054
+setenv ACCOUNT      P8685xxxx
 setenv timewall     0:30
 setenv queue        small
 setenv ptile        15
@@ -333,7 +333,7 @@ while ($inst <= $num_instances)
    # operators for these fluxes should just read them from the .h1. file rather
    # than trying to create them from the (incomplete DART) CLM state.
 
-   echo "hist_empty_htapes = .false."                >> $fname
+   echo "hist_empty_htapes = .true."                 >> $fname
    echo "hist_fincl1 = 'NEP'"                        >> $fname
    echo "hist_fincl2 = 'NEP','FSH','EFLX_LH_TOT_R'"  >> $fname
    echo "hist_nhtfrq = -$assim_n,1,"                 >> $fname
