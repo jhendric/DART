@@ -303,6 +303,7 @@ echo ""
 # land surface diagnostics. Setting ROF_GRID to 'null' turns off the RTM.
 
 ./xmlchange ROF_GRID='null'
+./xmlchange CLM_CONFIG_OPTS='-bgc cn'
 
 # level of debug output, 0=minimum, 1=normal, 2=more, 3=too much, valid values: 0,1,2,3 (integer)
 

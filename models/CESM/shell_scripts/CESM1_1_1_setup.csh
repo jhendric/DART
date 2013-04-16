@@ -65,7 +65,7 @@
 
 setenv case                 cesm_test
 setenv cesmtag              cesm1_1_1
-setenv compset              B_RCP4.5_CAM5_CN
+setenv compset              B_2000_CAM5
 setenv resolution           0.9x1.25_gx1v6
 setenv num_instances        2
 
@@ -130,7 +130,7 @@ setenv assim_n       24
 # TJH: How many T62_gx1v6 CESM instances can fit on 1 node?
 # ==============================================================================
 
-setenv ACCOUNT      P8685xxxx
+setenv ACCOUNT      P8685nnnn
 setenv timewall     0:30
 setenv queue        small
 setenv ptile        15
@@ -269,6 +269,8 @@ echo ""
 ./xmlchange RESUBMIT=$resubmit
 #./xmlchange PIO_TYPENAME=pnetcdf
 
+./xmlchange CLM_CONFIG_OPTS='-bgc cn'
+
 ./xmlchange DOUT_S=FALSE
 ./xmlchange DOUT_S_ROOT=${archdir}
 ./xmlchange DOUT_S_SAVE_INT_REST_FILES=FALSE
@@ -305,6 +307,8 @@ while ($inst <= $num_instances)
    # ===========================================================================
    set fname = "user_nl_cam_$instance"
    # ===========================================================================
+   # For a HOP TEST ... empty_htapes = .false.
+   # For a HOP TEST ... use a default fincl1 
 
    echo " inithist      = 'DAILY'"                      >> ${fname}
    echo " ncdata        = 'cam_initial_${instance}.nc'" >> ${fname}
@@ -320,6 +324,7 @@ while ($inst <= $num_instances)
    # POP Namelists
    # init_ts_suboption = 'data_assim'   for non bit-for-bit restarting (assimilation mode)
    # init_ts_suboption = 'null'         for 'perfect' restarting/forecasting
+   # For a HOP TEST (untested)... tavg_file_freq_opt = 'nmonth' 'nday' 'once'"
 
    echo "init_ts_suboption = 'null'" >> $fname
 
@@ -332,6 +337,8 @@ while ($inst <= $num_instances)
    # flux variables every 30 minutes to the .h1. file, the forward observation
    # operators for these fluxes should just read them from the .h1. file rather
    # than trying to create them from the (incomplete DART) CLM state.
+   # For a HOP TEST ... hist_empty_htapes = .false.
+   # For a HOP TEST ... use a default hist_fincl1 
 
    echo "hist_empty_htapes = .true."                 >> $fname
    echo "hist_fincl1 = 'NEP'"                        >> $fname
@@ -576,6 +583,12 @@ echo ''
 echo "  ./xmlchange -file env_run.xml -id STOP_N        -val 24"
 echo "  ./xmlchange -file env_run.xml -id CONTINUE_RUN  -val TRUE"
 echo "  ./xmlchange -file env_run.xml -id RESUBMIT      -val <your_favorite_number>"
+echo ''
+echo "Once you get to 2004-01-04, there are more things to do ... "
+echo "in the CASEROOT directory, uncomment the ncdata in the user_nl_cam* files ..."
+echo "ncdata       = 'cam_initial_${instance}.nc'" >> ${fname}
+echo "in the run directory, link the current cam initial files ..."
+echo "make sure the history tapes for cam,clm are being created at the right frequency"
 echo ''
 echo "Check the streams listed in the streams text files.  If more or different"
 echo 'dates need to be added, then do this in the $CASEROOT/user_*files*'

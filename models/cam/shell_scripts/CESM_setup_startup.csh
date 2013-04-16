@@ -379,8 +379,10 @@ while ($inst <= $num_instances)
    # ===========================================================================
    set fname = "user_nl_clm_$instance"
    # ===========================================================================
+   # hist_empty_htapes must be false at the moment. Otherwise the CLM restart file
+   # gets created with ntapes=0 which prevents CLM from restarting. Crazy.
 
-   echo "hist_empty_htapes = .true. "                       >> ${fname}
+   echo "hist_empty_htapes = .false. "                      >> ${fname}
    echo "finidat           = 'clm_restart_${instance}.nc' " >> ${fname}
    echo "fpftdyn = '${cesm_datadir}/lnd/clm2/surfdata/surfdata.pftdyn_0.9x1.25_rcp4.5_simyr1850-2100_c100406.nc' " >> ${fname}
 
@@ -685,4 +687,9 @@ echo "names set in assimilate.csh match those on your system, and submit"
 echo "the CESM job by running:"
 echo "./${case}.submit"
 echo ''
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

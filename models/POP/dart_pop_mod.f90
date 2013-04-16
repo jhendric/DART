@@ -4,12 +4,6 @@
 
 module dart_pop_mod
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use        types_mod, only : r8, rad2deg, PI, SECPERDAY
 use time_manager_mod, only : time_type, get_date, set_date, get_time, set_time, &
                              set_calendar_type, get_calendar_string, &
@@ -17,7 +11,7 @@ use time_manager_mod, only : time_type, get_date, set_date, get_time, set_time, 
 use    utilities_mod, only : get_unit, open_file, close_file, file_exist, &
                              register_module, error_handler, nc_check, &
                              find_namelist_in_file, check_namelist_read, &
-                             E_ERR, E_MSG, timestamp, find_textfile_dims, &
+                             E_ERR, E_MSG, find_textfile_dims, &
                              logfileunit
 
 use typesizes
@@ -707,3 +701,10 @@ end subroutine get_pop_restart_filename
 
 
 end module dart_pop_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

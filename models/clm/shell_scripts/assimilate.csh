@@ -10,7 +10,7 @@
 # changes to this script such that the same script can be used
 # on multiple platforms. This will help us maintain the script.
 
-echo "`date` -- BEGIN ASSIMILATE"
+echo "`date` -- BEGIN CLM_ASSIMILATE"
 
 switch ("`hostname`")
    case be*:
@@ -57,7 +57,7 @@ endsw
 set ensemble_size = ${NINST_LND}
 
 # Create temporary working directory for the assimilation
-set temp_dir = assimilate_dir
+set temp_dir = assimilate_clm
 echo "temp_dir is $temp_dir"
 
 # Create a clean temporary directory and go there
@@ -100,7 +100,7 @@ echo "valid time of model is $LND_YEAR $LND_MONTH $LND_DAY $LND_HOUR (hours)"
 
 set YYYYMMDD = `printf %04d%02d%02d ${LND_YEAR} ${LND_MONTH} ${LND_DAY}`
 set YYYYMM   = `printf %04d%02d     ${LND_YEAR} ${LND_MONTH}`
-set OBSFNAME = obs_seq.daybefore.${YYYYMMDD}
+set OBSFNAME = obs_seq.${LND_DATE_EXT}
 set OBS_FILE = ${BASEOBSDIR}/${YYYYMM}/${OBSFNAME}
 
 if (  -e   ${OBS_FILE} ) then
@@ -241,7 +241,7 @@ if ( $PRIOR_INF > 0 ) then
       echo "inf_flavor(1) = $PRIOR_INF, using namelist values."
    else
       # Look for the output from the previous assimilation
-      (ls -rt1 ../${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../clm_${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -250,7 +250,7 @@ if ( $PRIOR_INF > 0 ) then
          ${LINK} $latest ${PRIOR_INF_IFNAME}
       else
          echo "ERROR: Requested PRIOR inflation but specified no incoming inflation file."
-         echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+         echo "ERROR: expected something like ../clm_${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
          exit -4
       endif
 
@@ -268,7 +268,7 @@ if ( $POSTE_INF > 0 ) then
    else
 
       # Look for the output from the previous assimilation
-      (ls -rt1 ../${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../clm_${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -277,7 +277,7 @@ if ( $POSTE_INF > 0 ) then
          ${LINK} $latest ${POSTE_INF_IFNAME}
       else
          echo "ERROR: Requested POSTERIOR inflation but specified no incoming inflation file."
-         echo "ERROR: expected something like ../${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+         echo "ERROR: expected something like ../clm_${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
          exit -5
       endif
    endif
@@ -302,7 +302,7 @@ endif
 #                        advance_time_present    = .false.
 #=========================================================================
 
-echo "`date` -- BEGIN CLM TO DART"
+echo "`date` -- BEGIN CLM-TO-DART"
 
 set member = 1
 while ( ${member} <= ${ensemble_size} )
@@ -313,6 +313,9 @@ while ( ${member} <= ${ensemble_size} )
    set MYTEMPDIR = member_${member}
    mkdir -p $MYTEMPDIR
    cd $MYTEMPDIR
+
+   # make sure there are no old output logs hanging around
+   $REMOVE output.${member}.clm_to_dart
 
    set LND_RESTART_FILENAME = `printf ../../${MYCASE}.clm2_%04d.r.${LND_DATE_EXT}.nc  ${member}`
    set LND_HISTORY_FILENAME = `printf ../../${MYCASE}.clm2_%04d.h0.${LND_DATE_EXT}.nc ${member}`
@@ -348,7 +351,8 @@ end
 
 wait
 
-if ($status != 0) then
+set nsuccess = `fgrep 'Finished ... at YYYY' member*/output.[0-9]*.clm_to_dart | wc -l`
+if (${nsuccess} != ${ensemble_size}) then
    echo "ERROR ... DART died in 'clm_to_dart' ... ERROR"
    echo "ERROR ... DART died in 'clm_to_dart' ... ERROR"
    exit -6
@@ -402,10 +406,10 @@ if ( $?LSB_PJL_TASK_GEOMETRY ) then
    setenv LSB_PJL_TASK_GEOMETRY "${ORIGINAL_LAYOUT}"
 endif
 
-${MOVE} Prior_Diag.nc      ../Prior_Diag.${LND_DATE_EXT}.nc
-${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${LND_DATE_EXT}.nc
-${MOVE} obs_seq.final      ../obs_seq.${LND_DATE_EXT}.final
-${MOVE} dart_log.out       ../dart_log.${LND_DATE_EXT}.out
+${MOVE} Prior_Diag.nc      ../clm_Prior_Diag.${LND_DATE_EXT}.nc
+${MOVE} Posterior_Diag.nc  ../clm_Posterior_Diag.${LND_DATE_EXT}.nc
+${MOVE} obs_seq.final      ../clm_obs_seq.${LND_DATE_EXT}.final
+${MOVE} dart_log.out       ../clm_dart_log.${LND_DATE_EXT}.out
 
 # Accomodate any possible inflation files
 # 1) rename file to reflect current date
@@ -414,7 +418,7 @@ ${MOVE} dart_log.out       ../dart_log.${LND_DATE_EXT}.out
 
 foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE_INF_DIAG} )
    if ( -e ${FILE} ) then
-      ${MOVE} ${FILE} ../${FILE}.${LND_DATE_EXT}
+      ${MOVE} ${FILE} ../clm_${FILE}.${LND_DATE_EXT}
    else
       echo "No ${FILE} for ${LND_DATE_EXT}"
    endif
@@ -427,11 +431,13 @@ end
 # and has the required input files remaining from 'Block 4'
 #=========================================================================
 
-echo "`date` -- BEGIN DART TO CLM"
+echo "`date` -- BEGIN DART-TO-CLM"
 set member = 1
 while ( $member <= $ensemble_size )
 
    cd member_${member}
+
+   ${REMOVE} output.${member}.dart_to_clm
 
    echo "starting dart_to_clm for member ${member} at "`date`
    ${EXEROOT}/dart_to_clm >! output.${member}.dart_to_clm &
@@ -443,24 +449,24 @@ end
 
 wait
 
-if ($status != 0) then
+set nsuccess = `fgrep 'Finished ... at YYYY' member*/output.[0-9]*.dart_to_clm | wc -l`
+if (${nsuccess} != ${ensemble_size}) then
    echo "ERROR ... DART died in 'dart_to_clm' ... ERROR"
    echo "ERROR ... DART died in 'dart_to_clm' ... ERROR"
    exit -8
 endif
 
 echo "`date` -- END DART-TO-CLM for all ${ensemble_size} members."
-echo "`date` -- END ASSIMILATE"
 
 #-------------------------------------------------------------------------
 # Cleanup
 #-------------------------------------------------------------------------
 
-#\rm -f ../$CASE.*.rh0.* 
-#\rm -f ../$CASE.*.rs1.* 
-#\rm -f ../PET*.ESMF_LogFile 
+# ${REMOVE} ../$CASE.*.rh0.* 
+# ${REMOVE} ../$CASE.*.rs1.* 
+# ${REMOVE} ../PET*.ESMF_LogFile 
 
-ls -lrt
+echo "`date` -- END CLM_ASSIMILATE"
 
 exit 0
 

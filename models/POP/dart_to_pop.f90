@@ -4,12 +4,6 @@
 
 program dart_to_pop
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 !----------------------------------------------------------------------
 ! purpose: interface between DART and the POP model
 !
@@ -27,7 +21,7 @@ program dart_to_pop
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8
-use    utilities_mod, only : initialize_utilities, timestamp, &
+use    utilities_mod, only : initialize_utilities, finalize_utilities, &
                              find_namelist_in_file, check_namelist_read, &
                              logfileunit
 use  assim_model_mod, only : open_restart_read, aread_state_restart, close_restart
@@ -60,11 +54,10 @@ integer               :: iunit, io, x_size
 type(time_type)       :: model_time, adv_to_time
 real(r8), allocatable :: statevector(:)
 character (len = 128) :: pop_restart_filename = 'no_pop_restart_file'
-logical               :: verbose              = .FALSE.
 
 !----------------------------------------------------------------------
 
-call initialize_utilities(progname='dart_to_pop', output_flag=verbose)
+call initialize_utilities(progname='dart_to_pop')
 
 !----------------------------------------------------------------------
 ! Call model_mod:static_init_model() which reads the POP namelists
@@ -130,7 +123,13 @@ call print_time(adv_to_time,'dart_to_pop:advance_to time',logfileunit)
 call print_date(adv_to_time,'dart_to_pop:advance_to date',logfileunit)
 endif
 
-! When called with 'end', timestamp will call finalize_utilities()
-call timestamp(string1=source, pos='end')
+call finalize_utilities('dart_to_pop')
 
 end program dart_to_pop
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

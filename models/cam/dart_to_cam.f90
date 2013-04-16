@@ -115,7 +115,7 @@ call print_date(adv_to_time,'dart_to_cam:advance_to date',logfileunit)
 endif
 
 
-call finalize_utilities()
+call finalize_utilities('dart_to_cam')
 
 end program dart_to_cam
 

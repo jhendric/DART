@@ -127,7 +127,7 @@ setenv stop_n        2
 # ==============================================================================
 
 setenv ACCOUNT      P8685nnnn
-setenv timewall     0:30
+setenv timewall     0:20
 setenv queue        regular
 setenv ptile        15
 

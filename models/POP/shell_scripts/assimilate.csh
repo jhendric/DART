@@ -10,7 +10,7 @@
 # changes to this script such that the same script can be used
 # on multiple platforms. This will help us maintain the script.
 
-echo "`date` -- BEGIN ASSIMILATE"
+echo "`date` -- BEGIN POP_ASSIMILATE"
 
 switch ("`hostname`")
    case be*:
@@ -57,7 +57,7 @@ endsw
 set ensemble_size = ${NINST_OCN}
 
 # Create temporary working directory for the assimilation
-set temp_dir = assimilate_dir
+set temp_dir = assimilate_pop
 echo "temp_dir is $temp_dir"
 
 # Create a clean temporary directory and go there
@@ -238,7 +238,7 @@ if ( $PRIOR_INF > 0 ) then
       echo "inf_flavor(1) = $PRIOR_INF, using namelist values."
    else
       # Look for the output from the previous assimilation
-      (ls -rt1 ../${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../pop_${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -247,7 +247,7 @@ if ( $PRIOR_INF > 0 ) then
          ${LINK} $latest ${PRIOR_INF_IFNAME}
       else
          echo "ERROR: Requested PRIOR inflation but specified no incoming inflation file."
-         echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+         echo "ERROR: expected something like ../pop_${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
          exit -4
       endif
 
@@ -265,7 +265,7 @@ if ( $POSTE_INF > 0 ) then
    else
 
       # Look for the output from the previous assimilation
-      (ls -rt1 ../${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../pop_${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -274,7 +274,7 @@ if ( $POSTE_INF > 0 ) then
          ${LINK} $latest ${POSTE_INF_IFNAME}
       else
          echo "ERROR: Requested POSTERIOR inflation but specified no incoming inflation file."
-         echo "ERROR: expected something like ../${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+         echo "ERROR: expected something like ../pop_${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
          exit -5
       endif
    endif
@@ -299,7 +299,7 @@ endif
 #                        advance_time_present    = .false.
 #=========================================================================
 
-echo "`date` -- BEGIN POP TO DART"
+echo "`date` -- BEGIN POP-TO-DART"
 
 set member = 1
 while ( ${member} <= ${ensemble_size} )
@@ -310,6 +310,9 @@ while ( ${member} <= ${ensemble_size} )
    set MYTEMPDIR = member_${member}
    mkdir -p $MYTEMPDIR
    cd $MYTEMPDIR
+
+   # make sure there are no old output logs hanging around
+   $REMOVE output.${member}.pop_to_dart
 
    set OCN_RESTART_FILENAME = `printf ../../${MYCASE}.pop_%04d.r.${OCN_DATE_EXT}.nc  ${member}`
    set     OCN_NML_FILENAME = `printf ../../pop2_in_%04d  ${member}`
@@ -332,7 +335,8 @@ end
 
 wait
 
-if ($status != 0) then
+set nsuccess = `fgrep 'Finished ... at YYYY' member*/output.[0-9]*.pop_to_dart | wc -l`
+if (${nsuccess} != ${ensemble_size}) then
    echo "ERROR ... DART died in 'pop_to_dart' ... ERROR"
    echo "ERROR ... DART died in 'pop_to_dart' ... ERROR"
    exit -6
@@ -386,10 +390,10 @@ if ( $?LSB_PJL_TASK_GEOMETRY ) then
    setenv LSB_PJL_TASK_GEOMETRY "${ORIGINAL_LAYOUT}"
 endif
 
-${MOVE} Prior_Diag.nc      ../Prior_Diag.${OCN_DATE_EXT}.nc
-${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${OCN_DATE_EXT}.nc
-${MOVE} obs_seq.final      ../obs_seq.${OCN_DATE_EXT}.final
-${MOVE} dart_log.out       ../dart_log.${OCN_DATE_EXT}.out
+${MOVE} Prior_Diag.nc      ../pop_Prior_Diag.${OCN_DATE_EXT}.nc
+${MOVE} Posterior_Diag.nc  ../pop_Posterior_Diag.${OCN_DATE_EXT}.nc
+${MOVE} obs_seq.final      ../pop_obs_seq.${OCN_DATE_EXT}.final
+${MOVE} dart_log.out       ../pop_dart_log.${OCN_DATE_EXT}.out
 
 # Accomodate any possible inflation files
 # 1) rename file to reflect current date
@@ -398,7 +402,7 @@ ${MOVE} dart_log.out       ../dart_log.${OCN_DATE_EXT}.out
 
 foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE_INF_DIAG} )
    if ( -e ${FILE} ) then
-      ${MOVE} ${FILE} ../${FILE}.${OCN_DATE_EXT}
+      ${MOVE} ${FILE} ../pop_${FILE}.${OCN_DATE_EXT}
    else
       echo "No ${FILE} for ${OCN_DATE_EXT}"
    endif
@@ -411,11 +415,13 @@ end
 # and has the required input files remaining from 'Block 4'
 #=========================================================================
 
-echo "`date` -- BEGIN DART TO POP"
+echo "`date` -- BEGIN DART-TO-POP"
 set member = 1
 while ( $member <= $ensemble_size )
 
    cd member_${member}
+
+   ${REMOVE} output.${member}.dart_to_pop
 
    echo "starting dart_to_pop for member ${member} at "`date`
    ${EXEROOT}/dart_to_pop >! output.${member}.dart_to_pop &
@@ -427,20 +433,20 @@ end
 
 wait
 
-if ($status != 0) then
+set nsuccess = `fgrep 'Finished ... at YYYY' member*/output.[0-9]*.dart_to_pop | wc -l`
+if (${nsuccess} != ${ensemble_size}) then
    echo "ERROR ... DART died in 'dart_to_pop' ... ERROR"
    echo "ERROR ... DART died in 'dart_to_pop' ... ERROR"
    exit -8
 endif
 
-echo "`date` -- END DART TO POP for all ${ensemble_size} members."
-echo "`date` -- END ASSIMILATE"
+echo "`date` -- END DART-TO-POP for all ${ensemble_size} members."
 
 #-------------------------------------------------------------------------
 # Cleanup
 #-------------------------------------------------------------------------
 
-ls -lrt
+echo "`date` -- END POP_ASSIMILATE"
 
 exit 0
 
