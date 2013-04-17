@@ -17,7 +17,8 @@ program timing
       use utilities_mod,        only: find_namelist_in_file, check_namelist_read,                      &
                                       set_nml_output
       use ensemble_manager_mod, only: init_ensemble_manager, ensemble_type, all_vars_to_all_copies,    &
-                                       all_copies_to_all_vars, end_ensemble_manager, get_my_num_vars, get_my_num_copies
+                                      all_copies_to_all_vars, end_ensemble_manager, get_my_num_vars,   &
+                                      get_my_num_copies, my_pe
 
        use mpi
 
@@ -40,7 +41,6 @@ integer :: array_length !> length of array to transpose
 integer :: i, k, j !> for loops
 real:: cpu_start, cpu_finish !> for cpu_time
 double precision:: start, finish !> for MPI_Wtime
-integer :: printme = 0!> for loop timing inside transpose routines, 0 is off, 1 is on
 
 ! utilites
 integer :: iunit !> for reading in namelist from flle
@@ -63,16 +63,6 @@ namelist /timing_nml/ debug_flag, &
 
  call check_namelist_read(iunit, io, "timing_nml")
 
-! open output files
-write(task_str, '(i10)') my_task_id()
-file0 = TRIM('inital' // TRIM(ADJUSTL(task_str)) // '.trans')
-file1 = TRIM('intermediate_output' // TRIM(ADJUSTL(task_str)) // '.trans')
-file2 = TRIM('final_output' // TRIM(ADJUSTL(task_str)) // '.trans')
-
-  open(15, file=file0, status ='new')
-  open(20, file=file1, status ='new') ! error if you already have results files
-  open(30, file=file2, status ='new')
-
 ! print run info
  if (my_task_id() == 0) print*, 'ens_size', timing_ens_size, '+ extras', ens_size_extras
 
@@ -94,11 +84,25 @@ file2 = TRIM('final_output' // TRIM(ADJUSTL(task_str)) // '.trans')
                     if (debug_flag ==1 ) print*, 'inialized ensemble', array_length, i
                 end if     
 
+             ! open output files: my_pe needs to be public in ensemble manager
+            if (i == 1) then
+              write(task_str, '(i10)') my_pe
+              file0 = TRIM('inital' // TRIM(ADJUSTL(task_str)) // '.trans')
+              file1 = TRIM('intermediate_output' // TRIM(ADJUSTL(task_str)) // '.trans')
+              file2 = TRIM('final_output' // TRIM(ADJUSTL(task_str)) // '.trans')
+
+              open(15, file=file0, status ='new')
+              open(20, file=file1, status ='new') ! error if you already have results files
+              open(30, file=file2, status ='new')
+              print *, 'my_pe', my_pe, 'my_task_id', my_task_id()
+
+           endif
+
             ! set up the ensemble - var complete
-            !   The tasks with ensemble copies are filled
+            !  Note the use of my_pe not my_task_id() 
             do j = 1, ens_handle%my_num_copies
               do k = 1, ens_handle%num_vars
-                ens_handle%vars(k,j) = j*100000 + (my_task_id() + 1)*1000000 + k
+                ens_handle%vars(k,j) = j*100000 + (my_pe + 1)*1000000 + k
               enddo
             enddo
 
@@ -108,7 +112,7 @@ file2 = TRIM('final_output' // TRIM(ADJUSTL(task_str)) // '.trans')
     
 
            if (i==1) then
-               if( my_task_id()==1) then
+               if( my_task_id()==0) then
                  print *, 'task', my_task_id(), 'num copies = ',  get_my_num_copies(ens_handle), 'my num vars = ', get_my_num_vars(ens_handle)
                  print *, 'num_vars               = ', array_length
                  print *, 'ens_size               = ', timing_ens_size + ens_size_extras
@@ -120,7 +124,7 @@ file2 = TRIM('final_output' // TRIM(ADJUSTL(task_str)) // '.trans')
 
           ! call transpose all_vars_to_all_copies
                     start = MPI_WTIME() 
-                   call all_vars_to_all_copies(ens_handle,printme)
+                   call all_vars_to_all_copies(ens_handle)
                     finish = MPI_WTIME() 
                     if (my_task_id() == 0 ) print *, 'all_vars_to_all_copies ', array_length, i,' : ', finish - start
                     write(stderr, *)my_task_id(),' vars_to_copies',  array_length, i,' : ', finish - start
@@ -134,7 +138,7 @@ file2 = TRIM('final_output' // TRIM(ADJUSTL(task_str)) // '.trans')
 
           ! call transpose all_copies_to_all_vars
                    start = MPI_WTIME()
-                   call all_copies_to_all_vars(ens_handle, printme)
+                   call all_copies_to_all_vars(ens_handle)
                    finish = MPI_WTIME() 
                    if (my_task_id() == 0 ) print *, 'all_copies_to_all_vars ', array_length, i,' : ', finish - start
                    write(stderr, *)my_task_id(),' copies_to_vars',  array_length, i,' : ', finish - start
