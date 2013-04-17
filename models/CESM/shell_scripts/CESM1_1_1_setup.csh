@@ -161,6 +161,35 @@ switch ("`hostname`")
 endsw
 
 # ==============================================================================
+# some simple error checking before diving into the work
+# ==============================================================================
+
+# make sure these directories exist
+set musthavedirs = "cesm_datadir cesmroot DARTroot"
+foreach VAR ( $musthavedirs )
+   # VAR is the shell variable name, DIR is the value
+   set DIR = `eval echo \${$VAR}`
+   if ( ! -d $DIR ) then
+      echo "ERROR: directory '$DIR' not found"
+      echo " In the setup script check the setting of: $VAR "
+      exit -1
+   endif
+end
+
+# make sure there is a filter in these dirs
+set musthavefiles = "cam POP clm"
+foreach MODEL ( $musthavefiles )
+   set target = $DARTroot/models/$MODEL/work/filter
+   if ( ! -x $target ) then
+      echo "ERROR: executable file 'filter' not found"
+      echo " Looking for: $target "
+      echo " Make sure all DART assimilation executables have "
+      echo " been compiled before running this setup script."
+      exit -1
+   endif
+end
+
+# ==============================================================================
 # Create the case.
 #
 # For list of the pre-defined cases: ./create_newcase -list
