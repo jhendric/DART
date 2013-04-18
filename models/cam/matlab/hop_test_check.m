@@ -59,9 +59,9 @@ bob = jet128; colormap(bob);
 
 if (nargin > 3)
     vars = {varname};
-    pausecmd = 'fprintf(''pausing at level %d ... hit a key to continue\n'',ilevel), pause';
+    pausecmd = 'fprintf(''pausing at level %d ... hit a key to continue\n'',ilevel); pause';
 else
-    pausecmd = 'fprintf(''           level %d ... \n'',ilevel); pause(0.1)';
+    pausecmd = 'fprintf(''           level %d ... \n'',ilevel); pause(1.0)';
 end
 
 for i = 1:length(vars)
@@ -133,6 +133,7 @@ if orgmin == orgmax
 else
     clim = [-datmax datmax];
 end
+histedges = FindHistogramEdges(clim,101);
 
 sbpos = [0.10 0.06 0.80 0.28; 
          0.10 0.43 0.80 0.28;
@@ -143,7 +144,7 @@ sbpos = [0.10 0.06 0.80 0.28;
 figure(1); clf; orient tall; 
 
 subplot('position',sbpos(3,:))
-   hist(hopobj.change(:),50)
+   histc(hopobj.change(:),histedges)
    str1 = sprintf('(min %0.5g %s) hopping difference histogram (max %0.5g %s)', ...
                    slabmin, hopobj.units, slabmax, hopobj.units);
    title(str1,'Interpreter','none')
@@ -186,6 +187,7 @@ orgmin  = min(orgslab(:));
 orgmax  = max(orgslab(:));
 datmax  = max(abs([orgmin orgmax]));
 clim    = [-datmax datmax];
+histedges = FindHistogramEdges(clim,101);
 
 sbpos = [0.10 0.06 0.80 0.28; 
          0.10 0.43 0.80 0.28;
@@ -193,7 +195,7 @@ sbpos = [0.10 0.06 0.80 0.28;
 
 figure(1); clf; orient tall; 
 subplot('position',sbpos(3,:))
-   hist(slab(:),50)
+   histc(slab(:),histedges)
    str1 = sprintf('(min %0.5g %s) hopping difference histogram (max %0.5g %s)', ...
                     slabmin, hopobj.units, slabmax, hopobj.units);
    title(str1,'Interpreter','none')
@@ -276,3 +278,9 @@ for i = 1:length(varinfo.Attribute)
       break
    end
 end
+
+
+function x = FindHistogramEdges(minmax,nedges)
+
+x = minmax(1) + [1:nedges]*(minmax(2)-minmax(1))/(nedges-1);
+
