@@ -16,7 +16,7 @@ use utilities_mod, only : register_module
 implicit none
 private
 
-public :: slow_sort, slow_index_sort, sort, index_sort
+public :: slow_sort, slow_index_sort, sort, index_sort, int_index_sort
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -244,5 +244,78 @@ end subroutine index_sort
 
 
 !=========================================================================
+
+subroutine int_index_sort(x, index, num)
+
+! should this just be an overloaded index_sort?
+! Uses a heap sort alogrithm on x (an array of integers)
+!  returns array of sorted indices and the sorted array
+implicit none
+
+integer,  intent(in)  :: num
+integer, intent(in)  :: x(num)
+integer,  intent(out) :: index(num)
+
+integer  :: ind, i, j, l_val_index, level
+integer :: l_val
+
+if ( .not. module_initialized ) call initialize_module
+
+!  INITIALIZE THE INDEX ARRAY TO INPUT ORDER
+do i = 1, num
+  index(i) = i
+end do
+
+! Only one element, just send it back
+if(num <= 1) return
+
+level = num / 2 + 1
+ind = num
+
+! Keep looping until finished
+do
+  ! Keep going down levels until bottom
+  if(level > 1) then
+    level = level - 1
+    l_val = x(index(level))
+    l_val_index = index(level)
+   else
+     l_val = x(index(ind))
+     l_val_index = index(ind)
+
+
+  index(ind) = index(1)
+  ind = ind - 1
+    if(ind == 1) then
+      index(1) = l_val_index
+    return
+    endif
+  endif
+
+  i = level
+  j = 2 * level
+
+  do while(j <= ind)
+    if(j < ind) then
+      if(x(index(j)) < x(index(j + 1))) j = j + 1
+    endif
+    if(l_val < x(index(j))) then
+      index(i) = index(j)
+      i = j
+      j = 2 * j
+    else
+     j = ind + 1
+    endif
+
+   end do
+
+   index(i) = l_val_index
+
+end do
+
+end subroutine int_index_sort
+
+!=========================================================================
+
 
 end module sort_mod
