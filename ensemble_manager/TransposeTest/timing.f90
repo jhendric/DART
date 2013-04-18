@@ -27,7 +27,6 @@ implicit none
 type(ensemble_type) :: ens_handle, obs_ens_handle, forward_op_ens_handle !> ensemble type
 
 !namelist with default values
-integer :: debug_flag = 0 !> default is 0
 integer :: timing_ens_size = 80 !> ensemble size 
 integer :: ens_size_extras = 6 !> number of extra columns to add on to ens_size
 integer :: n_repeats = 1 !> number of repetitions of loop for a given array size
@@ -51,7 +50,7 @@ integer :: ierr !> for MPI_BCAST
 character*120 :: task_str, file0, file1, file2
 ! namelist : debug flag,  ensemble size (80), number of extras (4 or 6 normally), array length( min, inc, max), number of repitions
 ! use_cpu_time (true/false) 
-namelist /timing_nml/ debug_flag, &
+namelist /timing_nml/  &
  timing_ens_size, ens_size_extras, &
  min_array_length, inc_array_length, max_array_length, n_repeats, record_transpose
 
@@ -72,94 +71,90 @@ namelist /timing_nml/ debug_flag, &
    write(stderr, *) 'Timing output: my_task_id() routine array_length repetition# : time'
  end if
  
-       numvar : do array_length = min_array_length, max_array_length, inc_array_length
+     numvar : do array_length = min_array_length, max_array_length, inc_array_length
 
-            numRep : do i=1, n_repeats
-
-             call task_sync()
-
-            ! setup problem: initialize the ensemble manager storage - Need enough copies for ensemble plus extras
-            call init_ensemble_manager(ens_handle, timing_ens_size + ens_size_extras, array_length, 1)    
-                if (my_task_id() == 0 ) then
-                    if (debug_flag ==1 ) print*, 'inialized ensemble', array_length, i
-                end if     
-
-             ! open output files: my_pe needs to be public in ensemble manager
-            if (i == 1) then
-              write(task_str, '(i10)') my_pe
-              file0 = TRIM('inital' // TRIM(ADJUSTL(task_str)) // '.trans')
-              file1 = TRIM('intermediate_output' // TRIM(ADJUSTL(task_str)) // '.trans')
-              file2 = TRIM('final_output' // TRIM(ADJUSTL(task_str)) // '.trans')
-
-              open(15, file=file0, status ='new')
-              open(20, file=file1, status ='new') ! error if you already have results files
-              open(30, file=file2, status ='new')
-              print *, 'my_pe', my_pe, 'my_task_id', my_task_id()
-
-           endif
-
-            ! set up the ensemble - var complete
-            !  Note the use of my_pe not my_task_id() 
-            do j = 1, ens_handle%my_num_copies
-              do k = 1, ens_handle%num_vars
-                ens_handle%vars(k,j) = j*100000 + (my_pe + 1)*1000000 + k
-              enddo
-            enddo
-
-              do j = 1, ens_handle%num_vars
-                write(15, *) ens_handle%vars(j,:)
-              enddo
-    
-
-           if (i==1) then
-               if( my_task_id()==0) then
-                 print *, 'task', my_task_id(), 'num copies = ',  get_my_num_copies(ens_handle), 'my num vars = ', get_my_num_vars(ens_handle)
-                 print *, 'num_vars               = ', array_length
-                 print *, 'ens_size               = ', timing_ens_size + ens_size_extras
-                 print *, 'average message_length = ', array_length / task_count()
-               endif
-           endif
-
-            call task_sync()
-
-          ! call transpose all_vars_to_all_copies
-                    start = MPI_WTIME() 
-                   call all_vars_to_all_copies(ens_handle)
-                    finish = MPI_WTIME() 
-                    if (my_task_id() == 0 ) print *, 'all_vars_to_all_copies ', array_length, i,' : ', finish - start
-                    write(stderr, *)my_task_id(),' vars_to_copies',  array_length, i,' : ', finish - start
-
-          ! write transpose results to file
-              do k = 1, ens_handle%num_copies
-                write(20, *) ens_handle%copies(k,:)
-              enddo
-    
-            call task_sync()
-
-          ! call transpose all_copies_to_all_vars
-                   start = MPI_WTIME()
-                   call all_copies_to_all_vars(ens_handle)
-                   finish = MPI_WTIME() 
-                   if (my_task_id() == 0 ) print *, 'all_copies_to_all_vars ', array_length, i,' : ', finish - start
-                   write(stderr, *)my_task_id(),' copies_to_vars',  array_length, i,' : ', finish - start
-
+        numRep : do i=1, n_repeats
 
            call task_sync()
 
-         ! write transpose results to file
-          do j = 1, ens_handle%num_vars
-            write(30, *) ens_handle%vars(j, :)
-          enddo
+           ! setup problem: initialize the ensemble manager storage - Need enough copies for ensemble plus extras
+           call init_ensemble_manager(ens_handle, timing_ens_size + ens_size_extras, array_length, 1)
 
-         ! destroy storage
-          call end_ensemble_manager(ens_handle)
-         if (my_task_id() == 0 ) then
-          if (debug_flag ==1 ) print*, 'destroyed ensemble_storage ', array_length, i
-         end if
+           ! open output files: my_pe needs to be public in ensemble manager
+           if (i == 1 .and. record_transpose .eqv. .true. ) then
+             write(task_str, '(i10)') my_pe
+             file0 = TRIM('inital' // TRIM(ADJUSTL(task_str)) // '.trans')
+             file1 = TRIM('intermediate_output' // TRIM(ADJUSTL(task_str)) // '.trans')
+             file2 = TRIM('final_output' // TRIM(ADJUSTL(task_str)) // '.trans')
 
+             open(15, file=file0, status ='new')
+             open(20, file=file1, status ='new') ! error if you already have results files
+             open(30, file=file2, status ='new')
+             print *, 'my_pe', my_pe, 'my_task_id', my_task_id()
+
+           endif
+
+           ! set up the ensemble - var complete
+           !  Note the use of my_pe not my_task_id()
+           do j = 1, ens_handle%my_num_copies
+             do k = 1, ens_handle%num_vars
+               ens_handle%vars(k,j) = j*100000 + (my_pe + 1)*1000000 + k
+             enddo
+           enddo
+
+           if (i==1) then
+             if( my_task_id()==0) then
+               print *, 'task', my_task_id(), 'num copies = ',  get_my_num_copies(ens_handle), 'my num vars = ', get_my_num_vars(ens_handle)
+               print *, 'num_vars               = ', array_length
+               print *, 'ens_size               = ', timing_ens_size + ens_size_extras
+               print *, 'average message_length = ', array_length / task_count()
+             endif
+           endif
+
+           if ( record_transpose .eqv. .true. ) then
+             do j = 1, ens_handle%num_vars
+               write(15, *) ens_handle%vars(j,:)
+              enddo
+           endif
+
+           call task_sync()
+
+           ! call transpose all_vars_to_all_copies
+           start = MPI_WTIME()
+           call all_vars_to_all_copies(ens_handle)
+           finish = MPI_WTIME()
+           if (my_task_id() == 0 ) print *, 'all_vars_to_all_copies ', array_length, i,' : ', finish - start
+           write(stderr, *)my_task_id(),' vars_to_copies',  array_length, i,' : ', finish - start
+
+           ! write transpose results to file
+           if ( record_transpose .eqv. .true. ) then
+             do k = 1, ens_handle%num_copies
+               write(20, *) ens_handle%copies(k,:)
+              enddo
+           endif
+
+           call task_sync()
+
+           ! call transpose all_copies_to_all_vars
+           start = MPI_WTIME()
+           call all_copies_to_all_vars(ens_handle)
+           finish = MPI_WTIME()
+           if (my_task_id() == 0 ) print *, 'all_copies_to_all_vars ', array_length, i,' : ', finish - start
+           write(stderr, *)my_task_id(),' copies_to_vars',  array_length, i,' : ', finish - start
+
+           call task_sync()
+
+           ! write transpose results to file
+           do j = 1, ens_handle%num_vars
+             write(30, *) ens_handle%vars(j, :)
+           enddo
+
+           ! destroy storage
+           call end_ensemble_manager(ens_handle)
+ 
         end do numRep
 
-    end do numvar
+     end do numvar
 
   close(15)
   close(20)
