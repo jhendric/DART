@@ -157,18 +157,17 @@ if ( .not. module_initialized ) then
    if (do_nml_term()) write(     *     , nml=ensemble_manager_nml)
 
 ! Get mpi information for this process; it's stored in module storage
-!      HK: Why is num_pes inside the if statement and ens_handle%num_copies outside the if statement? - because number of copies and number of vars can be different for each ensemble member
-num_pes = task_count()
+   num_pes = task_count()
 
-!HK:
-allocate( master_task_list(num_pes), stat=alloc_stat )
-  if(alloc_stat /= 0) print*, 'Allocation problem master_task_list, rank', my_task_id()
-allocate( pe_to_task_list(num_pes), stat=alloc_stat )
-  if(alloc_stat /= 0) print*, 'Allocation problem pe_to_task_list, rank', my_task_id()
+  !HK:
+  allocate( master_task_list(num_pes), stat=alloc_stat )
+    if(alloc_stat /= 0) print*, 'Allocation problem master_task_list, rank', my_task_id()
+  allocate( pe_to_task_list(num_pes), stat=alloc_stat )
+    if(alloc_stat /= 0) print*, 'Allocation problem pe_to_task_list, rank', my_task_id()
 
-call task_list(tasks_per_node, num_copies, layout)
+  call task_list(tasks_per_node, num_copies, layout)
 
-my_pe = map_task_to_pe(my_task_id())   ! my_pe possibly different for each ensmeble (ens_handle%my_pe)
+  my_pe = map_task_to_pe(my_task_id())   ! my_pe possibly different for each ensmeble (ens_handle%my_pe)
 
 endif
 
@@ -1067,9 +1066,6 @@ integer               :: max_num_vars, max_num_copies, num_vars_to_receive
 integer               :: sending_pe, recv_pe, k, sv, copy, num_copies_to_send
 integer               :: global_ens_index
 
-!HK loop limit 
-integer               :: send_limit
-
 ! only output if there is a label
 if (present(label)) then
    call timestamp_message('copies_to_vars start: '//label, alltasks=.true.)
@@ -1475,48 +1471,21 @@ pe_to_task_list = master_task_list
 end subroutine simple_layout
 
 !------------------------------------------------------------------------------
-! HK TEMPORARY DO NOT USE THIS 
 subroutine sort_task_list(x, idx, n)
-!      X - array of values to be sorted
-!      idx - array to be carried with X (all swaps of X elements are
-!          matched in IY .  After the sort IY(J) contains the original
-!          postition of the value X(J) in the unsorted X array.
-!      n - number of values in array X to be sorted
 
+use sort_mod, only : int_index_sort
 implicit none
 
-integer, intent(inout) :: x(n)
-integer, intent(out) :: idx(n)
-integer, intent(in) :: n
-integer :: i, iswap(1), itemp, iswap1
-integer :: temp
+integer, intent(inout) :: x(n) !> array to be sorted
+integer, intent(out)   :: idx(n) !> index of sorted array
+integer                :: n, xcopy(n), i
 
-intrinsic minloc
+xcopy = x
 
+call int_index_sort(x, idx, n)
 
-do i=1, num_pes
-  idx(i)=i
-enddo
-
- if (my_task_id() == 0) print*, '    ********* do not use this sort, it is just for developing ************'
-
-do i=1,n-1
-
-  iswap=minloc(x(i:n))
-
-  iswap1=iswap(1)+i-1
-
-    if(iswap1 /= i) then
-
-     temp=x(i)
-     x(i)=x(iswap1)
-     x(iswap1)=temp
-     itemp=idx(i)
-     idx(i)=idx(iswap1)
-     idx(iswap1)=itemp
-
-    endif
-
+do i = 1, n
+  x(i) = xcopy(idx(i))
 enddo
 
 end subroutine sort_task_list
