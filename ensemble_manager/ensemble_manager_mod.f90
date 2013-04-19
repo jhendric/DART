@@ -29,6 +29,7 @@ use assim_model_mod,   only : aread_state_restart, awrite_state_restart, &
 use time_manager_mod,  only : time_type, set_time
 use random_seq_mod,    only : random_seq_type, init_random_seq, random_gaussian
 use mpi_utilities_mod, only : task_count, my_task_id, send_to, receive_from, task_sync
+use sort_mod,          only : int_index_sort
 
 implicit none
 private
@@ -50,7 +51,9 @@ public :: init_ensemble_manager,      end_ensemble_manager,     get_ensemble_tim
           get_copy,                   put_copy,                 all_vars_to_all_copies, &
           all_copies_to_all_vars,     read_ensemble_restart,    write_ensemble_restart, &
           compute_copy_mean_var,      get_copy_owner_index,     set_ensemble_time,      &
-          deallocate_task_mapping ! HK
+          deallocate_task_mapping       ! HK
+
+!public sort_task_list !HK temporary for timing sort
 
 type ensemble_type
    !DIRECT ACCESS INTO STORAGE IS USED TO REDUCE COPYING: BE CAREFUL
@@ -1348,52 +1351,85 @@ subroutine task_list(tasks_per_node, nEns_members, layout_type)
 !>   1. Spread the ensemble members out as much as possible to spread memory usage out
 !>     between nodes
 !>   2. Standard task layout, first n tasks have the ensemble members
-!>   3. Custom task list
+!>   3. Custom task list - this is not implemented 
 !>
 !> Q. Is this going to affect scaling?  
 !> memory wise, if you used all 72 288 cores on Yellowstone, you would need 1.1 megabytes on each core
 !> for the arrays task_list_out, inverse_task_list_out
+!> what to do if you want to specify task 0 not having an ensemble member?
+!>
+!> Did have a problem where filter was hanging even if the first node tasks are not flipped. Why?
+!>   - because there are other parts of the code which rely on tasks 0:ens_size-1 having a copy
+!>   - any communication uses the actual rank
+
 
 implicit none
 
 integer, intent(in)    :: tasks_per_node, nEns_members
 integer, intent(inout) :: layout_type
 integer                :: idx(num_pes) !> sorted index
-integer                :: leftovers 
-integer                :: ii, count, col, row
+integer                :: leftovers !> left over ensemble members
+integer                :: ii, count, col, row, m
 integer                :: temp(tasks_per_node), temp_sort(num_pes)
 integer, allocatable   :: per_node(:)
 integer                :: nodes !> number of nodes
 integer                :: alloc_stat !> check memory was allocated / deallocated correctly
+integer                :: last_node_task_number
+
 
 if (layout_type /= 1 .and. layout_type /=2 ) layout_type = 1 ! Junk input, so try to spread out the ensemble members
 
 if ( layout_type == 1 ) then
 
-  ! HK if nEns_members >= task_count() then don't try to spread them out
-  ! HK what to do if you want to specify task 0 not having an ensemble member?
-  if (nEns_members >= task_count()) then  !HK in other words, my_pe = my_task_id()
-
+  if (nEns_members >= num_pes) then    ! if nEns_members >= task_count() then don't try to spread them out
     call simple_layout(num_pes)
-
     return
   endif
 
-  nodes = task_count() / tasks_per_node
+  ! Find number of nodes
+  ! check for a remainder
+
+  if ( mod(num_pes, tasks_per_node) == 0) then
+    nodes = task_count() / tasks_per_node
+    last_node_task_number = tasks_per_node
+  else
+    nodes = num_pes / tasks_per_node + 1
+    last_node_task_number = nodes*tasks_per_node - num_pes
+  endif
 
   allocate(per_node(nodes), stat=alloc_stat)
     if( alloc_stat /= 0 ) print*, 'Allocation problem task list rank', my_task_id()
 
-  ! split ensemble members across nodes
-  per_node(:) = nEns_members / nodes
+  ! split ensemble members across nodes, need to account for ensSize/nodes having a remainder
+  per_node(1:nodes - 1) = nEns_members / nodes
+  per_node(nodes) = 0
+
 
   ! distribute the leftovers to the end nodes, since task 0
-  ! on node 1 already has the most memory.  Is this still true with shift?
+  ! on node 1 already has the most memory.  HK: Is this still true with shift?
   leftovers = nEns_members - sum(per_node)
 
-    do ii = 0, leftovers - 1
+  ! put leftovers on the last node
+  m = 0
+  print*, 'last_node_task_number', last_node_task_number
+
+  do while ( per_node(nodes) < per_node(1) )
+    per_node(nodes) = per_node(nodes) + 1
+    m = m + 1
+  enddo
+
+  if (per_node(nodes) < last_node_task_number) then ! then there is room for another leftover
+    per_node(nodes) = per_node(nodes) + 1
+    m = m + 1
+  endif
+
+  ! put rest of leftovers on the other nodes
+    do ii = 1, leftovers - m
       per_node(nodes - ii) = per_node(nodes - ii) + 1
     enddo
+
+
+   print*, 'per_node', per_node
 
   ! split ensemble tasks
   count = 0
@@ -1410,7 +1446,7 @@ if ( layout_type == 1 ) then
   ! split rest of tasks
   count = nEns_members
 
-    do col = 1, nodes
+    do col = 1, nodes - 1
       do row = per_node(col) + 1, tasks_per_node
 
         master_task_list(row + (col-1)*tasks_per_node) = count
@@ -1419,9 +1455,9 @@ if ( layout_type == 1 ) then
       enddo
     enddo
 
-! Filter is hanging even if the first node tasks are not flipped. Why?
-!   - because there are other parts of the code which rely on tasks 0:ens_size-1 having a copy
-!   - any communication uses the actual rank
+    do row = per_node(nodes) + 1, last_node_task_number
+      master_task_list(row  + (nodes - 1)*tasks_per_node) = count
+    enddo
 
   ! Flip first node so task zero does not get an ensemble member  ! WARNING: Rest of code relies on task 0 having an ensemble copy
   !    If ens_size + extras > tasks this becomes irrelevant,
@@ -1430,24 +1466,28 @@ if ( layout_type == 1 ) then
   !  You would not need to flip if you shifted the ensemble processors and had the first n processors 
   !  as writers
 
-! HK commented out flipping for now. Aim: to test the startup time of laying out the ensemble in the 
-! code versus using LSF
-!   temp = master_task_list(1:tasks_per_node)
-!
-!     do ii = 0, tasks_per_node - 1
-!       master_task_list(ii + 1) = temp(tasks_per_node - ii)
-!     enddo
+  ! HK commented out flipping for now. Aim: to test the startup time of laying out the ensemble in the
+  ! code versus using LSF
+  !   temp = master_task_list(1:tasks_per_node)
+  !
+  !     do ii = 0, tasks_per_node - 1
+  !       master_task_list(ii + 1) = temp(tasks_per_node - ii)
+  !     enddo
 
   deallocate(per_node, stat = alloc_stat)
     if(alloc_stat /= 0) print*, 'Deallocation problem'
 
   ! create list to map from physical task to logical task number
   temp_sort = master_task_list
+
   call sort_task_list(temp_sort, idx, num_pes)
 
   do ii = 1, num_pes
     pe_to_task_list(ii) = temp_sort(idx(ii))  ! I think temp_sort(idx(ii)) is just idx(ii) - 1 ?
   enddo
+
+  print*, 'master_task_list', master_task_list
+  print*, 'pe_to_task_list', pe_to_task_list
 
 else
 
@@ -1473,7 +1513,6 @@ end subroutine simple_layout
 !------------------------------------------------------------------------------
 subroutine sort_task_list(x, idx, n)
 
-use sort_mod, only : int_index_sort
 implicit none
 
 integer, intent(inout) :: x(n) !> array to be sorted
