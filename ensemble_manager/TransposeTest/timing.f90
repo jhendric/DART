@@ -90,7 +90,7 @@ namelist /timing_nml/  &
              open(15, file=file0, status ='new')
              open(20, file=file1, status ='new') ! error if you already have results files
              open(30, file=file2, status ='new')
-             print *, 'my_pe', my_pe, 'my_task_id', my_task_id()
+             !print *, 'my_pe', my_pe, 'my_task_id', my_task_id()
 
            endif
 
@@ -145,9 +145,11 @@ namelist /timing_nml/  &
            call task_sync()
 
            ! write transpose results to file
-           do j = 1, ens_handle%num_vars
-             write(30, *) ens_handle%vars(j, :)
-           enddo
+           if ( record_transpose .eqv. .true. ) then
+             do j = 1, ens_handle%num_vars
+               write(30, *) ens_handle%vars(j, :)
+             enddo
+           endif
 
            ! destroy storage
            call end_ensemble_manager(ens_handle)
