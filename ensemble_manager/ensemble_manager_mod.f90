@@ -1417,21 +1417,15 @@ if ( layout_type == 1 ) then
   ! put leftovers on the last node
   m = 0
 
-  print*, 'per_node 1:' , per_node
-  print*, 'last_task_number', last_node_task_number
   do while ( (per_node(nodes) < last_node_task_number) .and. (per_node(nodes) < per_node(1)) )
     per_node(nodes) = per_node(nodes) + 1
     m = m + 1
   enddo
 
-  print*, 'per_node 2:', per_node
-
   if ( (leftovers - m) > 0 .and. (per_node(nodes) < last_node_task_number)) then ! then there is room for another leftover
     per_node(nodes) = per_node(nodes) + 1
     m = m + 1
   endif
-
-  print*, 'per_node 3:', per_node
 
   ! put rest of leftovers on the other nodes
     count = 1
@@ -1442,8 +1436,6 @@ if ( layout_type == 1 ) then
          count = 1 ! need to wrap if (leftovers - m ) >= nodes
       endif
     enddo
-
-   print*, 'per_node 4:', per_node
 
   ! split ensemble tasks
   count = 0
@@ -1501,8 +1493,8 @@ if ( layout_type == 1 ) then
     pe_to_task_list(ii) = temp_sort(idx(ii))  ! I think temp_sort(idx(ii)) is just idx(ii) - 1 ?
   enddo
 
-  print*, 'master_task_list', master_task_list
-  print*, 'pe_to_task_list', pe_to_task_list
+  !print*, 'master_task_list', master_task_list
+  !print*, 'pe_to_task_list', pe_to_task_list
 
 else
 
