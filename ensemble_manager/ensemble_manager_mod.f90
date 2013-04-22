@@ -1386,15 +1386,20 @@ if ( layout_type == 1 ) then
     return
   endif
 
+  if (tasks_per_node >= num_pes) then ! all tasks are on one node, don't try to spread them out
+    call simple_layout(num_pes)
+    return
+  endif
+
   ! Find number of nodes
   ! check for a remainder
 
   if ( mod(num_pes, tasks_per_node) == 0) then
-    nodes = task_count() / tasks_per_node
+    nodes = num_pes / tasks_per_node
     last_node_task_number = tasks_per_node
   else
     nodes = num_pes / tasks_per_node + 1
-    last_node_task_number = nodes*tasks_per_node - num_pes
+    last_node_task_number = tasks_per_node - (nodes*tasks_per_node - num_pes)
   endif
 
   allocate(per_node(nodes), stat=alloc_stat)
@@ -1411,25 +1416,34 @@ if ( layout_type == 1 ) then
 
   ! put leftovers on the last node
   m = 0
-  print*, 'last_node_task_number', last_node_task_number
 
-  do while ( per_node(nodes) < per_node(1) )
+  print*, 'per_node 1:' , per_node
+  print*, 'last_task_number', last_node_task_number
+  do while ( (per_node(nodes) < last_node_task_number) .and. (per_node(nodes) < per_node(1)) )
     per_node(nodes) = per_node(nodes) + 1
     m = m + 1
   enddo
 
-  if (per_node(nodes) < last_node_task_number) then ! then there is room for another leftover
+  print*, 'per_node 2:', per_node
+
+  if ( (leftovers - m) > 0 .and. (per_node(nodes) < last_node_task_number)) then ! then there is room for another leftover
     per_node(nodes) = per_node(nodes) + 1
     m = m + 1
   endif
 
+  print*, 'per_node 3:', per_node
+
   ! put rest of leftovers on the other nodes
+    count = 1
     do ii = 1, leftovers - m
-      per_node(nodes - ii) = per_node(nodes - ii) + 1
+      per_node(nodes - count)  = per_node(nodes - count) + 1
+      count = count + 1
+      if (count == nodes)  then
+         count = 1 ! need to wrap if (leftovers - m ) >= nodes
+      endif
     enddo
 
-
-   print*, 'per_node', per_node
+   print*, 'per_node 4:', per_node
 
   ! split ensemble tasks
   count = 0
@@ -1457,6 +1471,7 @@ if ( layout_type == 1 ) then
 
     do row = per_node(nodes) + 1, last_node_task_number
       master_task_list(row  + (nodes - 1)*tasks_per_node) = count
+      count = count + 1
     enddo
 
   ! Flip first node so task zero does not get an ensemble member  ! WARNING: Rest of code relies on task 0 having an ensemble copy
