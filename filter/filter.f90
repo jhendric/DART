@@ -41,7 +41,8 @@ use ensemble_manager_mod, only : init_ensemble_manager, end_ensemble_manager,   
                                  compute_copy_mean, compute_copy_mean_sd,                    &
                                  compute_copy_mean_var, duplicate_ens, get_copy_owner_index, &
                                  get_ensemble_time, set_ensemble_time,                       &
-                                 my_pe , map_task_to_pe,  map_pe_to_task, deallocate_task_mapping !HK
+                                 my_pe , map_task_to_pe,  map_pe_to_task,                    &
+                                 deallocate_task_mapping !HK
 use adaptive_inflate_mod, only : adaptive_inflate_end, do_varying_ss_inflate,                &
                                  do_single_ss_inflate, inflate_ens, adaptive_inflate_init,   &
                                  do_obs_inflate, adaptive_inflate_type,                      &
@@ -553,11 +554,13 @@ AdvanceTime : do
    if ((output_interval > 0) .and. &
        (time_step_number / output_interval * output_interval == time_step_number)) then
       call trace_message('Before prior state space diagnostics')
+      call timestamp_message('Before prior state space diagnostics')
       call filter_state_space_diagnostics(PriorStateUnit, ens_handle, &
          model_size, num_output_state_members, &
          output_state_mean_index, output_state_spread_index, &
          output_inflation, ens_mean, ENS_MEAN_COPY, ENS_SD_COPY, &
          prior_inflate, PRIOR_INF_COPY, PRIOR_INF_SD_COPY)
+      call timestamp_message('After  prior state space diagnostics')
       call trace_message('After  prior state space diagnostics')
    endif
   
@@ -655,6 +658,7 @@ AdvanceTime : do
    if ((output_interval > 0) .and. &
        (time_step_number / output_interval * output_interval == time_step_number)) then
       call trace_message('Before posterior state space diagnostics')
+      call timestamp_message('Before posterior state space diagnostics')
       call filter_state_space_diagnostics(PosteriorStateUnit, ens_handle, &
          model_size, num_output_state_members, output_state_mean_index, &
          output_state_spread_index, &
@@ -665,6 +669,7 @@ AdvanceTime : do
       call smoother_ss_diagnostics(model_size, num_output_state_members, &
          output_inflation, ens_mean, ENS_MEAN_COPY, ENS_SD_COPY, &
          POST_INF_COPY, POST_INF_SD_COPY)
+      call timestamp_message('After  posterior state space diagnostics')
       call trace_message('After  posterior state space diagnostics')
    endif
 
@@ -694,7 +699,6 @@ AdvanceTime : do
          ! Who stores the ensemble mean copy
          call get_copy_owner_index(ENS_MEAN_COPY, mean_owner, mean_owners_index)
          ! Broadcast it to everybody else
-         !if(my_task_id() == mean_owner) then !HK
          if(my_pe == mean_owner) then !HK
             ens_mean = ens_handle%vars(:, mean_owners_index)
             call broadcast_send(map_pe_to_task(mean_owner), ens_mean)
@@ -1642,8 +1646,6 @@ end function input_qc_ok
 
 subroutine filter_sync_keys_time(key_bounds, num_obs_in_set, time1, time2)
 
-!use ensemble_manager_mod, only : my_pe, map_pe_to_task
-
 integer, intent(inout)         :: key_bounds(2), num_obs_in_set
 type(time_type), intent(inout) :: time1, time2
 
@@ -1658,6 +1660,7 @@ integer  :: days, secs
 
 ! this should be 'do i own member 1' and not assume that task 0 gets
 ! member 1.
+! HK you could do this with get_copy_owner_index
 if(my_pe == 0) then !HK changed from my_task_id()==0
    rkey_bounds = key_bounds
    rnum_obs_in_set(1) = num_obs_in_set

@@ -1131,9 +1131,6 @@ else                                     ! if the optional argument is
 endif                                    ! have a backup plan
 
 
-! HK where is copy_index used?
-!print*, 'model time', model_time, 'copy index', copy_index
-
 timeindex = nc_get_tindex(ncFileID, model_time)
 if ( timeindex < 0 ) then
    call get_time(model_time,is1,id1)

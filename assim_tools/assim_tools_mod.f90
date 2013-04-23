@@ -492,8 +492,8 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
 
    ! Following block is done only by the owner of this observation
    !-----------------------------------------------------------------------
-   !if(my_task_id() == owner) then   !HK hard coded task 0
    if(my_pe == owner) then   !HK hard coded task 0
+
       obs_qc = obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, owners_index)
       ! Only value of 0 for DART QC field should be assimilated
       IF_QC_IS_OKAY: if(nint(obs_qc) ==0) then
@@ -682,7 +682,6 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
       ! if you aren't adapting but you still want to know how many obs are within the
       ! localization radius, set the diag output.  this could be large, use carefully.
 
-      !HK mpi_allreduce - everyone has observations
 
       ! this does a cross-task sum, so all tasks must make this call.
       total_num_close_obs = count_close(num_close_obs, close_obs_ind, my_obs_kind, &
