@@ -13,7 +13,8 @@
 # This script is designed to configure and build a multi-instance CESM model
 # that has XXX,YYY,ZZZZ as active components
 # and will use DART to assimilate observations at regular intervals.
-# This script does not build DART.
+# This script does not build DART. It works best if the appropriate DART
+# executables have been built, however.
 #
 # This script relies heavily on the information in:
 # http://www.cesm.ucar.edu/models/cesm1.1/cesm/doc/usersguide/book1.html
@@ -63,10 +64,10 @@
 #    script names; so consider it's length and information content.
 # num_instances:  Number of ensemble members
 
-setenv case                 cesm_test
-setenv cesmtag              cesm1_1_1
+setenv case                 cesm_startup
 setenv compset              B_2000_CAM5
 setenv resolution           0.9x1.25_gx1v6
+setenv cesmtag              cesm1_1_1
 setenv num_instances        2
 
 # ==============================================================================
@@ -98,8 +99,13 @@ setenv archdir      /glade/scratch/${USER}/archive/${case}
 
 setenv DARTroot     /glade/u/home/${USER}/svn/DART/dev
 
+set RTM_stagedir = /glade/scratch/thoar/DART_POP_RESTARTS/2004-01-01-00000
+set CLM_stagedir = /glade/scratch/thoar/DART_POP_RESTARTS/CLM_2004-01-01-00000/cesm_test
+set CAM_stagedir = /glade/p/cesm/cseg/inputdata/atm/cam/inic/fv
+set POP_stagedir = /glade/p/work/aliciak/DART_IC/CCSM4_ensembles/rest/2004-01-01-00000
+
 # ==============================================================================
-# configure settings
+# configure settings ... run_startdate format is yyyy-mm-dd
 # ==============================================================================
 
 setenv refyear     2004
@@ -132,7 +138,7 @@ setenv assim_n       24
 
 setenv ACCOUNT      P8685nnnn
 setenv timewall     0:30
-setenv queue        small
+setenv queue        regular
 setenv ptile        15
 
 # ==============================================================================
@@ -156,6 +162,7 @@ switch ("`hostname`")
       set   COPY = '/bin/cp -fv --preserve=timestamps'
       set   LINK = '/bin/ln -fvs'
       set REMOVE = '/bin/rm -fr'
+      set nonomatch
 
    breaksw
 endsw
@@ -219,7 +226,9 @@ cd ${caseroot}
 
 # Save a copy for debug purposes
 foreach FILE ( *xml )
-   ${COPY} $FILE ${FILE}.original
+   if ( ~ -e        ${FILE}.original ) then
+      ${COPY} $FILE ${FILE}.original
+   endif
 end
 
    # This is only for the purpose of debugging the code.
@@ -235,7 +244,7 @@ end
    @ glc_root = $lnd_pes + $ice_pes
    @ rof_root = $lnd_pes + $ice_pes + $glc_pes
 
-echo "task partitioning ... atm+ocn // lnd+ice+glc+rof"
+#echo "task partitioning ... atm+ocn // lnd+ice+glc+rof"
 echo ""
 echo "ATM  gets $atm_pes"
 echo "CPL  gets $cpl_pes"
@@ -264,12 +273,12 @@ echo ""
 ./xmlchange NTHRDS_ROF=1,NTASKS_ROF=$rof_pes,NINST_ROF=$num_instances
 ./xmlchange NTHRDS_OCN=1,NTASKS_OCN=$ocn_pes,NINST_OCN=$num_instances
 ./xmlchange ROOTPE_ATM=0
-./xmlchange ROOTPE_OCN=$atm_pes
+./xmlchange ROOTPE_OCN=0
 ./xmlchange ROOTPE_CPL=0
 ./xmlchange ROOTPE_LND=0
-./xmlchange ROOTPE_ICE=$lnd_pes
-./xmlchange ROOTPE_GLC=$glc_root
-./xmlchange ROOTPE_ROF=$rof_root
+./xmlchange ROOTPE_ICE=0
+./xmlchange ROOTPE_GLC=0
+./xmlchange ROOTPE_ROF=0
 
 # http://www.cesm.ucar.edu/models/cesm1.1/cesm/doc/usersguide/c1158.html#run_start_stop
 # "A hybrid run indicates that CESM is initialized more like a startup, but uses
@@ -288,6 +297,9 @@ echo ""
 ./xmlchange RUN_TYPE=startup
 ./xmlchange RUN_STARTDATE=$run_refdate
 ./xmlchange START_TOD=$run_reftod
+./xmlchange RUN_REFDATE=$run_refdate
+./xmlchange RUN_REFTOD=$run_reftod
+./xmlchange GET_REFCASE=FALSE
 ./xmlchange EXEROOT=${exeroot}
 
 ./xmlchange CALENDAR=GREGORIAN
@@ -296,7 +308,7 @@ echo ""
 ./xmlchange STOP_N=$stop_n
 ./xmlchange CONTINUE_RUN=FALSE
 ./xmlchange RESUBMIT=$resubmit
-#./xmlchange PIO_TYPENAME=pnetcdf
+./xmlchange PIO_TYPENAME=pnetcdf
 
 ./xmlchange CLM_CONFIG_OPTS='-bgc cn'
 
@@ -309,8 +321,8 @@ echo ""
 
 # level of debug output, 0=minimum, 1=normal, 2=more, 3=too much, valid values: 0,1,2,3 (integer)
 
-./xmlchange DEBUG=TRUE
-./xmlchange INFO_DBUG=2
+./xmlchange DEBUG=FALSE
+./xmlchange INFO_DBUG=0
 
 # ==============================================================================
 # Set up the case.
@@ -332,9 +344,10 @@ endif
 while ($inst <= $num_instances)
 
    set instance  = `printf %04d $inst`
+   set instance2 = `printf %02d $inst`
 
    # ===========================================================================
-   set fname = "user_nl_cam_$instance"
+   set fname = "user_nl_cam_${instance}"
    # ===========================================================================
    # For a HOP TEST ... empty_htapes = .false.
    # For a HOP TEST ... use a default fincl1 
@@ -347,7 +360,7 @@ while ($inst <= $num_instances)
    echo " mfilt         = 1 "                           >> ${fname}
 
    # ===========================================================================
-   set fname = "user_nl_pop2_$instance"
+   set fname = "user_nl_pop2_${instance}"
    # ===========================================================================
 
    # POP Namelists
@@ -355,10 +368,18 @@ while ($inst <= $num_instances)
    # init_ts_suboption = 'null'         for 'perfect' restarting/forecasting
    # For a HOP TEST (untested)... tavg_file_freq_opt = 'nmonth' 'nday' 'once'"
 
-   echo "init_ts_suboption = 'null'" >> $fname
+   echo "init_ts_file = 'b40.20th.005_ens${instance2}.pop.r.2004-01-01-00000'" >> $fname
+   echo "init_ts_suboption = 'spunup'" >> $fname
 
    # ===========================================================================
-   set fname = "user_nl_clm_$instance"
+   set fname = "user_nl_cice_${instance}"
+   # ===========================================================================
+   # CICE Namelists
+   
+   echo "ice_ic = 'b40.20th.005_ens${instance2}.cice.r.2004-01-01-00000.nc'" >> $fname
+
+   # ===========================================================================
+   set fname = "user_nl_clm_${instance}"
    # ===========================================================================
    
    # Customize the land namelists
@@ -368,13 +389,23 @@ while ($inst <= $num_instances)
    # than trying to create them from the (incomplete DART) CLM state.
    # For a HOP TEST ... hist_empty_htapes = .false.
    # For a HOP TEST ... use a default hist_fincl1 
+   #
+   # old ... stagedir = /glade/scratch/afox/bptmp/MD_40_PME/run/MD_40_PME
 
+   echo "finidat = '${CLM_stagedir}.clm2_${instance}.r.${run_refdate}-${run_reftod}.nc'" >> $fname
    echo "hist_empty_htapes = .true."                 >> $fname
    echo "hist_fincl1 = 'NEP'"                        >> $fname
    echo "hist_fincl2 = 'NEP','FSH','EFLX_LH_TOT_R'"  >> $fname
    echo "hist_nhtfrq = -$assim_n,1,"                 >> $fname
    echo "hist_mfilt  = 1,48"                         >> $fname
    echo "hist_avgflag_pertape = 'A','A'"             >> $fname
+
+   # ===========================================================================
+   set fname = "user_nl_rtm_${instance}"
+   # ===========================================================================
+   # RIVER RUNOFF CAN START FROM AN OLD CLM RESTART FILE
+
+   echo "finidat_rtm = 'b40.20th.005_ens${instance2}.clm2.r.${run_refdate}-${run_reftod}.nc'" >> $fname
 
    @ inst ++
 end
@@ -424,23 +455,33 @@ endif
 # initial files come from.
 # ==============================================================================
 
-set stagedir = /glade/p/cesm/cseg/inputdata/atm/cam/inic/fv
+cd ${rundir}
 
 echo ''
-echo "Copying the restart files from ${stagedir}"
+echo "Linking the restart files from the staging directories"
 echo 'into the CESM run directory.'
 echo ''
 
 @ inst = 1
 while ($inst <= $num_instances)
-   set instance  = `printf %04d $inst`
+   set n4 = `printf %04d $inst`
+   set n2 = `printf %02d $inst`
 
    echo ''
    echo "Staging restarts for instance $inst of $num_instances"
 
-   ${COPY} ${stagedir}/cami-mam3_0000-01-01_0.9x1.25_L30_c100618.nc \
-             ${rundir}/cam_initial_${instance}.nc
+   ${LINK} ${CAM_stagedir}/cami-mam3_0000-01-01_0.9x1.25_L30_c100618.nc      cam_initial_${n4}.nc
 
+   ${LINK} ${POP_stagedir}/b40.20th.005_ens${n2}.pop.r.2004-01-01-00000      .
+   ${LINK} ${POP_stagedir}/b40.20th.005_ens${n2}.pop.r.2004-01-01-00000.hdr  .
+   ${LINK} ${POP_stagedir}/b40.20th.005_ens${n2}.cice.r.2004-01-01-00000.nc  .
+   ${LINK} ${RTM_stagedir}/b40.20th.005_ens${n2}.clm2.r.2004-01-01-00000.nc  .
+
+#  ${LINK} ${POP_stagedir}/rpointer.ocn_${n4}.restart                       ${rundir}
+#  ${LINK} ${POP_stagedir}/rpointer.ocn_${n4}.ovf                           ${rundir}
+#  ${LINK} ${POP_stagedir}/rpointer.ice_${n4}                               ${rundir}
+#  ${LINK} ${POP_stagedir}/b40.20th.005_ens${n2}.pop.ro.2004-01-01-00000    ${rundir}
+#
    @ inst ++
 end
 
@@ -448,11 +489,15 @@ end
 # Edit the run script to reflect project, queue, and wallclock
 # ==============================================================================
 
+cd ${caseroot}
+
 echo ''
 echo 'Updating the run script to set wallclock and queue.'
 echo ''
 
-${COPY} ${case}.run ${case}.run.orig
+if ( ~ -e  ${case}.run.original ) then
+   ${COPY} ${case}.run ${case}.run.original
+endif
 
 source Tools/ccsm_getenv
 set BATCH = `echo $BATCHSUBMIT | sed 's/ .*$//'`
@@ -542,7 +587,12 @@ else if ( ${STATUSCHECK} == 1 ) then
    tail -n $lastlines ${case}.run    >> temp.$$
 
    ${MOVE} temp.$$ ${case}.run
+   ${REMOVE} add_to_run.txt
 
+else
+   echo "ERROR in grep of ${case}.run: aborting"
+   echo "status was ${STATUSCHECK}"
+   exit -6
 endif
 
 chmod 0744 ${case}.run
@@ -555,9 +605,9 @@ chmod 0744 ${case}.run
 # to archive addtional or subsets of things, or to reduce the amount of
 # data that is sent to the long-term archive.  Put a version of st_archive.sh
 # in  ${DARTroot}/models/CESM/shell_scripts when/if necessary
-#
-if ( ~ -e  Tools/st_archive.sh.orig ) then
-   ${MOVE} Tools/st_archive.sh      Tools/st_archive.sh.orig
+
+if ( ~ -e  Tools/st_archive.sh.original ) then
+   ${COPY} Tools/st_archive.sh Tools/st_archive.sh.original
 else
    echo "a Tools/st_archive.sh backup copy already exists"
 endif
@@ -624,4 +674,11 @@ echo 'dates need to be added, then do this in the $CASEROOT/user_*files*'
 echo "then invoke 'preview_namelists' so you can check the information in the"
 echo "CaseDocs or ${rundir} directories."
 echo ''
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

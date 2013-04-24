@@ -60,8 +60,8 @@
 
 setenv case                 cam_test
 setenv compset              F_AMIP_CAM5
-setenv cesmtag              cesm1_1_1
 setenv resolution           f09_f09
+setenv cesmtag              cesm1_1_1
 setenv num_instances        4
 
 # ==============================================================================
@@ -687,6 +687,8 @@ echo "names set in assimilate.csh match those on your system, and submit"
 echo "the CESM job by running:"
 echo "./${case}.submit"
 echo ''
+
+exit 0
 
 # <next few lines under version control, do not edit>
 # $URL$

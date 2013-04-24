@@ -35,6 +35,7 @@ switch ("`hostname`")
       set   COPY = 'cp -fv --preserve=timestamps'
       set   LINK = 'ln -fvs'
       set REMOVE = 'rm -fr'
+      set nonomatch
 
       set BASEOBSDIR = /glade/p/image/Observations/ACARS
       set DARTDIR    = ${HOME}/svn/DART/dev
@@ -47,6 +48,7 @@ switch ("`hostname`")
       set   COPY = 'cp -fv --preserve=timestamps'
       set   LINK = 'ln -fvs'
       set REMOVE = 'rm -fr'
+      set nonomatch
 
       set BASEOBSDIR = /scratch/scratchdirs/nscollin/ACARS
       set DARTDIR    = ${HOME}/devel

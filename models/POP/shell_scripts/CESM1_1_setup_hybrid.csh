@@ -60,8 +60,8 @@
 
 setenv case                 pop_test
 setenv compset              GIAF
-setenv cesmtag              cesm1_1_1
 setenv resolution           T62_gx1v6
+setenv cesmtag              cesm1_1_1
 setenv num_instances        4
 
 # ==============================================================================
@@ -686,4 +686,11 @@ echo 'dates need to be added, then do this in the $CASEROOT/user_*files*'
 echo "then invoke 'preview_namelists' so you can check the information in the"
 echo "CaseDocs or ${rundir} directories."
 echo ''
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

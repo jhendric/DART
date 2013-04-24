@@ -64,11 +64,11 @@
 #    script names; so consider it's length and information content.
 # num_instances:  Number of ensemble members
 
-setenv case                 cesm_hybrid0
+setenv case                 cesm_hybrid
 setenv compset              B_2000_CAM5
 setenv resolution           0.9x1.25_gx1v6
 setenv cesmtag              cesm1_1_1
-setenv num_instances        2
+setenv num_instances        30
 
 # ==============================================================================
 # define machines and directories
@@ -136,9 +136,9 @@ setenv assim_n       24
 # TJH: How many T62_gx1v6 CESM instances can fit on 1 node?
 # ==============================================================================
 
-setenv ACCOUNT      P86850054
-setenv timewall     4:00
-setenv queue        small
+setenv ACCOUNT      P8685nnnn
+setenv timewall     0:30
+setenv queue        regular
 setenv ptile        15
 
 # ==============================================================================
@@ -231,6 +231,8 @@ foreach FILE ( *xml )
    endif
 end
 
+if ( $num_instances < 10) then
+
    # This is only for the purpose of debugging the code.
    # A more efficient layout must be found
    @ atm_pes = $ptile * $num_instances * 4
@@ -241,8 +243,20 @@ end
    @ rof_pes = $ptile * $num_instances
    @ cpl_pes = $ptile * 4
 
-   @ glc_root = $lnd_pes + $ice_pes
-   @ rof_root = $lnd_pes + $ice_pes + $glc_pes
+else
+
+   # This is only for the purpose of debugging the code.
+   # A more efficient layout must be found
+   #
+   @ atm_pes = $ptile * $num_instances * 2
+   @ ocn_pes = $ptile * $num_instances * 2
+   @ lnd_pes = $ptile * $num_instances * 2
+   @ ice_pes = $ptile * $num_instances
+   @ glc_pes = $ptile * $num_instances
+   @ rof_pes = $ptile * $num_instances
+   @ cpl_pes = $ptile * $num_instances
+
+endif
 
 #echo "task partitioning ... atm+ocn // lnd+ice+glc+rof"
 echo ""
@@ -254,16 +268,6 @@ echo "GLC  gets $glc_pes"
 echo "DROF gets $rof_pes"
 echo "OCN  gets $ocn_pes"
 echo ""
-
-#   total number of hw pes = 240
-#   cpl hw pe range ~ from 0 to 59
-#   cam hw pe range ~ from 0 to 119
-#   pop2 hw pe range ~ from 120 to 239
-#   clm hw pe range ~ from 0 to 59
-#   cice hw pe range ~ from 60 to 89
-#   sglc hw pe range ~ from 90 to 119
-#   rtm hw pe range ~ from 120 to 149
-#   TJH FIXME ... CLM could use a lot more processors.
 
 ./xmlchange NTHRDS_CPL=1,NTASKS_CPL=$cpl_pes
 ./xmlchange NTHRDS_GLC=1,NTASKS_GLC=$glc_pes,NINST_GLC=1
@@ -312,7 +316,7 @@ echo ""
 
 ./xmlchange CLM_CONFIG_OPTS='-bgc cn'
 
-./xmlchange DOUT_S=FALSE
+./xmlchange DOUT_S=TRUE
 ./xmlchange DOUT_S_ROOT=${archdir}
 ./xmlchange DOUT_S_SAVE_INT_REST_FILES=FALSE
 ./xmlchange DOUT_L_MS=FALSE
@@ -347,7 +351,7 @@ while ($inst <= $num_instances)
    set instance2 = `printf %02d $inst`
 
    # ===========================================================================
-   set fname = "user_nl_cam_$instance"
+   set fname = "user_nl_cam_${instance}"
    # ===========================================================================
    # For a HOP TEST ... empty_htapes = .false.
    # For a HOP TEST ... use a default fincl1 
@@ -360,25 +364,28 @@ while ($inst <= $num_instances)
    echo " mfilt         = 1 "                           >> ${fname}
 
    # ===========================================================================
-   set fname = "user_nl_pop2_$instance"
+   set fname = "user_nl_pop2_${instance}"
    # ===========================================================================
 
    # POP Namelists
    # init_ts_suboption = 'data_assim'   for non bit-for-bit restarting (assimilation mode)
-   # init_ts_suboption = 'null'         for 'perfect' restarting/forecasting
+   # init_ts_suboption = 'rest'         for
+   # init_ts_suboption = 'spunup'       for 
+   # init_ts_suboption = 'null'         for 
    # For a HOP TEST (untested)... tavg_file_freq_opt = 'nmonth' 'nday' 'once'"
+   # For a HOP TEST ... cool to have restart files every day, not just for end.
 
    echo "init_ts_suboption = 'null'" >> $fname
 
    # ===========================================================================
-   set fname = "user_nl_cice_$instance"
+   set fname = "user_nl_cice_${instance}"
    # ===========================================================================
    # CICE Namelists
    
-   echo "ice_ic = 'b40.20th.005_ens$instance2.cice.r.2004-01-01-00000.nc'" >> $fname
+   echo "ice_ic = 'b40.20th.005_ens${instance2}.cice.r.2004-01-01-00000.nc'" >> $fname
 
    # ===========================================================================
-   set fname = "user_nl_clm_$instance"
+   set fname = "user_nl_clm_${instance}"
    # ===========================================================================
    
    # Customize the land namelists
@@ -391,7 +398,7 @@ while ($inst <= $num_instances)
    #
 #  set CLM_stagedir = /glade/scratch/afox/bptmp/MD_40_PME/run/MD_40_PME
 
-   echo "finidat = '${CLM_stagedir}.clm2_$instance.r.${run_refdate}-${run_reftod}.nc'" >> $fname
+   echo "finidat = '${CLM_stagedir}.clm2_${instance}.r.${run_refdate}-${run_reftod}.nc'" >> $fname
    echo "hist_empty_htapes = .true."                 >> $fname
    echo "hist_fincl1 = 'NEP'"                        >> $fname
    echo "hist_fincl2 = 'NEP','FSH','EFLX_LH_TOT_R'"  >> $fname
@@ -400,7 +407,7 @@ while ($inst <= $num_instances)
    echo "hist_avgflag_pertape = 'A','A'"             >> $fname
 
    # ===========================================================================
-   set fname = "user_nl_rtm_$instance"
+   set fname = "user_nl_rtm_${instance}"
    # ===========================================================================
    # RIVER RUNOFF CAN START FROM AN OLD CLM RESTART FILE
 
@@ -481,12 +488,13 @@ while ($inst <= $num_instances)
    echo "Staging restarts for instance $inst of $num_instances"
 
    ${LINK} ${CAM_stagedir}/cami-mam3_0000-01-01_0.9x1.25_L30_c100618.nc      cam_initial_${n4}.nc
-#  ${LINK} ${CLM_stagedir}.clm2_$instance.r.${run_refdate}-${run_reftod}.nc  .
    ${LINK} ${POP_stagedir}/b40.20th.005_ens${n2}.pop.r.2004-01-01-00000      .
    ${LINK} ${POP_stagedir}/b40.20th.005_ens${n2}.pop.r.2004-01-01-00000.hdr  .
    ${LINK} ${POP_stagedir}/b40.20th.005_ens${n2}.pop.ro.2004-01-01-00000     .
    ${LINK} ${POP_stagedir}/b40.20th.005_ens${n2}.cice.r.2004-01-01-00000.nc  .
+
 #  ${LINK} ${RTM_stagedir}/b40.20th.005_ens${n2}.clm2.r.2004-01-01-00000.nc  .
+#  ${LINK} ${CLM_stagedir}.clm2_$instance.r.${run_refdate}-${run_reftod}.nc  .
 
    echo "cam_initial_${n4}.nc"                                         >! rpointer.atm_${n4}
 #  echo "${stagedir}.clm2_$instance.r.${run_refdate}-${run_reftod}.nc" >! rpointer.lnd_${n4}
@@ -560,7 +568,7 @@ endif
 
 grep 'SUCCESSFUL TERMINATION' $CplLogFile
 if ( $status == 0 ) then
-#  ${CASEROOT}/assimilate.csh
+   ${CASEROOT}/assimilate.csh
 
    if ( $status == 0 ) then
       echo "`date` -- DART HAS FINISHED"
@@ -627,7 +635,7 @@ else
    echo "a Tools/st_archive.sh backup copy already exists"
 endif
 
-# ${COPY} ${DARTroot}/models/CESM/shell_scripts/st_archive.sh   Tools/ TJH DEBUG
+${COPY} ${DARTroot}/models/CESM/shell_scripts/st_archive.sh       Tools/.
 ${COPY} ${DARTroot}/models/CESM/shell_scripts/assimilate.csh          assimilate.csh
 ${COPY} ${DARTroot}/models/CESM/shell_scripts/cam_assimilate.csh  cam_assimilate.csh
 ${COPY} ${DARTroot}/models/CESM/shell_scripts/pop_assimilate.csh  pop_assimilate.csh
@@ -666,10 +674,8 @@ echo ''
 echo "Time to check the case."
 echo ''
 echo "cd into ${caseroot}"
-
-
-echo "1) edit ${caseroot}/Buildconf/clm.buildnml.csh line 86 ... remove 'hybrid'"
-echo "2) comment out line 36 of  ${caseroot}/Buildconf/rtm.buildnml.csh"
+echo "1) edit ${caseroot}/Buildconf/clm.buildnml.csh ... remove 'hybrid' portion of line 86"
+echo "2) edit ${caseroot}/Buildconf/rtm.buildnml.csh ... comment out line 36"
 echo ''
 echo "Modify what you like in input.nml, make sure the observation directory"
 echo "names set in assimilate.csh match those on your system, and submit"
@@ -694,4 +700,11 @@ echo 'dates need to be added, then do this in the $CASEROOT/user_*files*'
 echo "then invoke 'preview_namelists' so you can check the information in the"
 echo "CaseDocs or ${rundir} directories."
 echo ''
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

@@ -24,7 +24,7 @@
 
 &filter_nml
    async                    = 4,
-   adv_ens_command          = "./advance_model.csh",
+   adv_ens_command          = "./no_advance_possible.csh",
    ens_size                 =  23,
    start_from_restart       = .true.,
    output_restart           = .true.,
@@ -108,9 +108,10 @@
    write_binary_obs_sequence = .false.
   /
 
+   assimilate_these_obs_types = 'RADIOSONDE_TEMPERATURE',
+
 &obs_kind_nml
-   assimilate_these_obs_types = 'XBT_TEMPERATURE',
-     evaluate_these_obs_types = ''
+     evaluate_these_obs_types = 'RADIOSONDE_TEMPERATURE'
   /
 
 &preprocess_nml
@@ -138,7 +139,7 @@
    netCDF_large_file_support  = .true.
   /
 
-&model_nml
+&pop_model_nml
    assimilation_period_days     = 1,
    assimilation_period_seconds  = 0,
    model_perturbation_amplitude = 0.2,
@@ -146,14 +147,66 @@
    debug                        = 0,
   /
 
+! CAM model namelist for now ...
+&model_nml
+   output_state_vector = .false.,
+   model_version       = '4.0.1',
+   model_config_file   = 'caminput.nc',
+   state_num_0d        = 0,
+   state_num_1d        = 0,
+   state_num_2d        = 1,
+   state_num_3d        = 6,
+   state_names_2d      = 'PS'
+   state_names_3d      = 'T', 'US', 'VS', 'Q', 'CLDLIQ', 'CLDICE'
+   which_vert_1d       = 0,
+   which_vert_2d       = -1,
+   which_vert_3d       = 6*1,
+   pert_names          = 'T', 'US', 'VS',
+   pert_sd             = 0.20,
+   pert_base_vals      = -888888.0d0,
+   highest_obs_pressure_mb   = 100.0,
+   highest_state_pressure_mb = 150.0,
+   max_obs_lat_degree        = 89.0,
+   Time_step_seconds   = 21600,
+   Time_step_days      = 0,
+   print_details       = .false.,
+   /
+
+
+&cesm_to_dart_nml
+   cesm_to_dart_output_file  = 'dart_ics'  /
+
 &pop_to_dart_nml
-   pop_to_dart_output_file  = 'dart_ics',
+   pop_to_dart_output_file  = 'dart_ics'   /
+
+&clm_to_dart_nml
+   clm_to_dart_output_file  = 'dart_ics'  /
+
+&cam_to_dart_nml
+   cam_to_dart_input_file    = 'caminput.nc',
+   cam_to_dart_output_file   = 'dart_ics'
+   /
+
+&dart_to_cesm_nml
+   dart_to_cesm_input_file   = 'dart_restart',
+   advance_time_present      = .false.
   /
 
 &dart_to_pop_nml
-   dart_to_pop_input_file   = 'dart_restart',
-   advance_time_present     = .false.
+   dart_to_pop_input_file    = 'dart_restart',
+   advance_time_present      = .false.
   /
+
+&dart_to_clm_nml
+   dart_to_clm_input_file    = 'dart_restart',
+   advance_time_present      = .false.
+   /
+
+&dart_to_cam_nml
+  dart_to_cam_input_file     = 'dart_restart',
+  dart_to_cam_output_file    = 'caminput.nc',
+  advance_time_present       = .false.,
+   /
 
 &location_nml
    horiz_dist_only             = .true.,

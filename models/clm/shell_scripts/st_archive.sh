@@ -3,15 +3,6 @@
 #short-term archive script - move model output out of run directory
 #to free disc space for next invocation of model run
 #must be executed from run directory
-#
-# DART $Id$
-#
-# This must exist as ${CASEROOT}/Tools/st_archive.sh
-# ./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val 'TRUE'
-#
-# The original has been substantially modified to restage the CAM INITIAL files
-# for successive coldstarts - as opposed to restage restart files. As of
-# Nov 10, 2011 ... DART is using CAM initial files. This will change SOON.
 
 #function dispose:
 #moves output files to specified area of st archive and will
@@ -39,7 +30,7 @@ dispose() {
 #In the general case, the returned string is something like ".###",
 #but if there is only a single instance of the given component, then
 #the returned string is empty, because in that case the file names
-#don't have any instance number (or the associated extra '.').
+#don't have any instance number (or the associated extra '_').
 #
 #arg1 => instance index for a given component
 #arg2 => number of instances of this component
@@ -115,9 +106,9 @@ if [ -z "$NINST_GLC" ]; then
 fi
 
 #create directory for restart files
-set Posterior_Diag.*.nc
-diagfile=`ls -rt $* 2> /dev/null | tail -1`
-dname=`echo "$diagfile" | cut -f2 -d'.'`
+set ${CASE}.cpl.r.*
+cplfile=`ls -rt $* 2> /dev/null | tail -1`
+dname=`echo $cplfile | sed "s/\.nc//; s/^.*\.r\.//;"`
 if [ -d ${sta}/rest/${dname} ]; then
     rm -rf ${sta}/rest/${dname}
 fi
@@ -144,43 +135,62 @@ set ccsm*.log.*;                                                                
 set ${CASE}.cpl.r.*;         latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/cpl/rest $*
 set ${CASE}.cpl.h* ;                                                                                                  dispose ifiles_n ${sta}/cpl/hist $*
 
-#still needs tweaking - remove assimilate_dir.* directories?, dart_log.nml's?
-set assimilate_dir/dart_log.*;                                                                                        dispose ifiles_n ${sta}/dart/logs $*
-set Prior_Diag.*.nc;                                                                                                  dispose ifiles_n ${sta}/dart/hist $*
-set Posterior_Diag.*.nc;                                                                                              dispose ifiles_n ${sta}/dart/hist $*
-set obs_seq.*.final;                                                                                                  dispose ifiles_n ${sta}/dart/hist $*
-set pr*_inf*_res*.*;         latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/dart/rest $*
-set po*_inf*_res*.*;         latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/dart/rest $*
+
+# TJH FIXME possible tweaking - remove assimilate_dir/member_* directories? anything else?
+set assimilate_???/*/*dart_log.*;                                                                                     dispose ifiles_n ${sta}/dart/logs $*
+set assimilate_???/*/output.*;                                                                                        dispose ifiles_n ${sta}/dart/logs $*
+set *dart_log.*;                                                                                                      dispose ifiles_n ${sta}/dart/logs $*
+set *True_State.*.nc;                                                                                                 dispose ifiles_n ${sta}/dart/hist $*
+set *Prior_Diag.*.nc;                                                                                                 dispose ifiles_n ${sta}/dart/hist $*
+set *Posterior_Diag.*.nc;                                                                                             dispose ifiles_n ${sta}/dart/hist $*
+set *obs_seq.*.out;                                                                                                   dispose ifiles_n ${sta}/dart/hist $*
+set *obs_seq.*.final;                                                                                                 dispose ifiles_n ${sta}/dart/hist $*
+set *pr*inflate_restart*;  latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null;   dispose ifiles_n ${sta}/dart/rest $*
+set *po*inflate_restart*;  latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null;   dispose ifiles_n ${sta}/dart/rest $*
 
 
 IDX=1
 while [ $IDX -le $NINST_ATM ]
 do
     get_inst_suffix $IDX $NINST_ATM
-    set atm${inst_suffix}.log.*;                                                                                                  dispose ifiles_n ${sta}/atm/logs $*
-    set ${CASE}.cam${inst_suffix}.r.*;   latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
-    set ${CASE}.cam${inst_suffix}.rs.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
-    set ${CASE}.cam${inst_suffix}.ra.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
-    set ${CASE}.cam${inst_suffix}.rh0.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
-    set ${CASE}.cam${inst_suffix}.rh1.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
-    set ${CASE}.cam${inst_suffix}.rh2.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
-    set ${CASE}.cam${inst_suffix}.rh3.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
-    set ${CASE}.cam${inst_suffix}.rh4.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
-    set ${CASE}.cam${inst_suffix}.rh5.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
-    set ${CASE}.cam${inst_suffix}.h0.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
-    set ${CASE}.cam${inst_suffix}.h1.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
-    set ${CASE}.cam${inst_suffix}.h2.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
-    set ${CASE}.cam${inst_suffix}.h3.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
-    set ${CASE}.cam${inst_suffix}.h4.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
-    set ${CASE}.cam${inst_suffix}.h5.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
-    set ${CASE}.cam${inst_suffix}.hs.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
-    set ${CASE}.cam${inst_suffix}.i.*;   latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/init $*
-    set ${CASE}.camice${inst_suffix}.r.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ice/rest $*
-    set ${CASE}.camdom${inst_suffix}.r.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
-    set ${CASE}.camsom${inst_suffix}.r.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
+    set atm${inst_suffix}.log.*;                                                                                                   dispose ifiles_n ${sta}/atm/logs $*
+#   set cam_initial_${IDX}.nc;            latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/rest $*
+    set ${CASE}.cam*${inst_suffix}.r.*;   latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.cam*${inst_suffix}.rs.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.cam*${inst_suffix}.ra.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.cam*${inst_suffix}.rh0.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.cam*${inst_suffix}.rh1.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.cam*${inst_suffix}.rh2.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.cam*${inst_suffix}.rh3.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.cam*${inst_suffix}.rh4.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.cam*${inst_suffix}.rh5.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.cam*${inst_suffix}.h0.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.cam*${inst_suffix}.h1.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.cam*${inst_suffix}.h2.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.cam*${inst_suffix}.h3.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.cam*${inst_suffix}.h4.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.cam*${inst_suffix}.h5.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.cam*${inst_suffix}.hs.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.cam*${inst_suffix}.i.*;   latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/init $*
     set ${CASE}.datm${inst_suffix}.r.* ;  latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
     set ${CASE}.datm${inst_suffix}.rs* ;  latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
     set ${CASE}.datm${inst_suffix}.h.* ;                                                                                           dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.r01.*;                latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.wrf.r02.*;                latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.wrf.r03.*;                latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/atm/rest $*
+    set ${CASE}.wrf.h01.*;                                                                                                         dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h02.*;                                                                                                         dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h03.*;                                                                                                         dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h1aux01.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h1aux02.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h1aux03.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h2aux01.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h2aux02.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h2aux03.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h3aux01.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h3aux02.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
+    set ${CASE}.wrf.h3aux03.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
+ 
     IDX=`expr $IDX + 1`
 done
 
@@ -211,6 +221,25 @@ do
     IDX=`expr $IDX + 1`
 done
 
+
+IDX=1
+while [ $IDX -le $NINST_ROF ]
+do
+    get_inst_suffix $IDX $NINST_ROF
+    set rof${inst_suffix}.log.*;                                                                                                  dispose ifiles_n ${sta}/rof/logs $*
+    set ${CASE}.rtm${inst_suffix}.r.*;   latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/rof/rest $*
+    set ${CASE}.rtm${inst_suffix}.rh0.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/rof/rest $*
+    set ${CASE}.rtm${inst_suffix}.rh1.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/rof/rest $*
+    set ${CASE}.rtm${inst_suffix}.rh2.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/rof/rest $*
+    set ${CASE}.rtm${inst_suffix}.rh3.*; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/rof/rest $*
+    set ${CASE}.rtm${inst_suffix}.h0.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/rof/hist $*
+    set ${CASE}.rtm${inst_suffix}.h1.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/rof/hist $*
+    set ${CASE}.rtm${inst_suffix}.h2.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/rof/hist $*
+    set ${CASE}.rtm${inst_suffix}.h3.*;  latest=`ls -rt $* 2> /dev/null | tail -1`; cp $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_n ${sta}/rof/hist $*
+    IDX=`expr $IDX + 1`
+done
+
+
 IDX=1
 while [ $IDX -le $NINST_ICE ]
 do
@@ -229,28 +258,31 @@ do
     IDX=`expr $IDX + 1`
 done
 
+
 IDX=1
 while [ $IDX -le $NINST_OCN ]
 do
     get_inst_suffix $IDX $NINST_OCN
-    set ocn${inst_suffix}.log.*;                                                                                                        dispose ifiles_n ${sta}/ocn/logs $*
-    set ${CASE}.pop${inst_suffix}.r.*.hdr;     latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
-    set ${CASE}.pop${inst_suffix}.r.*0000;     latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
-    set ${CASE}.pop${inst_suffix}.r.*0000.nc;  latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
+    set ocn${inst_suffix}.log.*;                                                                                                               dispose ifiles_n ${sta}/ocn/logs $*
+    set ${CASE}.pop${inst_suffix}.r.*.hdr;            latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
+    set ${CASE}.pop${inst_suffix}.r.*0000;            latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
+    set ${CASE}.pop${inst_suffix}.r.*0000.nc;         latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
     set ${CASE}.pop${inst_suffix}.rh.ecosys.*.hdr;    latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
     set ${CASE}.pop${inst_suffix}.rh.ecosys.*0000;    latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
     set ${CASE}.pop${inst_suffix}.rh.ecosys.*0000.nc; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
-    set ${CASE}.pop${inst_suffix}.rh.*.hdr;    latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
-    set ${CASE}.pop${inst_suffix}.rh.*0000;    latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
-    set ${CASE}.pop${inst_suffix}.rh.*0000.nc; latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
-    set ${CASE}.pop${inst_suffix}.ro.*;        latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
-    set ${CASE}.pop${inst_suffix}.d?*;                                                                                                  dispose ifiles_n ${sta}/ocn/hist $*
-    set ${CASE}.pop${inst_suffix}.h*;                                                                                                   dispose ifiles_n ${sta}/ocn/hist $*
-    set ${CASE}.docn${inst_suffix}.r.* ;       latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
-    set ${CASE}.docn${inst_suffix}.rs* ;       latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
-    set ${CASE}.docn${inst_suffix}.h.* ;                                                                                                dispose ifiles_n ${sta}/ocn/hist $*
+    set ${CASE}.pop${inst_suffix}.rh.*.hdr;           latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
+    set ${CASE}.pop${inst_suffix}.rh.*0000;           latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
+    set ${CASE}.pop${inst_suffix}.rh.*0000.nc;        latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
+    set ${CASE}.pop${inst_suffix}.ro.*;               latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
+    set ${CASE}.pop${inst_suffix}.d?*;                                                                                                         dispose ifiles_n ${sta}/ocn/hist $*
+    set ${CASE}.pop${inst_suffix}.h*;                                                                                                          dispose ifiles_n ${sta}/ocn/hist $*
+
+    set ${CASE}.docn${inst_suffix}.r.* ;              latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
+    set ${CASE}.docn${inst_suffix}.rs* ;              latest=`ls -rt $* 2> /dev/null | tail -1`; mv $latest ${sta}/rest/${dname} 2> /dev/null; dispose ifiles_y ${sta}/ocn/rest $*
+    set ${CASE}.docn${inst_suffix}.h.* ;                                                                                                       dispose ifiles_n ${sta}/ocn/hist $*
     IDX=`expr $IDX + 1`
 done
+
 
 IDX=1
 while [ $IDX -le $NINST_GLC ]
