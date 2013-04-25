@@ -164,6 +164,7 @@ switch ( ${OSTYPE} )
       setenv REMOVE 'rm -rvf'
       setenv   COPY 'cp -vp'
       setenv   MOVE 'mv -fv'
+      set nonomatch
       breaksw
 endsw
 

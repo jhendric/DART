@@ -103,7 +103,7 @@
    /
 
 &dart_to_cam_nml
-   dart_to_cam_input_file  = 'temp_ic',
+   dart_to_cam_input_file  = 'dart_restart',
    dart_to_cam_output_file = 'caminput.nc',
    advance_time_present    = .true.,
    /

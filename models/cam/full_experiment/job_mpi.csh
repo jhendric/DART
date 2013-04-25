@@ -223,6 +223,7 @@ switch ( ${OSTYPE} )
       setenv   COPY 'cp -vp'
       setenv   MOVE 'mv -fv'
       setenv   LINK 'ln -s'
+      set nonomatch
       breaksw
 endsw
 

@@ -12,6 +12,7 @@ set   MOVE = 'mv -fv'
 set   COPY = 'cp -fv --preserve=timestamps'
 set   LINK = 'ln -fvs'
 set REMOVE = 'rm -fr'
+set nonomatch
 
 # for perfect model we only have a single state
 set ensemble_size = 1

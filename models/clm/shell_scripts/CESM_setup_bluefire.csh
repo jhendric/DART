@@ -85,10 +85,10 @@
 
 setenv case                 clm_tim
 setenv compset              I_2000_CN
-setenv cesmtag              cesm1_1_beta08
 setenv resolution           f19_f19
+setenv cesmtag              cesm1_1_beta08
 setenv num_instances        4
-setenv reuse_existing_case  true
+setenv reuse_existing_case  false
 
 # ====================================================================
 # define machines and directories
@@ -174,6 +174,7 @@ switch ("`hostname`")
       set   COPY = '/bin/cp -fv --preserve=timestamps'
       set   LINK = '/bin/ln -fvs'
       set REMOVE = '/bin/rm -fr'
+      set nonomatch
 
    breaksw
 endsw
@@ -327,9 +328,9 @@ echo ""
 ./xmlchange -file env_run.xml -id STOP_N                     -val $stop_n
 #./xmlchange -file env_run.xml -id CALENDAR                   -val GREGORIAN
 ./xmlchange -file env_run.xml -id DOUT_S_ROOT                -val ${archdir}
-./xmlchange -file env_run.xml -id DOUT_S                     -val FALSE
+./xmlchange -file env_run.xml -id DOUT_S                     -val TRUE
 ./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val FALSE
-./xmlchange -file env_run.xml -id DOUT_L_MS                  -val FALSE
+./xmlchange -file env_run.xml -id DOUT_L_MS                  -val TRUE
 ./xmlchange -file env_run.xml -id DOUT_L_MSROOT              -val "csm/${case}"
 ./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val FALSE
 
@@ -567,4 +568,11 @@ echo 'names set in assimilate.csh match those on your system, and submit'
 echo 'the CESM job by running:'
 echo "./$case.submit"
 echo ''
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

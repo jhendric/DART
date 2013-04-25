@@ -336,7 +336,7 @@ end
 # DART namelist settings required:
 # &filter_nml:           restart_out_file_name  = 'filter_ic_new'
 # &ensemble_manager_nml: single_restart_file_in = '.false.'
-# &dart_to_cam_nml:      dart_to_cam_input_file = 'temp_ic',
+# &dart_to_cam_nml:      dart_to_cam_input_file = 'dart_restart',
 # &dart_to_cam_nml:      advance_time_present   = .false.
 # &atm_in_xxxx:ncdata = 'cam_initial_x.nc'
 #-------------------------------------------------------------------------
@@ -352,7 +352,7 @@ while ( ${member} <= ${ensemble_size} )
    cd $MYTEMPDIR
 
    set DART_RESTART_FILE = `printf filter_ic_new.%04d ${member}`
-   ${LINK} ../$DART_RESTART_FILE temp_ic
+   ${LINK} ../$DART_RESTART_FILE dart_restart
 
    set ATM_POINTER_FILENAME = `printf rpointer.atm_%04d ${member}`
    set LND_POINTER_FILENAME = `printf rpointer.lnd_%04d ${member}`

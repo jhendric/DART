@@ -49,3 +49,11 @@ end
 
 # may need to change the internal date/filename
 cp /gpfs/blhome/yfzhang/CLM_DART/DART/models/clm/work/obs_seq.0Z.20000106 ${NEWDIR}/obs_seq.0Z.20000106
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
+
