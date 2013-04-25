@@ -139,7 +139,7 @@ setenv stop_n        24
 # TJH How many f19_f19 CLM instances can fit on 1 'regular' node?
 # ==============================================================================
 
-setenv ACCOUNT      P86850054
+setenv ACCOUNT      P8685nnnn
 setenv timewall     0:20
 setenv queue        regular
 setenv ptile        15
