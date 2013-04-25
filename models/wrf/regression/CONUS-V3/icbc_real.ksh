@@ -347,7 +347,6 @@ cat > input.nml.tmp << EOF
    latlim2                    =   55.0,
    reg_names                  = 'North America',
    print_mismatched_locs      = .false.,
-   print_obs_locations        = .false.,
    verbose                    = .false.  /
 
  &restart_file_utility_nml

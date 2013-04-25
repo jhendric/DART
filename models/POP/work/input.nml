@@ -283,7 +283,6 @@
    latlim2    =  20.0,  50.0,  50.0,  50,
    reg_names  = 'Indian Ocean', 'Pacific', 'Atlantic', 'North Atlantic',
    print_mismatched_locs = .false.,
-   print_obs_locations   = .false.,
    verbose               = .true.,
    hlevel =  10.0,  20.0,   30.0,   40.0,  100.0,  
             200.0, 500.0, 1000.0, 2000.0, 
