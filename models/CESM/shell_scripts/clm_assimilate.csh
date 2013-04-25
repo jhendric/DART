@@ -12,11 +12,14 @@
 
 echo "`date` -- BEGIN CLM_ASSIMILATE"
 
+set nonomatch       # suppress "rm" warnings if wildcard does not match anything
+
+# The FORCE options are not optional.
+# The VERBOSE options are useful for debugging though
+# some systems don't like the -v option to any of the following 
 switch ("`hostname`")
    case be*:
       # NCAR "bluefire"
-      # The FORCE options are not optional.
-      # the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
       set   LINK = '/usr/local/bin/ln -fvs'
@@ -29,13 +32,10 @@ switch ("`hostname`")
 
    case ys*:
       # NCAR "yellowstone"
-      # The FORCE options are not optional.
-      # the VERBOSE options are useful for debugging.
       set   MOVE = 'mv -fv'
       set   COPY = 'cp -fv --preserve=timestamps'
       set   LINK = 'ln -fvs'
       set REMOVE = 'rm -fr'
-      set nonomatch
 
       set BASEOBSDIR = /glade/p/image/Observations/FluxTower
       set DARTDIR    = ${HOME}/svn/DART/dev
@@ -48,7 +48,6 @@ switch ("`hostname`")
       set   COPY = 'cp -fv --preserve=timestamps'
       set   LINK = 'ln -fvs'
       set REMOVE = 'rm -fr'
-      set nonomatch
 
       set BASEOBSDIR = /scratch/scratchdirs/nscollin/ACARS
       set DARTDIR    = ${HOME}/devel

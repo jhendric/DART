@@ -35,14 +35,15 @@ set days_in_month = ( 31 28 31 30 31 30 31 31 30 31 30 31 )
 set REMOVE = '/bin/rm -rf'
 set   COPY = 'cp -p'
 set   MOVE = 'mv -f'
+set nonomatch
    
 # give the filesystem time to collect itself
 sleep 5
 
 # Create a clean temporary directory and go there
-\rm -rf  $temp_dir
-mkdir -p $temp_dir
-cd       $temp_dir
+${REMOVE} $temp_dir
+mkdir -p  $temp_dir
+cd        $temp_dir
 
 # Each parallel task may need to advance more than one ensemble member.
 # This control file has the actual ensemble number, the input filename,
@@ -367,7 +368,7 @@ ${REMOVE} ${temp_dir}
 
 # Remove the filter_control file to signal completeion
 # Is there a need for any sleeps to avoid trouble on completing moves here?
-\rm -rf $control_file
+${REMOVE} $control_file
 
 exit 0
 

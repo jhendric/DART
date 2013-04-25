@@ -159,6 +159,10 @@ else
    
 endif
 
+set nonomatch       # suppress "rm" warnings if wildcard does not match anything
+
+# The FORCE options are not optional.
+# The VERBOSE options are useful for debugging though
 # some systems don't like the -v option to any of the following 
 set OSTYPE = `uname -s` 
 switch ( ${OSTYPE} )
@@ -178,7 +182,6 @@ default:
       setenv   COPY 'cp -vp'
       setenv   MOVE 'mv -fv'
       setenv   LINK 'ln -s'
-      set nonomatch
 breaksw
 endsw
 

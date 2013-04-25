@@ -6,13 +6,14 @@
 #
 # $Id$
 
-# The FORCE options are not optional. 
-# the VERBOSE options are useful for debugging.
+# The FORCE options are not optional.
+# The VERBOSE options are useful for debugging though
+# some systems don't like the -v option to any of the following 
 set   MOVE = 'mv -fv'
 set   COPY = 'cp -fv --preserve=timestamps'
 set   LINK = 'ln -fvs'
 set REMOVE = 'rm -fr'
-set nonomatch
+set nonomatch       # suppress "rm" warnings if wildcard does not match anything
 
 # for perfect model we only have a single state
 set ensemble_size = 1
