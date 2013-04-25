@@ -132,6 +132,12 @@ if (.not. have_members(ens_handle, ens_size)) return
 ! it is possible we are at the end of the observations and there in fact
 ! is no need to advance.  if so, can return.
 
+
+if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then !HK
+  call set_output(.true.)
+endif
+
+
 ! Initialize a temporary observation type to use
 ! after here, must delete observation before returning.
 call init_obs(observation, get_num_copies(seq), get_num_qc(seq))
@@ -149,6 +155,11 @@ endif
 if (leaving_early) then
    ! need to destroy obs here before returning
    call destroy_obs(observation)
+
+   if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then !HK
+    call set_output(.false.)
+   endif
+
    return
 endif
 
@@ -201,6 +212,7 @@ endif
 ! or if you're asking for the details of the assimilation window and obs times.
 if(next_time < start_time .or. next_time > end_time .or. print_trace_details > 0) then
 
+
    if (time2 /= ens_time) then
       call timechat(next_time,   'move_ahead', .false.,     'Next available observation time    is: ')
       call timechat(time2,       'move_ahead', .false.,     'Next data time should be           at: ', &
@@ -217,6 +229,7 @@ if(next_time < start_time .or. next_time > end_time .or. print_trace_details > 0
       endif
    endif
 
+
    ! if different mpi tasks have different times, the default is only process 0
    ! will print messages.  in this case we're headed towards a fatal error and
    ! just trying to give the most info possible before exiting.  so make all
@@ -224,6 +237,8 @@ if(next_time < start_time .or. next_time > end_time .or. print_trace_details > 0
    ! N sets of these messages which is messy, but probably better than having
    ! the case where process 0 works but some other tasks fail and you get no
    ! helpful info from them.
+
+
    if (next_time < start_time .or. next_time > end_time) then
       call set_output(.true.) 
       call error_handler(E_MSG, ' ', ' ')
@@ -274,6 +289,10 @@ next_ens_time = time2
 
 ! Release the storage associated with the observation temp variable
 call destroy_obs(observation)
+
+if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then !HK
+  call set_output(.false.)
+endif
 
 
 end subroutine move_ahead

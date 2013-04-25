@@ -41,7 +41,7 @@ use         location_mod, only : location_type, get_close_type, get_close_obs_de
 
 use ensemble_manager_mod, only : ensemble_type, get_my_num_vars, get_my_vars,             & 
                                  compute_copy_mean_var, get_var_owner_index,              &
-                                 my_pe , map_task_to_pe,  map_pe_to_task !HK
+                                 map_task_to_pe,  map_pe_to_task 
 
 use mpi_utilities_mod,    only : my_task_id, broadcast_send, broadcast_recv,              & 
                                  sum_across_tasks
@@ -492,7 +492,7 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
 
    ! Following block is done only by the owner of this observation
    !-----------------------------------------------------------------------
-   if(my_pe == owner) then   !HK hard coded task 0
+   if(ens_handle%my_pe == owner) then
 
       obs_qc = obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, owners_index)
       ! Only value of 0 for DART QC field should be assimilated
@@ -555,14 +555,14 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
       !Broadcast the info from this obs to all other processes
       ! What gets broadcast depends on what kind of inflation is being done
       if(local_varying_ss_inflate) then
-         call broadcast_send(map_pe_to_task(owner), obs_prior, obs_inc, orig_obs_prior_mean, &
+         call broadcast_send(map_pe_to_task(ens_handle, owner), obs_prior, obs_inc, orig_obs_prior_mean, &
             orig_obs_prior_var, net_a, scalar1=obs_qc)
 
       else if(local_single_ss_inflate .or. local_obs_inflate) then
-         call broadcast_send(map_pe_to_task(owner), obs_prior, obs_inc, net_a, &
+         call broadcast_send(map_pe_to_task(ens_handle, owner), obs_prior, obs_inc, net_a, &
            scalar1=my_inflate, scalar2=my_inflate_sd, scalar3=obs_qc)
       else
-         call broadcast_send(map_pe_to_task(owner), obs_prior, obs_inc, net_a, scalar1=obs_qc)
+         call broadcast_send(map_pe_to_task(ens_handle, owner), obs_prior, obs_inc, net_a, scalar1=obs_qc)
       endif
 
    ! Next block is done by processes that do NOT own this observation
@@ -571,13 +571,13 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
       ! I don't store this obs; receive the obs prior and increment from broadcast
       ! Also get qc and inflation information if needed
       if(local_varying_ss_inflate) then
-         call broadcast_recv(map_pe_to_task(owner), obs_prior, obs_inc, orig_obs_prior_mean, &
+         call broadcast_recv(map_pe_to_task(ens_handle, owner), obs_prior, obs_inc, orig_obs_prior_mean, &
             orig_obs_prior_var, net_a, scalar1=obs_qc)
       else if(local_single_ss_inflate .or. local_obs_inflate) then
-         call broadcast_recv(map_pe_to_task(owner), obs_prior, obs_inc, net_a, &
+         call broadcast_recv(map_pe_to_task(ens_handle, owner), obs_prior, obs_inc, net_a, &
             scalar1=my_inflate, scalar2=my_inflate_sd, scalar3=obs_qc)
       else
-         call broadcast_recv(map_pe_to_task(owner), obs_prior, obs_inc, net_a, scalar1=obs_qc)
+         call broadcast_recv(map_pe_to_task(ens_handle, owner), obs_prior, obs_inc, net_a, scalar1=obs_qc)
       endif
    endif
    !-----------------------------------------------------------------------
