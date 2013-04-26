@@ -86,7 +86,7 @@ logical  :: single_restart_file_in  = .true.
 logical  :: single_restart_file_out = .true.
 ! Size of perturbations for creating ensembles when model won't do it
 real(r8) :: perturbation_amplitude  = 0.2_r8
-!HK options to change order of communiation loops
+! Options to change order of loops in the transposes
 logical  :: use_copy2var_send_loop = .true.
 logical  :: use_var2copy_rec_loop = .true.
 
@@ -1013,9 +1013,6 @@ integer               :: max_num_vars, max_num_copies, num_vars_to_receive
 integer               :: sending_pe, recv_pe, k, sv, copy, num_copies_to_send
 integer               :: global_ens_index
 
-!HK loop limit 
-integer               :: send_limit
-
 ! only output if there is a label
 if (present(label)) then
    call timestamp_message('copies_to_vars start: '//label, alltasks=.true.)
@@ -1053,73 +1050,59 @@ if (use_copy2var_send_loop .eqv. .true. ) then
 
 SEND_LOOP: do sending_pe = 0, num_pes - 1
 
-     if (my_task_id() /= sending_pe ) then  
+   if (my_task_id() /= sending_pe ) then
 
-        ! figure out what piece to recieve from each other PE and recieve it
-        !    note:  num_vars_to_recive is 0 if I do not have an enemsble member
-        call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
+      ! figure out what piece to recieve from each other PE and recieve it
+      call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
 
-        ! Loop to receive these vars for each copy stored on my_pe
-        ALL_MY_COPIES_SEND_LOOP: do k = 1, my_num_copies
+      if (num_vars_to_receive > 0) then
+         ! Loop to receive these vars for each copy stored on my_pe
+         ALL_MY_COPIES_RECV_LOOP: do k = 1, my_num_copies
 
-          call receive_from(sending_pe, transfer_temp(1:num_vars_to_receive))
+            call receive_from(sending_pe, transfer_temp(1:num_vars_to_receive))
 
-          ! Copy the transfer array to my local storage
-          do sv = 1, num_vars_to_receive
-             ens_handle%vars(var_list(sv), k) = transfer_temp(sv)
-          enddo
-
-        enddo ALL_MY_COPIES_SEND_LOOP
-
-     endif
-
-     if (my_task_id() == sending_pe) then
-   
-         do recv_pe = 0, num_pes - 1 
-
-           ! I'm the sending PE, figure out what copies of my vars I'll send
-           call get_copy_list(num_copies, recv_pe, copy_list, num_copies_to_send)
-
-           send_copies: do copy = 1, num_copies_to_send
-
-               if (my_task_id() /= recv_pe ) then 
- 
-                  if (my_num_vars > 0) then
-
-                   transfer_temp(1:my_num_vars) = ens_handle%copies(copy_list(copy), :)
-
-                  ! Have to  use temp because %copies section is not contiguous storage
-                   call send_to(recv_pe, transfer_temp(1:my_num_vars))
-                  endif
-       
-               else
-
-                ! figure out what piece to recieve from myself and recieve it
-                call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
-
-                  do k = 1,  my_num_copies
-
-                    ! sending to yourself so just copy
-                    global_ens_index = ens_handle%my_copies(k)
-                    do sv = 1, num_vars_to_receive
-                      ens_handle%vars(var_list(sv), k) = ens_handle%copies(global_ens_index, sv)
-                    end do
-
-                 enddo
-
-               endif
-
-           enddo send_copies
-
-        enddo
-
+            ! Copy the transfer array to my local storage
+            do sv = 1, num_vars_to_receive
+               ens_handle%vars(var_list(sv), k) = transfer_temp(sv)
+            enddo
+         enddo ALL_MY_COPIES_RECV_LOOP
       endif
 
+   else
 
- enddo SEND_LOOP
+      do recv_pe = 0, num_pes - 1
+
+         ! I'm the sending PE, figure out what copies of my vars I'll send
+         call get_copy_list(num_copies, recv_pe, copy_list, num_copies_to_send)
+
+         SEND_COPIES: do copy = 1, num_copies_to_send
+
+            if (my_task_id() /= recv_pe ) then
+
+               if (my_num_vars > 0) then
+                  transfer_temp(1:my_num_vars) = ens_handle%copies(copy_list(copy), :)
+                  ! Have to  use temp because %copies section is not contiguous storage
+                  call send_to(recv_pe, transfer_temp(1:my_num_vars))
+               endif
+            else
+               ! figure out what piece to recieve from myself and recieve it
+               call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
+
+               do k = 1,  my_num_copies
+                  ! sending to yourself so just copy
+                  global_ens_index = ens_handle%my_copies(k)
+                  do sv = 1, num_vars_to_receive
+                     ens_handle%vars(var_list(sv), k) = ens_handle%copies(global_ens_index, sv)
+                  end do
+               enddo
+            endif
+         enddo SEND_COPIES
+      enddo
+   endif
+
+enddo SEND_LOOP
 
 else ! use old communication pattern
-
 
 ! Loop to give each pe a turn to receive its vars
 RECEIVING_PE_LOOP: do recv_pe = 0, num_pes - 1
