@@ -497,13 +497,13 @@ AdvanceTime : do
    ! obs_error_variance, observed value, key from sequence, global qc, 
    ! then mean for each group, then variance for each group
    TOTAL_OBS_COPIES = ens_size + 4 + 2*num_groups
-   call init_ensemble_manager(obs_ens_handle, TOTAL_OBS_COPIES, num_obs_in_set, 1)
+   call init_ensemble_manager(obs_ens_handle, TOTAL_OBS_COPIES, num_obs_in_set, 2, 1) !HK extra variable is 2 is the layout - tempory testing
    ! Also need a qc field for copy of each observation
-   call init_ensemble_manager(forward_op_ens_handle, ens_size, num_obs_in_set, 1)
+   call init_ensemble_manager(forward_op_ens_handle, ens_size, num_obs_in_set, 2, 1)
 
    !HK: print out pe info
 
-   print*, 'rank', my_task_id(), 'ens pe', ens_handle%my_pe, 'obs pe', obs_ens_handle%my_pe, 'forward', forward_op_ens_handle%my_pe
+   print*, '| rank', my_task_id(), '| ens pe', ens_handle%my_pe, '| obs pe', obs_ens_handle%my_pe, '| forward', forward_op_ens_handle%my_pe
 
 
    ! Allocate storage for the keys for this number of observations
@@ -553,10 +553,6 @@ AdvanceTime : do
 
    ! Although they are integer, keys are one 'copy' of obs ensemble 
    ! (the last one?)
-
-   if (my_task_id() == 0 ) then
-      print*, obs_ens_handle%my_pe, map_task_to_pe(obs_ens_handle, 0)
-   endif
 
    call put_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_KEY_COPY, keys * 1.0_r8)  !HK
 
@@ -1186,7 +1182,7 @@ integer :: days, secs
 ! Copies are ensemble, ensemble mean, variance inflation and inflation s.d.
 ! AVOID COPIES FOR INFLATION IF STATE SPACE IS NOT IN USE; NEEDS WORK
 !!!if(prior_inflate%flavor >= 2) then
-   call init_ensemble_manager(ens_handle, ens_size + 6, model_size, 1)
+   call init_ensemble_manager(ens_handle, ens_size + 6, model_size, 1, 1)
 !!!else
 !!!   call init_ensemble_manager(ens_handle, ens_size + 2, model_size, 1)
 !!!endif
@@ -1280,6 +1276,8 @@ type(obs_def_type) :: obs_def
 ! Assumed that both ensembles are var complete
 ! Each PE must loop to compute its copies of the forward operators
 ! IMPORTANT, IT IS ASSUMED THAT ACTUAL ENSEMBLES COME FIRST
+! HK: I think it is also assumed that the ensemble members are in the same order in
+! each of the handles
 
 ! Loop through my copies and compute expected value
 my_num_copies = get_my_num_copies(obs_ens_handle)

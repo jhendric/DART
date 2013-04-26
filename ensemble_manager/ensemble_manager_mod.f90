@@ -99,7 +99,7 @@ real(r8) :: perturbation_amplitude  = 0.2_r8
 !HK options to change order of communiation loops
 logical  :: use_copy2var_send_loop = .true.
 logical  :: use_var2copy_rec_loop = .true.
-integer  :: layout = 1 ! HK default is to spread out the ensemble
+integer  :: layout = 2 ! HK default is to not spread out the ensemble - spreading assumes that the user knows the correct tasks_per_node
 integer  :: tasks_per_node = 16 ! HK set for yellowstone 
 
 namelist / ensemble_manager_nml / single_restart_file_in,  &
@@ -116,11 +116,12 @@ contains
 !-----------------------------------------------------------------
 
 subroutine init_ensemble_manager(ens_handle, num_copies, &
-   num_vars, distribution_type_in)
+   num_vars, layout, distribution_type_in)
 
 type(ensemble_type), intent(out)            :: ens_handle
 integer,             intent(in)             :: num_copies, num_vars
 integer,             intent(in), optional   :: distribution_type_in
+integer,             intent(in), optional          :: layout ! HK tempory
 
 integer :: iunit, io
 
@@ -158,6 +159,8 @@ endif
     if(alloc_stat /= 0) print*, 'Allocation problem master_task_list, rank', my_task_id() ! Helen call error handler and quit
    allocate( ens_handle%pe_to_task_list(num_pes), stat=alloc_stat )
     if(alloc_stat /= 0) print*, 'Allocation problem pe_to_task_list, rank', my_task_id()
+
+    if(my_task_id() ==0 ) print*, 'layout', layout, 'num_copies', num_copies
 
     call task_list(ens_handle, tasks_per_node, num_copies, layout)
     ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
@@ -1324,7 +1327,8 @@ subroutine task_list(ens_handle, tasks_per_node, nEns_members, layout_type)
 
 type(ensemble_type)    :: ens_handle
 integer, intent(in)    :: tasks_per_node, nEns_members
-integer, intent(inout) :: layout_type
+!integer, intent(inout) :: layout_type
+integer, intent(in) :: layout_type !HK temporary CHANGE BACK?
 
 integer                :: idx(num_pes) !> sorted index
 integer                :: leftovers !> left over ensemble members
@@ -1336,7 +1340,7 @@ integer                :: alloc_stat !> check memory was allocated / deallocated
 integer                :: last_node_task_number
 
 
-if (layout_type /= 1 .and. layout_type /=2 ) layout_type = 2 !call ErrorHelen ! ! Junk input, so try to spread out the ensemble members NO CALL ERROR HANDLER
+if (layout_type /= 1 .and. layout_type /=2 ) print*, 'Helen you need to call the error handler' !call ErrorHelen ! ! Junk input, so try to spread out the ensemble members NO CALL ERROR HANDLER
 
 if ( layout_type == 1 ) then
 
@@ -1350,17 +1354,14 @@ if ( layout_type == 1 ) then
     return
   endif
 
-  ! Find number of nodes
-  ! check for a remainder
-
-
   !HK temporary *****
-  ens_handle%pe_to_task_list = (/0, 1, 2, 3, 4, 5, 16, 17, 6,  7, 8, 9, 10, 11, 18, 19, 12, 13, 14, 15/)
-  ens_handle%master_task_list = (/0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 6, 7, 14, 15/)
-
-  return
+  !ens_handle%pe_to_task_list = (/0, 1, 2, 3, 4, 5, 16, 17, 6,  7, 8, 9, 10, 11, 18, 19, 12, 13, 14, 15/)
+  !ens_handle%master_task_list = (/0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 6, 7, 14, 15/)
+  !return
   !***********
 
+  ! Find number of nodes
+  ! check for a remainder
   if ( mod(num_pes, tasks_per_node) == 0) then
     nodes = num_pes / tasks_per_node
     last_node_task_number = tasks_per_node
