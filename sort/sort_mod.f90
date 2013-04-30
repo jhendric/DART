@@ -16,7 +16,7 @@ use utilities_mod, only : register_module
 implicit none
 private
 
-public :: slow_sort, slow_index_sort, sort, index_sort, int_index_sort
+public :: slow_sort, slow_index_sort, sort, index_sort!, int_index_sort
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -25,6 +25,11 @@ character(len=128), parameter :: &
    revdate  = "$Date$"
 
 logical, save :: module_initialized = .false.
+
+interface index_sort
+!HK overloading index_sort so it can take a list of reals or integers
+   module procedure index_sort_real, index_sort_int
+end interface
 
 contains
 
@@ -173,8 +178,7 @@ end function sort
 
 !=========================================================================
 
-
-subroutine index_sort(x, index, num)
+subroutine index_sort_real(x, index, num)
 
 ! Uses a heap sort alogrithm on x, returns array of sorted indices
 implicit none
@@ -240,12 +244,12 @@ do
 
 end do
 
-end subroutine index_sort
+end subroutine index_sort_real
 
 
 !=========================================================================
 
-subroutine int_index_sort(x, index, num)
+subroutine index_sort_int(x, index, num)
 
 ! should this just be an overloaded index_sort?
 ! Uses a heap sort alogrithm on x (an array of integers)
@@ -313,7 +317,7 @@ do
 
 end do
 
-end subroutine int_index_sort
+end subroutine index_sort_int
 
 !=========================================================================
 

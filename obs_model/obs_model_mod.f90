@@ -132,8 +132,8 @@ if (.not. have_members(ens_handle, ens_size)) return
 ! it is possible we are at the end of the observations and there in fact
 ! is no need to advance.  if so, can return.
 
-
-if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then !HK
+! HK ens_handle%my_pe 0 does the output. 
+if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then
   call set_output(.true.)
 endif
 

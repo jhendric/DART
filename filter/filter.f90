@@ -497,13 +497,9 @@ AdvanceTime : do
    ! obs_error_variance, observed value, key from sequence, global qc, 
    ! then mean for each group, then variance for each group
    TOTAL_OBS_COPIES = ens_size + 4 + 2*num_groups
-   call init_ensemble_manager(obs_ens_handle, TOTAL_OBS_COPIES, num_obs_in_set, 2, 1) !HK extra variable is 2 is the layout - tempory testing
+   call init_ensemble_manager(obs_ens_handle, TOTAL_OBS_COPIES, num_obs_in_set, 1)
    ! Also need a qc field for copy of each observation
-   call init_ensemble_manager(forward_op_ens_handle, ens_size, num_obs_in_set, 2, 1)
-
-   !HK: print out pe info
-
-   print*, '| rank', my_task_id(), '| ens pe', ens_handle%my_pe, '| obs pe', obs_ens_handle%my_pe, '| forward', forward_op_ens_handle%my_pe
+   call init_ensemble_manager(forward_op_ens_handle, ens_size, num_obs_in_set, 1)
 
 
    ! Allocate storage for the keys for this number of observations
@@ -1182,7 +1178,7 @@ integer :: days, secs
 ! Copies are ensemble, ensemble mean, variance inflation and inflation s.d.
 ! AVOID COPIES FOR INFLATION IF STATE SPACE IS NOT IN USE; NEEDS WORK
 !!!if(prior_inflate%flavor >= 2) then
-   call init_ensemble_manager(ens_handle, ens_size + 6, model_size, 1, 1)
+   call init_ensemble_manager(ens_handle, ens_size + 6, model_size, 1)
 !!!else
 !!!   call init_ensemble_manager(ens_handle, ens_size + 2, model_size, 1)
 !!!endif

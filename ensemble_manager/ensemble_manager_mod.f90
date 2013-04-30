@@ -22,14 +22,15 @@ use types_mod,         only : r8, MISSING_R8
 use utilities_mod,     only : register_module, do_nml_file, do_nml_term, &
                               error_handler, E_ERR, E_MSG, do_output, &
                               nmlfileunit, find_namelist_in_file,        &
-                              check_namelist_read, timestamp, set_output
+                              check_namelist_read, timestamp, set_output, &
+                              alloc_stat
 use assim_model_mod,   only : aread_state_restart, awrite_state_restart, &
                               open_restart_read, open_restart_write,     &
                               close_restart, pert_model_state
 use time_manager_mod,  only : time_type, set_time
 use random_seq_mod,    only : random_seq_type, init_random_seq, random_gaussian
 use mpi_utilities_mod, only : task_count, my_task_id, send_to, receive_from, task_sync
-use sort_mod,          only : int_index_sort
+use sort_mod,          only : index_sort
 
 implicit none
 private
@@ -66,23 +67,29 @@ type ensemble_type
    type(time_type), pointer :: time(:)
    integer                  :: distribution_type
    type(time_type)          :: writer_time
-   integer, allocatable     :: master_task_list(:), pe_to_task_list(:) ! List of tasks
-   integer                  :: my_pe    ! Flexible my_pe which allows different task layouts
-                                         ! for different ensemble handles
+   integer, allocatable     :: task_to_pe_list(:), pe_to_task_list(:) ! List of tasks
+   ! Flexible my_pe, layout_type which allows different task layouts for different ensemble handles
+   integer                  :: my_pe    
+   integer                  :: layout_type           
 
 end type ensemble_type
 
 ! Logical flag for initialization of module
-logical              :: module_initialized = .false.
+logical               :: module_initialized = .false.
+
+! Logical flag for task layout 3
+logical               :: layout_done = .false.  
+! If layout 3, all succeeding ensebmle handles will use the layout from the first call
+! The following are only used if the layout it set to 3.  
+! They allow the same task layout to be used for each ensemble.
+integer, allocatable  :: task_to_pe_list(:), pe_to_task_list(:)
+
 
 ! Module storage for writing error messages
 character(len = 129) :: errstring
 
 ! Module storage for pe information for this process avoids recomputation
 integer              ::  num_pes
-
-!HK
-integer              :: alloc_stat ! Allocation Status - is there one of these in the utilies or common modules?
 
 !-----------------------------------------------------------------
 !
@@ -99,8 +106,10 @@ real(r8) :: perturbation_amplitude  = 0.2_r8
 !HK options to change order of communiation loops
 logical  :: use_copy2var_send_loop = .true.
 logical  :: use_var2copy_rec_loop = .true.
-integer  :: layout = 2 ! HK default is to not spread out the ensemble - spreading assumes that the user knows the correct tasks_per_node
-integer  :: tasks_per_node = 16 ! HK set for yellowstone 
+integer  :: layout = 1 ! default to my_pe = my_task_id(). Other task layouts assume
+                       ! that the user knows the correct tasks_per_node
+integer  :: tasks_per_node = 1 ! default to 1, HK I think this is the only sensible
+!               thing to do if the user does not specify a number of tasks per node.
 
 namelist / ensemble_manager_nml / single_restart_file_in,  &
                                   single_restart_file_out, &
@@ -108,7 +117,7 @@ namelist / ensemble_manager_nml / single_restart_file_in,  &
                                   use_copy2var_send_loop,  &
                                   use_var2copy_rec_loop,   &
                                   layout, tasks_per_node
-
+                                  
 !-----------------------------------------------------------------
 
 contains
@@ -116,12 +125,12 @@ contains
 !-----------------------------------------------------------------
 
 subroutine init_ensemble_manager(ens_handle, num_copies, &
-   num_vars, layout, distribution_type_in)
+   num_vars, distribution_type_in, layout_type_in)
 
 type(ensemble_type), intent(out)            :: ens_handle
 integer,             intent(in)             :: num_copies, num_vars
 integer,             intent(in), optional   :: distribution_type_in
-integer,             intent(in), optional          :: layout ! HK tempory
+integer,             intent(in), optional   :: layout_type_in
 
 integer :: iunit, io
 
@@ -134,6 +143,7 @@ else
       'only distribution_type 1 is implemented', source, revision, revdate)
    ens_handle%distribution_type = distribution_type_in
 endif
+
 
 ! First call to init_ensemble_manager must initialize module and read namelist
 if ( .not. module_initialized ) then
@@ -154,16 +164,53 @@ if ( .not. module_initialized ) then
 
 endif
 
-   !HK:
-   allocate( ens_handle%master_task_list(num_pes), stat=alloc_stat )
-    if(alloc_stat /= 0) print*, 'Allocation problem master_task_list, rank', my_task_id() ! Helen call error handler and quit
-   allocate( ens_handle%pe_to_task_list(num_pes), stat=alloc_stat )
-    if(alloc_stat /= 0) print*, 'Allocation problem pe_to_task_list, rank', my_task_id()
+! Optional layout argument which maps my_pe to my_task_id
+! Layout can be set individually for each ensemble handle. It is not advisable to do this
+! because get_obs_ens assumes that the layout is the same for each ensemble handle.
+if(.not. present(layout_type_in) ) then
+   ens_handle%layout_type = layout ! namelist option
+else
+   ens_handle%layout_type = layout_type_in
+endif
 
-    if(my_task_id() ==0 ) print*, 'layout', layout, 'num_copies', num_copies
+! Check for error: only layout_types 1,2,3 are implemented
+if (ens_handle%layout_type /= 1 .and. ens_handle%layout_type /=2 .and. ens_handle%layout_type /= 3 ) then
+   call error_handler(E_ERR, 'init_ensemble_manager', 'only layout values 1, 2, 3 allowed ', source, revision, revdate)
+endif
 
-    call task_list(ens_handle, tasks_per_node, num_copies, layout)
-    ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
+allocate(ens_handle%task_to_pe_list(num_pes))
+allocate(ens_handle%pe_to_task_list(num_pes))
+
+if( ens_handle%layout_type /= 3 ) then
+
+   call assign_tasks_to_pes(ens_handle, tasks_per_node, num_copies, ens_handle%layout_type)
+   ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
+
+else
+
+   ! Special case if layout 3 is used. Only the first call to init_ensemble_manager
+   ! makes the task layout.  Succeeding calls use this layout
+   if (layout_done) then ! a task_list has already been created
+
+      ens_handle%task_to_pe_list = task_to_pe_list
+      ens_handle%pe_to_task_list = pe_to_task_list
+      ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
+
+   else
+
+      call assign_tasks_to_pes(ens_handle, tasks_per_node, num_copies, ens_handle%layout_type)
+      ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
+
+      layout_done = .true.
+      allocate(task_to_pe_list(num_pes), stat=alloc_stat)
+      allocate(pe_to_task_list(num_pes), stat=alloc_stat)
+
+      task_to_pe_list = ens_handle%task_to_pe_list
+      pe_to_task_list = ens_handle%pe_to_task_list
+
+   endif
+
+endif
 
 ! Set the global storage bounds for the number of copies and variables
 ens_handle%num_copies = num_copies
@@ -565,7 +612,11 @@ type(ensemble_type), intent(inout) :: ens_handle
 
 ! Free up the allocated storage
 deallocate(ens_handle%my_copies, ens_handle%time, ens_handle%my_vars, &
-           ens_handle%vars,    ens_handle%copies, ens_handle%master_task_list, ens_handle%pe_to_task_list)
+           ens_handle%vars,    ens_handle%copies, ens_handle%task_to_pe_list, ens_handle%pe_to_task_list)
+
+! HK need to deallocate task_to_pe_list, pe_to_task_list
+if(allocated(task_to_pe_list)) deallocate(task_to_pe_list)
+if(allocated(pe_to_task_list)) deallocate(pe_to_task_list)
 
 end subroutine end_ensemble_manager
 
@@ -1310,170 +1361,214 @@ end subroutine timestamp_message
 
 !--------------------------------------------------------------------------------
 
-subroutine task_list(ens_handle, tasks_per_node, nEns_members, layout_type)
+subroutine assign_tasks_to_pes(ens_handle, tasks_per_node, nEns_members, layout_type)
 ! Calulate the task layout based on the task per node, the total number of tasks,
 ! the tasks per node, and the ensemble_handle
 ! If the nEns_members >= task_count(), my_pe will default to my_task_id()
 !
 ! Possible options:
-!   1. Spread the ensemble members out as much as possible to spread memory usage out
-!     between nodes
-!   2. Standard task layout, first n tasks have the ensemble members
-!   3. Custom task list - this is not implemented
-!
-! Q. Is this going to affect scaling?
-! memory wise, if you used all 72 288 cores on Yellowstone, you would need 1.1 megabytes on each core
-! for the arrays task_list_out, inverse_task_list_out
+!   1. Standard task layout, first n tasks have the ensemble members
+!   2. Round-robin on the nodes
+!   3. Spread the ensemble members out as much as possible to spread memory usage out
+!     between nodes. Note if you use this, the forward_obs_ens_handle has a different task
+!     layout to the other two ensemble handles. As of April 2013, This violates assumptions 
+!     made in get_obs_ens about the locations of observations for each ensemble_handle. 
+!     Fix: If you choose layout_type = 3 each ensemble_handles gets the layout for ens_handle
 
 type(ensemble_type)    :: ens_handle
 integer, intent(in)    :: tasks_per_node, nEns_members
-!integer, intent(inout) :: layout_type
-integer, intent(in) :: layout_type !HK temporary CHANGE BACK?
+integer, intent(inout) :: layout_type
 
-integer                :: idx(num_pes) !> sorted index
-integer                :: leftovers !> left over ensemble members
-integer                :: ii, count, col, row, m
-integer                :: temp(tasks_per_node), temp_sort(num_pes)
-integer, allocatable   :: per_node(:)
-integer                :: nodes !> number of nodes
-integer                :: alloc_stat !> check memory was allocated / deallocated correctly
-integer                :: last_node_task_number
+if (layout_type /= 1 .and. layout_type /=2 .and. layout_type /= 3) call error_handler(E_ERR,'assign_tasks_to_pes', &
+    'not a valid layout_type, must be 1, 2, 3',source,revision,revdate)
 
-
-if (layout_type /= 1 .and. layout_type /=2 ) print*, 'Helen you need to call the error handler' !call ErrorHelen ! ! Junk input, so try to spread out the ensemble members NO CALL ERROR HANDLER
-
-if ( layout_type == 1 ) then
-
-  if (nEns_members >= num_pes) then    ! if nEns_members >= task_count() then don't try to spread them out
-    call simple_layout(ens_handle, num_pes)
-    return
-  endif
-
-  if (tasks_per_node >= num_pes) then ! all tasks are on one node, don't try to spread them out
-    call simple_layout(ens_handle, num_pes)
-    return
-  endif
-
-  !HK temporary *****
-  !ens_handle%pe_to_task_list = (/0, 1, 2, 3, 4, 5, 16, 17, 6,  7, 8, 9, 10, 11, 18, 19, 12, 13, 14, 15/)
-  !ens_handle%master_task_list = (/0, 1, 2, 3, 4, 5, 8, 9, 10, 11, 12, 13, 16, 17, 18, 19, 6, 7, 14, 15/)
-  !return
-  !***********
-
-  ! Find number of nodes
-  ! check for a remainder
-  if ( mod(num_pes, tasks_per_node) == 0) then
-    nodes = num_pes / tasks_per_node
-    last_node_task_number = tasks_per_node
-  else
-    nodes = num_pes / tasks_per_node + 1
-    last_node_task_number = tasks_per_node - (nodes*tasks_per_node - num_pes)
-  endif
-
-  allocate(per_node(nodes), stat=alloc_stat)
-    if( alloc_stat /= 0 ) print*, 'Allocation problem task list rank', my_task_id()
-
-  ! split ensemble members across nodes, need to account for ensSize/nodes having a remainder
-  per_node(1:nodes - 1) = nEns_members / nodes
-  per_node(nodes) = 0
-
-
-  ! distribute the leftovers to the end nodes, since task 0
-  ! on node 1 already has the most memory.  HK: Is this still true with shift?
-  leftovers = nEns_members - sum(per_node)
-
-  ! put leftovers on the last node
-  m = 0
-
-  do while ( (per_node(nodes) < last_node_task_number) .and. (per_node(nodes) < per_node(1)) )
-    per_node(nodes) = per_node(nodes) + 1
-    m = m + 1
-  enddo
-
-  if ( (leftovers - m) > 0 .and. (per_node(nodes) < last_node_task_number)) then ! then there is room for another leftover
-    per_node(nodes) = per_node(nodes) + 1
-    m = m + 1
-  endif
-
-  ! put rest of leftovers on the other nodes
-    count = 1
-    do ii = 1, leftovers - m
-      per_node(nodes - count)  = per_node(nodes - count) + 1
-      count = count + 1
-      if (count == nodes)  then
-         count = 1 ! need to wrap if (leftovers - m ) >= nodes
-      endif
-    enddo
-
-  ! split ensemble tasks
-  count = 0
-
-     do col = 1, nodes
-        do row = 1, per_node(col)
-
-          ens_handle%master_task_list(row + (col-1)*tasks_per_node) = count
-          count = count + 1
-
-        enddo
-     enddo
-
-  ! split rest of tasks
-  count = nEns_members
-
-    do col = 1, nodes - 1
-      do row = per_node(col) + 1, tasks_per_node
-
-        ens_handle%master_task_list(row + (col-1)*tasks_per_node) = count
-        count = count + 1
-
-      enddo
-    enddo
-
-    do row = per_node(nodes) + 1, last_node_task_number
-      ens_handle%master_task_list(row  + (nodes - 1)*tasks_per_node) = count
-      count = count + 1
-    enddo
-
-  ! For testing / debugging 
-  if(my_task_id() == 0 ) print*, 'per_node', per_node
-
-  deallocate(per_node, stat = alloc_stat)
-    if(alloc_stat /= 0) print*, 'Deallocation problem'
-
-  ! create list to map from physical task to logical task number
-  temp_sort = ens_handle%master_task_list
-
-  call sort_task_list(temp_sort, idx, num_pes)
-
-  do ii = 1, num_pes
-    ens_handle%pe_to_task_list(ii) = temp_sort(idx(ii))
-  enddo
-
-
-else
-
-  call simple_layout(ens_handle, num_pes)
-
+if (nEns_members >= num_pes) then    ! if nEns_members >= task_count() then don't try to spread them out
+   call simple_layout(ens_handle, num_pes)
+   return
 endif
 
-  ! For testing / debugging
-  if(my_task_id()==0) print*, 'master_task_list', ens_handle%master_task_list
-  if(my_task_id()==0) print*, 'pe_to_task_list', ens_handle%pe_to_task_list
+if (tasks_per_node >= num_pes) then ! all tasks are on one node, don't try to spread them out
+   call simple_layout(ens_handle, num_pes)
+   return
+endif
 
-end subroutine task_list
+if (layout_type == 1) then 
+   call simple_layout(ens_handle, num_pes)
+elseif ( layout_type == 2 ) then
+   call round_robin(ens_handle)
+else
+   call ens_copy_spread(ens_handle, tasks_per_node, nEns_members)
+endif
+
+end subroutine assign_tasks_to_pes
+
+!------------------------------------------------------------------------------
+subroutine round_robin(ens_handle)
+! round-robin task layout starting at the last node
+
+type(ensemble_type)   :: ens_handle
+integer               :: last_node_task_number, num_nodes
+integer               :: i, j
+integer, allocatable  :: count(:)
+
+
+! Find number of nodes and find number of tasks on last node
+call calc_tasks_on_each_node(num_pes, tasks_per_node, num_nodes, last_node_task_number)
+
+allocate(count(num_nodes), stat=alloc_stat)
+
+count(:) = 1
+i = 0
+
+do while (i < num_pes)
+   do j = num_nodes, 1, -1
+
+      if(j == num_nodes) then
+         if(count(j) <= last_node_task_number) then
+            ens_handle%task_to_pe_list(tasks_per_node*(j-1) + count(j)) = i
+            count(j) = count(j) + 1
+            i = i + 1
+         endif
+      else
+         if(count(j) <= tasks_per_node) then
+            ens_handle%task_to_pe_list(tasks_per_node*(j-1) + count(j)) = i
+            count(j) = count(j) + 1
+            i = i + 1
+         endif
+      endif
+
+   enddo
+enddo
+
+call create_pe_to_task_list(ens_handle)
+
+end subroutine round_robin
+!-------------------------------------------------------------------------------
+subroutine create_pe_to_task_list(ens_handle)
+
+type(ensemble_type)   :: ens_handle
+integer               :: temp_sort(num_pes), idx(num_pes)
+integer               :: ii
+
+temp_sort = ens_handle%task_to_pe_list
+call sort_task_list(temp_sort, idx, num_pes)
+
+do ii = 1, num_pes
+ens_handle%pe_to_task_list(ii) = temp_sort(idx(ii))
+enddo
+
+end subroutine create_pe_to_task_list
+
+!-------------------------------------------------------------------------------
+
+subroutine calc_tasks_on_each_node(num_pes, tasks_per_node, nodes, last_node_task_number)
+
+integer, intent(in)   :: num_pes, tasks_per_node
+integer, intent(out)  :: last_node_task_number, nodes
+
+if ( mod(num_pes, tasks_per_node) == 0) then
+   nodes = num_pes / tasks_per_node
+   last_node_task_number = tasks_per_node
+else
+   nodes = num_pes / tasks_per_node + 1
+   last_node_task_number = tasks_per_node - (nodes*tasks_per_node - num_pes)
+endif
+
+end subroutine calc_tasks_on_each_node
+
+!------------------------------------------------------------------------------
+
+subroutine ens_copy_spread(ens_handle, tasks_per_node, nEns_members)
+
+type(ensemble_type)               :: ens_handle
+integer, intent(in)               :: tasks_per_node, nEns_members
+
+integer                           :: leftovers !> left over ensemble members
+integer                           :: ii, count, col, row, m
+integer                           :: temp(tasks_per_node)
+integer, allocatable              :: per_node(:)
+integer                           :: num_nodes !> number of nodes
+integer                           :: last_node_task_number
+
+call calc_tasks_on_each_node(num_pes, tasks_per_node, num_nodes, last_node_task_number)
+
+allocate(per_node(num_nodes), stat=alloc_stat)
+if( alloc_stat /= 0 ) call error_handler(E_ERR,'assign_tasks_to_pes', &
+    'allocation error per_node',source,revision,revdate)
+
+! split ensemble members across nodes, need to account for ensSize/nodes having a remainder
+per_node(1:num_nodes - 1) = nEns_members / num_nodes
+per_node(num_nodes) = 0
+
+! distribute the leftovers to the end nodes, since task 0
+! on node 1 already has the most memory.  HK: Is this still true with shift?
+leftovers = nEns_members - sum(per_node)
+
+! put leftovers on the last node
+m = 0
+do while ( (per_node(num_nodes) < last_node_task_number) .and. (per_node(num_nodes) < per_node(1)) )
+   per_node(num_nodes) = per_node(num_nodes) + 1
+   m = m + 1
+enddo
+
+if ( (leftovers - m) > 0 .and. (per_node(num_nodes) < last_node_task_number)) then ! then there is room for another leftover
+   per_node(num_nodes) = per_node(num_nodes) + 1
+   m = m + 1
+endif
+
+! put rest of leftovers on the other nodes
+count = 1
+do ii = 1, leftovers - m
+   per_node(num_nodes - count)  = per_node(num_nodes - count) + 1
+   count = count + 1
+   if (count == num_nodes) then
+      count = 1 ! need to wrap if (leftovers - m ) >= nodes
+   endif
+enddo
+
+! split ensemble tasks
+count = 0
+do col = 1, num_nodes
+   do row = 1, per_node(col)
+      ens_handle%task_to_pe_list(row + (col-1)*tasks_per_node) = count
+      count = count + 1
+   enddo
+enddo
+
+! split rest of tasks
+count = nEns_members
+do col = 1, num_nodes - 1
+   do row = per_node(col) + 1, tasks_per_node
+      ens_handle%task_to_pe_list(row + (col-1)*tasks_per_node) = count
+      count = count + 1
+   enddo
+enddo
+
+do row = per_node(num_nodes) + 1, last_node_task_number
+   ens_handle%task_to_pe_list(row  + (num_nodes - 1)*tasks_per_node) = count
+   count = count + 1
+enddo
+
+deallocate(per_node, stat = alloc_stat)
+if(alloc_stat /= 0) call error_handler(E_ERR,'assign_tasks_to_pes', &
+ 'deallocation error per_node',source,revision,revdate)
+
+call create_pe_to_task_list(ens_handle)
+
+end subroutine ens_copy_spread
 ! Helen's notes on task layout:
-! Flip first node so task zero does not get an ensemble member  ! WARNING: Rest of code relies on task 0 having an ensemble copy
+! Flip first node so task zero does not get an ensemble member  ! WARNING: Rest of code relies on task 0 having an ensemble copy.  
 !    If ens_size + extras > tasks this becomes irrelevant,
 !       in this case, how about 0 is not given an ensemble member in set_up_ens_distribution?
 !       Maybe 0 should not get vars or copies with lots of tasks?
 !  You would not need to flip if you shifted the ensemble processors and had the first n processors
 !  as writers
-! HK commented out flipping for now. Aim: to test the startup time of laying out the ensemble in the
+! HK taken out flipping for now. Aim: to test the startup time of laying out the ensemble in the
 ! code versus using LSF
-!   temp = master_task_list(1:tasks_per_node)
+!   temp = task_to_pe_list(1:tasks_per_node)
 !
 !     do ii = 0, tasks_per_node - 1
-!       master_task_list(ii + 1) = temp(tasks_per_node - ii)
+!       task_to_pe_list(ii + 1) = temp(tasks_per_node - ii)
 !     enddo
 !-----------------------------------------------------------------------------
 subroutine simple_layout(ens_handle, n)
@@ -1482,10 +1577,10 @@ type(ensemble_type) :: ens_handle
 integer             :: n, ii
 
 do ii = 0, num_pes - 1
-ens_handle%master_task_list(ii + 1) = ii
+ens_handle%task_to_pe_list(ii + 1) = ii
 enddo
 
-ens_handle%pe_to_task_list = ens_handle%master_task_list
+ens_handle%pe_to_task_list = ens_handle%task_to_pe_list
 
 end subroutine simple_layout
 
@@ -1498,7 +1593,7 @@ integer                :: n, xcopy(n), i
 
 xcopy = x
 
-call int_index_sort(x, idx, n)
+call index_sort(x, idx, n)
 
 do i = 1, n
   x(i) = xcopy(idx(i))
@@ -1523,7 +1618,7 @@ function map_task_to_pe(ens_handle, t)
 type(ensemble_type) :: ens_handle
 integer             :: t, map_task_to_pe
 
-map_task_to_pe = ens_handle%master_task_list(t + 1)
+map_task_to_pe = ens_handle%task_to_pe_list(t + 1)
 
 end function map_task_to_pe
 
