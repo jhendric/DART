@@ -18,7 +18,7 @@ program timing
                                       set_nml_output
       use ensemble_manager_mod, only: init_ensemble_manager, ensemble_type, all_vars_to_all_copies,    &
                                       all_copies_to_all_vars, end_ensemble_manager, get_my_num_vars,   &
-                                      get_my_num_copies, my_pe
+                                      get_my_num_copies!, my_pe
 
        use mpi
 
@@ -82,7 +82,8 @@ namelist /timing_nml/  &
 
            ! open output files: my_pe needs to be public in ensemble manager
            if (i == 1 .and. record_transpose .eqv. .true. ) then
-             write(task_str, '(i10)') my_pe
+             !write(task_str, '(i10)') my_pe
+             write(task_str, '(i10)') ens_handle%my_pe
              file0 = TRIM('inital' // TRIM(ADJUSTL(task_str)) // '.trans')
              file1 = TRIM('intermediate_output' // TRIM(ADJUSTL(task_str)) // '.trans')
              file2 = TRIM('final_output' // TRIM(ADJUSTL(task_str)) // '.trans')
@@ -98,7 +99,8 @@ namelist /timing_nml/  &
            !  Note the use of my_pe not my_task_id()
            do j = 1, ens_handle%my_num_copies
              do k = 1, ens_handle%num_vars
-               ens_handle%vars(k,j) = j*100000 + (my_pe + 1)*1000000 + k
+!               ens_handle%vars(k,j) = j*100000 + (my_pe + 1)*1000000 + k
+               ens_handle%vars(k,j) = j*100000 + (ens_handle%my_pe + 1)*1000000 + k
              enddo
            enddo
 
