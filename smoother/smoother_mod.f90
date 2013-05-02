@@ -504,17 +504,17 @@ endif
 !HK I think the following call to aoutput_diagnostics assumes task 0 has a copy, because ens_handle%time(1) 
 ! is passed to aoutput_diagnostics. If task 0 does not have an ensemble copy, ens_hanlde%time is junk.
 ! If ens_handle%time is negative junk, the code will happily run through without error ( but produce nonsense ).
-! Task 0 now gets ens_handle%writer_time in filter
+! Fix: Task 0 now gets ens_handle%writer_time in filter
 
 call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, ENS_MEAN_COPY, temp_ens)
 
 if(my_task_id() == 0) then
-  call aoutput_diagnostics(out_unit, ens_handle%writer_time, temp_ens, output_state_mean_index) !HK
+  call aoutput_diagnostics(out_unit, ens_handle%writer_time, temp_ens, output_state_mean_index) 
 endif
 
 ! Output ensemble spread
 
-call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, ENS_SD_COPY, temp_ens) ! HK
+call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, ENS_SD_COPY, temp_ens) 
 if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%writer_time, temp_ens, output_state_spread_index)
 
 ! Compute the offset for copies of the ensemble
@@ -532,7 +532,7 @@ end do
 if (output_inflation) then
    ! Output the spatially varying inflation if used
    if(do_varying_ss_inflate(inflate) .or. do_single_ss_inflate(inflate)) then
-      call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, INF_COPY, temp_ens) !HK
+      call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, INF_COPY, temp_ens)
    else
       ! Output inflation value as 1 if not in use (no inflation)
       temp_ens = 1.0_r8

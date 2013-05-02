@@ -77,19 +77,19 @@ end type ensemble_type
 ! Logical flag for initialization of module
 logical               :: module_initialized = .false.
 
-! Logical flag for task layout 3
-logical               :: layout_done = .false.  
-! If layout 3, all succeeding ensebmle handles will use the layout from the first call
-! The following are only used if the layout it set to 3.  
+! Layout 3 options:
+! If layout=3, all succeeding ensebmle handles will use the layout from the first call
+! The following are only used if the layout it set to 3.
 ! They allow the same task layout to be used for each ensemble.
-integer, allocatable  :: task_to_pe_list(:), pe_to_task_list(:)
-
+integer, allocatable  :: layout3_task_to_pe_list(:), layout3_pe_to_task_list(:)
+logical               :: layout_done = .false.
 
 ! Module storage for writing error messages
 character(len = 129) :: errstring
 
 ! Module storage for pe information for this process avoids recomputation
 integer              ::  num_pes
+
 
 !-----------------------------------------------------------------
 !
@@ -103,20 +103,23 @@ logical  :: single_restart_file_in  = .true.
 logical  :: single_restart_file_out = .true.
 ! Size of perturbations for creating ensembles when model won't do it
 real(r8) :: perturbation_amplitude  = 0.2_r8
-!HK options to change order of communiation loops
+! Options to change order of communiation loops
 logical  :: use_copy2var_send_loop = .true.
 logical  :: use_var2copy_rec_loop = .true.
+! task layout options:
 integer  :: layout = 1 ! default to my_pe = my_task_id(). Other task layouts assume
                        ! that the user knows the correct tasks_per_node
 integer  :: tasks_per_node = 1 ! default to 1, HK I think this is the only sensible
 !               thing to do if the user does not specify a number of tasks per node.
+logical              :: debug = .false.
 
 namelist / ensemble_manager_nml / single_restart_file_in,  &
                                   single_restart_file_out, &
                                   perturbation_amplitude,  &
                                   use_copy2var_send_loop,  &
                                   use_var2copy_rec_loop,   &
-                                  layout, tasks_per_node
+                                  layout, tasks_per_node,  &
+                                  debug
                                   
 !-----------------------------------------------------------------
 
@@ -164,8 +167,8 @@ if ( .not. module_initialized ) then
 
 endif
 
-! Optional layout argument which maps my_pe to my_task_id
-! Layout can be set individually for each ensemble handle. It is not advisable to do this
+! Optional layout_type_in argument to assign how my_pe is related to my_task_id
+! layout_type_in can be set individually for each ensemble handle. It is not advisable to do this
 ! because get_obs_ens assumes that the layout is the same for each ensemble handle.
 if(.not. present(layout_type_in) ) then
    ens_handle%layout_type = layout ! namelist option
@@ -183,30 +186,31 @@ allocate(ens_handle%pe_to_task_list(num_pes))
 
 if( ens_handle%layout_type /= 3 ) then
 
-   call assign_tasks_to_pes(ens_handle, tasks_per_node, num_copies, ens_handle%layout_type)
+   call assign_tasks_to_pes(ens_handle, num_copies, ens_handle%layout_type)
    ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
 
 else
 
    ! Special case if layout 3 is used. Only the first call to init_ensemble_manager
-   ! makes the task layout.  Succeeding calls use this layout
+   ! makes the task layout.  Succeeding calls use this layout. This is because 
+   ! get_obs_ens assumes that the layout is the same for each ensemble handle.
    if (layout_done) then ! a task_list has already been created
 
-      ens_handle%task_to_pe_list = task_to_pe_list
-      ens_handle%pe_to_task_list = pe_to_task_list
+      ens_handle%task_to_pe_list = layout3_task_to_pe_list
+      ens_handle%pe_to_task_list = layout3_pe_to_task_list
       ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
 
    else
 
-      call assign_tasks_to_pes(ens_handle, tasks_per_node, num_copies, ens_handle%layout_type)
+      call assign_tasks_to_pes(ens_handle, num_copies, ens_handle%layout_type)
       ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
 
       layout_done = .true.
-      allocate(task_to_pe_list(num_pes), stat=alloc_stat)
-      allocate(pe_to_task_list(num_pes), stat=alloc_stat)
+      allocate(layout3_task_to_pe_list(num_pes), stat=alloc_stat)
+      allocate(layout3_pe_to_task_list(num_pes), stat=alloc_stat)
 
-      task_to_pe_list = ens_handle%task_to_pe_list
-      pe_to_task_list = ens_handle%pe_to_task_list
+      layout3_task_to_pe_list = ens_handle%task_to_pe_list
+      layout3_pe_to_task_list = ens_handle%pe_to_task_list
 
    endif
 
@@ -215,6 +219,12 @@ endif
 ! Set the global storage bounds for the number of copies and variables
 ens_handle%num_copies = num_copies
 ens_handle%num_vars = num_vars
+
+
+if(debug .and. my_task_id()==0) then
+   print*, 'pe_to_task_list', ens_handle%pe_to_task_list
+   print*, 'task_to_pe_list', ens_handle%task_to_pe_list
+endif
 
 ! Figure out how the ensemble copies are partitioned
 call set_up_ens_distribution(ens_handle)
@@ -273,14 +283,14 @@ endif
 !-------- Block for single restart file or single member  being perturbed -----
 if(single_restart_file_in .or. .not. start_from_restart .or. &
    single_file_override) then 
-   ! Single restart file is read only by master_pe and then distributed
+   ! Single restart file is read only by task 0 and then distributed
    if(my_task_id() == 0) iunit = open_restart_read(file_name)
    allocate(ens(ens_handle%num_vars))   ! used to be on stack.
 
    ! Loop through the total number of copies
    do i = start_copy, end_copy
 
-     ! Only master_pe does reading. Everybody can do their own perturbing
+     ! Only task 0 does reading. Everybody can do their own perturbing
      !HK why does only the master_pe do the reading?  Is reading and comunicating better than everyone reading the same file?
 
        if(my_task_id() == 0) then
@@ -299,8 +309,8 @@ if(single_restart_file_in .or. .not. start_from_restart .or. &
    end do
    
    deallocate(ens)
-   ! Master pe must close the file it's been reading
-   if(my_task_id() == 0) call close_restart(iunit) !HK
+   ! Task 0 must close the file it's been reading
+   if(my_task_id() == 0) call close_restart(iunit)
 
 else
 
@@ -379,8 +389,8 @@ endif
 ! Need to force single restart file for inflation files
 if(single_restart_file_out .or. single_file_forced) then
 
-   ! Single restart file is written only by the master_pe !HK task zero write instead of master pe?
-   if(my_task_id() == 0) then !HK
+   ! Single restart file is written only by task 0
+   if(my_task_id() == 0) then
 
      iunit = open_restart_write(file_name)
 
@@ -389,7 +399,7 @@ if(single_restart_file_out .or. single_file_forced) then
       do i = start_copy, end_copy
          ! Figure out where this ensemble member is being stored
          call get_copy_owner_index(i, owner, owners_index)
-         ! If it's on the master pe, just write it ! HK change master pe to task zero
+         ! If it's on task 0, just write it !
          if(map_pe_to_task(ens_handle, owner) == 0) then
             call awrite_state_restart(ens_handle%time(owners_index), &
                ens_handle%vars(:, owners_index), iunit)
@@ -405,8 +415,8 @@ if(single_restart_file_out .or. single_file_forced) then
       deallocate(ens)
       call close_restart(iunit)
    else
-      ! If I'm not the master pe with a single restart, I must send my copies
-      ! to master pe for writing to file !HK changed to task 0
+      ! If I'm not task 0 with a single restart, I must send my copies
+      ! to master pe for writing to file
       do i = 1, ens_handle%my_num_copies
          ! Figure out which global index this is
          global_index = ens_handle%my_copies(i)
@@ -614,9 +624,8 @@ type(ensemble_type), intent(inout) :: ens_handle
 deallocate(ens_handle%my_copies, ens_handle%time, ens_handle%my_vars, &
            ens_handle%vars,    ens_handle%copies, ens_handle%task_to_pe_list, ens_handle%pe_to_task_list)
 
-! HK need to deallocate task_to_pe_list, pe_to_task_list
-if(allocated(task_to_pe_list)) deallocate(task_to_pe_list)
-if(allocated(pe_to_task_list)) deallocate(pe_to_task_list)
+if(allocated(layout3_task_to_pe_list)) deallocate(layout3_task_to_pe_list)
+if(allocated(layout3_pe_to_task_list)) deallocate(layout3_pe_to_task_list)
 
 end subroutine end_ensemble_manager
 
@@ -1135,7 +1144,7 @@ allocate(var_list(max_num_vars), transfer_temp(max_num_vars), &
 
 
 if (use_copy2var_send_loop .eqv. .true. ) then
-!HK Switched loop index from receiving_pe to sending_pe
+! Switched loop index from receiving_pe to sending_pe
 ! Aim: to make the commication scale better on Yellowstone, as num_pes >> ens_size
 ! For small numbers of tasks (32 or less) the recieving_pe loop may be faster.
 ! Namelist option use_copy2var_send_loop can be used to select which
@@ -1361,22 +1370,26 @@ end subroutine timestamp_message
 
 !--------------------------------------------------------------------------------
 
-subroutine assign_tasks_to_pes(ens_handle, tasks_per_node, nEns_members, layout_type)
-! Calulate the task layout based on the task per node, the total number of tasks,
-! the tasks per node, and the ensemble_handle
-! If the nEns_members >= task_count(), my_pe will default to my_task_id()
+subroutine assign_tasks_to_pes(ens_handle, nEns_members, layout_type)
+! Calulate the task layout based on the tasks per node and the total number of tasks.
+! Has the potential to have different layouts for each ensemble
+! Allows the user to spread the ensemble members out as much as possible to even out 
+! memory usage out between nodes.
 !
 ! Possible options:
 !   1. Standard task layout, first n tasks have the ensemble members
 !   2. Round-robin on the nodes
-!   3. Spread the ensemble members out as much as possible to spread memory usage out
-!     between nodes. Note if you use this, the forward_obs_ens_handle has a different task
+!   3. ens_copy_spread. Note if you use this, the forward_obs_ens_handle has a different task
 !     layout to the other two ensemble handles. As of April 2013, This violates assumptions 
 !     made in get_obs_ens about the locations of observations for each ensemble_handle. 
 !     Fix: If you choose layout_type = 3 each ensemble_handles gets the layout for ens_handle
+!
+! If the nEns_members >= task_count(), or all the tasks are on one node, 
+!   my_pe will default to my_task_id()
+
 
 type(ensemble_type)    :: ens_handle
-integer, intent(in)    :: tasks_per_node, nEns_members
+integer, intent(in)    :: nEns_members
 integer, intent(inout) :: layout_type
 
 if (layout_type /= 1 .and. layout_type /=2 .and. layout_type /= 3) call error_handler(E_ERR,'assign_tasks_to_pes', &
@@ -1397,7 +1410,7 @@ if (layout_type == 1) then
 elseif ( layout_type == 2 ) then
    call round_robin(ens_handle)
 else
-   call ens_copy_spread(ens_handle, tasks_per_node, nEns_members)
+   call ens_copy_spread(ens_handle, nEns_members)
 endif
 
 end subroutine assign_tasks_to_pes
@@ -1413,12 +1426,12 @@ integer, allocatable  :: count(:)
 
 
 ! Find number of nodes and find number of tasks on last node
-call calc_tasks_on_each_node(num_pes, tasks_per_node, num_nodes, last_node_task_number)
+call calc_tasks_on_each_node(num_pes, num_nodes, last_node_task_number)
 
 allocate(count(num_nodes), stat=alloc_stat)
 
-count(:) = 1
-i = 0
+count(:) = 1  ! keep track of the pes assigned to each node
+i = 0         ! keep track of the # of pes assigned
 
 do while (i < num_pes)
    do j = num_nodes, 1, -1
@@ -1461,9 +1474,9 @@ end subroutine create_pe_to_task_list
 
 !-------------------------------------------------------------------------------
 
-subroutine calc_tasks_on_each_node(num_pes, tasks_per_node, nodes, last_node_task_number)
+subroutine calc_tasks_on_each_node(num_pes, nodes, last_node_task_number)
 
-integer, intent(in)   :: num_pes, tasks_per_node
+integer, intent(in)   :: num_pes
 integer, intent(out)  :: last_node_task_number, nodes
 
 if ( mod(num_pes, tasks_per_node) == 0) then
@@ -1478,19 +1491,26 @@ end subroutine calc_tasks_on_each_node
 
 !------------------------------------------------------------------------------
 
-subroutine ens_copy_spread(ens_handle, tasks_per_node, nEns_members)
+subroutine ens_copy_spread(ens_handle, nEns_members)
+
+! This subroutine differs from round-robin.  Here the ensemble tasks are divvied up
+! between the nodes so they are kept for the most part in sequential order.
+! Node 1 gets 1-7, node 2 gets 8 -14, etc.
+! Not sure whether the performance differs from round-robin, but this layout exposes 
+! the dependency in get_obs_ens, where the ensemble_handles are assumed to have the
+! same indexing. Hence the 'special case' for layout 3 in init ensemble manager.
 
 type(ensemble_type)               :: ens_handle
-integer, intent(in)               :: tasks_per_node, nEns_members
+integer, intent(in)               :: nEns_members
 
 integer                           :: leftovers !> left over ensemble members
-integer                           :: ii, count, col, row, m
+integer                           :: ii, count, node, task, m
 integer                           :: temp(tasks_per_node)
 integer, allocatable              :: per_node(:)
 integer                           :: num_nodes !> number of nodes
 integer                           :: last_node_task_number
 
-call calc_tasks_on_each_node(num_pes, tasks_per_node, num_nodes, last_node_task_number)
+call calc_tasks_on_each_node(num_pes, num_nodes, last_node_task_number)
 
 allocate(per_node(num_nodes), stat=alloc_stat)
 if( alloc_stat /= 0 ) call error_handler(E_ERR,'assign_tasks_to_pes', &
@@ -1501,7 +1521,7 @@ per_node(1:num_nodes - 1) = nEns_members / num_nodes
 per_node(num_nodes) = 0
 
 ! distribute the leftovers to the end nodes, since task 0
-! on node 1 already has the most memory.  HK: Is this still true with shift?
+! on node 1 already has the most memory.  HK: Is this still true if you shift the ensemble members?
 leftovers = nEns_members - sum(per_node)
 
 ! put leftovers on the last node
@@ -1528,24 +1548,24 @@ enddo
 
 ! split ensemble tasks
 count = 0
-do col = 1, num_nodes
-   do row = 1, per_node(col)
-      ens_handle%task_to_pe_list(row + (col-1)*tasks_per_node) = count
+do node = 1, num_nodes
+   do task = 1, per_node(node)
+      ens_handle%task_to_pe_list(task + (node-1)*tasks_per_node) = count
       count = count + 1
    enddo
 enddo
 
 ! split rest of tasks
 count = nEns_members
-do col = 1, num_nodes - 1
-   do row = per_node(col) + 1, tasks_per_node
-      ens_handle%task_to_pe_list(row + (col-1)*tasks_per_node) = count
+do node = 1, num_nodes - 1
+   do task = per_node(node) + 1, tasks_per_node
+      ens_handle%task_to_pe_list(task + (node-1)*tasks_per_node) = count
       count = count + 1
    enddo
 enddo
 
-do row = per_node(num_nodes) + 1, last_node_task_number
-   ens_handle%task_to_pe_list(row  + (num_nodes - 1)*tasks_per_node) = count
+do task = per_node(num_nodes) + 1, last_node_task_number
+   ens_handle%task_to_pe_list(task  + (num_nodes - 1)*tasks_per_node) = count
    count = count + 1
 enddo
 
@@ -1556,14 +1576,19 @@ if(alloc_stat /= 0) call error_handler(E_ERR,'assign_tasks_to_pes', &
 call create_pe_to_task_list(ens_handle)
 
 end subroutine ens_copy_spread
-! Helen's notes on task layout:
-! Flip first node so task zero does not get an ensemble member  ! WARNING: Rest of code relies on task 0 having an ensemble copy.  
-!    If ens_size + extras > tasks this becomes irrelevant,
+
+! HK's notes on task layout:
+! Tested flipping order of pes on first node so task zero does not get an ensemble member.
+!  - need to allow other tasks to write in move_ahead if you do this.
+!  - task 0 needs to access the ensemble time (can't uses ens_handle%time(1))
+!    so writer_time was created. 
+! If ens_size + extras > tasks this becomes irrelevant,
 !       in this case, how about 0 is not given an ensemble member in set_up_ens_distribution?
-!       Maybe 0 should not get vars or copies with lots of tasks?
-!  You would not need to flip if you shifted the ensemble processors and had the first n processors
+! Maybe 0 should not get vars or copies with lots of tasks? This would avoid the synchronization
+! delay caused by writing diagnostics, then doing all_copies_to_all_vars.
+! You would not need to flip if you shifted the ensemble processors and had the first n processors
 !  as writers
-! HK taken out flipping for now. Aim: to test the startup time of laying out the ensemble in the
+! Taken out flipping for now. Aim: to test the startup time of laying out the ensemble in the
 ! code versus using LSF
 !   temp = task_to_pe_list(1:tasks_per_node)
 !

@@ -41,7 +41,7 @@ use         location_mod, only : location_type, get_close_type, get_close_obs_de
 
 use ensemble_manager_mod, only : ensemble_type, get_my_num_vars, get_my_vars,             & 
                                  compute_copy_mean_var, get_var_owner_index,              &
-                                 map_task_to_pe,  map_pe_to_task 
+                                 map_pe_to_task 
 
 use mpi_utilities_mod,    only : my_task_id, broadcast_send, broadcast_recv,              & 
                                  sum_across_tasks
@@ -329,8 +329,6 @@ if(.not. module_initialized) then
    call assim_tools_init
    module_initialized = .true.
 endif
-
-!HK task zero duties
 
 !GSR open the dignostics file
 if(output_localization_diagnostics .and. my_task_id() == 0) then
@@ -656,8 +654,6 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
                                               close_obs_dist, cutoff_rev*2.0_r8)
 
 
-            ! HK task zero duties
-      
             ! GSR output the new cutoff 
             ! Here is what we might want: 
             ! time, ob index #, ob location, new cutoff, the assimilate obs count, owner (which process has this ob)
@@ -910,7 +906,6 @@ if (get_close_buffering .and. .true.) then
    endif
 endif
 
-! HK task zero duties:
 
 !GSR close the localization diagnostics file
 if(output_localization_diagnostics .and. my_task_id() == 0) then

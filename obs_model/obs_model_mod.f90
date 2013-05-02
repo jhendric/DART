@@ -27,7 +27,8 @@ use time_manager_mod,     only : time_type, set_time, get_time, print_time,   &
                                  operator(/=), operator(>), operator(-),      &
                                  operator(/), operator(+), operator(<), operator(==), &
                                  operator(<=), operator(>=)
-use ensemble_manager_mod, only : get_ensemble_time, ensemble_type
+use ensemble_manager_mod, only : get_ensemble_time, ensemble_type,            &
+                                 map_task_to_pe  !HK
 use mpi_utilities_mod,    only : my_task_id, task_sync, task_count, block_task, &
                                  sum_across_tasks, shell_execute
 
@@ -133,7 +134,8 @@ if (.not. have_members(ens_handle, ens_size)) return
 ! is no need to advance.  if so, can return.
 
 ! HK ens_handle%my_pe 0 does the output. 
-if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then
+! Don't want two pes outputing if task 0 also has a copy
+if ( map_task_to_pe(ens_handle, 0) >= ens_handle%num_copies .and. ens_handle%my_pe == 0 .and. my_task_id() /= 0) then
   call set_output(.true.)
 endif
 
