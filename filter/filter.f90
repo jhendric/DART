@@ -575,8 +575,6 @@ AdvanceTime : do
 
    call timestamp_message('After  computing prior observation values')
    call     trace_message('After  computing prior observation values')
-
-   print*, 'obs_ens_handle', obs_ens_handle%vars
   
 
    ! Do prior state space diagnostic output as required
@@ -1466,7 +1464,6 @@ call compute_copy_mean_var(obs_ens_handle, &
 ! At this point can compute outlier test and consolidate forward operator qc
 do j = 1, obs_ens_handle%my_num_vars
 
-   print*, 'my_task_id', my_task_id(), 'my_num_vars', obs_ens_handle%my_num_vars
    good_forward_op = .false.
 
    ! find the min and max istatus values across all ensemble members.  these are
@@ -1507,14 +1504,12 @@ do j = 1, obs_ens_handle%my_num_vars
       ! only if it is still successful (assim or eval, 0 or 1), then check
       ! for failing outlier test.
       if(do_outlier .and. (obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) < 2)) then
-         obs_prior_mean = obs_ens_handle%copies(OBS_MEAN_START, j); print*, obs_prior_mean
-         obs_prior_var = obs_ens_handle%copies(OBS_VAR_START, j); print*, obs_prior_var
-         obs_val = obs_ens_handle%copies(OBS_VAL_COPY, j); print*, obs_val
-         obs_err_var = obs_ens_handle%copies(OBS_ERR_VAR_COPY, j); print*, obs_err_var
+         obs_prior_mean = obs_ens_handle%copies(OBS_MEAN_START, j)
+         obs_prior_var = obs_ens_handle%copies(OBS_VAR_START, j)
+         obs_val = obs_ens_handle%copies(OBS_VAL_COPY, j)
+         obs_err_var = obs_ens_handle%copies(OBS_ERR_VAR_COPY, j)
          error = obs_prior_mean - obs_val
-         print*, 'Helen 2: obs_prior_var + obs_err_var', obs_prior_var + obs_err_var
          diff_sd = sqrt(obs_prior_var + obs_err_var)
-         print*, 'Helen diff_sd', diff_sd
          ratio = abs(error / diff_sd)
          if(ratio > outlier_threshold) then
             ! FIXME: proposed enhancement to dart qc values - differentiate
