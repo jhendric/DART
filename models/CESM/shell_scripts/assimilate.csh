@@ -13,8 +13,11 @@
 echo "`date` -- BEGIN CESM ASSIMILATE"
 
 ${CASEROOT}/cam_assimilate.csh
+if ( $status != 0 ) exit $status
 ${CASEROOT}/pop_assimilate.csh
+if ( $status != 0 ) exit $status
 ${CASEROOT}/clm_assimilate.csh
+if ( $status != 0 ) exit $status
 
 echo "`date` -- END CESM ASSIMILATE"
 

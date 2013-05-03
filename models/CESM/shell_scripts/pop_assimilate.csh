@@ -11,6 +11,7 @@
 # on multiple platforms. This will help us maintain the script.
 
 echo "`date` -- BEGIN POP_ASSIMILATE"
+echo "this version assimilates only when hour is 0Z"
 
 set nonomatch       # suppress "rm" warnings if wildcard does not match anything
 
@@ -55,20 +56,6 @@ switch ("`hostname`")
    breaksw
 endsw
 
-set ensemble_size = ${NINST_OCN}
-
-# Create temporary working directory for the assimilation
-set temp_dir = assimilate_pop
-echo "temp_dir is $temp_dir"
-
-# Create a clean temporary directory and go there
-if ( -d $temp_dir ) then
-   ${REMOVE} $temp_dir/*
-else
-   mkdir -p $temp_dir
-endif
-cd $temp_dir
-
 #-------------------------------------------------------------------------
 # Determine time of model state ... from file name of first member
 # of the form "./${CASE}.pop_${ensemble_member}.r.2000-01-06-00000.nc"
@@ -76,7 +63,7 @@ cd $temp_dir
 # Piping stuff through 'bc' strips off any preceeding zeros.
 #-------------------------------------------------------------------------
 
-set FILE = `head -1 ../rpointer.ocn_0001.restart`
+set FILE = `head -n 1 ./rpointer.ocn_0001.restart`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
@@ -90,6 +77,48 @@ set OCN_HOUR     = `echo $OCN_DATE[4] / 3600 | bc`
 
 echo "valid time of model is $OCN_YEAR $OCN_MONTH $OCN_DAY $OCN_SECONDS (seconds)"
 echo "valid time of model is $OCN_YEAR $OCN_MONTH $OCN_DAY $OCN_HOUR (hours)"
+
+#-------------------------------------------------------------------------
+# Determine if current time is 0Z - if so, assimilate.
+# If not, return before assimilating.
+# In either case, update the user_nl_pop2_* files to set the
+# restart configuration for pop (data_assim or rest).
+#-------------------------------------------------------------------------
+
+${REMOVE} user_nl_pop2_*.back
+if ( "$OCN_HOUR" != "0" ) then
+   echo "Hour is not 0Z so we are skipping the ocean assimilation"
+   foreach nml ( ${CASEROOT}/user_nl_pop2_* )
+      ${MOVE} $nml ${nml}.back
+      sed -e "s/'data_assim'/'rest'/" ${nml}.back >! $nml
+   end
+   echo "`date` -- END POP_ASSIMILATE"
+   exit 0
+else
+   echo "Hour is $OCN_HOUR so we are assimilating the ocean"
+   foreach nml ( ${CASEROOT}/user_nl_pop2_* )
+      ${MOVE} $nml ${nml}.back
+      sed -e "s/'rest'/'data_assim'/" ${nml}.back >! $nml
+   end
+endif
+
+#-------------------------------------------------------------------------
+# we are going to assimilate, so carry on.
+#-------------------------------------------------------------------------
+
+set ensemble_size = ${NINST_OCN}
+
+# Create temporary working directory for the assimilation
+set temp_dir = assimilate_pop
+echo "temp_dir is $temp_dir"
+
+# Create a clean temporary directory and go there
+if ( -d $temp_dir ) then
+   ${REMOVE} $temp_dir/*
+else
+   mkdir -p $temp_dir
+endif
+cd $temp_dir
 
 #-----------------------------------------------------------------------------
 # Get observation sequence file ... or die right away.
@@ -369,7 +398,7 @@ echo "`date` -- END POP-TO-DART for all ${ensemble_size} members."
 # POP always needs a pop_in and a pop.r.nc to start.
 # Lots of ways to get the filename
 
-set OCN_RESTART_FILENAME = `head -1 ../rpointer.ocn_0001.restart`
+set OCN_RESTART_FILENAME = `head -n 1 ../rpointer.ocn_0001.restart`
 
 ${LINK} ../$OCN_RESTART_FILENAME pop.r.nc
 ${LINK} ../pop2_in_0001          pop_in

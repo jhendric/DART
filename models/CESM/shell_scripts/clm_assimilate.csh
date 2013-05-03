@@ -11,6 +11,7 @@
 # on multiple platforms. This will help us maintain the script.
 
 echo "`date` -- BEGIN CLM_ASSIMILATE"
+echo "this version assimilates only when hour is 0Z"
 
 set nonomatch       # suppress "rm" warnings if wildcard does not match anything
 
@@ -55,20 +56,6 @@ switch ("`hostname`")
    breaksw
 endsw
 
-set ensemble_size = ${NINST_LND}
-
-# Create temporary working directory for the assimilation
-set temp_dir = assimilate_clm
-echo "temp_dir is $temp_dir"
-
-# Create a clean temporary directory and go there
-if ( -d $temp_dir ) then
-   ${REMOVE} $temp_dir/*
-else
-   mkdir -p $temp_dir
-endif
-cd $temp_dir
-
 #-------------------------------------------------------------------------
 # Determine time of model state ... from file name of first member
 # of the form "./${CASE}.clm2_${ensemble_member}.r.2000-01-06-00000.nc"
@@ -76,7 +63,7 @@ cd $temp_dir
 # Piping stuff through 'bc' strips off any preceeding zeros.
 #-------------------------------------------------------------------------
 
-set FILE = `head -1 ../rpointer.lnd_0001`
+set FILE = `head -n 1 ./rpointer.lnd_0001`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
@@ -90,6 +77,37 @@ set LND_HOUR     = `echo $LND_DATE[4] / 3600 | bc`
 
 echo "valid time of model is $LND_YEAR $LND_MONTH $LND_DAY $LND_SECONDS (seconds)"
 echo "valid time of model is $LND_YEAR $LND_MONTH $LND_DAY $LND_HOUR (hours)"
+
+#-------------------------------------------------------------------------
+# Determine if current time is 0Z - if so, assimilate.
+# If not, return before assimilating.
+#-------------------------------------------------------------------------
+
+if ( "$LND_HOUR" != "0" ) then
+   echo "Hour is not 0Z so we are skipping the land assimilation"
+   echo "`date` -- END LND_ASSIMILATE"
+   exit 0
+else
+   echo "Hour is $LND_HOUR so we are assimilating the land"
+endif
+
+#-------------------------------------------------------------------------
+# we are going to assimilate, so carry on.
+#-------------------------------------------------------------------------
+
+set ensemble_size = ${NINST_LND}
+
+# Create temporary working directory for the assimilation
+set temp_dir = assimilate_clm
+echo "temp_dir is $temp_dir"
+
+# Create a clean temporary directory and go there
+if ( -d $temp_dir ) then
+   ${REMOVE} $temp_dir/*
+else
+   mkdir -p $temp_dir
+endif
+cd $temp_dir
 
 #-----------------------------------------------------------------------------
 # Get observation sequence file ... or die right away.

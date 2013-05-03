@@ -11,6 +11,7 @@
 # on multiple platforms. This will help us maintain the script.
 
 echo "`date` -- BEGIN CAM_ASSIMILATE"
+echo "custom version assimilates at 0,6,12,18Z"
 
 set nonomatch       # suppress "rm" warnings if wildcard does not match anything
 
@@ -55,20 +56,6 @@ switch ("`hostname`")
    breaksw
 endsw
 
-set ensemble_size = ${NINST_ATM}
-
-# Create temporary working directory for the assimilation
-set temp_dir = assimilate_cam
-echo "temp_dir is $temp_dir"
-
-# Create a clean temporary directory and go there
-if ( -d $temp_dir ) then
-   ${REMOVE} $temp_dir/*
-else
-   mkdir -p $temp_dir
-endif
-cd $temp_dir
-
 #-------------------------------------------------------------------------
 # Determine time of model state ... from file name of first member
 # of the form "./${CASE}.cam_${ensemble_member}.i.2000-01-06-00000.nc"
@@ -76,7 +63,7 @@ cd $temp_dir
 # Piping stuff through 'bc' strips off any preceeding zeros.
 #-------------------------------------------------------------------------
 
-set FILE = `head -1 ../rpointer.atm_0001`
+set FILE = `head -n 1 ./rpointer.atm_0001`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
@@ -91,13 +78,44 @@ set ATM_HOUR     = `echo $ATM_DATE[4] / 3600 | bc`
 echo "valid time of model is $ATM_YEAR $ATM_MONTH $ATM_DAY $ATM_SECONDS (seconds)"
 echo "valid time of model is $ATM_YEAR $ATM_MONTH $ATM_DAY $ATM_HOUR (hours)"
 
+#-------------------------------------------------------------------------
+# Determine if current time is an assimilation time.
+# If not, return before assimilating.
+#-------------------------------------------------------------------------
+
+if ( "$ATM_HOUR" != "0" && "$ATM_HOUR" != "6" && "$ATM_HOUR" != "12" && "$ATM_HOUR" != "18") then
+   echo "Hour is not 0,6,12 or 18Z so we are skipping the atmosphere assimilation"
+   echo "`date` -- END CAM_ASSIMILATE"
+   exit 0
+else
+   echo "Hour is $ATM_HOUR so we are assimilating the atmosphere"
+endif
+
+#-------------------------------------------------------------------------
+# we are going to assimilate, so carry on.
+#-------------------------------------------------------------------------
+
+set ensemble_size = ${NINST_ATM}
+
+# Create temporary working directory for the assimilation
+set temp_dir = assimilate_cam
+echo "temp_dir is $temp_dir"
+
+# Create a clean temporary directory and go there
+if ( -d $temp_dir ) then
+   ${REMOVE} $temp_dir/*
+else
+   mkdir -p $temp_dir
+endif
+cd $temp_dir
+
 #-----------------------------------------------------------------------------
 # Get observation sequence file ... or die right away.
 # The observation file names have a time that matches the stopping time of CAM.
 #-----------------------------------------------------------------------------
 
 set YYYYMM   = `printf %04d%02d ${ATM_YEAR} ${ATM_MONTH}`
-set OBSFNAME = `printf obs_seq.%04d-%02d-%02d-%05d ${ATM_YEAR} ${ATM_MONTH} ${ATM_DAY} ${ATM_SECONDS}`
+set OBSFNAME = `printf obs_seq%04d%02d%02d%02d ${ATM_YEAR} ${ATM_MONTH} ${ATM_DAY} ${ATM_HOUR}`
 set OBS_FILE = ${BASEOBSDIR}/${YYYYMM}_6H/${OBSFNAME}
 
 if (  -e   ${OBS_FILE} ) then
@@ -483,9 +501,6 @@ cd ${CASEROOT}
 
 set YYYYMMDD = `printf %04d-%02d-%02d ${ATM_YEAR} ${ATM_MONTH} ${ATM_DAY}`
 set    SSSSS = `printf %05d ${ATM_SECONDS}`
-
-./xmlchange RUN_STARTDATE=${YYYYMMDD}
-./xmlchange START_TOD=${SSSSS}
 
 #-------------------------------------------------------------------------
 # Cleanup
