@@ -740,6 +740,16 @@ ${REMOVE} ${rundir}/*
 
 ${COPY} \${lastarchdir}/*  .
 
+let inst=1
+while [[ \$inst -le $num_instances ]]
+do
+   # instance string includes the leading underscore
+   inst_string=\`printf _%04d \$inst\`
+
+   ${LINK} ${refcase}.cam\${inst_string}.i.\${lastarchdir}.nc cam_initial\${inst_string}.nc
+
+   let inst=inst+1
+done
 exit 0
 
 EndOfText

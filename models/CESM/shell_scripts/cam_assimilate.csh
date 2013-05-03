@@ -83,7 +83,7 @@ echo "valid time of model is $ATM_YEAR $ATM_MONTH $ATM_DAY $ATM_HOUR (hours)"
 # If not, return before assimilating.
 #-------------------------------------------------------------------------
 
-if ( "$ATM_HOUR" != "0" && "$ATM_HOUR" != "6" && "$ATM_HOUR" != "12" && "$ATM_HOUR" != "18") then
+if ( $ATM_HOUR != 0  &&  $ATM_HOUR != 6  &&  $ATM_HOUR != 12  &&  $ATM_HOUR != 18) then
    echo "Hour is not 0,6,12 or 18Z so we are skipping the atmosphere assimilation"
    echo "`date` -- END CAM_ASSIMILATE"
    exit 0

@@ -83,7 +83,7 @@ echo "valid time of model is $LND_YEAR $LND_MONTH $LND_DAY $LND_HOUR (hours)"
 # If not, return before assimilating.
 #-------------------------------------------------------------------------
 
-if ( "$LND_HOUR" != "0" ) then
+if ( $LND_HOUR != 0 ) then
    echo "Hour is not 0Z so we are skipping the land assimilation"
    echo "`date` -- END LND_ASSIMILATE"
    exit 0
