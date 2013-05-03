@@ -1,0 +1,6 @@
+
+&obs_def_tower_nml
+   casename = ../clm_dart,
+   debug    = .false.
+   /
+
