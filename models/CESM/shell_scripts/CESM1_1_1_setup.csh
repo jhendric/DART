@@ -544,7 +544,7 @@ if ($CplLogFile == "") then
    echo 'ERROR: Assimilation will not be attempted.'
    setenv LSB_PJL_TASK_GEOMETRY "{(0)}"
    setenv EXITCODE -1 
-   mpirun.lsf ./shell_exit.sh
+   mpirun.lsf ${CASEROOT}/shell_exit.sh
    exit -1
 endif
 
@@ -558,7 +558,7 @@ if ( $status == 0 ) then
       echo "`date` -- DART FILTER ERROR - ABANDON HOPE"
       setenv LSB_PJL_TASK_GEOMETRY "{(0)}"
       setenv EXITCODE -3 
-      mpirun.lsf ./shell_exit.sh
+      mpirun.lsf ${CASEROOT}/shell_exit.sh
       exit -3
    endif
 else
@@ -566,7 +566,7 @@ else
    echo 'ERROR: Assimilation will not be attempted.'
    setenv LSB_PJL_TASK_GEOMETRY "{(0)}"
    setenv EXITCODE -2 
-   mpirun.lsf ./shell_exit.sh
+   mpirun.lsf ${CASEROOT}/shell_exit.sh
    exit -2
 endif
 

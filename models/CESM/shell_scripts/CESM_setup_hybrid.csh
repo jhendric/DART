@@ -565,6 +565,9 @@ set CplLogFile = `ls -1t cpl.log* | head -n 1`
 if ($CplLogFile == "") then
    echo 'ERROR: Model did not complete - no cpl.log file present - exiting.'
    echo 'ERROR: Assimilation will not be attempted.'
+   setenv LSB_PJL_TASK_GEOMETRY "{(0)}"
+   setenv EXITCODE -1 
+   mpirun.lsf ${CASEROOT}/shell_exit.sh
    exit -1
 endif
 
@@ -577,13 +580,17 @@ if ( $status == 0 ) then
    else
       echo "`date` -- DART FILTER ERROR - ABANDON HOPE"
       setenv LSB_PJL_TASK_GEOMETRY "{(0)}"
-      mpirun.lsf "exit -3"
+      setenv EXITCODE -3 
+      mpirun.lsf ${CASEROOT}/shell_exit.sh
+      exit -3
    endif
 else
    echo 'ERROR: Model did not complete successfully - exiting.'
    echo 'ERROR: Assimilation will not be attempted.'
    setenv LSB_PJL_TASK_GEOMETRY "{(0)}"
-   mpirun.lsf "exit -2"
+   setenv EXITCODE -2 
+   mpirun.lsf ${CASEROOT}/shell_exit.sh
+   exit -2
 endif
 
 # END OF DART BLOCK
@@ -639,6 +646,7 @@ endif
 
 ${COPY} ${DARTroot}/models/CESM/shell_scripts/st_archive.sh       Tools/.
 ${COPY} ${DARTroot}/models/CESM/shell_scripts/assimilate.csh          assimilate.csh
+${COPY} ${DARTroot}/shell_scripts/shell_exit.sh                       shell_exit.sh
 ${COPY} ${DARTroot}/models/CESM/shell_scripts/cam_assimilate.csh  cam_assimilate.csh
 ${COPY} ${DARTroot}/models/CESM/shell_scripts/pop_assimilate.csh  pop_assimilate.csh
 ${COPY} ${DARTroot}/models/CESM/shell_scripts/clm_assimilate.csh  clm_assimilate.csh

@@ -85,7 +85,7 @@ echo "valid time of model is $OCN_YEAR $OCN_MONTH $OCN_DAY $OCN_HOUR (hours)"
 # restart configuration for pop (data_assim or rest).
 #-------------------------------------------------------------------------
 
-${REMOVE} user_nl_pop2_*back
+${REMOVE} ${CASEROOT}/user_nl_pop2_*back
 if ( $OCN_HOUR != 0 ) then
    echo "Hour is not 0Z so we are skipping the ocean assimilation"
    foreach nml ( ${CASEROOT}/user_nl_pop2_* )
