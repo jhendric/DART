@@ -4,15 +4,9 @@
  
 PROGRAM gts_to_dart
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use         types_mod, only : r8, missing_r8, missing_data, DEG2RAD, earth_radius
 use     utilities_mod, only : open_file, close_file, initialize_utilities, &
-                              register_module, logfileunit, E_MSG, timestamp, &
+                              register_module, logfileunit, E_MSG, finalize_utilities, &
                               error_handler, find_namelist_in_file, check_namelist_read
 use  obs_sequence_mod, only : obs_type, obs_sequence_type, init_obs_sequence, insert_obs_in_seq, &
                               set_copy_meta_data, set_qc_meta_data, write_obs_seq, assignment(=), &
@@ -442,16 +436,19 @@ endif
 
 call close_file(iunit)
 
-
-!  PRINT OUT
-!  =============
- 
-! Write out the sequence
 call write_obs_seq(seq, obs_seq_out_file_name)
 
-write(logfileunit,*)'FINISHED gts_to_dart.'
-write(logfileunit,*)
+call error_handler(E_MSG, 'gts_to_dart', 'FINISHED gts_to_dart.')
+call error_handler(E_MSG, 'gts_to_dart', 'Finished successfully.',&
+                   source,revision,revdate)
+call finalize_utilities()
 
-call timestamp(source,revision,revdate,'end') ! That closes the log file, too.
  
 END PROGRAM gts_to_dart
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

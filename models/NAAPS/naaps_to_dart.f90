@@ -4,12 +4,6 @@
 
 program naaps_to_dart
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
- 
 !----------------------------------------------------------------------
 ! purpose: interface between naaps and DART
 !
@@ -26,7 +20,8 @@ program naaps_to_dart
 
 use        types_mod, only : r8
 use    utilities_mod, only : initialize_utilities, finalize_utilities, &
-                             find_namelist_in_file, check_namelist_read
+                             find_namelist_in_file, check_namelist_read, &
+                             error_handler, E_MSG
 use        model_mod, only : get_model_size, analysis_file_to_statevector, &
                              get_naaps_restart_path, get_naaps_dtg,        &
                              get_naaps_ensemble_member,     &
@@ -101,12 +96,17 @@ iunit = open_restart_write(naaps_to_dart_output_file)
 call awrite_state_restart(model_time, statevector, iunit)
 call close_restart(iunit)
 
-!----------------------------------------------------------------------
-! When called with 'end', timestamp will call finalize_utilities()
-!----------------------------------------------------------------------
-
 call print_date(model_time, str='naaps_to_dart:naaps  model date')
 call print_time(model_time, str='naaps_to_dart:DART model time')
+
+call error_handler(E_MSG,'naaps_to_dart','Finished successfully.',source,revision,revdate)
 call finalize_utilities()
 
 end program naaps_to_dart
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+ 

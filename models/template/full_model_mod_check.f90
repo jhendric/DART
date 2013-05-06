@@ -4,20 +4,17 @@
 
 program model_mod_check
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
+! This is not called full_model_mod_check ... because it is used as
+! a generic model_mod for 3D models.
 
 !----------------------------------------------------------------------
 ! purpose: test routines
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8, digits12, metadatalength
-use    utilities_mod, only : initialize_utilities, timestamp, nc_check, &
+use    utilities_mod, only : initialize_utilities, finalize_utilities, nc_check, &
                              open_file, close_file, find_namelist_in_file, &
-                             check_namelist_read
+                             check_namelist_read, error_handler, E_MSG
 use     location_mod, only : location_type, set_location, write_location, get_dist, &
                              query_location, LocationDims, get_location, VERTISHEIGHT
 use     obs_kind_mod, only : get_raw_obs_kind_name, get_raw_obs_kind_index
@@ -198,11 +195,9 @@ else
    write(*,*)'model_interpolate ERROR: model_interpolate failed with error code ',ios_out
 endif
 
-!----------------------------------------------------------------------
-! When called with 'end', timestamp will call finalize_utilities()
-! This must be the last few lines of the main program.
-!----------------------------------------------------------------------
-call timestamp(string1=source, pos='end')
+call error_handler(E_MSG,'full_model_mod_check','Finished successfully.',source,revision,revdate)
+call finalize_utilities()
+
 
 contains
 
@@ -322,3 +317,10 @@ end subroutine find_closest_gridpoint
 
 
 end program model_mod_check
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

@@ -4,12 +4,6 @@
 
 program preprocess
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 ! Takes a list of observation type module path names. These modules contain
 ! multiple fragments of standard F90 that may be required to implement forward
 ! observation operators for DART. The sections are retrieved from the files
@@ -24,7 +18,7 @@ program preprocess
 
 use     types_mod, only : r8
 use utilities_mod, only : register_module, error_handler, E_ERR, E_MSG,   &
-                          file_exist, open_file, logfileunit, timestamp,  &
+                          file_exist, open_file, logfileunit, &
                           initialize_utilities, do_nml_file, do_nml_term, &
                           find_namelist_in_file, check_namelist_read,     &
                           finalize_utilities
@@ -704,10 +698,11 @@ ITEMS: do i = 1, 8
 end do ITEMS
 
 close(obs_def_out_unit)
-!______________________________________________________________________________
 
-
+call error_handler(E_MSG,'preprocess','Finished successfully.',source,revision,revdate)
 call finalize_utilities('preprocess')
+
+!------------------------------------------------------------------------------
 
 contains
 
@@ -729,3 +724,10 @@ call error_handler(E_ERR, 'preprocess', err_string, source, revision, revdate)
 end subroutine typekind_error
 
 end program preprocess
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

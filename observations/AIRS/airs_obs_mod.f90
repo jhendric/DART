@@ -4,12 +4,6 @@
 
 module airs_obs_mod
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use types_mod,        only : r4, r8, digits12, deg2rad, rad2deg
 
 use obs_def_mod,      only : obs_def_type, get_obs_def_time, read_obs_def,     &
@@ -26,7 +20,7 @@ use time_manager_mod, only : time_type, get_date, set_date,            &
 
 use    utilities_mod, only : get_unit, open_file, close_file, file_exist, &
                              register_module, error_handler,              &
-                             E_ERR, E_MSG, timestamp, is_longitude_between
+                             E_ERR, E_MSG, is_longitude_between
 
 use     location_mod, only : location_type, set_location, VERTISPRESSURE, &
                              get_location
@@ -550,3 +544,10 @@ if (DEBUG) print *, 'pressH2O', granule%pressH2O
 end subroutine debug_print_size_check
 
 end module airs_obs_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

@@ -4,15 +4,9 @@
 
 program test_diff
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use     types_mod,  only : r4, r8, digits12
-use utilities_mod,  only : register_module, error_handler, E_ERR, &
-                           initialize_utilities, timestamp, &
+use utilities_mod,  only : register_module, error_handler, E_ERR, E_MSG, &
+                           initialize_utilities, finalize_utilities, &
                            find_namelist_in_file, check_namelist_read
 use random_seq_mod, only : random_seq_type, init_random_seq, random_gaussian
 
@@ -124,7 +118,16 @@ write(*, *) 'sample mean distance  ', r4mean_dist / n
 write(*, *) 'predicted distance    ', sqrt(mean**2 + sd1**2 + sd2**2)
 write(*, *) ''
 
+call error_handler(E_MSG, 'test_diff', 'Finished successfully.',&
+                   source,revision,revdate)
+call finalize_utilities()
 
-call timestamp(source,revision,revdate,'end')
 
 end program test_diff
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+
