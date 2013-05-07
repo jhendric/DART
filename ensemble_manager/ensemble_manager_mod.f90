@@ -22,8 +22,7 @@ use types_mod,         only : r8, MISSING_R8
 use utilities_mod,     only : register_module, do_nml_file, do_nml_term, &
                               error_handler, E_ERR, E_MSG, do_output, &
                               nmlfileunit, find_namelist_in_file,        &
-                              check_namelist_read, timestamp, set_output, &
-                              alloc_stat
+                              check_namelist_read, timestamp, set_output
 use assim_model_mod,   only : aread_state_restart, awrite_state_restart, &
                               open_restart_read, open_restart_write,     &
                               close_restart, pert_model_state
@@ -103,14 +102,14 @@ logical  :: single_restart_file_in  = .true.
 logical  :: single_restart_file_out = .true.
 ! Size of perturbations for creating ensembles when model won't do it
 real(r8) :: perturbation_amplitude  = 0.2_r8
-! Options to change order of communiation loops
+! Options to change order of communication loops in the transpose routines
 logical  :: use_copy2var_send_loop = .true.
 logical  :: use_var2copy_rec_loop = .true.
 ! task layout options:
 integer  :: layout = 1 ! default to my_pe = my_task_id(). Other task layouts assume
                        ! that the user knows the correct tasks_per_node
 integer  :: tasks_per_node = 1 ! default to 1, HK I think this is the only sensible
-!               thing to do if the user does not specify a number of tasks per node.
+                               ! thing to do if the user does not specify a number of tasks per node.
 logical              :: debug = .false.
 
 namelist / ensemble_manager_nml / single_restart_file_in,  &
@@ -206,8 +205,8 @@ else
       ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
 
       layout_done = .true.
-      allocate(layout3_task_to_pe_list(num_pes), stat=alloc_stat)
-      allocate(layout3_pe_to_task_list(num_pes), stat=alloc_stat)
+      allocate(layout3_task_to_pe_list(num_pes))
+      allocate(layout3_pe_to_task_list(num_pes))
 
       layout3_task_to_pe_list = ens_handle%task_to_pe_list
       layout3_pe_to_task_list = ens_handle%pe_to_task_list
@@ -291,7 +290,6 @@ if(single_restart_file_in .or. .not. start_from_restart .or. &
    do i = start_copy, end_copy
 
      ! Only task 0 does reading. Everybody can do their own perturbing
-     !HK why does only the master_pe do the reading?  Is reading and comunicating better than everyone reading the same file?
 
        if(my_task_id() == 0) then
 
@@ -303,7 +301,6 @@ if(single_restart_file_in .or. .not. start_from_restart .or. &
       endif
 
       ! Store this copy in the appropriate place on the appropriate process
-      ! HK why do these have to go to specific processors if the data is identical?
       ! map from my_pe to physical task number all done in send and recieves only
      call put_copy(map_task_to_pe(ens_handle,0), ens_handle, i, ens, ens_time)
    end do
@@ -399,7 +396,7 @@ if(single_restart_file_out .or. single_file_forced) then
       do i = start_copy, end_copy
          ! Figure out where this ensemble member is being stored
          call get_copy_owner_index(i, owner, owners_index)
-         ! If it's on task 0, just write it !
+         ! If it's on task 0, just write it
          if(map_pe_to_task(ens_handle, owner) == 0) then
             call awrite_state_restart(ens_handle%time(owners_index), &
                ens_handle%vars(:, owners_index), iunit)
@@ -415,14 +412,13 @@ if(single_restart_file_out .or. single_file_forced) then
       deallocate(ens)
       call close_restart(iunit)
    else
-      ! If I'm not task 0 with a single restart, I must send my copies
-      ! to master pe for writing to file
+      ! I must send my copies to task 0 for writing to file
       do i = 1, ens_handle%my_num_copies
          ! Figure out which global index this is
          global_index = ens_handle%my_copies(i)
          ! Ship this ensemble off to the master
          if(global_index >= start_copy .and. global_index <= end_copy) &
-            call send_to(0, ens_handle%vars(:, i), ens_handle%time(i)) !HK actually sending to zero to write
+            call send_to(0, ens_handle%vars(:, i), ens_handle%time(i))
       end do
    endif
 
@@ -484,7 +480,6 @@ endif
 call get_copy_owner_index(copy, owner, owners_index)
 
 !----------- Block of code that must be done by receiving pe -----------------------------
-
 if(ens_handle%my_pe == receiving_pe) then
    ! If PE that stores is the same, just copy and return
    if(ens_handle%my_pe == owner) then
@@ -799,17 +794,14 @@ end subroutine set_up_ens_distribution
 !-----------------------------------------------------------------
 
 subroutine get_copy_owner_index(copy_number, owner, owners_index)
-!!!subroutine get_copy_owner_index(copy_number, owner, owners_index, distribution_type)
-
-! HK assumes my_pes 0:ens_size - 1 have the ensemble members
 
 ! Given the copy number, returns which PE stores it when copy complete
 ! and its index in that pes local storage. Depends on distribution_type
 ! with only option 1 currently implemented.
+! HK  This assumes my_pes 0:ens_size - 1 have the ensemble members
 
 integer, intent(in)  :: copy_number
 integer, intent(out) :: owner, owners_index
-!!!integer, intent(in) :: distribution_type
 
 integer :: div
 
@@ -822,15 +814,14 @@ end subroutine get_copy_owner_index
 !-----------------------------------------------------------------
 
 subroutine get_var_owner_index(var_number, owner, owners_index)
-!!!subroutine get_var_owner_index(var_number, owner, owners_index, distribution_type)
 
 ! Given the var number, returns which PE stores it when var complete
 ! and its index in that pes local storage. Depends on distribution_type
 ! with only option 1 currently implemented.
+! HK  This assumes my_pes 0:ens_size - 1 have the ensemble members
 
 integer, intent(in)  :: var_number
 integer, intent(out) :: owner, owners_index
-!!!integer, intent(in) :: distribution_type
 
 integer :: div
 
@@ -1388,9 +1379,9 @@ subroutine assign_tasks_to_pes(ens_handle, nEns_members, layout_type)
 !   my_pe will default to my_task_id()
 
 
-type(ensemble_type)    :: ens_handle
-integer, intent(in)    :: nEns_members
-integer, intent(inout) :: layout_type
+type(ensemble_type), intent(inout)    :: ens_handle
+integer,             intent(in)       :: nEns_members
+integer,             intent(inout)    :: layout_type
 
 if (layout_type /= 1 .and. layout_type /=2 .and. layout_type /= 3) call error_handler(E_ERR,'assign_tasks_to_pes', &
     'not a valid layout_type, must be 1, 2, 3',source,revision,revdate)
@@ -1419,16 +1410,16 @@ end subroutine assign_tasks_to_pes
 subroutine round_robin(ens_handle)
 ! round-robin task layout starting at the last node
 
-type(ensemble_type)   :: ens_handle
-integer               :: last_node_task_number, num_nodes
-integer               :: i, j
-integer, allocatable  :: count(:)
+type(ensemble_type), intent(inout)   :: ens_handle
+integer                              :: last_node_task_number, num_nodes
+integer                              :: i, j
+integer, allocatable                 :: count(:)
 
 
 ! Find number of nodes and find number of tasks on last node
-call calc_tasks_on_each_node(num_pes, num_nodes, last_node_task_number)
+call calc_tasks_on_each_node(num_nodes, last_node_task_number)
 
-allocate(count(num_nodes), stat=alloc_stat)
+allocate(count(num_nodes))
 
 count(:) = 1  ! keep track of the pes assigned to each node
 i = 0         ! keep track of the # of pes assigned
@@ -1459,24 +1450,23 @@ end subroutine round_robin
 !-------------------------------------------------------------------------------
 subroutine create_pe_to_task_list(ens_handle)
 
-type(ensemble_type)   :: ens_handle
-integer               :: temp_sort(num_pes), idx(num_pes)
-integer               :: ii
+type(ensemble_type), intent(inout)   :: ens_handle
+integer                              :: temp_sort(num_pes), idx(num_pes)
+integer                              :: ii
 
 temp_sort = ens_handle%task_to_pe_list
 call sort_task_list(temp_sort, idx, num_pes)
 
 do ii = 1, num_pes
-ens_handle%pe_to_task_list(ii) = temp_sort(idx(ii))
+   ens_handle%pe_to_task_list(ii) = temp_sort(idx(ii))
 enddo
 
 end subroutine create_pe_to_task_list
 
 !-------------------------------------------------------------------------------
 
-subroutine calc_tasks_on_each_node(num_pes, nodes, last_node_task_number)
+subroutine calc_tasks_on_each_node(nodes, last_node_task_number)
 
-integer, intent(in)   :: num_pes
 integer, intent(out)  :: last_node_task_number, nodes
 
 if ( mod(num_pes, tasks_per_node) == 0) then
@@ -1500,21 +1490,19 @@ subroutine ens_copy_spread(ens_handle, nEns_members)
 ! the dependency in get_obs_ens, where the ensemble_handles are assumed to have the
 ! same indexing. Hence the 'special case' for layout 3 in init ensemble manager.
 
-type(ensemble_type)               :: ens_handle
-integer, intent(in)               :: nEns_members
+type(ensemble_type), intent(inout)  :: ens_handle
+integer,             intent(in)     :: nEns_members
 
-integer                           :: leftovers !> left over ensemble members
-integer                           :: ii, count, node, task, m
-integer                           :: temp(tasks_per_node)
-integer, allocatable              :: per_node(:)
-integer                           :: num_nodes !> number of nodes
-integer                           :: last_node_task_number
+integer                             :: leftovers !> left over ensemble members
+integer                             :: ii, count, node, task, m
+integer                             :: temp(tasks_per_node)
+integer, allocatable                :: per_node(:)
+integer                             :: num_nodes !> number of nodes
+integer                             :: last_node_task_number
 
-call calc_tasks_on_each_node(num_pes, num_nodes, last_node_task_number)
+call calc_tasks_on_each_node(num_nodes, last_node_task_number)
 
-allocate(per_node(num_nodes), stat=alloc_stat)
-if( alloc_stat /= 0 ) call error_handler(E_ERR,'assign_tasks_to_pes', &
-    'allocation error per_node',source,revision,revdate)
+allocate(per_node(num_nodes))
 
 ! split ensemble members across nodes, need to account for ensSize/nodes having a remainder
 per_node(1:num_nodes - 1) = nEns_members / num_nodes
@@ -1569,9 +1557,7 @@ do task = per_node(num_nodes) + 1, last_node_task_number
    count = count + 1
 enddo
 
-deallocate(per_node, stat = alloc_stat)
-if(alloc_stat /= 0) call error_handler(E_ERR,'assign_tasks_to_pes', &
- 'deallocation error per_node',source,revision,revdate)
+deallocate(per_node)
 
 call create_pe_to_task_list(ens_handle)
 
@@ -1598,11 +1584,12 @@ end subroutine ens_copy_spread
 !-----------------------------------------------------------------------------
 subroutine simple_layout(ens_handle, n)
 
-type(ensemble_type) :: ens_handle
-integer             :: n, ii
+type(ensemble_type), intent(inout) :: ens_handle
+integer,             intent(in)    :: n
+integer                            :: ii
 
 do ii = 0, num_pes - 1
-ens_handle%task_to_pe_list(ii + 1) = ii
+   ens_handle%task_to_pe_list(ii + 1) = ii
 enddo
 
 ens_handle%pe_to_task_list = ens_handle%task_to_pe_list
@@ -1612,16 +1599,18 @@ end subroutine simple_layout
 !------------------------------------------------------------------------------
 subroutine sort_task_list(x, idx, n)
 
-integer, intent(inout) :: x(n) !> array to be sorted
-integer, intent(out)   :: idx(n) !> index of sorted array
-integer                :: n, xcopy(n), i
+integer, intent(in)    :: n 
+integer, intent(inout) :: x(n)   ! array to be sorted
+integer, intent(out)   :: idx(n) ! index of sorted array
+
+integer                :: xcopy(n), i
 
 xcopy = x
 
 call index_sort(x, idx, n)
 
 do i = 1, n
-  x(i) = xcopy(idx(i))
+   x(i) = xcopy(idx(i))
 enddo
 
 end subroutine sort_task_list
@@ -1630,18 +1619,21 @@ end subroutine sort_task_list
 function map_pe_to_task(ens_handle, p)
 ! Return the physical task for my_pe
 
-type(ensemble_type) :: ens_handle
-integer             :: p, map_pe_to_task
+type(ensemble_type), intent(in) :: ens_handle
+integer,             intent(in)    :: p
+integer                            :: map_pe_to_task
 
 map_pe_to_task = ens_handle%pe_to_task_list(p + 1)
 
 end function map_pe_to_task
+
 !--------------------------------------------------------------------------------
 function map_task_to_pe(ens_handle, t)
 ! Return my_pe corresponding to the physical task
 
-type(ensemble_type) :: ens_handle
-integer             :: t, map_task_to_pe
+type(ensemble_type), intent(in) :: ens_handle
+integer,             intent(in) :: t
+integer                         :: map_task_to_pe
 
 map_task_to_pe = ens_handle%task_to_pe_list(t + 1)
 
