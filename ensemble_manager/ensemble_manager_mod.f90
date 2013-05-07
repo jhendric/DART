@@ -76,19 +76,11 @@ end type ensemble_type
 ! Logical flag for initialization of module
 logical               :: module_initialized = .false.
 
-! Layout 3 options:
-! If layout=3, all succeeding ensebmle handles will use the layout from the first call
-! The following are only used if the layout it set to 3.
-! They allow the same task layout to be used for each ensemble.
-integer, allocatable  :: layout3_task_to_pe_list(:), layout3_pe_to_task_list(:)
-logical               :: layout_done = .false.
-
 ! Module storage for writing error messages
 character(len = 129) :: errstring
 
 ! Module storage for pe information for this process avoids recomputation
 integer              ::  num_pes
-
 
 !-----------------------------------------------------------------
 !
@@ -176,49 +168,19 @@ else
 endif
 
 ! Check for error: only layout_types 1,2,3 are implemented
-if (ens_handle%layout_type /= 1 .and. ens_handle%layout_type /=2 .and. ens_handle%layout_type /= 3 ) then
-   call error_handler(E_ERR, 'init_ensemble_manager', 'only layout values 1, 2, 3 allowed ', source, revision, revdate)
+if (ens_handle%layout_type /= 1 .and. ens_handle%layout_type /=2 ) then
+   call error_handler(E_ERR, 'init_ensemble_manager', 'only layout values 1 (standard), 2(round-robin) allowed ', source, revision, revdate)
 endif
 
 allocate(ens_handle%task_to_pe_list(num_pes))
 allocate(ens_handle%pe_to_task_list(num_pes))
 
-if( ens_handle%layout_type /= 3 ) then
-
    call assign_tasks_to_pes(ens_handle, num_copies, ens_handle%layout_type)
    ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
-
-else
-
-   ! Special case if layout 3 is used. Only the first call to init_ensemble_manager
-   ! makes the task layout.  Succeeding calls use this layout. This is because 
-   ! get_obs_ens assumes that the layout is the same for each ensemble handle.
-   if (layout_done) then ! a task_list has already been created
-
-      ens_handle%task_to_pe_list = layout3_task_to_pe_list
-      ens_handle%pe_to_task_list = layout3_pe_to_task_list
-      ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
-
-   else
-
-      call assign_tasks_to_pes(ens_handle, num_copies, ens_handle%layout_type)
-      ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
-
-      layout_done = .true.
-      allocate(layout3_task_to_pe_list(num_pes))
-      allocate(layout3_pe_to_task_list(num_pes))
-
-      layout3_task_to_pe_list = ens_handle%task_to_pe_list
-      layout3_pe_to_task_list = ens_handle%pe_to_task_list
-
-   endif
-
-endif
 
 ! Set the global storage bounds for the number of copies and variables
 ens_handle%num_copies = num_copies
 ens_handle%num_vars = num_vars
-
 
 if(debug .and. my_task_id()==0) then
    print*, 'pe_to_task_list', ens_handle%pe_to_task_list
@@ -618,9 +580,6 @@ type(ensemble_type), intent(inout) :: ens_handle
 ! Free up the allocated storage
 deallocate(ens_handle%my_copies, ens_handle%time, ens_handle%my_vars, &
            ens_handle%vars,    ens_handle%copies, ens_handle%task_to_pe_list, ens_handle%pe_to_task_list)
-
-if(allocated(layout3_task_to_pe_list)) deallocate(layout3_task_to_pe_list)
-if(allocated(layout3_pe_to_task_list)) deallocate(layout3_pe_to_task_list)
 
 end subroutine end_ensemble_manager
 
@@ -1370,21 +1329,13 @@ subroutine assign_tasks_to_pes(ens_handle, nEns_members, layout_type)
 ! Possible options:
 !   1. Standard task layout, first n tasks have the ensemble members
 !   2. Round-robin on the nodes
-!   3. ens_copy_spread. Note if you use this, the forward_obs_ens_handle has a different task
-!     layout to the other two ensemble handles. As of April 2013, This violates assumptions 
-!     made in get_obs_ens about the locations of observations for each ensemble_handle. 
-!     Fix: If you choose layout_type = 3 each ensemble_handles gets the layout for ens_handle
-!
-! If the nEns_members >= task_count(), or all the tasks are on one node, 
-!   my_pe will default to my_task_id()
-
 
 type(ensemble_type), intent(inout)    :: ens_handle
 integer,             intent(in)       :: nEns_members
 integer,             intent(inout)    :: layout_type
 
-if (layout_type /= 1 .and. layout_type /=2 .and. layout_type /= 3) call error_handler(E_ERR,'assign_tasks_to_pes', &
-    'not a valid layout_type, must be 1, 2, 3',source,revision,revdate)
+if (layout_type /= 1 .and. layout_type /=2) call error_handler(E_ERR,'assign_tasks_to_pes', &
+    'not a valid layout_type, must be 1 (standard) or 2 (round-robin)',source,revision,revdate)
 
 if (nEns_members >= num_pes) then    ! if nEns_members >= task_count() then don't try to spread them out
    call simple_layout(ens_handle, num_pes)
@@ -1398,17 +1349,19 @@ endif
 
 if (layout_type == 1) then 
    call simple_layout(ens_handle, num_pes)
-elseif ( layout_type == 2 ) then
-   call round_robin(ens_handle)
 else
-   call ens_copy_spread(ens_handle, nEns_members)
+   call round_robin(ens_handle)
 endif
 
 end subroutine assign_tasks_to_pes
 
 !------------------------------------------------------------------------------
 subroutine round_robin(ens_handle)
-! round-robin task layout starting at the last node
+! Round-robin task layout starting at the last node
+! Decided to start on the last node, because task 0 uses ~twice as much memory
+! as other tasks. If all nodes have the same number of tasks, it makes no difference
+! whether you start the round-robin on the first node or last node. However, the last 
+! node may have fewer tasks than the rest if ptile*nodes > tasks, so put task 0 here.
 
 type(ensemble_type), intent(inout)   :: ens_handle
 integer                              :: last_node_task_number, num_nodes
@@ -1479,108 +1432,6 @@ endif
 
 end subroutine calc_tasks_on_each_node
 
-!------------------------------------------------------------------------------
-
-subroutine ens_copy_spread(ens_handle, nEns_members)
-
-! This subroutine differs from round-robin.  Here the ensemble tasks are divvied up
-! between the nodes so they are kept for the most part in sequential order.
-! Node 1 gets 1-7, node 2 gets 8 -14, etc.
-! Not sure whether the performance differs from round-robin, but this layout exposes 
-! the dependency in get_obs_ens, where the ensemble_handles are assumed to have the
-! same indexing. Hence the 'special case' for layout 3 in init ensemble manager.
-
-type(ensemble_type), intent(inout)  :: ens_handle
-integer,             intent(in)     :: nEns_members
-
-integer                             :: leftovers !> left over ensemble members
-integer                             :: ii, count, node, task, m
-integer                             :: temp(tasks_per_node)
-integer, allocatable                :: per_node(:)
-integer                             :: num_nodes !> number of nodes
-integer                             :: last_node_task_number
-
-call calc_tasks_on_each_node(num_nodes, last_node_task_number)
-
-allocate(per_node(num_nodes))
-
-! split ensemble members across nodes, need to account for ensSize/nodes having a remainder
-per_node(1:num_nodes - 1) = nEns_members / num_nodes
-per_node(num_nodes) = 0
-
-! distribute the leftovers to the end nodes, since task 0
-! on node 1 already has the most memory.  HK: Is this still true if you shift the ensemble members?
-leftovers = nEns_members - sum(per_node)
-
-! put leftovers on the last node
-m = 0
-do while ( (per_node(num_nodes) < last_node_task_number) .and. (per_node(num_nodes) < per_node(1)) )
-   per_node(num_nodes) = per_node(num_nodes) + 1
-   m = m + 1
-enddo
-
-if ( (leftovers - m) > 0 .and. (per_node(num_nodes) < last_node_task_number)) then ! then there is room for another leftover
-   per_node(num_nodes) = per_node(num_nodes) + 1
-   m = m + 1
-endif
-
-! put rest of leftovers on the other nodes
-count = 1
-do ii = 1, leftovers - m
-   per_node(num_nodes - count)  = per_node(num_nodes - count) + 1
-   count = count + 1
-   if (count == num_nodes) then
-      count = 1 ! need to wrap if (leftovers - m ) >= nodes
-   endif
-enddo
-
-! split ensemble tasks
-count = 0
-do node = 1, num_nodes
-   do task = 1, per_node(node)
-      ens_handle%task_to_pe_list(task + (node-1)*tasks_per_node) = count
-      count = count + 1
-   enddo
-enddo
-
-! split rest of tasks
-count = nEns_members
-do node = 1, num_nodes - 1
-   do task = per_node(node) + 1, tasks_per_node
-      ens_handle%task_to_pe_list(task + (node-1)*tasks_per_node) = count
-      count = count + 1
-   enddo
-enddo
-
-do task = per_node(num_nodes) + 1, last_node_task_number
-   ens_handle%task_to_pe_list(task  + (num_nodes - 1)*tasks_per_node) = count
-   count = count + 1
-enddo
-
-deallocate(per_node)
-
-call create_pe_to_task_list(ens_handle)
-
-end subroutine ens_copy_spread
-
-! HK's notes on task layout:
-! Tested flipping order of pes on first node so task zero does not get an ensemble member.
-!  - need to allow other tasks to write in move_ahead if you do this.
-!  - task 0 needs to access the ensemble time (can't uses ens_handle%time(1))
-!    so writer_time was created. 
-! If ens_size + extras > tasks this becomes irrelevant,
-!       in this case, how about 0 is not given an ensemble member in set_up_ens_distribution?
-! Maybe 0 should not get vars or copies with lots of tasks? This would avoid the synchronization
-! delay caused by writing diagnostics, then doing all_copies_to_all_vars.
-! You would not need to flip if you shifted the ensemble processors and had the first n processors
-!  as writers
-! Taken out flipping for now. Aim: to test the startup time of laying out the ensemble in the
-! code versus using LSF
-!   temp = task_to_pe_list(1:tasks_per_node)
-!
-!     do ii = 0, tasks_per_node - 1
-!       task_to_pe_list(ii + 1) = temp(tasks_per_node - ii)
-!     enddo
 !-----------------------------------------------------------------------------
 subroutine simple_layout(ens_handle, n)
 

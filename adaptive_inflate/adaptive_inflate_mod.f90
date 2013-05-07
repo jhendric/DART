@@ -30,7 +30,6 @@ public :: update_inflation,           adaptive_inflate_end,          do_obs_infl
           adaptive_inflate_init,      adaptive_inflate_type,         get_inflate,        &
           get_sd,                     set_inflate,                   set_sd,             &
           output_inflate_diagnostics, deterministic_inflate,         solve_quadratic
-! HK note back in
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -205,14 +204,13 @@ if(inf_flavor >= 2) then
       ! inflation and inf sd values and set them only on that task.  this saves us
       ! a transpose.
 
-      ! HK logical and physical task id code change
       if (.not. mean_from_restart) then
          call get_copy_owner_index(ss_inflate_index, owner, owners_index)
          if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = inf_initial
       endif
       if (.not. sd_from_restart) then
          call get_copy_owner_index(ss_inflate_sd_index, owner, owners_index)
-          if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = sd_initial
+         if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = sd_initial
       endif
    endif
 
@@ -226,15 +224,14 @@ if(inf_flavor >= 2) then
       call get_copy_owner_index(ss_inflate_index, owner, owners_index)
       ! if inflation array is already on PE0, just figure out the
       ! largest value in the array and we're done.
-      if (owner == 0) then  
+      if (owner == 0) then
          minmax_mean(1) = minval(ens_handle%vars(:, owners_index))
          minmax_mean(2) = maxval(ens_handle%vars(:, owners_index))
       else
          ! someone else has the inf array.  have the owner send the min/max
          ! values to PE0.  after this point only PE0 has the right value
          ! in minmax_mean, but it is the only one who is going to print below.
-         !if (my_task_id() == 0) then  !HK
-          if (ens_handle%my_pe == 0) then  
+         if (ens_handle%my_pe == 0) then
             call receive_from(map_pe_to_task(ens_handle, owner), minmax_mean)
          else if (ens_handle%my_pe == owner) then
             minmax_mean(1) = minval(ens_handle%vars(:, owners_index))
@@ -247,19 +244,19 @@ if(inf_flavor >= 2) then
       call get_copy_owner_index(ss_inflate_sd_index, owner, owners_index)
       ! if inflation sd array is already on PE0, just figure out the
       ! largest value in the array and we're done.
-      if (owner == 0) then 
+      if (owner == 0) then
          minmax_sd(1) = minval(ens_handle%vars(:, owners_index))
          minmax_sd(2) = maxval(ens_handle%vars(:, owners_index))
       else
          ! someone else has the sd array.  have the owner send the min/max
          ! values to PE0.  after this point only PE0 has the right value
          ! in minmax_sd, but it is the only one who is going to print below.
-         if (ens_handle%my_pe == 0) then !HK
+         if (ens_handle%my_pe == 0) then 
             call receive_from(map_pe_to_task(ens_handle, owner), minmax_sd)
-         else if (ens_handle%my_pe == owner) then !HK
+         else if (ens_handle%my_pe == owner) then 
             minmax_sd(1) = minval(ens_handle%vars(:, owners_index))
             minmax_sd(2) = maxval(ens_handle%vars(:, owners_index))
-            call send_to(map_pe_to_task(ens_handle, 0), minmax_sd) !HK
+            call send_to(map_pe_to_task(ens_handle, 0), minmax_sd)
          endif
       endif
    endif
