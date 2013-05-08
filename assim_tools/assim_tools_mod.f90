@@ -678,7 +678,6 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
       ! if you aren't adapting but you still want to know how many obs are within the
       ! localization radius, set the diag output.  this could be large, use carefully.
 
-
       ! this does a cross-task sum, so all tasks must make this call.
       total_num_close_obs = count_close(num_close_obs, close_obs_ind, my_obs_kind, &
                                         close_obs_dist, cutoff_rev*2.0_r8)
@@ -905,7 +904,6 @@ if (get_close_buffering .and. .true.) then
       endif
    endif
 endif
-
 
 !GSR close the localization diagnostics file
 if(output_localization_diagnostics .and. my_task_id() == 0) then

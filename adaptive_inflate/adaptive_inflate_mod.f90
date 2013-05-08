@@ -31,6 +31,7 @@ public :: update_inflation,           adaptive_inflate_end,          do_obs_infl
           get_sd,                     set_inflate,                   set_sd,             &
           output_inflate_diagnostics, deterministic_inflate,         solve_quadratic
 
+
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
    source   = "$URL$", &
@@ -203,7 +204,6 @@ if(inf_flavor >= 2) then
       ! if setting initial values from the namelist, find out which task has the
       ! inflation and inf sd values and set them only on that task.  this saves us
       ! a transpose.
-
       if (.not. mean_from_restart) then
          call get_copy_owner_index(ss_inflate_index, owner, owners_index)
          if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = inf_initial
@@ -251,7 +251,7 @@ if(inf_flavor >= 2) then
          ! someone else has the sd array.  have the owner send the min/max
          ! values to PE0.  after this point only PE0 has the right value
          ! in minmax_sd, but it is the only one who is going to print below.
-         if (ens_handle%my_pe == 0) then 
+         if (ens_handle%my_pe == 0) then
             call receive_from(map_pe_to_task(ens_handle, owner), minmax_sd)
          else if (ens_handle%my_pe == owner) then 
             minmax_sd(1) = minval(ens_handle%vars(:, owners_index))
@@ -269,9 +269,9 @@ if(inf_flavor >= 2) then
    ! ensure the entire array contains a single constant value to match what the code uses.
    if(inf_flavor == 3) then
       call get_copy_owner_index(ss_inflate_index, owner, owners_index)
-      if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index) !HK
+      if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index)
       call get_copy_owner_index(ss_inflate_sd_index, owner, owners_index)
-      if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index) !HK
+      if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index)
    endif
 
 !------ Block for obs. space inflation initialization ------

@@ -27,8 +27,7 @@ use time_manager_mod,     only : time_type, set_time, get_time, print_time,   &
                                  operator(/=), operator(>), operator(-),      &
                                  operator(/), operator(+), operator(<), operator(==), &
                                  operator(<=), operator(>=)
-use ensemble_manager_mod, only : get_ensemble_time, ensemble_type,            &
-                                 map_task_to_pe  !HK
+use ensemble_manager_mod, only : get_ensemble_time, ensemble_type, map_task_to_pe
 use mpi_utilities_mod,    only : my_task_id, task_sync, task_count, block_task, &
                                  sum_across_tasks, shell_execute
 
@@ -133,7 +132,7 @@ if (.not. have_members(ens_handle, ens_size)) return
 ! it is possible we are at the end of the observations and there in fact
 ! is no need to advance.  if so, can return.
 
-! HK ens_handle%my_pe 0 does the output. 
+! ens_handle%my_pe 0 does the output.
 ! Don't want two pes outputing if task 0 also has a copy
 if ( map_task_to_pe(ens_handle, 0) >= ens_handle%num_copies .and. ens_handle%my_pe == 0 .and. my_task_id() /= 0) then
   call set_output(.true.)
@@ -158,7 +157,7 @@ if (leaving_early) then
    ! need to destroy obs here before returning
    call destroy_obs(observation)
 
-   if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then !HK
+   if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then
     call set_output(.false.)
    endif
 
@@ -214,7 +213,6 @@ endif
 ! or if you're asking for the details of the assimilation window and obs times.
 if(next_time < start_time .or. next_time > end_time .or. print_trace_details > 0) then
 
-
    if (time2 /= ens_time) then
       call timechat(next_time,   'move_ahead', .false.,     'Next available observation time    is: ')
       call timechat(time2,       'move_ahead', .false.,     'Next data time should be           at: ', &
@@ -231,7 +229,6 @@ if(next_time < start_time .or. next_time > end_time .or. print_trace_details > 0
       endif
    endif
 
-
    ! if different mpi tasks have different times, the default is only process 0
    ! will print messages.  in this case we're headed towards a fatal error and
    ! just trying to give the most info possible before exiting.  so make all
@@ -239,8 +236,6 @@ if(next_time < start_time .or. next_time > end_time .or. print_trace_details > 0
    ! N sets of these messages which is messy, but probably better than having
    ! the case where process 0 works but some other tasks fail and you get no
    ! helpful info from them.
-
-
    if (next_time < start_time .or. next_time > end_time) then
       call set_output(.true.) 
       call error_handler(E_MSG, ' ', ' ')

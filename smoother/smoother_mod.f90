@@ -21,8 +21,7 @@ use  utilities_mod,       only : file_exist, get_unit, check_namelist_read, do_o
 use ensemble_manager_mod, only : ensemble_type, init_ensemble_manager, read_ensemble_restart, &
                                  write_ensemble_restart, all_vars_to_all_copies,              &
                                  duplicate_ens, compute_copy_mean, compute_copy_mean_sd,      &
-                                 all_copies_to_all_vars, get_copy,                            &
-                                 map_task_to_pe
+                                 all_copies_to_all_vars, get_copy, map_task_to_pe
 use time_manager_mod,     only : time_type, operator(==), print_time
 use assim_model_mod,      only : static_init_assim_model, get_model_size,                    &
                                  netcdf_file_type, init_diag_output, finalize_diag_output,   &
@@ -518,10 +517,9 @@ call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, ENS_SD_COPY, temp_ens)
 if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%writer_time, temp_ens, output_state_spread_index)
 
 ! Compute the offset for copies of the ensemble
-ens_offset = 2  !HK hard coded 2?
+ens_offset = 2
 
 ! Output state diagnostics as required: NOTE: Prior has been inflated
-
 do j = 1, num_output_state_members
    ! Get this state copy to task 0; then output it
    call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, j, temp_ens, temp_time)
@@ -551,8 +549,6 @@ if (output_inflation) then
 
    if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%writer_time, temp_ens, &
       ens_offset + num_output_state_members + 2)
-
-
 endif
 
 end subroutine filter_state_space_diagnostics

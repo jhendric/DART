@@ -74,13 +74,13 @@ type ensemble_type
 end type ensemble_type
 
 ! Logical flag for initialization of module
-logical               :: module_initialized = .false.
+logical              :: module_initialized = .false.
 
 ! Module storage for writing error messages
 character(len = 129) :: errstring
 
 ! Module storage for pe information for this process avoids recomputation
-integer              ::  num_pes
+integer              :: num_pes
 
 !-----------------------------------------------------------------
 !
@@ -100,9 +100,8 @@ logical  :: use_var2copy_rec_loop = .true.
 ! task layout options:
 integer  :: layout = 1 ! default to my_pe = my_task_id(). Other task layouts assume
                        ! that the user knows the correct tasks_per_node
-integer  :: tasks_per_node = 1 ! default to 1, HK I think this is the only sensible
-                               ! thing to do if the user does not specify a number of tasks per node.
-logical              :: debug = .false.
+integer  :: tasks_per_node = 1 ! default to 1 if the user does not specify a number of tasks per node.
+logical  :: debug = .false.
 
 namelist / ensemble_manager_nml / single_restart_file_in,  &
                                   single_restart_file_out, &
@@ -138,7 +137,6 @@ else
    ens_handle%distribution_type = distribution_type_in
 endif
 
-
 ! First call to init_ensemble_manager must initialize module and read namelist
 if ( .not. module_initialized ) then
    ! Initialize the module with utilities 
@@ -155,11 +153,10 @@ if ( .not. module_initialized ) then
 
    ! Get mpi information for this process; it's stored in module storage
    num_pes = task_count()
-
 endif
 
-! Optional layout_type_in argument to assign how my_pe is related to my_task_id
-! layout_type_in can be set individually for each ensemble handle. It is not advisable to do this
+! Optional layout_type argument to assign how my_pe is related to my_task_id
+! layout_type can be set individually for each ensemble handle. It is not advisable to do this
 ! because get_obs_ens assumes that the layout is the same for each ensemble handle.
 if(.not. present(layout_type) ) then
    ens_handle%layout_type = layout ! namelist option
@@ -167,7 +164,7 @@ else
    ens_handle%layout_type = layout_type
 endif
 
-! Check for error: only layout_types 1,2,3 are implemented
+! Check for error: only layout_types 1 and 2 are implemented
 if (ens_handle%layout_type /= 1 .and. ens_handle%layout_type /=2 ) then
    call error_handler(E_ERR, 'init_ensemble_manager', 'only layout values 1 (standard), 2(round-robin) allowed ', source, revision, revdate)
 endif
@@ -175,8 +172,8 @@ endif
 allocate(ens_handle%task_to_pe_list(num_pes))
 allocate(ens_handle%pe_to_task_list(num_pes))
 
-   call assign_tasks_to_pes(ens_handle, num_copies, ens_handle%layout_type)
-   ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
+call assign_tasks_to_pes(ens_handle, num_copies, ens_handle%layout_type)
+ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
 
 ! Set the global storage bounds for the number of copies and variables
 ens_handle%num_copies = num_copies
@@ -240,7 +237,6 @@ else
   single_file_override = .false.
 endif
 
-
 !-------- Block for single restart file or single member  being perturbed -----
 if(single_restart_file_in .or. .not. start_from_restart .or. &
    single_file_override) then 
@@ -250,11 +246,8 @@ if(single_restart_file_in .or. .not. start_from_restart .or. &
 
    ! Loop through the total number of copies
    do i = start_copy, end_copy
-
      ! Only task 0 does reading. Everybody can do their own perturbing
-
        if(my_task_id() == 0) then
-
        ! Read restarts in sequence; only read once for not start_from_restart
          if(start_from_restart .or. i == start_copy) &
             call aread_state_restart(ens_time, ens, iunit)
@@ -274,7 +267,7 @@ if(single_restart_file_in .or. .not. start_from_restart .or. &
 else
 
 !----------- Block that follows is for multiple restart files -----------
-! Loop to read in all my ensemble members
+   ! Loop to read in all my ensemble members
    READ_MULTIPLE_RESTARTS: do i = 1, ens_handle%my_num_copies
       ! Get global index for my ith ensemble
       global_copy_index = ens_handle%my_copies(i)
@@ -373,8 +366,7 @@ if(single_restart_file_out .or. single_file_forced) then
       end do
       deallocate(ens)
       call close_restart(iunit)
-   else
-      ! I must send my copies to task 0 for writing to file
+   else ! I must send my copies to task 0 for writing to file
       do i = 1, ens_handle%my_num_copies
          ! Figure out which global index this is
          global_index = ens_handle%my_copies(i)
@@ -756,13 +748,13 @@ subroutine get_copy_owner_index(copy_number, owner, owners_index)
 ! Given the copy number, returns which PE stores it when copy complete
 ! and its index in that pes local storage. Depends on distribution_type
 ! with only option 1 currently implemented.
-! HK  This assumes my_pes 0:ens_size - 1 have the ensemble members
 
 integer, intent(in)  :: copy_number
 integer, intent(out) :: owner, owners_index
 
 integer :: div
 
+! Asummes distribution type 1
 div = (copy_number - 1) / num_pes
 owner = copy_number - div * num_pes - 1
 owners_index = div + 1
@@ -776,13 +768,13 @@ subroutine get_var_owner_index(var_number, owner, owners_index)
 ! Given the var number, returns which PE stores it when var complete
 ! and its index in that pes local storage. Depends on distribution_type
 ! with only option 1 currently implemented.
-! HK  This assumes my_pes 0:ens_size - 1 have the ensemble members
 
 integer, intent(in)  :: var_number
 integer, intent(out) :: owner, owners_index
 
 integer :: div
 
+! Asummes distribution type 1
 div = (var_number - 1) / num_pes
 owner = var_number - div * num_pes - 1
 owners_index = div + 1
@@ -1103,16 +1095,20 @@ if (use_copy2var_send_loop .eqv. .true. ) then
 SENDING_PE_LOOP: do sending_pe = 0, num_pes - 1
  
    if (my_pe /= sending_pe ) then
+
       ! figure out what piece to recieve from each other PE and recieve it
       call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
+
       if( num_vars_to_receive > 0 ) then
          ! Loop to receive these vars for each copy stored on my_pe
          ALL_MY_COPIES_RECV_LOOP: do k = 1, my_num_copies
+
             call receive_from(map_pe_to_task(ens_handle, sending_pe), transfer_temp(1:num_vars_to_receive))
             ! Copy the transfer array to my local storage
             do sv = 1, num_vars_to_receive
                ens_handle%vars(var_list(sv), k) = transfer_temp(sv)
             enddo
+
          enddo ALL_MY_COPIES_RECV_LOOP
       endif
 
@@ -1321,12 +1317,11 @@ end subroutine timestamp_message
 
 subroutine assign_tasks_to_pes(ens_handle, nEns_members, layout_type)
 ! Calulate the task layout based on the tasks per node and the total number of tasks.
-! Has the potential to have different layouts for each ensemble
 ! Allows the user to spread the ensemble members out as much as possible to even out 
 ! memory usage out between nodes.
 !
 ! Possible options:
-!   1. Standard task layout, first n tasks have the ensemble members
+!   1. Standard task layout, first n tasks have the ensemble members my_pe = my_task_id()
 !   2. Round-robin on the nodes
 
 type(ensemble_type), intent(inout)    :: ens_handle
@@ -1336,7 +1331,7 @@ integer,             intent(inout)    :: layout_type
 if (layout_type /= 1 .and. layout_type /=2) call error_handler(E_ERR,'assign_tasks_to_pes', &
     'not a valid layout_type, must be 1 (standard) or 2 (round-robin)',source,revision,revdate)
 
-if (nEns_members >= num_pes) then    ! if nEns_members >= task_count() then don't try to spread them out
+if (nEns_members >= num_pes) then   ! if nEns_members >= task_count() then don't try to spread them out
    call simple_layout(ens_handle, num_pes)
    return
 endif

@@ -1130,7 +1130,6 @@ else                                     ! if the optional argument is
    copyindex = copy_index                ! not specified, we'd better
 endif                                    ! have a backup plan
 
-
 timeindex = nc_get_tindex(ncFileID, model_time)
 if ( timeindex < 0 ) then
    call get_time(model_time,is1,id1)
