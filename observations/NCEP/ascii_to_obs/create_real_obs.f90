@@ -4,19 +4,13 @@
 
 program create_real_obs
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use types_mod,        only : r8, deg2rad, PI
 use obs_sequence_mod, only : obs_sequence_type, write_obs_seq, &
                              static_init_obs_sequence, destroy_obs_sequence 
 use     real_obs_mod, only : real_obs_sequence
 use    utilities_mod, only : initialize_utilities, register_module,            &
                              do_output, logfileunit, do_nml_file, do_nml_term, &
-                             error_handler, timestamp, E_ERR, E_MSG,           &
+                             error_handler, finalize_utilities, E_ERR, E_MSG,  &
                              find_namelist_in_file, check_namelist_read
 
 implicit none
@@ -146,7 +140,14 @@ do ii = 1, tot_days
 
 enddo
 
-call timestamp(source,revision,revdate,'end') ! close the log file.
+call error_handler(E_MSG,'create_real_obs','Finished successfully.',source,revision,revdate)
+call finalize_utilities()
 
 end program create_real_obs
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
 
