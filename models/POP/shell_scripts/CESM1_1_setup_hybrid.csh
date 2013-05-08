@@ -60,8 +60,8 @@
 
 setenv case                 pop_test
 setenv compset              GIAF
-setenv cesmtag              cesm1_1_1
 setenv resolution           T62_gx1v6
+setenv cesmtag              cesm1_1_1
 setenv num_instances        4
 
 # ==============================================================================
@@ -127,7 +127,7 @@ setenv stop_n        2
 # ==============================================================================
 
 setenv ACCOUNT      P8685nnnn
-setenv timewall     0:30
+setenv timewall     0:20
 setenv queue        regular
 setenv ptile        15
 
@@ -135,11 +135,14 @@ setenv ptile        15
 # set these standard commands based on the machine you are running on.
 # ==============================================================================
 
+set nonomatch       # suppress "rm" warnings if wildcard does not match anything
+
+# The FORCE options are not optional.
+# The VERBOSE options are useful for debugging though
+# some systems don't like the -v option to any of the following 
 switch ("`hostname`")
    case be*:
       # NCAR "bluefire"
-      # The FORCE options are not optional.
-      # the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
       set   LINK = '/usr/local/bin/ln -fvs'
@@ -152,7 +155,6 @@ switch ("`hostname`")
       set   COPY = '/bin/cp -fv --preserve=timestamps'
       set   LINK = '/bin/ln -fvs'
       set REMOVE = '/bin/rm -fr'
-      set nonomatch
 
    breaksw
 endsw
@@ -686,4 +688,11 @@ echo 'dates need to be added, then do this in the $CASEROOT/user_*files*'
 echo "then invoke 'preview_namelists' so you can check the information in the"
 echo "CaseDocs or ${rundir} directories."
 echo ''
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

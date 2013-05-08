@@ -478,7 +478,10 @@ echo 'After you check them,'
 echo "cd into ${caseroot} and run: ./$case.$mach.submit"
 echo ''
 
+exit 0
 
-#  cd $caseroot
-#  ./$case.$mach.submit
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

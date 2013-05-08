@@ -154,6 +154,6 @@ end do
 write(iunit, *) 'set_def.out'
 
 ! Shut down the utilities cleanly
-call finalize_utilities()
+call finalize_utilities('column_rand')
 
 end program column_rand

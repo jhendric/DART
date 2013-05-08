@@ -553,7 +553,7 @@ deallocate (dzsno     , zsno             &
            ,flx_absiv , flx_absin        )
 deallocate (snowdp, h2osno, snlsno)
 
-call finalize_utilities()
+call finalize_utilities('clm_ens_avg')
 
 contains
 

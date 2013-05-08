@@ -4,12 +4,6 @@
 
 module model_mod
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 ! This is the interface between the ncommas model and DART.
 
 ! Modules that are absolutely required for use are listed
@@ -204,7 +198,6 @@ real(r8), allocatable :: ens_mean(:)     ! may be needed for forward ops
 ! set this to true if you want to print out the current time
 ! after each N observations are processed, for benchmarking.
 
-logical :: print_timestamps = .false.
 integer :: print_every_Nth  = 10000
 
 !------------------------------------------------------------------
@@ -3303,3 +3296,10 @@ end subroutine define_var_dims
 ! End of model_mod
 !===================================================================
 end module model_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

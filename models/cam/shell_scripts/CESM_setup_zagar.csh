@@ -51,10 +51,10 @@
 # ====  Set case options
 # ====================================================================
 
- setenv case          Fzagar
- setenv compset       F_2000
-setenv ccsmtag        cesm1_1_beta04
+setenv case           Fzagar
+setenv compset        F_2000
 setenv resolution     f09_f09
+setenv ccsmtag        cesm1_1_beta04
 setenv num_instances  80
 setenv coldbuild      false
 
@@ -454,4 +454,11 @@ echo "DART settings in ${DARTDIR}/input.nml"
 echo 'After you check them,'
 echo "cd into ${caseroot} and run: ./$case.$mach.submit"
 echo ''
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

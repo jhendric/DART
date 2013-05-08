@@ -38,7 +38,7 @@
 
 
 &dart_to_cam_nml
-   dart_to_cam_input_file  = 'temp_ic'
+   dart_to_cam_input_file  = 'dart_restart'
    dart_to_cam_output_file = 'caminput.nc'
    advance_time_present    = .false.
   /
@@ -171,7 +171,6 @@
    latlim2               = 80.0, -20.0,  20.0,  55.0
    reg_names             = 'Northern Hemisphere', 'Southern Hemisphere', 'Tropics', 'North America'
    print_mismatched_locs = .false.
-   print_obs_locations   = .false.
    verbose               = .false.
   /
 

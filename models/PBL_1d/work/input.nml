@@ -242,6 +242,5 @@
    latlim2    =  90.0,
    reg_names  = 'global',
    print_mismatched_locs = .false.,
-   print_obs_locations   = .false.,
    verbose               = .false.  /
 

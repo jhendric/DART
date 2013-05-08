@@ -4,20 +4,15 @@
 
 program model_mod_check
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 !----------------------------------------------------------------------
 ! purpose: test routines
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8, digits12, metadatalength
-use    utilities_mod, only : initialize_utilities, timestamp, nc_check, &
+use    utilities_mod, only : initialize_utilities, nc_check, &
                              open_file, close_file, find_namelist_in_file, &
-                             check_namelist_read
+                             check_namelist_read, finalize_utilities, &
+                             error_handler, E_MSG
 use     location_mod, only : location_type, set_location, write_location, get_dist, &
                              query_location, LocationDims, get_location, VERTISHEIGHT
 use     obs_kind_mod, only : get_raw_obs_kind_name, get_raw_obs_kind_index, &
@@ -274,11 +269,7 @@ if (test1thru > 9) then
 
 endif
 
-!----------------------------------------------------------------------
-! When called with 'end', timestamp will call finalize_utilities()
-! This must be the last few lines of the main program.
-!----------------------------------------------------------------------
-call timestamp(string1=source, pos='end')
+call finalize_utilities('model_mod_check')
 
 contains
 
@@ -398,3 +389,10 @@ end subroutine find_closest_gridpoint
 
 
 end program model_mod_check
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

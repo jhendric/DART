@@ -4,12 +4,6 @@
 
 program cam_to_dart
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 !----------------------------------------------------------------------
 ! purpose: interface between CAM and DART
 !
@@ -91,6 +85,13 @@ iunit = open_restart_write(cam_to_dart_output_file)
 call awrite_state_restart(model_time, statevector, iunit)
 call close_restart(iunit)
 
-call finalize_utilities()
+call finalize_utilities('cam_to_dart')
 
 end program cam_to_dart
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

@@ -51,10 +51,10 @@
 # ====  Set case options
 # ====================================================================
 
- setenv case          Fzagar_pmo
- setenv compset       F_2000
-setenv ccsmtag        cesm1_1_beta04
+setenv case           Fzagar_pmo
+setenv compset        F_2000
 setenv resolution     f09_f09
+setenv ccsmtag        cesm1_1_beta04
 setenv num_instances  1
 setenv coldbuild      false
 
@@ -461,7 +461,10 @@ echo 'After you check them,'
 echo "cd into ${caseroot} and run: ./$case.$mach.submit"
 echo ''
 
+exit 0
 
-#  cd $caseroot
-#  ./$case.$mach.submit
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

@@ -4,12 +4,6 @@
 
 program update_wrf_bc
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 ! program to update BC file from 3dvar or filter output.
 ! current version reads only wrf-netcdf file format.
 
@@ -18,7 +12,7 @@ program update_wrf_bc
 use               types_mod, only : r8
 use           utilities_mod, only : file_exist, open_file, close_file, &
                                     initialize_utilities, finalize_utilities, register_module, &
-                                    error_handler, E_ERR, logfileunit, timestamp
+                                    error_handler, E_ERR, E_MSG, logfileunit, timestamp
 use module_netcdf_interface, only : get_dims_cdf, get_gl_att_real_cdf, put_gl_att_real_cdf, &
                                     get_var_3d_real_cdf, get_var_2d_real_cdf, put_var_3d_real_cdf, &
                                     put_var_2d_real_cdf, get_times_cdf, put_time_cdf, variable_exist
@@ -629,12 +623,16 @@ endif
    deallocate(v_mean)
    deallocate(w_mean)
 
-   write(logfileunit,*)'FINISHED update_wrf_bc.'
-   write(logfileunit,*)
-
-   call timestamp(source, revision, revdate, 'none')
-   call finalize_utilities ! closes the log file.
+   call error_handler(E_MSG, 'update_wrf_bc', 'update_wrf_bc terminated normally.')
+   call error_handler(E_MSG, 'update_wrf_bc', 'FINISHED update_wrf_bc.')
+   call error_handler(E_MSG, 'update_wrf_bc', 'Finished successfully.',source,revision,revdate)
+   call finalize_utilities()
  
-   write(*,*) 'update_wrf_bc terminated normally.'
-
 end program update_wrf_bc
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

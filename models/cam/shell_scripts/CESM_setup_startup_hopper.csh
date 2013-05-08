@@ -70,8 +70,8 @@
 
 setenv case                 Exp1
 setenv compset              F_2000
-setenv cesmtag              cesm1_1_beta04
 setenv resolution           f09_f09
+setenv cesmtag              cesm1_1_beta04
 setenv num_instances        4
 setenv reuse_existing_case  false
 
@@ -656,4 +656,11 @@ echo 'names set in assimilate.csh match those on your system, and submit'
 echo 'the CESM job by running:'
 echo "./$case.$mach.submit"
 echo ''
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

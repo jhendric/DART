@@ -62,8 +62,8 @@
 
 setenv case                 clm_test
 setenv compset              I_2000_CN
-setenv cesmtag              cesm1_1_1
 setenv resolution           f19_f19
+setenv cesmtag              cesm1_1_1
 setenv num_instances        4
 
 # ==============================================================================
@@ -147,11 +147,14 @@ setenv ptile        15
 # set these standard commands based on the machine you are running on.
 # ==============================================================================
 
+set nonomatch       # suppress "rm" warnings if wildcard does not match anything
+
+# The FORCE options are not optional.
+# The VERBOSE options are useful for debugging though
+# some systems don't like the -v option to any of the following 
 switch ("`hostname`")
    case be*:
       # NCAR "bluefire"
-      # The FORCE options are not optional.
-      # the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
       set   LINK = '/usr/local/bin/ln -fvs'
@@ -164,7 +167,6 @@ switch ("`hostname`")
       set   COPY = '/bin/cp -fv --preserve=timestamps'
       set   LINK = '/bin/ln -fvs'
       set REMOVE = '/bin/rm -fr'
-      set nonomatch
 
    breaksw
 endsw
@@ -204,13 +206,33 @@ foreach FILE ( *xml )
    endif
 end
 
-@ cpl_pes  = $ptile
-@ atm_pes  = $ptile * $num_instances
-@ ice_pes  = $ptile
-@ lnd_pes  = $ptile * $num_instances
-@ rof_pes  = $ptile * $num_instances
-@ glc_pes  = $ptile
-@ ocn_pes  = $ptile
+if ($num_instances == 4) then
+
+   # This is only for the purpose of debugging the code.
+   # A more efficient layout must be done when running a full assimilation.
+
+   @ cpl_pes  = $ptile
+   @ atm_pes  = $ptile * $num_instances
+   @ ice_pes  = $ptile
+   @ lnd_pes  = $ptile * $num_instances
+   @ rof_pes  = $ptile * $num_instances
+   @ glc_pes  = $ptile
+   @ ocn_pes  = $ptile
+
+else
+
+   # layout for 30 members.
+   # Made in conjunction with Mike Levy, David Bailey and Jim Edwards.
+   
+   @ cpl_pes = 450
+   @ atm_pes = 450
+   @ ice_pes = 450
+   @ lnd_pes = 450
+   @ rof_pes = 450
+   @ glc_pes = 450
+   @ ocn_pes = 1800
+   
+endif
 
 echo "task layout"
 echo ""
@@ -283,6 +305,7 @@ echo ""
 # land surface diagnostics. Setting ROF_GRID to 'null' turns off the RTM.
 
 ./xmlchange ROF_GRID='null'
+./xmlchange CLM_CONFIG_OPTS='-bgc cn'
 
 # level of debug output, 0=minimum, 1=normal, 2=more, 3=too much, valid values: 0,1,2,3 (integer)
 
@@ -635,7 +658,7 @@ ${COPY} ${DARTroot}/models/clm/work/input.nml                input.nml
 # Stage the DART executables in the CESM execution root directory: EXEROOT
 # ==============================================================================
 
-foreach FILE ( filter clm_to_dart dart_to_clm )
+foreach FILE ( perfect_model_obs filter clm_to_dart dart_to_clm )
    ${COPY} ${DARTroot}/models/clm/work/${FILE} ${exeroot}/
    if ( $status != 0 ) then
       echo "ERROR: ${DARTroot}/models/clm/work/${FILE} not copied to ${exeroot}"
@@ -668,4 +691,11 @@ echo 'dates need to be added, then do this in the $CASEROOT/user_*files*'
 echo "then invoke 'preview_namelists' so you can check the information in the"
 echo "CaseDocs or ${rundir} directories."
 echo ''
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

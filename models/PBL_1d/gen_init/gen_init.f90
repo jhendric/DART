@@ -4,12 +4,6 @@
 
 program gen_init
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use        types_mod, only : r8
 use time_manager_mod, only : time_type, set_time, get_time, print_time
 use  assim_model_mod, only : static_init_assim_model, get_model_size, &
@@ -17,7 +11,7 @@ use  assim_model_mod, only : static_init_assim_model, get_model_size, &
    open_restart_read, open_restart_write, close_restart
 use utilities_mod,    only : open_file, file_exist, get_unit, close_file, &
                              initialize_utilities, register_module, error_handler, &
-                             E_ERR, E_WARN, E_MSG, E_DBG, timestamp
+                             E_ERR, E_WARN, E_MSG, E_DBG
 
 implicit none
 
@@ -70,3 +64,10 @@ call static_init_assim_model()
 end subroutine gen_init_modules_used
 
 end program gen_init
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

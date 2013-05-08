@@ -5,15 +5,10 @@
  
 PROGRAM select
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use        types_mod, only : r8, metadatalength
-use    utilities_mod, only : initialize_utilities, timestamp, &
-                             register_module, logfileunit
+use    utilities_mod, only : initialize_utilities, finalize_utilities, &
+                             register_module, logfileunit, &
+                             error_handler, E_MSG
 use obs_sequence_mod, only : obs_type, obs_sequence_type, init_obs_sequence, &
                              insert_obs_in_seq, get_first_obs, get_next_obs, &
                              write_obs_seq, &
@@ -157,12 +152,17 @@ enddo
 write(unit=*, fmt='(5x,a,i6,a)') &
      'Total number of observations:  ', num_obs
 
-! Write out the sequence
 call write_obs_seq(seq, out_file_name)
 
-write(logfileunit,*)'FINISHED select.'
-write(logfileunit,*)
-
-call timestamp(source,revision,revdate,'end') ! That closes the log file, too.
+call error_handler(E_MSG,'select','FINISHED select.')
+call error_handler(E_MSG,'select','Finished successfully.',source,revision,revdate)
+call finalize_utilities()
  
 END PROGRAM select
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

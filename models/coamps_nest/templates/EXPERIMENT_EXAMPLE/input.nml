@@ -221,7 +221,6 @@
    latlim2    =  80.0,
    reg_names  = 'Europe',
    print_mismatched_locs = .false.,
-   print_obs_locations   = .false.,
    verbose               = .false.
    /
 

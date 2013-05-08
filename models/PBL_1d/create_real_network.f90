@@ -4,12 +4,6 @@
 
 program create_real_network_seq
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 ! JPH
 ! This code originated from create_fixed_network.  It uses module_wrf to get
 ! obs from smos file, with file, date, and interval controlled via the wrf1d
@@ -19,7 +13,7 @@ program create_real_network_seq
 ! and perfect_model_obs.
 
 use        types_mod, only : r8, missing_r8, missing_i, metadatalength
-use    utilities_mod, only : timestamp, register_module, open_file, &
+use    utilities_mod, only : finalize_utilities, register_module, open_file, &
                              close_file, find_namelist_in_file, &
                              error_handler, check_namelist_read, &
                              initialize_utilities, E_ERR
@@ -185,9 +179,6 @@ file_name = 'real_obs_seq.in'
 
 call write_obs_seq(seq, file_name)
 
-! Clean up
-call timestamp(string1=source,string2=revision,string3=revdate,pos='end')
-
 !-------------------------------------------------------------------------
 ! Now the part that replaces perfect_model_obs.  There are some 
 ! assumptions in here about what type of obs we are ingesting:
@@ -293,17 +284,19 @@ if ( is_there_one ) then
   
    end do ! obs
 
-file_name = 'real_obs_seq.out'
+   file_name = 'real_obs_seq.out'
 
-call write_obs_seq(seq_out, file_name)
-stop
-
+   call write_obs_seq(seq_out, file_name)
 
 else 
 
    print*, "could not find any obs in the input sequence"
 
 endif
+
+call error_handler(E_MSG, 'create_real_network', 'Finished successfully.',
+                   source,revision,revdate)
+call finalize_utilities()
 
 
 !--------------------------------------------------------------
@@ -373,3 +366,10 @@ end select
 end function get_qc_from_obs
 
 end program create_real_network_seq
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

@@ -46,3 +46,10 @@ mv input.nml.org input.nml
 echo ""
 echo "Finished at "`date`
 
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
+

@@ -99,7 +99,7 @@ while($state_copy <= $num_states)
    echo "starting ${myname} for ens member $element at "`date` >> cam_out_temp
 
    # get model state initial conditions for this ensemble member
-   ${LINK} ${CENTRALDIR}/$input_file temp_ic
+   ${LINK} ${CENTRALDIR}/$input_file dart_restart
 
    # get filter namelists for use by cam
    ${COPY} ${CENTRALDIR}/input.nml input.nml
@@ -164,7 +164,7 @@ while($state_copy <= $num_states)
    # Create 'times' file for CAM from DART times in assim_model_state_ic#
    # This info is passed to CAM through the creation of its namelist(s)
    # Also extract state variables from assim_model_state_ic# into the caminput.nc file
-   if (-e temp_ic && -e ${CENTRALDIR}/dart_to_cam) then
+   if (-e dart_restart && -e ${CENTRALDIR}/dart_to_cam) then
       echo ' '                           >> cam_out_temp
       echo 'Executing dart_to_cam'       >> cam_out_temp
       ${CENTRALDIR}/dart_to_cam          >> cam_out_temp

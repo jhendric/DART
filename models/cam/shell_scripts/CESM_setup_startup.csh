@@ -60,8 +60,8 @@
 
 setenv case                 cam_test
 setenv compset              F_AMIP_CAM5
-setenv cesmtag              cesm1_1_1
 setenv resolution           f09_f09
+setenv cesmtag              cesm1_1_1
 setenv num_instances        4
 
 # ==============================================================================
@@ -97,7 +97,7 @@ setenv DARTroot     /glade/u/home/${USER}/svn/DART/dev
 # configure settings ... run_startdate format is yyyy-mm-dd
 # ==============================================================================
 
-setenv run_startdate 2008-10-31
+setenv run_startdate 2008-11-01
 setenv sst_dataset ${cesm_datadir}/atm/cam/sst/sst_HadOIBl_bc_0.9x1.25_1850_2011_c110307.nc
 setenv year_start  1850
 setenv year_end    2010
@@ -136,11 +136,14 @@ setenv ptile        15
 # set these standard commands based on the machine you are running on.
 # ==============================================================================
 
+set nonomatch       # suppress "rm" warnings if wildcard does not match anything
+
+# The FORCE options are not optional.
+# The VERBOSE options are useful for debugging though
+# some systems don't like the -v option to any of the following 
 switch ("`hostname`")
    case be*:
       # NCAR "bluefire"
-      # The FORCE options are not optional.
-      # the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
       set   LINK = '/usr/local/bin/ln -fvs'
@@ -153,7 +156,6 @@ switch ("`hostname`")
       set   COPY = '/bin/cp -fv --preserve=timestamps'
       set   LINK = '/bin/ln -fvs'
       set REMOVE = '/bin/rm -fr'
-      set nonomatch
 
    breaksw
 endsw
@@ -379,8 +381,10 @@ while ($inst <= $num_instances)
    # ===========================================================================
    set fname = "user_nl_clm_$instance"
    # ===========================================================================
+   # hist_empty_htapes must be false at the moment. Otherwise the CLM restart file
+   # gets created with ntapes=0 which prevents CLM from restarting. Crazy.
 
-   echo "hist_empty_htapes = .true. "                       >> ${fname}
+   echo "hist_empty_htapes = .false. "                      >> ${fname}
    echo "finidat           = 'clm_restart_${instance}.nc' " >> ${fname}
    echo "fpftdyn = '${cesm_datadir}/lnd/clm2/surfdata/surfdata.pftdyn_0.9x1.25_rcp4.5_simyr1850-2100_c100406.nc' " >> ${fname}
 
@@ -685,4 +689,11 @@ echo "names set in assimilate.csh match those on your system, and submit"
 echo "the CESM job by running:"
 echo "./${case}.submit"
 echo ''
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

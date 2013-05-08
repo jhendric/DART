@@ -10,13 +10,16 @@
 # changes to this script such that the same script can be used
 # on multiple platforms. This will help us maintain the script.
 
-echo "`date` -- BEGIN ASSIMILATE"
+echo "`date` -- BEGIN CAM_ASSIMILATE"
 
+set nonomatch       # suppress "rm" warnings if wildcard does not match anything
+
+# The FORCE options are not optional.
+# The VERBOSE options are useful for debugging though
+# some systems don't like the -v option to any of the following 
 switch ("`hostname`")
    case be*:
       # NCAR "bluefire"
-      # The FORCE options are not optional.
-      # the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
       set   LINK = '/usr/local/bin/ln -fvs'
@@ -29,8 +32,6 @@ switch ("`hostname`")
 
    case ys*:
       # NCAR "yellowstone"
-      # The FORCE options are not optional.
-      # the VERBOSE options are useful for debugging.
       set   MOVE = 'mv -fv'
       set   COPY = 'cp -fv --preserve=timestamps'
       set   LINK = 'ln -fvs'
@@ -57,9 +58,15 @@ endsw
 set ensemble_size = ${NINST_ATM}
 
 # Create temporary working directory for the assimilation
-set temp_dir = assimilate_dir
+set temp_dir = assimilate_cam
 echo "temp_dir is $temp_dir"
-mkdir -p $temp_dir
+
+# Create a clean temporary directory and go there
+if ( -d $temp_dir ) then
+   ${REMOVE} $temp_dir/*
+else
+   mkdir -p $temp_dir
+endif
 cd $temp_dir
 
 #-------------------------------------------------------------------------
@@ -229,7 +236,7 @@ if ( $PRIOR_INF > 0 ) then
       echo "inf_flavor(1) = $PRIOR_INF, using namelist values."
    else
       # Look for the output from the previous assimilation
-      (ls -rt1 ../${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../cam_${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -238,7 +245,7 @@ if ( $PRIOR_INF > 0 ) then
          ${LINK} $latest ${PRIOR_INF_IFNAME}
       else
          echo "ERROR: Requested PRIOR inflation but specified no incoming inflation file."
-         echo "ERROR: expected something like ../${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+         echo "ERROR: expected something like ../cam_${PRIOR_INF_OFNAME}.YYYY-MM-DD-SSSSS"
          exit -4
       endif
 
@@ -256,7 +263,7 @@ if ( $POSTE_INF > 0 ) then
    else
 
       # Look for the output from the previous assimilation
-      (ls -rt1 ../${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../cam_${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -265,7 +272,7 @@ if ( $POSTE_INF > 0 ) then
          ${LINK} $latest ${POSTE_INF_IFNAME}
       else
          echo "ERROR: Requested POSTERIOR inflation but specified no incoming inflation file."
-         echo "ERROR: expected something like ../${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
+         echo "ERROR: expected something like ../cam_${POSTE_INF_OFNAME}.YYYY-MM-DD-SSSSS"
          exit -5
       endif
    endif
@@ -290,7 +297,7 @@ endif
 #                        advance_time_present    = .false.
 #=========================================================================
 
-echo "`date` -- BEGIN CAM TO DART"
+echo "`date` -- BEGIN CAM-TO-DART"
 
 set member = 1
 while ( ${member} <= ${ensemble_size} )
@@ -305,6 +312,9 @@ while ( ${member} <= ${ensemble_size} )
    set MYTEMPDIR = member_${member}
    mkdir -p $MYTEMPDIR
    cd $MYTEMPDIR
+
+   # make sure there are no old output logs hanging around
+   $REMOVE output.${member}.cam_to_dart
 
    set ATM_INITIAL_FILENAME = `printf ../../${MYCASE}.cam_%04d.i.${ATM_DATE_EXT}.nc ${member}`
    set ATM_HISTORY_FILENAME = `ls -1t ../../${MYCASE}.cam*.h0.* | head -n 1`
@@ -327,7 +337,8 @@ end
 
 wait
 
-if ($status != 0) then
+set nsuccess = `fgrep 'Finished ... at YYYY' member*/output.[0-9]*.cam_to_dart | wc -l`
+if (${nsuccess} != ${ensemble_size}) then
    echo "ERROR ... DART died in 'cam_to_dart' ... ERROR"
    echo "ERROR ... DART died in 'cam_to_dart' ... ERROR"
    exit -6
@@ -382,10 +393,10 @@ if ( $?LSB_PJL_TASK_GEOMETRY ) then
    setenv LSB_PJL_TASK_GEOMETRY "${ORIGINAL_LAYOUT}"
 endif
 
-${MOVE} Prior_Diag.nc      ../Prior_Diag.${ATM_DATE_EXT}.nc
-${MOVE} Posterior_Diag.nc  ../Posterior_Diag.${ATM_DATE_EXT}.nc
-${MOVE} obs_seq.final      ../obs_seq.${ATM_DATE_EXT}.final
-${MOVE} dart_log.out       ../dart_log.${ATM_DATE_EXT}.out
+${MOVE} Prior_Diag.nc      ../cam_Prior_Diag.${ATM_DATE_EXT}.nc
+${MOVE} Posterior_Diag.nc  ../cam_Posterior_Diag.${ATM_DATE_EXT}.nc
+${MOVE} obs_seq.final      ../cam_obs_seq.${ATM_DATE_EXT}.final
+${MOVE} dart_log.out       ../cam_dart_log.${ATM_DATE_EXT}.out
 
 # Accomodate any possible inflation files
 # 1) rename file to reflect current date
@@ -394,7 +405,7 @@ ${MOVE} dart_log.out       ../dart_log.${ATM_DATE_EXT}.out
 
 foreach FILE ( ${PRIOR_INF_OFNAME} ${POSTE_INF_OFNAME} ${PRIOR_INF_DIAG} ${POSTE_INF_DIAG} )
    if ( -e ${FILE} ) then
-      ${MOVE} ${FILE} ../${FILE}.${ATM_DATE_EXT}
+      ${MOVE} ${FILE} ../cam_${FILE}.${ATM_DATE_EXT}
    else
       echo "No ${FILE} for ${ATM_DATE_EXT}"
    endif
@@ -407,11 +418,13 @@ end
 # and has the required input files remaining from 'Block 4'
 #=========================================================================
 
-echo "`date` -- BEGIN DART TO CAM"
+echo "`date` -- BEGIN DART-TO-CAM"
 set member = 1
 while ( $member <= $ensemble_size )
 
    cd member_${member}
+
+   ${REMOVE} output.${member}.dart_to_cam
 
    echo "starting dart_to_cam for member ${member} at "`date`
    ${EXEROOT}/dart_to_cam >! output.${member}.dart_to_cam &
@@ -423,13 +436,14 @@ end
 
 wait
 
-if ($status != 0) then
+set nsuccess = `fgrep 'Finished ... at YYYY' member*/output.[0-9]*.dart_to_cam | wc -l`
+if (${nsuccess} != ${ensemble_size}) then
    echo "ERROR ... DART died in 'dart_to_cam' ... ERROR"
    echo "ERROR ... DART died in 'dart_to_cam' ... ERROR"
    exit -8
 endif
 
-echo "`date` -- END DART TO CAM for all ${ensemble_size} members."
+echo "`date` -- END DART-TO-CAM for all ${ensemble_size} members."
 
 #=========================================================================
 # Block 7: The cam files have now been updated, move them into position.
@@ -492,8 +506,7 @@ ${REMOVE} ${RUNDIR}/PET*ESMF_LogFile
 # Cleanup
 #-------------------------------------------------------------------------
 
-echo "finished assimilate script at "`date`
-echo "`date` -- END ASSIMILATE"
+echo "`date` -- END CAM_ASSIMILATE"
 
 exit 0
 

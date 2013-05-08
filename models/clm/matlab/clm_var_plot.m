@@ -12,7 +12,7 @@ function clm_var_plot(x)
 %
 % EXAMPLE 2: as above, compare to comparable field in CLM history file.
 % clmfname   = '/glade/scratch/thoar/enstest_0907/enstest_0907.clm2_0003.r.2000-01-05-00000.nc';
-% x          = clm_var_plot(fname,varname,copystring,levelindex,timeindex,clmfname);
+% x          = clm_get_var(fname,varname,copystring,levelindex,timeindex,clmfname);
 % y          = clm_var_plot(x);
 %
 

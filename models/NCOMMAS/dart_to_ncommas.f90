@@ -4,12 +4,6 @@
 
 program dart_to_ncommas
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 !----------------------------------------------------------------------
 ! purpose: interface between DART and the ncommas model
 !
@@ -27,9 +21,10 @@ program dart_to_ncommas
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8
-use    utilities_mod, only : initialize_utilities, timestamp, &
+use    utilities_mod, only : initialize_utilities, finalize_utilities, &
                              find_namelist_in_file, check_namelist_read, &
-                             logfileunit, open_file, close_file
+                             logfileunit, open_file, close_file, &
+                             error_handler, E_MSG
 use  assim_model_mod, only : open_restart_read, aread_state_restart, close_restart
 use time_manager_mod, only : time_type, print_time, print_date, operator(-), get_time
 use        model_mod, only : static_init_model, sv_to_restart_file, &
@@ -134,7 +129,14 @@ call print_time(adv_to_time,'dart_to_ncommas:advance_to time',logfileunit)
 call print_date(adv_to_time,'dart_to_ncommas:advance_to date',logfileunit)
 endif
 
-! When called with 'end', timestamp will call finalize_utilities()
-call timestamp(string1=source, pos='end')
+call error_handler(E_MSG,'dart_to_ncommas','Finished successfully.',source,revision,revdate)
+call finalize_utilities()
 
 end program dart_to_ncommas
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

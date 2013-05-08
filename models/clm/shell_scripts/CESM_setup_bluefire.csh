@@ -85,10 +85,10 @@
 
 setenv case                 clm_tim
 setenv compset              I_2000_CN
-setenv cesmtag              cesm1_1_beta08
 setenv resolution           f19_f19
+setenv cesmtag              cesm1_1_beta08
 setenv num_instances        4
-setenv reuse_existing_case  true
+setenv reuse_existing_case  false
 
 # ====================================================================
 # define machines and directories
@@ -157,11 +157,14 @@ setenv queue        premium
 # set these standard commands based on the machine you are running on.
 # ====================================================================
 
+set nonomatch       # suppress "rm" warnings if wildcard does not match anything
+
+# The FORCE options are not optional.
+# The VERBOSE options are useful for debugging though
+# some systems don't like the -v option to any of the following 
 switch ("`hostname`")
    case be*:
       # NCAR "bluefire"
-      # The FORCE options are not optional.
-      # the VERBOSE options are useful for debugging.
       set   MOVE = '/usr/local/bin/mv -fv'
       set   COPY = '/usr/local/bin/cp -fv --preserve=timestamps'
       set   LINK = '/usr/local/bin/ln -fvs'
@@ -327,9 +330,9 @@ echo ""
 ./xmlchange -file env_run.xml -id STOP_N                     -val $stop_n
 #./xmlchange -file env_run.xml -id CALENDAR                   -val GREGORIAN
 ./xmlchange -file env_run.xml -id DOUT_S_ROOT                -val ${archdir}
-./xmlchange -file env_run.xml -id DOUT_S                     -val FALSE
+./xmlchange -file env_run.xml -id DOUT_S                     -val TRUE
 ./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val FALSE
-./xmlchange -file env_run.xml -id DOUT_L_MS                  -val FALSE
+./xmlchange -file env_run.xml -id DOUT_L_MS                  -val TRUE
 ./xmlchange -file env_run.xml -id DOUT_L_MSROOT              -val "csm/${case}"
 ./xmlchange -file env_run.xml -id DOUT_L_HTAR                -val FALSE
 
@@ -567,4 +570,11 @@ echo 'names set in assimilate.csh match those on your system, and submit'
 echo 'the CESM job by running:'
 echo "./$case.submit"
 echo ''
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

@@ -24,10 +24,10 @@
 &filter_nml
    async                    = 0,
    adv_ens_command          = "./advance_model.csh",
-   ens_size                 = 20,
+   ens_size                 = 10,
    start_from_restart       = .true.,
    output_restart           = .true.,
-   obs_sequence_in_name     = "obs_seq.out",
+   obs_sequence_in_name     = "obs_seq.one_obs",
    obs_sequence_out_name    = "obs_seq.final",
    restart_in_file_name     = "filter_ics",
    restart_out_file_name    = "filter_restart",
@@ -45,11 +45,11 @@
    outlier_threshold        =  3.0,
    output_forward_op_errors = .false.,
    output_inflation         = .true.,
-   output_timestamps        = .false.,
-   trace_execution          = .false.,
+   output_timestamps        = .true.,
+   trace_execution          = .true.,
    silence                  = .false.,
 
-   inf_flavor                  = 2,                       0,
+   inf_flavor                  =  0,                       2,
    inf_initial_from_restart    = .false.,                 .false.,
    inf_sd_initial_from_restart = .false.,                 .false.,
    inf_output_restart          = .true.,                  .true.,
@@ -77,6 +77,9 @@
    single_restart_file_in  = .true.,
    single_restart_file_out = .true.,
    perturbation_amplitude  = 0.2,
+   tasks_per_node          = 4
+   layout                  = 2 
+   debug                   = .true.
    /
 
 &assim_tools_nml

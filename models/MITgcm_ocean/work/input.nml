@@ -280,7 +280,6 @@
    latlim2    =  40.0,  20.0,  40.0,
    reg_names  = 'Gulf & Caribbean', 'Caribbean', 'Gulf of Mexico',
    print_mismatched_locs = .false.,
-   print_obs_locations   = .false.,
    verbose               = .true.,
    hlevel =  -2.50185,   -7.7967, -13.72595, -20.40305,  -27.9614, 
             -36.55765,  -46.3757,  -57.6311, -70.57615,  -85.5057,

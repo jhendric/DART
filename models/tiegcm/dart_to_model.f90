@@ -4,12 +4,6 @@
 
 program dart_to_model
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 !----------------------------------------------------------------------
 ! purpose: interface between TIEGCM and DART
 !
@@ -25,8 +19,8 @@ program dart_to_model
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8
-use    utilities_mod, only : get_unit, initialize_utilities, E_ERR, &
-                             error_handler, timestamp, do_output
+use    utilities_mod, only : get_unit, initialize_utilities, E_ERR, E_MSG, &
+                             error_handler, finalize_utilities, do_output
 use        model_mod, only : model_type, get_model_size, init_model_instance, &
                              vector_to_prog_var, update_TIEGCM_restart, &
                              static_init_model
@@ -173,9 +167,15 @@ endif
 
 close(file_unit)
 
-!----------------------------------------------------------------------
-! When called with 'end', timestamp will also call finalize_utilities()
-!----------------------------------------------------------------------
-call timestamp(string1=source, pos='end')
+call error_handler(E_MSG,'dart_to_model','Finished successfully.',source,revision,revdate)
+call finalize_utilities()
+
 
 end program dart_to_model
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+
