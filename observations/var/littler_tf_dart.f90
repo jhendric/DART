@@ -4,17 +4,11 @@
 
 PROGRAM littler_tf_dart
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use        types_mod, only : r8, DEG2RAD, RAD2DEG, MISSING_I, MISSING_R8
 use    utilities_mod, only : open_file, close_file, file_exist, &
                              get_unit, initialize_utilities, &
                              register_module, error_handler, E_ERR, E_MSG, &
-                             timestamp, logfileunit
+                             finalize_utilities, logfileunit
 use obs_sequence_mod, only : obs_type, obs_sequence_type, init_obs_sequence, &
                              insert_obs_in_seq, write_obs_seq, read_obs_seq, &
                              set_qc, set_qc_meta_data, set_obs_values, set_copy_meta_data, &
@@ -752,10 +746,11 @@ call error_handler(E_ERR,'littler_tf_dart', &
 
 26 continue
 
-write(logfileunit,*)'FINISHED littler_tf_dart.'
-write(logfileunit,*)
+call error_handler(E_MSG, 'littler_tf_dart', 'FINISHED littler_tf_dart.')
+call error_handler(E_MSG, 'littler_tf_dart', 'Finished successfully.',&
+                   source,revision,revdate)
+call finalize_utilities()
 
-call timestamp(source,revision,revdate,'end') ! That closes the log file, too.
 
 contains
 
@@ -1190,3 +1185,10 @@ FUNCTION locate (x,xx) RESULT (level_index)
 END FUNCTION LOCATE
 
 END PROGRAM littler_tf_dart
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+
