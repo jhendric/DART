@@ -163,8 +163,6 @@ logical :: module_initialized = .false.
 integer :: logfileunit = -1
 integer :: nmlfileunit = -1
 
-integer :: alloc_stat
-
 public :: file_exist, get_unit, open_file, close_file, timestamp,           &
           register_module, error_handler, to_upper, nc_check, next_file,    &
           logfileunit, nmlfileunit, find_textfile_dims, file_to_text,       &
@@ -172,8 +170,7 @@ public :: file_exist, get_unit, open_file, close_file, timestamp,           &
           find_namelist_in_file, check_namelist_read, do_nml_term,          &
           set_tasknum, set_output, do_output, set_nml_output, do_nml_file,  &
           E_DBG, E_MSG, E_WARN, E_ERR, DEBUG, MESSAGE, WARNING, FATAL,      &
-          is_longitude_between, get_next_filename, ascii_file_format,       &
-          alloc_stat
+          is_longitude_between, get_next_filename, ascii_file_format
 
 ! this routine is either in the null_mpi_utilities_mod.f90, or in
 ! the mpi_utilities_mod.f90 file, but it is not a module subroutine.

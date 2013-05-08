@@ -453,7 +453,7 @@ set(ax2,'YTick', yticks, 'YTicklabel', newticklabels)
 annotate( ax1, ax2, plotobj{1}, figdata)
 
 lh = legend(hd,legstr);
-legend(lh,'boxoff');
+legend(lh,'boxoff','Interpreter','none');
 
 % The legend linesizes should match - 2 is hardwired - suprises me.
 

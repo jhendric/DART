@@ -119,12 +119,12 @@ contains
 !-----------------------------------------------------------------
 
 subroutine init_ensemble_manager(ens_handle, num_copies, &
-   num_vars, distribution_type_in, layout_type_in)
+   num_vars, distribution_type_in, layout_type)
 
 type(ensemble_type), intent(out)            :: ens_handle
 integer,             intent(in)             :: num_copies, num_vars
 integer,             intent(in), optional   :: distribution_type_in
-integer,             intent(in), optional   :: layout_type_in
+integer,             intent(in), optional   :: layout_type
 
 integer :: iunit, io
 
@@ -161,10 +161,10 @@ endif
 ! Optional layout_type_in argument to assign how my_pe is related to my_task_id
 ! layout_type_in can be set individually for each ensemble handle. It is not advisable to do this
 ! because get_obs_ens assumes that the layout is the same for each ensemble handle.
-if(.not. present(layout_type_in) ) then
+if(.not. present(layout_type) ) then
    ens_handle%layout_type = layout ! namelist option
 else
-   ens_handle%layout_type = layout_type_in
+   ens_handle%layout_type = layout_type
 endif
 
 ! Check for error: only layout_types 1,2,3 are implemented
@@ -514,7 +514,7 @@ if(ens_handle%my_pe == sending_pe) then
    endif
  
    ! Otherwise, must send vars and possibly time to storing pe
-       call send_to(map_pe_to_task(ens_handle, owner), vars, mtime)  
+   call send_to(map_pe_to_task(ens_handle, owner), vars, mtime)
 
 endif
 
@@ -522,11 +522,10 @@ endif
 if(ens_handle%my_pe == owner) then
    ! Need to receive copy from sending_pe
    if(present(mtime)) then
-       call receive_from(map_pe_to_task(ens_handle, sending_pe), ens_handle%vars(:, owners_index), ens_handle%time(owners_index))
+      call receive_from(map_pe_to_task(ens_handle, sending_pe), ens_handle%vars(:, owners_index), ens_handle%time(owners_index))
    else
-       call receive_from(map_pe_to_task(ens_handle, sending_pe), ens_handle%vars(:, owners_index))
-
-  endif
+      call receive_from(map_pe_to_task(ens_handle, sending_pe), ens_handle%vars(:, owners_index))
+   endif
 endif
 
 end subroutine put_copy
@@ -740,7 +739,7 @@ ens_handle%copies = MISSING_R8
 call get_copy_list(ens_handle%num_copies, ens_handle%my_pe, ens_handle%my_copies, i)
 
 ! Initialize times to missing
-! HK tasks with no copies have junk in ens_handle%time
+! This is only initializing times for pes that have ensemble copies
 do i = 1, ens_handle%my_num_copies
    ens_handle%time(i) = set_time(0, 0)
 end do
@@ -1101,20 +1100,20 @@ if (use_copy2var_send_loop .eqv. .true. ) then
 ! communication pattern to use
 !    Default: use sending_pe loop (use_copy2var_send_loop = .true.)
 
-SEND_LOOP: do sending_pe = 0, num_pes - 1
-
+SENDING_PE_LOOP: do sending_pe = 0, num_pes - 1
+ 
    if (my_pe /= sending_pe ) then
       ! figure out what piece to recieve from each other PE and recieve it
       call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
       if( num_vars_to_receive > 0 ) then
          ! Loop to receive these vars for each copy stored on my_pe
-         ALL_MY_COPIES_SEND_LOOP: do k = 1, my_num_copies
+         ALL_MY_COPIES_RECV_LOOP: do k = 1, my_num_copies
             call receive_from(map_pe_to_task(ens_handle, sending_pe), transfer_temp(1:num_vars_to_receive))
             ! Copy the transfer array to my local storage
             do sv = 1, num_vars_to_receive
                ens_handle%vars(var_list(sv), k) = transfer_temp(sv)
             enddo
-         enddo ALL_MY_COPIES_SEND_LOOP
+         enddo ALL_MY_COPIES_RECV_LOOP
       endif
 
    else
@@ -1148,7 +1147,7 @@ SEND_LOOP: do sending_pe = 0, num_pes - 1
 
    endif
 
-enddo SEND_LOOP
+enddo SENDING_PE_LOOP
 
 else ! use old communication pattern
 

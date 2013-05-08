@@ -4,16 +4,10 @@
 
 program obs_sequence_tool
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 ! this latest addition has select by list of obs types.
 
 use        types_mod, only : r8, missing_r8, metadatalength, obstypelength
-use    utilities_mod, only : timestamp, register_module, initialize_utilities, &
+use    utilities_mod, only : finalize_utilities, register_module, initialize_utilities, &
                              find_namelist_in_file, check_namelist_read, &
                              error_handler, E_ERR, E_MSG, nmlfileunit,   &
                              do_nml_file, do_nml_term, get_next_filename
@@ -60,7 +54,7 @@ integer                 :: first_seq
 character(len = metadatalength) :: read_format, meta_data
 logical                 :: pre_I_format, all_gone
 logical                 :: trim_first, trim_last
-character(len = 129)    :: msgstring
+character(len = 255)    :: msgstring
 
 ! could go into namelist if you wanted more control
 integer, parameter      :: print_every = 20000
@@ -752,7 +746,9 @@ call destroy_obs(next_obs_in )
 call destroy_obs(     obs_out)
 call destroy_obs(prev_obs_out)
 
-call timestamp(source,revision,revdate,'end')
+call error_handler(E_MSG, 'obs_sequence_tool', 'Finished successfully.',source,revision,revdate)
+call finalize_utilities()
+
 
 contains
 
@@ -1677,3 +1673,10 @@ end subroutine handle_filenames
 
 !---------------------------------------------------------------------
 end program obs_sequence_tool
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

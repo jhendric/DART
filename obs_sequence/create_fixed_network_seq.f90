@@ -4,15 +4,10 @@
 
 program create_fixed_network_seq
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use        types_mod, only : r8
-use    utilities_mod, only : timestamp, register_module, open_file, close_file, &
-                             initialize_utilities
+use    utilities_mod, only : register_module, open_file, close_file, &
+                             initialize_utilities, finalize_utilities, &
+                             error_handler, E_MSG
 use      obs_def_mod, only : obs_def_type, get_obs_def_time, set_obs_def_time
 use obs_sequence_mod, only : obs_sequence_type, obs_type, read_obs_seq, &
                              get_num_obs, init_obs_sequence, get_first_obs, &
@@ -191,7 +186,14 @@ write(*, *) 'What is output file name for sequence (  obs_seq.in   is recommende
 read(*, *) file_name
 call write_obs_seq(seq, file_name)
 
-! Clean up
-call timestamp(string1=source,string2=revision,string3=revdate,pos='end')
+call error_handler(E_MSG,'create_fixed_network_seq','Finished successfully.',source,revision,revdate)
+call finalize_utilities()
 
 end program create_fixed_network_seq
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

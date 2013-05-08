@@ -31,7 +31,7 @@ use utilities_mod,        only : register_module,  error_handler, E_ERR, E_MSG, 
                                  open_file, close_file, do_nml_file, do_nml_term
 use assim_model_mod,      only : static_init_assim_model, get_model_size,                    &
                                  netcdf_file_type, init_diag_output, finalize_diag_output,   & 
-                                 aoutput_diagnostics, ens_mean_for_model
+                                 aoutput_diagnostics, ens_mean_for_model, end_assim_model
 use assim_tools_mod,      only : filter_assim, set_assim_tools_trace
 use obs_model_mod,        only : move_ahead, advance_state, set_obs_model_trace
 use ensemble_manager_mod, only : init_ensemble_manager, end_ensemble_manager,                &
@@ -102,6 +102,7 @@ integer  :: num_output_obs_members   = 0
 integer  :: output_interval     = 1
 integer  :: num_groups          = 1
 real(r8) :: outlier_threshold   = -1.0_r8
+logical  :: enable_special_outlier_code = .false.
 real(r8) :: input_qc_threshold  = 3.0_r8
 logical  :: output_forward_op_errors = .false.
 logical  :: output_timestamps        = .false.
@@ -138,7 +139,7 @@ namelist /filter_nml/ async, adv_ens_command, ens_size, tasks_per_model_advance,
    start_from_restart, output_restart, obs_sequence_in_name, obs_sequence_out_name, &
    restart_in_file_name, restart_out_file_name, init_time_days, init_time_seconds,  &
    first_obs_days, first_obs_seconds, last_obs_days, last_obs_seconds,              &
-   obs_window_days, obs_window_seconds,                                             &
+   obs_window_days, obs_window_seconds, enable_special_outlier_code,                &
    num_output_state_members, num_output_obs_members, output_restart_mean,           &
    output_interval, num_groups, outlier_threshold, trace_execution,                 &
    input_qc_threshold, output_forward_op_errors, output_timestamps,                 &
@@ -189,12 +190,12 @@ real(r8), allocatable   :: ens_mean(:)
 
 logical                 :: ds, all_gone
 
-! HK  ens_handle%writer_time is just so task 0 can get and pass around the time if it does not have an ensemble copy.
+! ens_handle%writer_time is just so task 0 can get and pass around the time if it does not have an ensemble copy.
 ! ens_handle%time(1) is used multiple times in filter.f90, smoother_mod.f90 and possibly others. 
 ! If task 0 does not have an ensemble copy, ens_handle%time(1) contains junk. If the just is negative, 
 ! the code continues merrily on its way so be aware of anywhere ens_handl%time(1) is used. 
 
-integer :: alloc_stat  ! HK Helen put this in the utilities
+integer :: alloc_stat  
 real(r8), dimension(2) :: junk  = (/1, 1/) ! for send_to time. This is a waste of an array, should just have a version on get_copy that just does get time (Maybe there is one?)
 
 call filter_initialize_modules_used()
@@ -220,8 +221,8 @@ if(ens_size < 2) then
 endif
 
 ! informational message to log
-write(msgstring, *) 'running with an ensemble size of ', ens_size
-call error_handler(E_MSG,'filter:', msgstring)
+write(msgstring, '(A,I5)') 'running with an ensemble size of ', ens_size
+call error_handler(E_MSG,'filter:', msgstring, source, revision, revdate)
 
 ! See if smoothing is turned on
 ds = do_smoothing()
@@ -237,6 +238,12 @@ do i = 1, 2
       call error_handler(E_ERR,'filter_main', msgstring, source, revision, revdate)
    endif
 end do
+
+! if doing something special with outlier threshold, say so
+if (enable_special_outlier_code) then
+   call error_handler(E_MSG,'filter:', 'special outlier threshold handling enabled', &
+      source, revision, revdate)
+endif
 
 ! Observation space inflation for posterior not currently supported
 if(inf_flavor(2) == 1) call error_handler(E_ERR, 'filter_main', &
@@ -294,7 +301,7 @@ call filter_set_initial_time(time1)
 ! Read in restart files and initialize the ensemble storage
 call filter_read_restart(ens_handle, time1, model_size)
 
-! HK get time to task 0
+! Get time to task 0
 if(my_task_id()==0) then
    if (ens_handle%my_pe == 0 ) then
       ens_handle%writer_time = ens_handle%time(1)
@@ -333,13 +340,23 @@ call adaptive_inflate_init(post_inflate, inf_flavor(2), inf_initial_from_restart
    inf_sd_initial(2), inf_lower_bound(2), inf_upper_bound(2), inf_sd_lower_bound(2),  &
    ens_handle, POST_INF_COPY, POST_INF_SD_COPY, 'Posterior')
 
+if (do_output()) then
+   if (inf_flavor(1) > 0 .and. inf_damping(1) < 1.0_r8) then
+      write(msgstring, '(A,F12.6,A)') 'Prior inflation damping of ', inf_damping(1), ' will be used'
+      call error_handler(E_MSG,'filter:', msgstring)
+   endif
+   if (inf_flavor(2) > 0 .and. inf_damping(2) < 1.0_r8) then
+      write(msgstring, '(A,F12.6,A)') 'Posterior inflation damping of ', inf_damping(2), ' will be used'
+      call error_handler(E_MSG,'filter:', msgstring)
+   endif
+endif
+
 call trace_message('After  initializing inflation')
 
 call     trace_message('Before initializing output files')
 call timestamp_message('Before initializing output files')
 
 ! Initialize the output sequences and state files and set their meta data
-! HK task zero duties
 if(my_task_id() == 0) then
    call filter_generate_copy_meta_data(seq, prior_inflate, &
       PriorStateUnit, PosteriorStateUnit, in_obs_copy, output_state_mean_index, &
@@ -416,7 +433,7 @@ AdvanceTime : do
    ! Check the time before doing the first model advance.  Not all tasks
    ! might have a time, so only check on PE0 if running multitask.
 
-   ! HK - task 0 does not necessarily have an ensemble copy
+   ! HK - task 0 may not necessarily have an ensemble copy
 
    ! HK - I don't think the following comment is true. I think only tasks with 
    ! ensemble copies are broadcast, because everyone else leaves move ahead early.
@@ -453,6 +470,7 @@ AdvanceTime : do
       call trace_message('No more obs to assimilate, exiting main loop', 'filter:', -1)
       exit AdvanceTime
    endif
+
 
    ! if model state data not at required time, advance model
    if (curr_ens_time /= next_ens_time) then
@@ -545,23 +563,17 @@ AdvanceTime : do
       seq, keys, obs_val_index, num_obs_in_set, &
       OBS_ERR_VAR_COPY, OBS_VAL_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY)
 
-   call timestamp_message('After get_obs_ens')
-
    ! Although they are integer, keys are one 'copy' of obs ensemble 
    ! (the last one?)
 
-   call put_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_KEY_COPY, keys * 1.0_r8)  !HK
-
-   call timestamp_message('After put_copy')
+   call put_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_KEY_COPY, keys * 1.0_r8)  
 
    ! Ship the ensemble mean to the model; some models need this for 
    ! computing distances.  find out who stores the ensemble mean copy.
    call get_copy_owner_index(ENS_MEAN_COPY, mean_owner, mean_owners_index)
 
-   call timestamp_message('get_copy_owner_index')
-
    ! Broadcast it to everybody else
-   if(ens_handle%my_pe == mean_owner) then !HK
+   if(ens_handle%my_pe == mean_owner) then
    ! Make sure the timestamp for the mean is the current time.
       call set_ensemble_time(ens_handle, mean_owners_index, curr_ens_time)
       ens_mean = ens_handle%vars(:, mean_owners_index)
@@ -596,6 +608,7 @@ AdvanceTime : do
    ! Do prior observation space diagnostics and associated quality control
    call obs_space_diagnostics(obs_ens_handle, forward_op_ens_handle, ens_size, &
       seq, keys, PRIOR_DIAG, num_output_obs_members, in_obs_copy+1, &
+      OBS_KEY_COPY, &                                 ! new
       prior_obs_mean_index, prior_obs_spread_index, num_obs_in_set, &
       OBS_MEAN_START, OBS_VAR_START, OBS_GLOBAL_QC_COPY, &
       OBS_VAL_COPY, OBS_ERR_VAR_COPY, DART_qc_index)
@@ -706,6 +719,7 @@ AdvanceTime : do
    ! Do posterior observation space diagnostics
    call obs_space_diagnostics(obs_ens_handle, forward_op_ens_handle, ens_size, &
       seq, keys, POSTERIOR_DIAG, num_output_obs_members, in_obs_copy+2, &
+      OBS_KEY_COPY, &                             ! new
       posterior_obs_mean_index, posterior_obs_spread_index, num_obs_in_set, &
       OBS_MEAN_START, OBS_VAR_START, OBS_GLOBAL_QC_COPY, &
       OBS_VAL_COPY, OBS_ERR_VAR_COPY, DART_qc_index)
@@ -758,7 +772,7 @@ AdvanceTime : do
 
    ! If observation space inflation, output the diagnostics
 
-   if(do_obs_inflate(prior_inflate) .and. my_task_id() == 0) then ! HK task zero duties
+   if(do_obs_inflate(prior_inflate) .and. my_task_id() == 0) then
       call output_inflate_diagnostics(prior_inflate, ens_handle%writer_time) 
    endif
 
@@ -807,6 +821,11 @@ if(output_restart_mean) &
 
 if(ds) call smoother_write_restart(1, ens_size)
 call trace_message('After  writing state restart files if requested')
+
+! Give the model_mod code a chance to clean up. 
+call trace_message('Before end_model call')
+call end_assim_model()
+call trace_message('After  end_model call')
 
 call trace_message('Before ensemble and obs memory cleanup')
 call end_ensemble_manager(ens_handle)
@@ -968,7 +987,9 @@ call register_module(source,revision,revdate)
 call static_init_obs_sequence()
 
 ! Initialize the model class data now that obs_sequence is all set up
+call trace_message('Before init_model call')
 call static_init_assim_model()
+call trace_message('After  init_model call')
 
 end subroutine filter_initialize_modules_used
 
@@ -1209,11 +1230,11 @@ if(init_time_days >= 0) then
 else
    call read_ensemble_restart(ens_handle, 1, ens_size, &
       start_from_restart, restart_in_file_name)
-   if (ens_handle%my_num_copies > 0) time = ens_handle%time(1)  ! HK only tasks with ensemble members get time.  
+   if (ens_handle%my_num_copies > 0) time = ens_handle%time(1)   
 endif
 
 ! Temporary print of initial model time
-if(my_task_id() == 0) then  ! HK: task zero duties - task 0 does not necessarily have a time
+if(ens_handle%my_pe == 0) then
    call get_time(time, secs, days)
    write(msgstring, *) 'initial model time of 1st ensemble member (days,seconds) ',days,secs
    call error_handler(E_DBG,'filter_read_restart',msgstring,source,revision,revdate)
@@ -1290,7 +1311,7 @@ ALL_OBSERVATIONS: do j = 1, num_obs_in_set
    ! If it is bad, set forward operator status value to -99 and return missing_r8 for obs_value
 
    ! PAR THIS SUBROUTINE SHOULD EVENTUALLY GO IN THE QUALITY CONTROL MODULE
-   if(.not. input_qc_ok(input_qc(1))) then
+   if(.not. input_qc_ok(input_qc(1), input_qc_threshold)) then
       ! The forward operator value is set to -99 if prior qc was failed
       forward_op_ens_handle%vars(j, :) = -99
       do k=1, my_num_copies
@@ -1302,9 +1323,6 @@ ALL_OBSERVATIONS: do j = 1, num_obs_in_set
             obs_ens_handle%vars(j, k) = missing_r8
         endif
       enddo
-      ! previous code was at various times one of these equivalent lines:
-      !obs_ens_handle%vars(j, 1:my_num_copies) = missing_r8
-      !obs_ens_handle%vars(j, :) = missing_r8 
       ! No need to do anything else for a failed observation
       cycle ALL_OBSERVATIONS
    endif
@@ -1318,14 +1336,7 @@ ALL_OBSERVATIONS: do j = 1, num_obs_in_set
       global_ens_index = obs_ens_handle%my_copies(k)
       ! If I have a copy that is a standard ensemble member, compute expected value
       if(global_ens_index <= ens_size) then
-         ! Compute the expected observation value; direct access to storage
-         ! Debug: The PGI 6.1.3 compiler was making internal copies of the array sections
-         ! very slowly, causing the filter process to take > 12 hours (vs minutes).
-         ! Try making local copies/non-sections to convince the compiler to run fast.
-         ! The original code was:
-         !    call get_expected_obs(seq, keys(j:j), ens_handle%vars(:, k), &
-         !       obs_ens_handle%vars(j:j, k), istatus, assimilate_this_ob, evaluate_this_ob)
-         ! and keys is intent in only, vars intent out only.
+         ! temporaries to avoid passing array sections which was slow on PGI compiler
          thiskey(1) = keys(j)
          call get_expected_obs(seq, thiskey, &
             global_ens_index, ens_handle%vars(:, k), ens_handle%time(1), &
@@ -1370,6 +1381,7 @@ end subroutine get_obs_ens
 
 subroutine obs_space_diagnostics(obs_ens_handle, forward_op_ens_handle, ens_size, &
    seq, keys, prior_post, num_output_members, members_index, &
+   OBS_KEY_COPY, &
    ens_mean_index, ens_spread_index, num_obs_in_set, &
    OBS_MEAN_START, OBS_VAR_START, OBS_GLOBAL_QC_COPY, OBS_VAL_COPY, &
    OBS_ERR_VAR_COPY, DART_qc_index)
@@ -1381,6 +1393,7 @@ integer,                 intent(in)    :: ens_size
 integer,                 intent(in)    :: num_obs_in_set
 integer,                 intent(in)    :: keys(num_obs_in_set), prior_post
 integer,                 intent(in)    :: num_output_members, members_index
+integer,                 intent(in)    :: OBS_KEY_COPY
 integer,                 intent(in)    :: ens_mean_index, ens_spread_index
 type(obs_sequence_type), intent(inout) :: seq
 integer,                 intent(in)    :: OBS_MEAN_START, OBS_VAR_START
@@ -1393,7 +1406,7 @@ real(r8)              :: error, diff_sd, ratio
 real(r8), allocatable :: obs_temp(:), forward_temp(:)
 real(r8)              :: obs_prior_mean, obs_prior_var, obs_val, obs_err_var
 real(r8)              :: rvalue(1)
-logical               :: do_outlier, good_forward_op
+logical               :: do_outlier, good_forward_op, failed
 
 
 ! Assume that mean and spread have been computed if needed???
@@ -1412,7 +1425,7 @@ do_outlier = (prior_post == PRIOR_DIAG .and. outlier_threshold > 0.0_r8)
 ! Do verbose forward operator output if requested
 if(output_forward_op_errors) then
    ! Need to open a file for prior and posterior output
-   if(my_task_id() == 0) then  !HK: task 0 writing duties
+   if(my_task_id() == 0) then
       if(prior_post == PRIOR_DIAG) then
          forward_unit = open_file('prior_forward_op_errors', 'formatted', 'append')
       else
@@ -1422,16 +1435,15 @@ if(output_forward_op_errors) then
  
    allocate(forward_temp(num_obs_in_set))
 
-!HK this is two loops around ens_size and observations
-!HK If task 0 has an ensemble copy, everyone else has to wait for zero to finish for all_vars_to_all_copies
-!HK If task zero does not have a copy, all_vars_to_all_copies is still a synchonization point because task zero
-!HK has to recieve some variables from the tasks with copies.
-!
-!HK What if task zero (or multiple writers ) did not take part the all_vars all all_copies
+! This is two loops around ens_size and observations
+! If task 0 has an ensemble copy, everyone else has to wait for zero to finish for all_vars_to_all_copies
+! If task zero does not have a copy, all_vars_to_all_copies is still a synchonization point because task zero
+! has to recieve some variables from the tasks with copies.
+! Q. What if task zero (or multiple writers ) did not take part the all_vars all all_copies
 
    do k = 1, ens_size
       ! Get this copy to PE 0
-      call get_copy(map_task_to_pe(forward_op_ens_handle, 0), forward_op_ens_handle, k, forward_temp) !HK send to physical task 0
+      call get_copy(map_task_to_pe(forward_op_ens_handle, 0), forward_op_ens_handle, k, forward_temp)
 
       ! Loop through each observation in set for this copy
       ! Forward temp is a real representing an integer; values /= 0 get written out
@@ -1451,7 +1463,7 @@ if(output_forward_op_errors) then
 endif
 
 !PAR DO THESE ALWAYS NEED TO BE DONE? SEE REVERSE ONES AT END, TOO
-! This is a big synchronization problem.  It would be better to have task 0 to not have any
+! SYNC: This is a synchronization problem.  It would be better to have task 0 to not have any
 ! copys/vars and do the writing independent of computation ( if there are lots of tasks)
 
 call all_vars_to_all_copies(obs_ens_handle)
@@ -1510,16 +1522,24 @@ do j = 1, obs_ens_handle%my_num_vars
          obs_err_var = obs_ens_handle%copies(OBS_ERR_VAR_COPY, j)
          error = obs_prior_mean - obs_val
          diff_sd = sqrt(obs_prior_var + obs_err_var)
-         ratio = abs(error / diff_sd)
-         if(ratio > outlier_threshold) then
-            ! FIXME: proposed enhancement to dart qc values - differentiate
-            ! between obs thrown out for being outlier - assim vs eval.
-            !if(obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) == 0) then 
-               obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) = 7    ! would have been assim
-            !else
-            !   obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) = 8    ! was eval only
-            !endif
+         if (diff_sd /= 0.0_r8) then
+            ratio = abs(error / diff_sd)
+         else
+            ratio = 0.0_r8
          endif
+
+         ! if special handling requested, pass in the outlier ratio for this obs,
+         ! the default outlier threshold value, and enough info to extract the specific 
+         ! obs type for this obs.
+         ! the function should return .true. if this is an outlier, .false. if it is ok.
+         if (enable_special_outlier_code) then
+            failed = failed_outlier(ratio, outlier_threshold, obs_ens_handle, &
+                                    OBS_KEY_COPY, j, seq)
+         else 
+            failed = (ratio > outlier_threshold)
+         endif
+
+         if (failed) obs_ens_handle%copies(OBS_GLOBAL_QC_COPY, j) = 7 
       endif
 
    else
@@ -1570,7 +1590,7 @@ allocate(obs_temp(num_obs_in_set))
 
 ! Update the ensemble mean
 ! Get this copy to process 0
-call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_MEAN_START, obs_temp) !HK get to physical task zero
+call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_MEAN_START, obs_temp) 
 ! Only pe 0 gets to write the sequence
 if(my_task_id() == 0) then
      ! Loop through the observations for this time
@@ -1582,7 +1602,7 @@ if(my_task_id() == 0) then
 
 ! Update the ensemble spread
 ! Get this copy to process 0
-call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_VAR_START, obs_temp) !HK
+call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_VAR_START, obs_temp) 
 ! Only pe 0 gets to write the sequence
 if(my_task_id() == 0) then
    ! Loop through the observations for this time
@@ -1603,9 +1623,9 @@ ens_offset = members_index + 4
 ! Update all of these ensembles that are required to sequence file
 do k = 1, num_output_members
    ! Get this copy on pe 0
-   call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, k, obs_temp) !HK
+   call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, k, obs_temp)
    ! Only task 0 gets to write the sequence
-   if(my_task_id() == 0) then  !HK task zero duties 
+   if(my_task_id() == 0) then 
       ! Loop through the observations for this time
       do j = 1, obs_ens_handle%num_vars
          ! update the obs values 
@@ -1616,10 +1636,8 @@ do k = 1, num_output_members
    endif
 end do
 
-! HK: task zero duties
-
 ! Update the qc global value
-call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_GLOBAL_QC_COPY, obs_temp)!HK
+call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_GLOBAL_QC_COPY, obs_temp)
 ! Only task 0 gets to write the observations for this time
 if(my_task_id() == 0) then
    ! Loop through the observations for this time
@@ -1636,10 +1654,10 @@ end subroutine obs_space_diagnostics
 
 !-------------------------------------------------------------------------
 
-function input_qc_ok(input_qc)
+function input_qc_ok(input_qc, threshold)
 
 logical              :: input_qc_ok
-real(r8), intent(in) :: input_qc
+real(r8), intent(in) :: input_qc, threshold
 
 ! Do checks on input_qc value with namelist control
 ! Should eventually go in qc module
@@ -1650,10 +1668,7 @@ real(r8), intent(in) :: input_qc
 ! e.g. to keep only obs with a data qc of 0, set the 
 ! threshold to 0.
 
-! To exclude negative qc values, comment in the following line instead
-! of the existing code.
-! if((nint(input_qc) <= nint(input_qc_threshold)) .and. (nint(input_qc) >= 0)) then
-if(nint(input_qc) <= nint(input_qc_threshold)) then
+if(nint(input_qc) <= nint(threshold)) then
    input_qc_ok = .true.
 else
    input_qc_ok = .false.
@@ -1665,9 +1680,9 @@ end function input_qc_ok
 
 subroutine filter_sync_keys_time(ens_handle, key_bounds, num_obs_in_set, time1, time2)
 
-integer, intent(inout)         :: key_bounds(2), num_obs_in_set
-type(time_type), intent(inout) :: time1, time2
-type(ensemble_type), intent(in)   :: ens_handle
+integer,             intent(inout)  :: key_bounds(2), num_obs_in_set
+type(time_type),     intent(inout)  :: time1, time2
+type(ensemble_type), intent(in)     :: ens_handle
 
 ! Have task0 broadcast these values to all other tasks.
 ! Only tasks which contain copies have this info; doing it this way
@@ -1825,6 +1840,85 @@ if (do_output()) then
 endif
 
 end subroutine print_obs_time
+
+!-------------------------------------------------------------------------
+
+function failed_outlier(ratio, outlier_threshold, obs_ens_handle, OBS_KEY_COPY, j, seq)
+
+! return true if the observation value is too far away from the ensemble mean
+! and should be rejected and not assimilated.
+
+use obs_def_mod, only : get_obs_kind
+use obs_kind_mod         ! this allows you to use all the types available
+
+
+real(r8),                intent(in) :: ratio
+real(r8),                intent(in) :: outlier_threshold
+type(ensemble_type),     intent(in) :: obs_ens_handle
+integer,                 intent(in) :: OBS_KEY_COPY
+integer,                 intent(in) :: j
+type(obs_sequence_type), intent(in) :: seq
+logical                             :: failed_outlier
+
+! the default test is:  if (ratio > outlier_threshold) failed_outlier = .true.
+! but you can add code here to do different tests for different observation 
+! types.  this function is only called if this namelist item is set to true:
+!  enable_special_outlier_code = .true.
+! in the &filter_nml namelist.  it is intended to be customized by the user.
+
+integer :: this_obs_key, this_obs_type
+type(obs_def_type) :: obs_def
+type(obs_type) :: observation
+logical :: first_time = .true.
+
+! make sure there's space to hold the observation.   this is a memory
+! leak in that we never release this space, but we only allocate it
+! one time so it doesn't grow.  if you are going to access the values
+! of the observation or the qc values, you must change the 0, 0 below
+! to match what's in your obs_seq file.  the example code below uses
+! only things in the obs_def derived type and so doesn't need space
+! allocated for either copies or qcs.
+if (first_time) then
+   call init_obs(observation, 0, 0)
+   first_time = .false.
+endif
+
+! if you want to do something different based on the observation specific type:
+
+this_obs_key = obs_ens_handle%copies(OBS_KEY_COPY, j)
+call get_obs_from_key(seq, this_obs_key, observation)
+call get_obs_def(observation, obs_def)
+this_obs_type = get_obs_kind(obs_def)
+
+! note that this example uses the specific type (e.g. RADIOSONDE_TEMPERATURE)
+! to make decisions.  you have the observation so any other part (e.g. the
+! time, the value, the error) is available to you as well.
+
+select case (this_obs_type)
+
+! example of specifying a different threshold value for one obs type:
+!   case (RADIOSONDE_TEMPERATURE)
+!      if (ratio > some_other_value) then
+!         failed_outlier = .true.
+!      else
+!         failed_outlier = .false.
+!      endif
+
+! accept all values of this observation type no matter how far
+! from the ensemble mean:
+!   case (AIRCRAFT_U_WIND_COMPONENT, AIRCRAFT_V_WIND_COMPONENT)
+!      failed_outlier = .false.
+
+   case default
+      if (ratio > outlier_threshold) then
+         failed_outlier = .true.
+      else
+         failed_outlier = .false.
+      endif
+
+end select
+
+end function failed_outlier
 
 !-------------------------------------------------------------------------
 

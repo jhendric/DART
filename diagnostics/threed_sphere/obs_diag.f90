@@ -196,6 +196,7 @@ character(len = stringlength), dimension(MaxTrusted) :: trusted_obs = 'null'
 real(r8):: rat_cri               = 5000.0_r8 ! QC ratio
 real(r8):: input_qc_threshold    = 3.0_r8    ! maximum NCEP QC factor
 logical :: print_mismatched_locs = .false.
+logical :: print_obs_locations   = .false.
 logical :: verbose               = .false.
 logical :: outliers_in_histogram = .false.
 logical :: create_rank_histogram = .true.
@@ -205,8 +206,8 @@ namelist /obs_diag_nml/ obs_sequence_name, obs_sequence_list,                 &
                        bin_separation, bin_width, time_to_skip, max_num_bins, &
                        plevel, hlevel, mlevel, rat_cri, input_qc_threshold,   &
                        Nregions, lonlim1, lonlim2, latlim1, latlim2,          &
-                       reg_names, print_mismatched_locs,                      &
-                       obs_sequence_list, verbose, outliers_in_histogram,     &
+                       reg_names, print_mismatched_locs, print_obs_locations, &
+                       verbose, outliers_in_histogram,                        &
                        create_rank_histogram, hlevel_edges, trusted_obs
 
 !-----------------------------------------------------------------------
@@ -363,6 +364,20 @@ if ((obs_sequence_name /= '') .and. (obs_sequence_list /= '')) then
    write(string1,*)'specify "obs_sequence_name" or "obs_sequence_list"'
    write(string2,*)'set other to an empty string ... i.e. ""'
    call error_handler(E_ERR, 'obs_diag', string1, source, revision, revdate, text2=string2)
+endif
+
+! Check to issue the error or warning about deprecation of print_obs_locations
+
+if ( print_obs_locations ) then
+   write(string1,*)'"print_obs_locations" is no longer supported. See "obs_seq_to_netcdf.html"'
+   write(string2,*)'Run "obs_seq_to_netcdf" and then "DART/diagnostics/matlab/plot_obs_netcdf.m"'
+   write(string3,*)'Please remove "print_obs_locations" from your namelists.'
+   call error_handler(E_ERR, 'obs_diag', string1, source, revision, revdate, &
+                      text2=string2, text3=string3 )
+else
+   write(string1,*)'"print_obs_locations" is no longer supported. See "obs_seq_to_netcdf.html"'
+   write(string2,*)'Please remove "print_obs_locations" from your namelists.'
+   call error_handler(E_WARN, 'obs_diag', string1, source, revision, revdate, text2=string2)
 endif
 
 ! Count up the number of 'trusted' observations
@@ -2084,19 +2099,26 @@ CONTAINS
    endif
 
    ! Pressure levels
+   !  why is this test not == MISSING_R8 like the others below?
+   !  very high altitudes could have very low pressure levels, 
+   !  so for now make the test be <= 0.0 to catch unset levels.
+   !  uninitialized values are set to missing_r8, which is negative.
 
-   if (all(plevel <  1.0)) then
-       plevel(1:11) = (/ 1000,  925,  850,   700,   500,  400, &
-                          300,  250,  200,   150,   100        /)
-       Nplevels = Rlevels2edges(plevel, plevel_edges)
+   if (all(plevel <= 0.0_r8)) then
+       plevel(1:11) = (/ 1000.0_r8,  925.0_r8,  850.0_r8, &
+                          700.0_r8,  500.0_r8,  400.0_r8, &
+                          300.0_r8,  250.0_r8,  200.0_r8, &
+                          150.0_r8,  100.0_r8        /)
    endif
+   Nplevels = Rlevels2edges(plevel, plevel_edges)
 
    ! Height levels
 
    if( all(hlevel_edges == MISSING_R8) .and. & 
        all(hlevel       == MISSING_R8)) then
-       hlevel(1:11) = (/ 1000, 2000, 3000,  4000,  5000, 6000, &
-                         7000, 8000, 9000, 10000, 11000        /)
+       hlevel(1:11) = (/ 1000.0_r8,  2000.0_r8,  3000.0_r8, 4000.0_r8, &
+                         5000.0_r8,  6000.0_r8,  7000.0_r8, 8000.0_r8, &
+                         9000.0_r8, 10000.0_r8, 11000.0_r8        /)
        Nhlevels = Rlevels2edges(hlevel, hlevel_edges)
        hlevel_edges(1:Nhlevels+1) = sort(hlevel_edges(1:Nhlevels+1))
    elseif ( any(hlevel_edges /= MISSING_R8) ) then
@@ -2109,11 +2131,12 @@ CONTAINS
    endif
 
    ! Model levels
+   !  why is this test not == MISSING_R8 like the others?
 
    if (all(mlevel < 1)) then
        mlevel(1:11) = (/ (i,i=1,11) /)   ! set model levels to indices
-       Nmlevels = Ilevels2edges(mlevel, mlevel_edges)
    endif
+   Nmlevels = Ilevels2edges(mlevel, mlevel_edges)
 
    end Subroutine ActOnNamelist
 

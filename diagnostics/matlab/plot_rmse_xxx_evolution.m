@@ -322,7 +322,7 @@ function myplot(plotdat)
 
    h1 = plot(t,rmse,'k+-',t,other,'ro-','LineWidth',plotdat.linewidth);
    h = legend(h1,'rmse', plotdat.copystring);
-   legend(h,'boxoff')
+   legend(h,'boxoff','Interpreter','none')
 
    axlims = axis;
    axlims = [axlims(1:2) plotdat.Yrange];

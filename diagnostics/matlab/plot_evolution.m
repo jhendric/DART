@@ -310,7 +310,7 @@ function myplot(plotdat)
 
    h1 = plot(tg,cg,'k+-',ta,ca,'ro-','LineWidth',plotdat.linewidth);
    h = legend('forecast', 'analysis');
-   legend(h,'boxoff')
+   legend(h,'boxoff','Interpreter','none')
 
    axlims = axis;
    axlims = [axlims(1:2) plotdat.Yrange];
@@ -377,7 +377,7 @@ function myplot(plotdat)
    set(ax2,'YTick', yticks, 'YTickLabel', newticklabels)
 
    set(get(ax2,'Ylabel'),'String','# of obs : o=poss, +=used')
-   set(get(ax1,'Ylabel'),'String',plotdat.ylabel)
+   set(get(ax1,'Ylabel'),'String',plotdat.ylabel,'Interpreter','none')
    set(ax1,'Position',get(ax2,'Position'))
    grid
 

@@ -4,16 +4,10 @@
 
 program test_reseed
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use     types_mod, only : r4, r8, digits12, i8
 use utilities_mod, only : register_module, error_handler, E_ERR, &
                           initialize_utilities, finalize_utilities, &
-                          logfileunit, nmlfileunit, timestamp,  &
+                          logfileunit, nmlfileunit, &
                           find_namelist_in_file, check_namelist_read, &
                           open_file, close_file, do_nml_file, do_nml_term
 use time_manager_mod, only : time_type, operator(+), set_time, get_time, &
@@ -139,6 +133,8 @@ call dohourstest(reseed, hours)
 
 ! -----
 
+call error_handler(E_MSG, 'test_reseed', 'Finished successfully.',&
+                   source,revision,revdate)
 call finalize_utilities()
 
 contains
@@ -338,3 +334,10 @@ end function generate_seed
 !-------------------------------------------------------------------------
 
 end program test_reseed
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

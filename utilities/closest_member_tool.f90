@@ -4,12 +4,6 @@
 
 program closest_member_tool
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 ! Program to overwrite the time on each ensemble in a restart file.
 
 use types_mod,         only : r8
@@ -18,7 +12,7 @@ use time_manager_mod,  only : time_type, set_time_missing,               &
  
 use utilities_mod,     only : register_module, do_output,                &
                               error_handler, nmlfileunit, E_MSG, E_ERR,  &
-                              timestamp, find_namelist_in_file,          &
+                              find_namelist_in_file,          &
                               check_namelist_read, logfileunit,          &
                               do_nml_file, do_nml_term, open_file, close_file
                                 
@@ -419,3 +413,10 @@ end function compute_diff
 
 
 end program closest_member_tool
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

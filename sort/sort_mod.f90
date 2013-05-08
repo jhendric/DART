@@ -16,7 +16,7 @@ use utilities_mod, only : register_module
 implicit none
 private
 
-public :: slow_sort, slow_index_sort, sort, index_sort!, int_index_sort
+public :: slow_sort, slow_index_sort, sort, index_sort
 
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
@@ -26,15 +26,20 @@ character(len=128), parameter :: &
 
 logical, save :: module_initialized = .false.
 
+interface sort
+   module procedure rsort
+   module procedure isort
+end interface sort
+
 interface index_sort
-!HK overloading index_sort so it can take a list of reals or integers
-   module procedure index_sort_real, index_sort_int
+   module procedure index_sort_real
+   module procedure index_sort_int
 end interface
 
 contains
 
-
 !=======================================================================
+
 
 subroutine initialize_module
 
@@ -42,6 +47,7 @@ subroutine initialize_module
    module_initialized = .true.
 
 end subroutine initialize_module
+
 
 !=======================================================================
 
@@ -114,13 +120,14 @@ end do
 
 !=========================================================================
 
-function sort(x)
+
+function rsort(x)
 
 ! Uses a heap sort alogrithm on x, returns sorted array
 implicit none
 
 real(r8), intent(in) :: x(:)
-real(r8)             :: sort(size(x))
+real(r8)             :: rsort(size(x))
 
 integer  :: num, level, ind, i, j
 real(r8) :: l_val
@@ -129,7 +136,7 @@ real(r8) :: l_val
 num = size(x)
 
 ! Initial copy over
-sort = x
+rsort = x
 
 ! Only one element, just send it back
 if(num <= 1) return
@@ -142,13 +149,13 @@ do
    ! Keep going down levels until bottom
    if(level > 1) then
       level = level - 1
-      l_val = sort(level)
+      l_val = rsort(level)
    else
-      l_val = sort(ind)
-      sort(ind) = sort(1)
+      l_val = rsort(ind)
+      rsort(ind) = rsort(1)
       ind = ind - 1
       if(ind == 1) then
-         sort(1) = l_val
+         rsort(1) = l_val
          return
       endif
    endif
@@ -158,10 +165,10 @@ do
 
    do while(j <= ind)
       if(j < ind) then
-         if(sort(j) < sort(j + 1)) j = j + 1
+         if(rsort(j) < rsort(j + 1)) j = j + 1
       endif
-      if(l_val < sort(j)) then
-         sort(i) = sort(j)
+      if(l_val < rsort(j)) then
+         rsort(i) = rsort(j)
          i = j
          j = 2 * j
       else
@@ -169,14 +176,80 @@ do
       endif
       
    end do
-   sort(i) = l_val
+   rsort(i) = l_val
 
 end do
 
-end function sort
+end function rsort
 
 
 !=========================================================================
+
+
+function isort(x)
+
+! Uses a heap sort alogrithm on x, returns sorted array
+implicit none
+
+integer, intent(in) :: x(:)
+integer             :: isort(size(x))
+
+integer :: num, level, ind, i, j
+integer :: l_val
+
+! Get the size
+num = size(x)
+
+! Initial copy over
+isort = x
+
+! Only one element, just send it back
+if(num <= 1) return
+
+level = num / 2 + 1
+ind = num
+
+! Keep looping until finished
+do
+   ! Keep going down levels until bottom
+   if(level > 1) then
+      level = level - 1
+      l_val = isort(level)
+   else
+      l_val = isort(ind)
+      isort(ind) = isort(1)
+      ind = ind - 1
+      if(ind == 1) then
+         isort(1) = l_val
+         return
+      endif
+   endif
+
+   i = level
+   j = 2 * level
+
+   do while(j <= ind)
+      if(j < ind) then
+         if(isort(j) < isort(j + 1)) j = j + 1
+      endif
+      if(l_val < isort(j)) then
+         isort(i) = isort(j)
+         i = j
+         j = 2 * j
+      else
+         j = ind + 1
+      endif
+      
+   end do
+   isort(i) = l_val
+
+end do
+
+end function isort
+
+
+!=========================================================================
+
 
 subroutine index_sort_real(x, index, num)
 
@@ -187,7 +260,7 @@ integer,  intent(in)  :: num
 real(r8), intent(in)  :: x(num)
 integer,  intent(out) :: index(num)
 
-integer  :: ind, i, j, l_val_index, level 
+integer  :: ind, i, j, l_val_index, level
 real(r8) :: l_val
 
 
@@ -238,7 +311,7 @@ do
       else
          j = ind + 1
       endif
-      
+
    end do
    index(i) = l_val_index
 
@@ -249,9 +322,9 @@ end subroutine index_sort_real
 
 !=========================================================================
 
+
 subroutine index_sort_int(x, index, num)
 
-! should this just be an overloaded index_sort?
 ! Uses a heap sort alogrithm on x (an array of integers)
 !  returns array of sorted indices and the sorted array
 implicit none
@@ -319,7 +392,7 @@ end do
 
 end subroutine index_sort_int
 
-!=========================================================================
 
+!=========================================================================
 
 end module sort_mod

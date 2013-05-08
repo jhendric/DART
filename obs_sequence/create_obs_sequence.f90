@@ -4,14 +4,9 @@
 
 program create_obs_sequence
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
-use    utilities_mod, only : timestamp, register_module, open_file, close_file, &
-                             initialize_utilities 
+use    utilities_mod, only : register_module, open_file, close_file, &
+                             initialize_utilities, finalize_utilities, &
+                             error_handler, E_MSG
 use obs_sequence_mod, only : obs_sequence_type, interactive_obs, write_obs_seq, &
                              interactive_obs_sequence, static_init_obs_sequence
 use  assim_model_mod, only : static_init_assim_model
@@ -46,7 +41,14 @@ write(*, *) 'Input filename for sequence (  set_def.out   usually works well)'
 read(*, *) file_name
 call write_obs_seq(seq, file_name)
 
-! Clean up
-call timestamp(string1=source,string2=revision,string3=revdate,pos='end')
+call error_handler(E_MSG,'create_obs_sequence','Finished successfully.',source,revision,revdate)
+call finalize_utilities()
 
 end program create_obs_sequence
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+
