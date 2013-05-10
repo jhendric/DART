@@ -1,10 +1,11 @@
-function pinfo = GetCamInfo(pstruct,fname,routine)
-%% GetCamInfo   prepares a structure of information needed by the subsequent "routine"
+function pinfo = GetSqgInfo(pstruct,fname,routine)
+%% GetSqgInfo   prepares a structure of information needed by the subsequent "routine"
 %                The information is gathered via rudimentary "input" routines.
 %
-% pinfo = GetCamInfo(pstruct,routine);
+% pinfo = GetSqgInfo(pinfo_in,fname,routine);
 %
-% pstruct   structure containing the names of the truth_file and the diagn_file of the DART netcdf file
+% pinfo_in  Name of existing pinfo struct, e.g. output from CheckModelCompatibility
+% fname     Name of the DART netcdf file
 % routine   name of subsequent plot routine.
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
@@ -17,30 +18,29 @@ function pinfo = GetCamInfo(pstruct,fname,routine)
 % $Revision$
 % $Date$
 
-if (exist(fname,'file') ~= 2 ), error('%s does not exist.',fname); end
+if ( exist(fname,'file') ~= 2 ), error('%s does not exist.',fname); end
 
 pinfo  = pstruct;
 model  = nc_attget(fname,nc_global,'model');
 
-if strcmpi(model,'cam') ~= 1
-   error('Not so fast, this is not a cam model.')
+if strcmpi(model,'sqg') ~= 1
+   error('Not so fast, this is not a sqg model.')
 end
 
-%% Get the domain information.
-
-ilevel = nc_varget(fname,'ilev');    % interfaces
-levels = nc_varget(fname, 'lev');    % midpoints
-lon    = nc_varget(fname, 'lon');
-lat    = nc_varget(fname, 'lat');
+copy   = nc_varget(fname,'copy');
+times  = nc_varget(fname,'time');
+levels = nc_varget(fname,'lev');
+lons   = nc_varget(fname,'lon');
+lats   = nc_varget(fname,'lat');
 
 switch lower(deblank(routine))
 
    case {'plotbins','plotenserrspread','plotensmeantimeseries','plotenstimeseries'}
 
-      pgvar           = GetVar(pinfo.vars);  % Determine prognostic variable
-      [level, lvlind] = GetLevel(pgvar,levels);   % Determine level and index
-      [lat  , latind] = GetLatitude(lat);
-      [lon  , lonind] = GetLongitude(lon);
+      pgvar           = GetVar(pinfo.vars);
+      [level, lvlind] = GetLevel(levels);
+      [lat  , latind] = GetLatitude(lats);
+      [lon  , lonind] = GetLongitude(lons);
 
       pinfo.var        = pgvar;
       pinfo.level      = level;
@@ -56,13 +56,13 @@ switch lower(deblank(routine))
       disp('Getting information for the ''base'' variable.')
        base_var                = GetVar(pinfo.vars);
       [base_time, base_tmeind] = GetTime(pinfo.time);
-      [base_lvl,  base_lvlind] = GetLevel(base_var,levels);
-      [base_lat,  base_latind] = GetLatitude(lat);
-      [base_lon,  base_lonind] = GetLongitude(lon);
+      [base_lvl,  base_lvlind] = GetLevel(levels);
+      [base_lat,  base_latind] = GetLatitude(lats);
+      [base_lon,  base_lonind] = GetLongitude(lons);
 
       disp('Getting information for the ''comparison'' variable.')
        comp_var               = GetVar(pinfo.vars,         base_var);
-      [comp_lvl, comp_lvlind] = GetLevel(comp_var, levels, base_lvlind);
+      [comp_lvl, comp_lvlind] = GetLevel(levels, base_lvlind);
 
       pinfo.base_var    = base_var;
       pinfo.comp_var    = comp_var;
@@ -83,15 +83,15 @@ switch lower(deblank(routine))
       disp('Getting information for the ''base'' variable.')
        base_var                = GetVar(pinfo.vars);
       [base_time, base_tmeind] = GetTime(pinfo.time);
-      [base_lvl , base_lvlind] = GetLevel(base_var,levels);
-      [base_lat , base_latind] = GetLatitude(lat);
-      [base_lon , base_lonind] = GetLongitude(lon);
+      [base_lvl , base_lvlind] = GetLevel(levels);
+      [base_lat , base_latind] = GetLatitude(lats);
+      [base_lon , base_lonind] = GetLongitude(lons);
 
       disp('Getting information for the ''comparison'' variable.')
        comp_var               = GetVar(pinfo.vars, base_var);
-      [comp_lvl, comp_lvlind] = GetLevel(comp_var, levels, base_lvlind);
-      [comp_lat, comp_latind] = GetLatitude(lat,   base_lat);
-      [comp_lon, comp_lonind] = GetLongitude(lon,  base_lon);
+      [comp_lvl, comp_lvlind] = GetLevel(levels, base_lvlind);
+      [comp_lat, comp_latind] = GetLatitude(lats,  base_lat);
+      [comp_lon, comp_lonind] = GetLongitude(lons, base_lon);
 
       pinfo.base_var    = base_var;
       pinfo.comp_var    = comp_var;
@@ -110,20 +110,19 @@ switch lower(deblank(routine))
       pinfo.comp_lon    = comp_lon;
       pinfo.comp_lonind = comp_lonind;
 
-
    case 'plotsawtooth'
 
        pgvar          = GetVar(pinfo.vars);
-      [level, lvlind] = GetLevel(pgvar,levels);
-      [  lat, latind] = GetLatitude(lat);
-      [  lon, lonind] = GetLongitude(lon);
+      [level, lvlind] = GetLevel(levels);
+      [lat  , latind] = GetLatitude(lats);
+      [lon  , lonind] = GetLongitude(lons);
       copyindices     = SetCopyID2(fname);
       copy            = length(copyindices);
 
       pinfo.var_names      = pgvar;
       pinfo.truth_file     = [];
-      pinfo.prior_file     = pstruct.prior_file;
-      pinfo.posterior_file = pstruct.posterior_file;
+      pinfo.prior_file     = pinfo.prior_file;
+      pinfo.posterior_file = pinfo.posterior_file;
       pinfo.level          = level;
       pinfo.levelindex     = lvlind;
       pinfo.latitude       = lat;
@@ -137,30 +136,32 @@ switch lower(deblank(routine))
          pinfo.truth_file = pstruct.truth_file;
       end
 
-
    case 'plotphasespace'
 
       disp('Getting information for the ''X'' variable.')
        var1                   = GetVar(pinfo.vars);
-      [var1_lvl, var1_lvlind] = GetLevel(var1, levels);
-      [var1_lat, var1_latind] = GetLatitude(   lat );
-      [var1_lon, var1_lonind] = GetLongitude(  lon );
+      [var1_lvl, var1_lvlind] = GetLevel(levels);
+      [var1_lat, var1_latind] = GetLatitude(lats);
+      [var1_lon, var1_lonind] = GetLongitude(lons);
 
       disp('Getting information for the ''Y'' variable.')
-       var2                   = GetVar(pinfo.vars,        var1    );
-      [var2_lvl, var2_lvlind] = GetLevel(var2, levels,     var1_lvlind);
-      [var2_lat, var2_latind] = GetLatitude(  lat, var1_lat);
-      [var2_lon, var2_lonind] = GetLongitude( lon, var1_lon);
+       var2                   = GetVar(pinfo.vars, var1);
+      [var2_lvl, var2_lvlind] = GetLevel(levels, var1_lvlind);
+      [var2_lat, var2_latind] = GetLatitude(lats, var1_lat);
+      [var2_lon, var2_lonind] = GetLongitude(lons, var1_lon);
 
       disp('Getting information for the ''Z'' variable.')
-       var3                   = GetVar(pinfo.vars,        var1    );
-      [var3_lvl, var3_lvlind] = GetLevel(var3, levels,     var1_lvlind);
-      [var3_lat, var3_latind] = GetLatitude( lat, var1_lat);
-      [var3_lon, var3_lonind] = GetLongitude(lon, var1_lon);
+       var3                   = GetVar(pinfo.vars, var1);
+      [var3_lvl, var3_lvlind] = GetLevel(levels, var1_lvlind);
+      [var3_lat, var3_latind] = GetLatitude(lats, var1_lat);
+      [var3_lon, var3_lonind] = GetLongitude(lons, var1_lon);
 
-      % query for ensemble member
-      s1 = input('Input ensemble member metadata STRING. <cr> for ''true state''  ','s');
-      if isempty(s1), ens_mem = 'true state'; else ens_mem = s1; end
+      % query for copy string ... ensemble member
+      [~, ens_mem_string] = GetCopyID(fname,1);
+      ens_mem = ens_mem_string{1};   % coerce to simple character string
+
+  %   s1 = input('Input ensemble member metadata ID. <cr> for ''true state''  ','s');
+  %   if isempty(s1), ens_mem = 'true state'; else ens_mem = s1; end
 
       % query for line type
       s1 = input('Input line type string. <cr> for ''k-''  ','s');
@@ -190,14 +191,27 @@ switch lower(deblank(routine))
       pinfo.ens_mem     = ens_mem;
       pinfo.ltype       = ltype;
 
+   case 'plottotalerr'
+
+     % Nothing required ... function defined in PlotTotalErr()
+
    otherwise
+
+      error('plot type %s not supported yet for SQG model',routine)
 
 end
 
 
+
 function pgvar = GetVar(prognostic_vars, defvar)
 %----------------------------------------------------------------------
-if (nargin == 2), pgvar = defvar; else pgvar = 'PS'; end
+if (nargin == 2), pgvar = defvar; else pgvar = 'theta'; end
+
+% If there is only one choice ... use it.
+if (length(prognostic_vars) == 1)
+   pgvar = prognostic_vars{1};
+   return
+end
 
 str = sprintf(' %s ',prognostic_vars{1});
 for i = 2:length(prognostic_vars),
@@ -246,30 +260,19 @@ timeind  = ind(1);                 % use the first one
 time     = times(timeind);
 
 
-
-function [level, lvlind] = GetLevel(pgvar, levels, deflevel)
+function [level, lvlind] = GetLevel(levels, deflevel)
 %----------------------------------------------------------------------
-% level and lvlind will not be equal for all models, (and probably
-% shouldn't for cam ... but for future expansion ...
+% level and lvlind will not be equal ... future expansion ...
 if (nargin == 3), lvlind = deflevel; else lvlind = 1; end
 
-if strcmpi(pgvar,'ps') ==1
-   disp('''PS'' only has one level, using it.')
-   level  = 1;
-   lvlind = 1;
-else
-   fprintf('Default level (index) is  %d, if this is OK, <cr>;\n',lvlind)
-   fprintf('If not, enter a level between %d and %d, inclusive ...\n', ...
-                         1,length(levels))
-   varstring = input('we''ll use the closest (no syntax required)\n','s');
+fprintf('Default level (index) is  %d, if this is OK, <cr>;\n',lvlind)
+fprintf('If not, enter a level between %d and %d, inclusive ...\n', ...
+                     1,length(levels))
+varstring = input('we''ll use the closest (no syntax required)\n','s');
 
-   if ~isempty(varstring), lvlind = str2double(varstring); end
+if ~isempty(varstring), lvlind = str2double(varstring); end
 
-   % d      = abs(level - levels);  % crude distance
-   % ind    = find(min(d) == d);    % multiple minima possible
-   % lvlind = ind(1);               % use the first one
-   level  = levels(lvlind);
-end
+level  = levels(lvlind);
 
 
 
@@ -308,4 +311,43 @@ latind = ind(1);             % use the first one
 lat    = lats(latind);
 
 
+
+
+function [copyid, copystrings] = GetCopyID(fname, numcopies)
+%----------------------------------------------------------------------
+%% GetCopyID queries for the copy indices in a specific netCDF file.
+
+if (exist(fname,'file') ~= 2), error('%s does not exist.',fname); end
+
+metadata = nc_varget(fname,'CopyMetaData');           % get all the metadata
+ncopies  = size(metadata,1);
+
+if ( ncopies < 1 )
+   fprintf('%s has no valid ensemble members\n',fname)
+   disp('To be a valid ensemble member, the CopyMetaData for the member')
+   disp('must start with the character string ''ensemble member''')
+   disp('None of them in do in your file.')
+   fprintf('%s claims to have %d copies\n',fname, num_copies)
+   error('netcdf file has no ensemble members.')
+end
+
+if (numcopies > ncopies)
+   error('Only have %d copies to work with, need %d',ncopies,numcopies)
+end
+
+for i = 1:ncopies
+   fprintf('ID %2d  is  %s\n',i,deblank(metadata(i,:)))
+end
+
+IDstring = input( sprintf('Enter %d IDs to plot.\n(no intervening syntax, please)\n',numcopies) ,'s');
+copyid   = str2num(IDstring);
+
+if (length(copyid) ~= numcopies)
+   error('only entered %d, needed %d ... quitting',length(copyid),numcopies)
+end
+
+copystrings = cell(1,numcopies);
+for i=1:numcopies
+  copystrings{i} = metadata(copyid(i),:);
+end
 

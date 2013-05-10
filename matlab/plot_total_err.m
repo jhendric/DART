@@ -60,6 +60,9 @@ switch lower(pinfo.model)
    case {'mpas_atm'}
       pinfo = GetMPAS_ATMInfo(pinfo, diagn_file, 'PlotTotalErr');
 
+   case {'sqg'}
+      pinfo = GetSqgInfo(pinfo, diagn_file, 'PlotTotalErr');
+
    otherwise
 
       error('%s not implemented yet', pinfo.model)

@@ -95,37 +95,41 @@ switch lower(pinfo.model)
       fprintf('Correlating variable %s index %d at time %d.\n', ...
            pinfo.base_var,pinfo.base_var_index, pinfo.base_time)
 
-   case 'fms_bgrid'
+   case {'fms_bgrid'}
 
       pinfo = GetBgridInfo(pinfo, diagn_file, 'PlotCorrel');
 
-   case 'cam'
+   case {'cam'}
 
       pinfo = GetCamInfo(pinfo, diagn_file, 'PlotCorrel');
 
-   case 'clm'
+   case {'clm'}
 
       pinfo = GetClmInfo(pinfo, diagn_file, 'PlotCorrel');
 
-   case 'wrf'
+   case {'wrf'}
 
       pinfo = GetWRFInfo(pinfo, diagn_file, 'PlotCorrel');
 
-   case 'pe2lyr'
+   case {'pe2lyr'}
 
       pinfo = GetPe2lyrInfo(pinfo, diagn_file, 'PlotCorrel');
 
-   case 'mitgcm_ocean'
+   case {'mitgcm_ocean'}
 
       pinfo = GetMITgcm_oceanInfo(pinfo, diagn_file, 'PlotCorrel');
 
-   case 'tiegcm'
+   case {'tiegcm'}
 
       pinfo = GetTIEGCMInfo(pinfo, diagn_file, 'PlotCorrel');
 
-   case 'mpas_atm'
+   case {'mpas_atm'}
 
       pinfo = GetMPAS_ATMInfo(pinfo, diagn_file, 'PlotCorrel');
+
+   case {'sqg'}
+
+      pinfo = GetSqgInfo(pinfo, diagn_file, 'PlotCorrel');
 
    otherwise
 

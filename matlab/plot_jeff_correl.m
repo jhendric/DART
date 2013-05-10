@@ -94,29 +94,33 @@ switch lower(pinfo.model)
       inputstring = input('Input variable and index for correlation \n','s');
       [pinfo.state_var, pinfo.state_var_index] = ParseAlphaNumerics(inputstring);
 
-   case 'fms_bgrid'
+   case {'fms_bgrid'}
 
       pinfo = GetBgridInfo(pinfo, fname, 'PlotVarVarCorrel');
 
-   case 'wrf'
+   case {'wrf'}
 
       pinfo = GetWRFInfo(pinfo, fname, 'PlotVarVarCorrel');
 
-   case 'cam'
+   case {'cam'}
 
       pinfo = GetCamInfo(pinfo, fname, 'PlotVarVarCorrel');
 
-   case 'pe2lyr'
+   case {'pe2lyr'}
 
       pinfo = GetPe2lyrInfo(pinfo, fname, 'PlotVarVarCorrel');
 
-   case 'mitgcm_ocean'
+   case {'mitgcm_ocean'}
 
       pinfo = GetMITgcm_oceanInfo(pinfo, fname, 'PlotVarVarCorrel');
 
-   case 'mpas_atm'
+   case {'mpas_atm'}
 
       pinfo = GetMPAS_ATMInfo(pinfo, fname, 'PlotVarVarCorrel');
+
+   case {'sqg'}
+
+      pinfo = GetSqgInfo(pinfo, fname, 'PlotVarVarCorrel');
 
    otherwise
 

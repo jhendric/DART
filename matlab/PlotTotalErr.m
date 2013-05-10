@@ -57,8 +57,8 @@ switch lower(pinfo.model)
 
       % Also need to compute the spread; zero truth for this and
       % compute distance from 0
-      err        = total_err(truth, ens);
-      err_spread = total_err(zeros(size(spread)), spread);
+      err        = squeeze(total_err(truth, ens));
+      err_spread = squeeze(total_err(zeros(size(spread)), spread));
       errTotal   = sum(err)/pinfo.time_series_length;
       spreadTotal= sum(err_spread)/pinfo.time_series_length;
       string1 = ['time-mean Ensemble Mean Total Error = ' num2str(errTotal)];
@@ -292,6 +292,10 @@ switch lower(pinfo.model)
       %% unstructured grid atmosphere model
 
       MPAS_ATMTotalError( pinfo )
+
+   case 'sqg'
+
+      SqgTotalError( pinfo )
 
    otherwise
 
@@ -656,6 +660,126 @@ for ivar=1:pinfo.num_state_vars,
    xdates(pinfo.time)
    ylabel(sprintf('global-area-weighted rmse (%s)',varunits))
    title({s1,pinfo.diagn_file},'interpreter','none','fontweight','bold')
+
+end
+
+
+function SqgTotalError( pinfo )
+%% -------------------------------------------------------------------
+% netcdf has no state vector, it has prognostic variables.
+% We are going to plot the total error (over a horizontal slice) 
+% for each variable and annotate an area-weighted total.
+%---------------------------------------------------------------------
+
+model     = nc_attget(pinfo.truth_file, nc_global, 'model');
+timeunits = nc_attget(pinfo.truth_file, 'time',    'units');
+
+tstart = pinfo.truth_time(1);
+tcount = pinfo.truth_time(2) - pinfo.truth_time(1) + 1;
+dstart = pinfo.diagn_time(1);
+dcount = pinfo.diagn_time(2) - pinfo.diagn_time(1) + 1;
+
+% Since the models are "compatible", get the info from either one.
+tlons    = nc_varget(pinfo.truth_file, 'lon' ); num_tlons  = length(tlons );
+tlats    = nc_varget(pinfo.truth_file, 'lat' ); num_tlats  = length(tlats );
+levels   = nc_varget(pinfo.truth_file, 'lev' ); num_levels = length(levels);
+ens_mems = nc_varget(pinfo.diagn_file, 'copy'); ens_size   = length(ens_mems);
+
+times         = nc_varget(pinfo.truth_file, 'time', tstart-1, tcount);
+num_times     = length(times );
+
+% Try to coordinate "time" ... a poor attempt, needs refining
+ens_times     = nc_varget(pinfo.diagn_file, 'time', dstart-1, dcount);
+num_ens_times = length(ens_times);
+if num_ens_times < num_times
+   times     =     ens_times;
+   num_times = num_ens_times;
+end
+
+% Initialize storage for error averaging
+rms          = zeros(num_times, pinfo.num_state_vars, num_levels);
+spread_final = zeros(num_times, pinfo.num_state_vars, num_levels);
+
+% Get the indices for the true state, ensemble mean and spread                  
+% The metadata is queried to determine which "copy" is appropriate.             
+truth_index      = get_copy_index(pinfo.truth_file, 'true state');
+ens_mean_index   = get_copy_index(pinfo.diagn_file, 'ensemble mean');
+ens_spread_index = get_copy_index(pinfo.diagn_file, 'ensemble spread');
+
+% Calculate weights for area-averaging.
+twts = reshape(SphereWeights(tlons, tlats),1,num_tlats*num_tlons);
+
+%----------------------------------------------------------------------
+% Trying not to assume we can get the whole 3D array at once.
+% total_err needs a   num_times-x-num_lats*num_lons   2Darray.
+%----------------------------------------------------------------------
+
+for ilevel = 1:num_levels,
+for ivar=1:pinfo.num_state_vars,
+
+   fprintf('Processing level %d of %d ...\n',ilevel,num_levels)
+
+   truth3D  = get_hyperslab('levelindex',ilevel,              'varname',pinfo.vars{ivar}, ...
+                            'copyindex', truth_index,         'fname',  pinfo.truth_file, ...
+                            'tindex1',   pinfo.truth_time(1), 'tcount', pinfo.truth_time(2));
+
+   ens3D    = get_hyperslab('levelindex',ilevel,              'varname',pinfo.vars{ivar}, ...
+                            'copyindex', ens_mean_index,      'fname',  pinfo.diagn_file, ...
+                            'tindex1',   pinfo.diagn_time(1), 'tcount', pinfo.diagn_time(2));
+
+   spread3D = get_hyperslab('levelindex',ilevel,              'varname',pinfo.vars{ivar}, ...
+                            'copyindex', ens_spread_index,    'fname',  pinfo.diagn_file, ...
+                            'tindex1',   pinfo.diagn_time(1), 'tcount', pinfo.diagn_time(2));
+
+   truth  = reshape( truth3D, num_times, num_tlats*num_tlons); clear truth3D
+   ens    = reshape(   ens3D, num_times, num_tlats*num_tlons); clear ens3D
+   spread = reshape(spread3D, num_times, num_tlats*num_tlons); clear spread3D
+   
+   err        = total_err(              truth,    ens, twts);
+   err_spread = total_err(zeros(size(spread)), spread, twts);
+
+            rms(:, ivar, ilevel) = err;
+   spread_final(:, ivar, ilevel) = err_spread;
+
+end
+end
+
+clear truth ens spread err err_spread
+
+%----------------------------------------------------------------------
+% Each variable in its own figure window
+%----------------------------------------------------------------------
+for ivar=1:pinfo.num_state_vars,
+
+   figure(ivar); clf;
+
+      varunits = nc_attget(pinfo.truth_file, pinfo.vars{ivar}, 'units');
+
+      s1 = sprintf('%s %s Ensemble Mean for %s', model,pinfo.vars{ivar});
+
+      switch lower(pinfo.vars{ivar})
+         case {'ps'}
+            h1 = plot(times,          rms(:, ivar, 1), '-'); hold on;
+            h2 = plot(times, spread_final(:, ivar, 1), '--');
+
+            s{1} = sprintf('time-mean Ensemble Mean error  = %f', mean(         rms(:, ivar, 1)));
+            s{2} = sprintf('time-mean Ensemble Spread = %f',      mean(spread_final(:, ivar, 1)));
+         otherwise
+            h1 = plot(times, squeeze(         rms(:, ivar, :)),'-'); hold on;
+            h2 = plot(times, squeeze(spread_final(:, ivar, :)),'--');
+
+            for i = 1:num_levels,
+               s{i           } = sprintf('level %d error  %.3f', i,mean(         rms(:, ivar, i)));
+               s{i+num_levels} = sprintf('level %d spread %.3f', i,mean(spread_final(:, ivar, i)));
+            end
+      end
+
+      %h = legend([h1 h2],s); legend(h,'boxoff')
+      h = legend(s); legend(h,'boxoff')
+      grid on;
+      xlabel(sprintf('time (%s) %d timesteps',timeunits,num_times))
+      ylabel(sprintf('global-area-weighted distance (%s)',varunits))
+      title({s1,pinfo.diagn_file},'interpreter','none','fontweight','bold')
 
 end
 

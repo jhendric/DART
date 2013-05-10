@@ -58,29 +58,33 @@ switch lower(pinfo.model)
       fprintf('Using Variable %s IDs %s\n', pinfo.var,num2str(pinfo.var_inds))
       clear varid
 
-   case 'fms_bgrid'
+   case {'fms_bgrid'}
 
       pinfo = GetBgridInfo(pinfo, truth_file, 'PlotEnsErrSpread');
 
-   case 'cam'
+   case {'cam'}
 
       pinfo = GetCamInfo(pinfo, truth_file, 'PlotEnsErrSpread');
 
-   case 'wrf'
+   case {'wrf'}
 
       pinfo = GetWRFInfo(pinfo, truth_file, 'PlotEnsErrSpread');
 
-   case 'pe2lyr'
+   case {'pe2lyr'}
 
       pinfo = GetPe2lyrInfo(pinfo, truth_file, 'PlotEnsErrSpread');
 
-   case 'mitgcm_ocean'
+   case {'mitgcm_ocean'}
 
       pinfo = GetMITgcm_oceanInfo(pinfo, truth_file, 'PlotEnsErrSpread');
 
-   case 'mpas_atm'
+   case {'mpas_atm'}
 
       pinfo = GetMPAS_ATMInfo(pinfo, truth_file, 'PlotEnsErrSpread');
+
+   case {'sqg'}
+
+      pinfo = GetSqgInfo(pinfo, truth_file, 'PlotEnsErrSpread');
 
    otherwise
 
