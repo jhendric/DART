@@ -4,12 +4,6 @@
 
 module model_mod
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 ! This is the interface between the Community Land Model (CLM) and DART.
 ! The following is the hierarchy as I see it:
 ! top ... a gridcell has one or more more landunits
@@ -199,7 +193,7 @@ type(progvartype), dimension(max_state_variables) :: progvar
 ! Things that come from the CLM history file.
 !
 ! The LON,LAT arrays store the longitude and latitude of grid cell centers.
-! For the FV cores, there actually are cells CENTERED at the poles.
+! For the FV cores, there actually _are_ cells CENTERED at the poles.
 
 integer :: nlon     = -1
 integer :: nlonatm  = -1
@@ -209,11 +203,13 @@ integer :: nlatatm  = -1
 integer :: nlatrof  = -1
 integer :: nlevgrnd = -1 ! Number of soil levels
 
-real(r8), allocatable ::    LEVGRND(:)
-real(r8), allocatable ::        LON(:)
-real(r8), allocatable ::        LAT(:)
-real(r8), allocatable ::     AREA(:,:)
-real(r8), allocatable :: LANDFRAC(:,:)
+real(r8), allocatable :: LEVGRND(:)
+real(r8), allocatable ::     LON(:)
+real(r8), allocatable ::     LAT(:)
+real(r8), allocatable ::  AREA1D(:),   LANDFRAC1D(:)   ! unstructured grid
+real(r8), allocatable ::  AREA2D(:,:), LANDFRAC2D(:,:) ! 2D grid 
+
+logical :: unstructured = .false.
 
 !------------------------------------------------------------------------------
 ! Things that come from the CLM restart file.
@@ -472,11 +468,15 @@ call error_handler(E_MSG,'static_init_model',string1,source,revision,revdate)
 ! do not have the full lat/lon arrays nor any depth information.
 !
 ncid = 0; ! signal that netcdf file is closed
-! call get_history_dims(ncid, clm_history_filename, 'open', nlon, nlat, nlevgrnd, nlonatm, nlatatm, nlonrof, nlatrof)
 call get_history_dims(ncid, clm_history_filename, 'open', nlon, nlat, nlevgrnd )
 
-allocate(LON(nlon), LAT(nlat), AREA(nlon,nlat), LANDFRAC(nlon,nlat) )
-allocate(LEVGRND(nlevgrnd))
+if (unstructured) then
+   allocate( AREA1D(nlon),      LANDFRAC1D(nlon) )
+else
+   allocate( AREA2D(nlon,nlat), LANDFRAC2D(nlon,nlat) )
+endif
+
+allocate(LON(nlon), LAT(nlat),  LEVGRND(nlevgrnd))
 
 call get_full_grid(ncid, clm_history_filename, 'close')
 
@@ -704,40 +704,64 @@ do ivar=1, nfields
          CASE ("gridcell")
             do i = 1, progvar(ivar)%dimlens(1)
                xi             = grid1d_ixy(i)
-               xj             = grid1d_jxy(i)
-               lonixy(  indx) = xi
-               latjxy(  indx) = xj
-               landarea(indx) = AREA(xi,xj) * LANDFRAC(xi,xj)
+               xj             = grid1d_jxy(i) ! always unity if unstructured
+               if (unstructured) then
+                  lonixy(  indx) = xi
+                  latjxy(  indx) = xi
+                  landarea(indx) = AREA1D(xi) * LANDFRAC1D(xi)
+               else
+                  lonixy(  indx) = xi
+                  latjxy(  indx) = xj
+                  landarea(indx) = AREA2D(xi,xj) * LANDFRAC2D(xi,xj)
+               endif
                indx = indx + 1
             enddo
 
          CASE ("landunit")
             do i = 1, progvar(ivar)%dimlens(1)
                xi             = land1d_ixy(i)
-               xj             = land1d_jxy(i)
-               lonixy(  indx) = xi
-               latjxy(  indx) = xj
-               landarea(indx) = AREA(xi,xj) * LANDFRAC(xi,xj) * land1d_wtxy(i)
+               xj             = land1d_jxy(i) ! always unity if unstructured
+               if (unstructured) then
+                  lonixy(  indx) = xi
+                  latjxy(  indx) = xi
+                  landarea(indx) = AREA1D(xi) * LANDFRAC1D(xi) * land1d_wtxy(i)
+               else
+                  lonixy(  indx) = xi
+                  latjxy(  indx) = xj
+                  landarea(indx) = AREA2D(xi,xj) * LANDFRAC2D(xi,xj) * land1d_wtxy(i)
+               endif
                indx = indx + 1
             enddo
 
          CASE ("column")
             do i = 1, progvar(ivar)%dimlens(1)
                xi             = cols1d_ixy(i)
-               xj             = cols1d_jxy(i)
-               lonixy(  indx) = xi
-               latjxy(  indx) = xj
-               landarea(indx) = AREA(xi,xj) * LANDFRAC(xi,xj) * cols1d_wtxy(i)
+               xj             = cols1d_jxy(i) ! always unity if unstructured
+               if (unstructured) then
+                  lonixy(  indx) = xi
+                  latjxy(  indx) = xi
+                  landarea(indx) = AREA1D(xi) * LANDFRAC1D(xi) * cols1d_wtxy(i)
+               else
+                  lonixy(  indx) = xi
+                  latjxy(  indx) = xj
+                  landarea(indx) = AREA2D(xi,xj) * LANDFRAC2D(xi,xj) * cols1d_wtxy(i)
+               endif
                indx = indx + 1
             enddo
 
          CASE ("pft")
             do i = 1, progvar(ivar)%dimlens(1)
                xi             = pfts1d_ixy(i)
-               xj             = pfts1d_jxy(i)
-               lonixy(  indx) = xi
-               latjxy(  indx) = xj
-               landarea(indx) = AREA(xi,xj) * LANDFRAC(xi,xj) * pfts1d_wtxy(i)
+               xj             = pfts1d_jxy(i) ! always unity if unstructured
+               if (unstructured) then
+                  lonixy(  indx) = xi
+                  latjxy(  indx) = xi
+                  landarea(indx) = AREA1D(xi) * LANDFRAC1D(xi) * pfts1d_wtxy(i)
+               else
+                  lonixy(  indx) = xi
+                  latjxy(  indx) = xj
+                  landarea(indx) = AREA2D(xi,xj) * LANDFRAC2D(xi,xj) * pfts1d_wtxy(i)
+               endif
                indx = indx + 1
             enddo
 
@@ -765,11 +789,17 @@ do ivar=1, nfields
             if ((debug > 8) .and. do_output()) write(*,*)'length grid1d_ixy ',size(grid1d_ixy)
             do j = 1, progvar(ivar)%dimlens(2)
                xi = grid1d_ixy(j)
-               xj = grid1d_jxy(j)
+               xj = grid1d_jxy(j) ! always unity if unstructured
                do i = 1, progvar(ivar)%dimlens(1)
-                  lonixy(  indx) = xi
-                  latjxy(  indx) = xj
-                  landarea(indx) = AREA(xi,xj) * LANDFRAC(xi,xj)
+                  if (unstructured) then
+                     lonixy(  indx) = xi
+                     latjxy(  indx) = xi
+                     landarea(indx) = AREA1D(xi) * LANDFRAC1D(xi)
+                  else
+                     lonixy(  indx) = xi
+                     latjxy(  indx) = xj
+                     landarea(indx) = AREA2D(xi,xj) * LANDFRAC2D(xi,xj)
+                  endif
                   indx = indx + 1
                enddo
             enddo
@@ -778,11 +808,17 @@ do ivar=1, nfields
             if ((debug > 8) .and. do_output()) write(*,*)'length land1d_ixy ',size(land1d_ixy)
             do j = 1, progvar(ivar)%dimlens(2)
                xi = land1d_ixy(j)
-               xj = land1d_jxy(j)
+               xj = land1d_jxy(j) ! always unity if unstructured
                do i = 1, progvar(ivar)%dimlens(1)
-                  lonixy(  indx) = xi
-                  latjxy(  indx) = xj
-                  landarea(indx) = AREA(xi,xj) * LANDFRAC(xi,xj) * land1d_wtxy(j)
+                  if (unstructured) then
+                     lonixy(  indx) = xi
+                     latjxy(  indx) = xi
+                     landarea(indx) = AREA1D(xi) * LANDFRAC1D(xi) * land1d_wtxy(j)
+                  else
+                     lonixy(  indx) = xi
+                     latjxy(  indx) = xj
+                     landarea(indx) = AREA2D(xi,xj) * LANDFRAC2D(xi,xj) * land1d_wtxy(j)
+                  endif
                   indx = indx + 1
                enddo
             enddo
@@ -798,16 +834,22 @@ do ivar=1, nfields
             if ((debug > 8) .and. do_output()) write(*,*)'nlevsno ',nlevsno
 
             LANDCOLUMN : do j = 1, progvar(ivar)%dimlens(2)
-               xi = cols1d_ixy(j)
-               xj = cols1d_jxy(j)
 
                call fill_levels(progvar(ivar)%dimnames(1),j,progvar(ivar)%dimlens(1),levtot)
 
+               xi = cols1d_ixy(j)
+               xj = cols1d_jxy(j) ! always unity if unstructured
                VERTICAL :  do i = 1, progvar(ivar)%dimlens(1)
                   levels(  indx) = levtot(i)
-                  lonixy(  indx) = xi
-                  latjxy(  indx) = xj
-                  landarea(indx) = AREA(xi,xj) * LANDFRAC(xi,xj) * cols1d_wtxy(j)
+                  if (unstructured) then
+                     lonixy(  indx) = xi
+                     latjxy(  indx) = xi
+                     landarea(indx) = AREA1D(xi) * LANDFRAC1D(xi) * cols1d_wtxy(j)
+                  else
+                     lonixy(  indx) = xi
+                     latjxy(  indx) = xj
+                     landarea(indx) = AREA2D(xi,xj) * LANDFRAC2D(xi,xj) * cols1d_wtxy(j)
+                  endif
                   indx = indx + 1
                enddo VERTICAL
             enddo LANDCOLUMN
@@ -816,11 +858,17 @@ do ivar=1, nfields
             if ((debug > 8) .and. do_output()) write(*,*)'length pfts1d_ixy ',size(pfts1d_ixy)
             do j = 1, progvar(ivar)%dimlens(2)
                xi = pfts1d_ixy(j)
-               xj = pfts1d_jxy(j)
+               xj = pfts1d_jxy(j) ! always unity if unstructured
                do i = 1, progvar(ivar)%dimlens(1)
-                  lonixy(  indx) = xi
-                  latjxy(  indx) = xj
-                  landarea(indx) = AREA(xi,xj) * LANDFRAC(xi,xj) * pfts1d_wtxy(j)
+                  if (unstructured) then
+                     lonixy(  indx) = xi
+                     latjxy(  indx) = xi
+                     landarea(indx) = AREA1D(xi) * LANDFRAC1D(xi) * pfts1d_wtxy(j)
+                  else
+                     lonixy(  indx) = xi
+                     latjxy(  indx) = xj
+                     landarea(indx) = AREA2D(xi,xj) * LANDFRAC2D(xi,xj) * pfts1d_wtxy(j)
+                  endif
                   indx = indx + 1
                enddo
             enddo
@@ -861,7 +909,13 @@ subroutine end_model()
 
 ! if ( .not. module_initialized ) call static_init_model
 
-deallocate(LAT, LON, AREA, LANDFRAC, LEVGRND)
+if (unstructured) then
+   deallocate(AREA1D, LANDFRAC1D)
+else
+   deallocate(AREA2D, LANDFRAC2D)
+endif
+
+deallocate(LAT, LON, LEVGRND)
 deallocate(grid1d_ixy, grid1d_jxy)
 deallocate(land1d_ixy, land1d_jxy, land1d_wtxy)
 deallocate(cols1d_ixy, cols1d_jxy, cols1d_wtxy)
@@ -1174,18 +1228,30 @@ else
                  'nc_write_model_atts', 'levgrnd units '//trim(filename))
 
    ! grid cell areas
-   call nc_check(nf90_def_var(ncFileID,name='area', xtype=nf90_real, &
+   if (unstructured) then
+      call nc_check(nf90_def_var(ncFileID,name='area', xtype=nf90_real, &
+                 dimids=(/ NlonDimID /), varid=VarID),&
+                 'nc_write_model_atts', 'area def_var '//trim(filename))
+   else
+      call nc_check(nf90_def_var(ncFileID,name='area', xtype=nf90_real, &
                  dimids=(/ NlonDimID,nlatDimID /), varid=VarID),&
                  'nc_write_model_atts', 'area def_var '//trim(filename))
+   endif
    call nc_check(nf90_put_att(ncFileID,  VarID, 'long_name', 'grid cell areas'), &
                  'nc_write_model_atts', 'area long_name '//trim(filename))
    call nc_check(nf90_put_att(ncFileID,  VarID, 'units', 'km^2'),  &
                  'nc_write_model_atts', 'area units '//trim(filename))
 
    ! grid cell land fractions
-   call nc_check(nf90_def_var(ncFileID,name='landfrac', xtype=nf90_real, &
+   if (unstructured) then
+      call nc_check(nf90_def_var(ncFileID,name='landfrac', xtype=nf90_real, &
+                 dimids=(/ NlonDimID /), varid=VarID),&
+                 'nc_write_model_atts', 'landfrac def_var '//trim(filename))
+   else
+      call nc_check(nf90_def_var(ncFileID,name='landfrac', xtype=nf90_real, &
                  dimids=(/ NlonDimID,nlatDimID /), varid=VarID),&
                  'nc_write_model_atts', 'landfrac def_var '//trim(filename))
+   endif
    call nc_check(nf90_put_att(ncFileID,  VarID, 'long_name', 'land fraction'), &
                  'nc_write_model_atts', 'landfrac long_name '//trim(filename))
    call nc_check(nf90_put_att(ncFileID,  VarID, 'units', 'km^2'),  &
@@ -1308,15 +1374,28 @@ else
    call nc_check(nf90_put_var(ncFileID, VarID, LEVGRND ), &
                 'nc_write_model_atts', 'levgrnd put_var '//trim(filename))
 
+   ! AREA can be 1D or 2D 
    call nc_check(nf90_inq_varid(ncFileID, 'area', VarID), &
                 'nc_write_model_atts', 'put_var area '//trim(filename))
-   call nc_check(nf90_put_var(ncFileID, VarID, AREA ), &
+   if (unstructured) then
+      call nc_check(nf90_put_var(ncFileID, VarID, AREA1D ), &
                 'nc_write_model_atts', 'area put_var '//trim(filename))
+   else
+      call nc_check(nf90_put_var(ncFileID, VarID, AREA2D ), &
+                'nc_write_model_atts', 'area put_var '//trim(filename))
+   endif
 
+
+   ! LANDFRAC can be 1D or 2D 
    call nc_check(nf90_inq_varid(ncFileID, 'landfrac', VarID), &
                 'nc_write_model_atts', 'put_var landfrac '//trim(filename))
-   call nc_check(nf90_put_var(ncFileID, VarID, LANDFRAC ), &
+   if (unstructured) then
+      call nc_check(nf90_put_var(ncFileID, VarID, LANDFRAC1D ), &
                 'nc_write_model_atts', 'landfrac put_var '//trim(filename))
+   else
+      call nc_check(nf90_put_var(ncFileID, VarID, LANDFRAC2D ), &
+                'nc_write_model_atts', 'landfrac put_var '//trim(filename))
+   endif
 
    call nc_check(nf90_inq_varid(ncFileID, 'cols1d_ixy', VarID), &
                 'nc_write_model_atts', 'put_var cols1d_ixy '//trim(filename))
@@ -2667,21 +2746,37 @@ if (ncid == 0) then ! we need to open it
        'get_history_dims','open '//trim(fname))
 endif
 
-call nc_check(nf90_inq_dimid(ncid, 'lon', dimid), &
-            'get_history_dims','inq_dimid lon '//trim(fname))
-call nc_check(nf90_inquire_dimension(ncid, dimid, len=lon), &
-            'get_history_dims','inquire_dimension lon '//trim(fname))
+! The new SingleColumn (and unstructured grid) configurations
+! do not have a 'lon' and 'lat' dimension. There is only 'lndgrid'
 
-call nc_check(nf90_inq_dimid(ncid, 'lat', dimid), &
-            'get_history_dims','inq_dimid lat '//trim(fname))
-call nc_check(nf90_inquire_dimension(ncid, dimid, len=lat), &
-            'get_history_dims','inquire_dimension lat '//trim(fname))
+if ( nf90_inq_dimid(ncid, 'lndgrid', dimid) == NF90_NOERR ) unstructured = .true.
+
+if (unstructured) then ! use the lndgrid dimension for both lon and lat
+
+      call nc_check(nf90_inq_dimid(ncid, 'lndgrid', dimid), &
+                  'get_history_dims','inq_dimid lndgrid '//trim(fname))
+      call nc_check(nf90_inquire_dimension(ncid, dimid, len=lon), &
+                  'get_history_dims','inquire_dimension lndgrid '//trim(fname))
+      lat = lon
+
+else
+
+    call nc_check(nf90_inq_dimid(ncid, 'lon', dimid), &
+                'get_history_dims','inq_dimid lon '//trim(fname))
+    call nc_check(nf90_inquire_dimension(ncid, dimid, len=lon), &
+                'get_history_dims','inquire_dimension lon '//trim(fname))
+
+    call nc_check(nf90_inq_dimid(ncid, 'lat', dimid), &
+                'get_history_dims','inq_dimid lat '//trim(fname))
+    call nc_check(nf90_inquire_dimension(ncid, dimid, len=lat), &
+                'get_history_dims','inquire_dimension lat '//trim(fname))
+
+endif
 
 call nc_check(nf90_inq_dimid(ncid, 'levgrnd', dimid), &
             'get_history_dims','inq_dimid levgrnd '//trim(fname))
 call nc_check(nf90_inquire_dimension(ncid, dimid, len=levgrnd), &
             'get_history_dims','inquire_dimension levgrnd '//trim(fname))
-
 
 if (present(lonatm)) then
    call nc_check(nf90_inq_dimid(ncid, 'lonatm', dimid), &
@@ -2769,12 +2864,19 @@ endif
 
 call DART_get_var(ncid,'lon'     ,LON)
 call DART_get_var(ncid,'lat'     ,LAT)
-call DART_get_var(ncid,'area'    ,AREA)
-call DART_get_var(ncid,'landfrac',LANDFRAC)
 call DART_get_var(ncid,'levgrnd' ,LEVGRND)
+if (unstructured) then
+   call DART_get_var(ncid,'area'    ,AREA1D)
+   call DART_get_var(ncid,'landfrac',LANDFRAC1D)
+   where(AREA1D     == MISSING_R8) AREA1D     = 0.0_r8
+   where(LANDFRAC1D == MISSING_R8) LANDFRAC1D = 0.0_r8
+else
+   call DART_get_var(ncid,'area'    ,AREA2D)
+   call DART_get_var(ncid,'landfrac',LANDFRAC2D)
+   where(AREA2D     == MISSING_R8) AREA2D     = 0.0_r8
+   where(LANDFRAC2D == MISSING_R8) LANDFRAC2D = 0.0_r8
+endif
 
-where(AREA     == MISSING_R8) AREA     = 0.0_r8
-where(LANDFRAC == MISSING_R8) LANDFRAC = 0.0_r8
 
 ! just to make sure we are [0,360] and [-90,90]
 
@@ -2802,19 +2904,26 @@ if ((debug > 7) .and. do_output()) then
    write(logfileunit,*)'history_file grid information as interpreted ...'
    write(logfileunit,*)'lon      range ',minval(LON     ),maxval(LON     )
    write(logfileunit,*)'lat      range ',minval(LAT     ),maxval(LAT     )
-   write(logfileunit,*)'area     range ',minval(AREA    ),maxval(AREA    )
-   write(logfileunit,*)'landfrac range ',minval(LANDFRAC),maxval(LANDFRAC)
    write(logfileunit,*)'levgrnd  range ',minval(LEVGRND ),maxval(LEVGRND )
    write(logfileunit,*)'levgrnd  is ',LEVGRND
-
    write(     *     ,*)
    write(     *     ,*)'history_file grid information as interpreted ...'
    write(     *     ,*)'lon      range ',minval(LON     ),maxval(LON     )
    write(     *     ,*)'lat      range ',minval(LAT     ),maxval(LAT     )
-   write(     *     ,*)'area     range ',minval(AREA    ),maxval(AREA    )
-   write(     *     ,*)'landfrac range ',minval(LANDFRAC),maxval(LANDFRAC)
    write(     *     ,*)'levgrnd  range ',minval(LEVGRND ),maxval(LEVGRND )
    write(     *     ,*)'levgrnd  is ',LEVGRND
+
+   if (unstructured) then
+      write(logfileunit,*)'area     range ',minval(AREA1D    ),maxval(AREA1D    )
+      write(logfileunit,*)'landfrac range ',minval(LANDFRAC1D),maxval(LANDFRAC1D)
+      write(     *     ,*)'area     range ',minval(AREA1D    ),maxval(AREA1D    )
+      write(     *     ,*)'landfrac range ',minval(LANDFRAC1D),maxval(LANDFRAC1D)
+   else
+      write(logfileunit,*)'area     range ',minval(AREA2D    ),maxval(AREA2D    )
+      write(logfileunit,*)'landfrac range ',minval(LANDFRAC2D),maxval(LANDFRAC2D)
+      write(     *     ,*)'area     range ',minval(AREA2D    ),maxval(AREA2D    )
+      write(     *     ,*)'landfrac range ',minval(LANDFRAC2D),maxval(LANDFRAC2D)
+   endif
 
 endif
 
@@ -3877,3 +3986,10 @@ end function findVarindex
 ! End of model_mod
 !===================================================================
 end module model_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

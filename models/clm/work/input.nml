@@ -126,10 +126,13 @@
    /
 
 
-#  casename will get overwritten in the assimilate.csh script.
+# casename will get overwritten in the assimilate.csh script.
+# hist_nhtfrq should be negative (hours) ... same context as in
+# the CLM namelist for the .h1. files.
 &obs_def_tower_nml
-   casename = '../clm_dart',
-   debug    = .true.
+   casename    = '../clm_dart',
+   debug       = .true.
+   hist_nhtfrq = -24,
    /
 
 
