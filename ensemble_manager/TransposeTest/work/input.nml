@@ -44,7 +44,9 @@
 
 &ensemble_manager_nml
    single_restart_file_in  = .false.,
-   single_restart_file_out = .false. /
+   single_restart_file_out = .false. 
+   layout = 3, 
+   tasks_per_node = 3 / 
 
 &smoother_nml
    num_lags              = 0
@@ -349,11 +351,11 @@
 /
 
 &timing_nml
-   debug_flag = 0 ,
-   n_repeats = 2,
-   timing_ens_size = 80,
-   ens_size_extras = 4
+   n_repeats = 1,
+   timing_ens_size = 3,
+   ens_size_extras = 6
    min_array_length = 2000,
-   inc_array_length = 10,
-   max_array_length = 4000,
+   inc_array_length = 2000,
+   max_array_length = 2000,
+   record_transpose = .true.
 /

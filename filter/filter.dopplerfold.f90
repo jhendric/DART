@@ -570,7 +570,7 @@ AdvanceTime : do
 
    ! Broadcast it to everybody else
    if(ens_handle%my_pe == mean_owner) then
-   ! Make sure the timestamp for the mean is the current time.
+      ! Make sure the timestamp for the mean is the current time.
       call set_ensemble_time(ens_handle, mean_owners_index, curr_ens_time)
       ens_mean = ens_handle%vars(:, mean_owners_index)
       call broadcast_send(my_task_id(), ens_mean)
@@ -1702,10 +1702,9 @@ real(r8) :: rtime(4)
 integer  :: days, secs
 integer  :: owner, owner_index
 
-! this should be 'do i own member 1' and not assume that task 0 gets
-! member 1.
-! HK you could do this with get_copy_owner_index
-if( ens_handle%my_pe == 0) then 
+call get_copy_owner_index(1, copy1_owner, owner_index)
+
+if( ens_handle%my_pe == copy1_owner) then
    rkey_bounds = key_bounds
    rnum_obs_in_set(1) = num_obs_in_set
    call get_time(time1, secs, days)

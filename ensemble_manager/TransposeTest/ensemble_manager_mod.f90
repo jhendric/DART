@@ -6,9 +6,9 @@ module ensemble_manager_mod
 
 ! <next few lines under version control, do not edit>
 ! $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/development/ensemble_manager/ensemble_manager_mod.f90 $
-! $Id: ensemble_manager_mod.f90 5635 2012-03-30 19:18:58Z nancy $
-! $Revision: 5635 $
-! $Date: 2012-03-30 13:18:58 -0600 (Fri, 30 Mar 2012) $
+! $Id: ensemble_manager_mod.f90 5994 2013-03-12 20:50:17Z hkershaw $
+! $Revision: 5994 $
+! $Date: 2013-03-12 14:50:17 -0600 (Tue, 12 Mar 2013) $
 
 ! Manages a data structure that is composed of copies of a vector of variables.
 ! The general data structure simply represents this two-dimensional array but
@@ -36,8 +36,8 @@ private
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
    source   = "$URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/development/ensemble_manager/ensemble_manager_mod.f90 $", &
-   revision = "$Revision: 5635 $", &
-   revdate  = "$Date: 2012-03-30 13:18:58 -0600 (Fri, 30 Mar 2012) $"
+   revision = "$Revision: 5994 $", &
+   revdate  = "$Date: 2013-03-12 14:50:17 -0600 (Tue, 12 Mar 2013) $"
 
 !PAR other storage option control can be implemented here. In particular, want to find
 !PAR some way, either allocating or multiple addressing, to use same chunk of storage
@@ -73,6 +73,7 @@ character(len = 129) :: errstring
 
 ! Module storage for pe information for this process avoids recomputation
 integer              :: my_pe, num_pes
+public my_pe
 
 !-----------------------------------------------------------------
 !
@@ -86,11 +87,15 @@ logical  :: single_restart_file_in  = .true.
 logical  :: single_restart_file_out = .true.
 ! Size of perturbations for creating ensembles when model won't do it
 real(r8) :: perturbation_amplitude  = 0.2_r8
+!HK options to change order of communiation loops
+logical  :: use_copy2var_send_loop = .true.
+logical  :: use_var2copy_rec_loop = .true.
 
 namelist / ensemble_manager_nml / single_restart_file_in,  &
                                   single_restart_file_out, &
-                                  perturbation_amplitude
-
+                                  perturbation_amplitude,  &
+                                  use_copy2var_send_loop,  &
+                                  use_var2copy_rec_loop
 !-----------------------------------------------------------------
 
 contains
@@ -464,7 +469,7 @@ if(my_pe == sending_pe) then
 endif
 
 ! Block of code that must be done by PE that stores the copy IF it is NOT sender
-if(my_pe == owner) then
+if(my_pe == owner) then !HELEN
    ! Need to receive copy from sending_pe
    if(present(mtime)) then
       call receive_from(sending_pe, ens_handle%vars(:, owners_index), ens_handle%time(owners_index))
@@ -834,9 +839,7 @@ end subroutine get_copy_list
 
 !-----------------------------------------------------------------
 
-subroutine all_vars_to_all_copies(ens_handle, printme, label)
-
-use MPI, only : MPI_WTIME
+subroutine all_vars_to_all_copies(ens_handle, label)
 
 ! Converts from having subset of copies of all variables to having
 ! all copies of a subset of variables on a given PE.
@@ -844,39 +847,19 @@ use MPI, only : MPI_WTIME
 ! updated version of the original routine.  here, all tasks send
 ! while 1 receives.  original was all tasks receiving while 1 sends.
 ! apparently the sends can overlap and the execution time is less.
+! HK Added namelist option (use_var2copy_rec_loop) to select updated
+! or original version of the routine. 
+!   Default: use updated version
 
 type (ensemble_type), intent(inout)        :: ens_handle
- character (len=*),    intent(in), optional :: label
-!HK
- integer, intent(in)  :: printme
+character (len=*),    intent(in), optional :: label
 
 integer,  allocatable :: var_list(:), copy_list(:)
 real(r8), allocatable :: transfer_temp(:)
 integer               :: num_copies, num_vars, my_num_vars, my_num_copies
 integer               :: max_num_vars, max_num_copies, num_copies_to_receive
-integer               :: sending_pe, recv_pe, k, sv, num_vars_to_send
+integer               :: sending_pe, recv_pe, k, sv, num_vars_to_send, copy
 integer               :: global_ens_index
-
-! HK initalize the times to negative numbers
-real(r8) :: start_receiving_pe_loop = -1000
-real(r8) :: finish_receiving_pe_loop = -2000
-
-real(r8) :: start_receive_from_each_loop = -1000
-real(r8) :: finish_receive_from_each_loop = -2000
-
-real(r8) :: start_all_my_copies_loop= -1000
-real(r8) :: finish_all_my_copies_loop= -2000
-
-real(r8) :: start_send_my_vars_loop = -1000
-real(r8) :: finish_send_my_vars_loop = -2000
-
-real(r8) :: start_copy_to_local_storage_loop = -1000
-real(r8) :: finish_copy_to_local_storage_loop = -1000
-
-real(r8) :: start_copy_send_is_rec_loop = -1000
-real(r8) :: finish_copy_send_is_rec_loop = -1000
-
-real(r8) :: start, finish
 
 ! only output if there is a label
 if (present(label)) then
@@ -904,79 +887,105 @@ max_num_copies = get_max_num_copies(num_copies)
 allocate(var_list(max_num_vars), transfer_temp(max_num_vars), &
    copy_list(max_num_copies))
 
-! Loop to give each pe a turn to receive its copies
- start_receiving_pe_loop = MPI_WTIME()
-RECEIVING_PE_LOOP: do recv_pe = 0, num_pes - 1
-   ! If I'm the receiving pe, do this block
-   if(my_pe == recv_pe) then
+if ( use_var2copy_rec_loop .eqv. .true. ) then ! use updated version
 
- !      call cpu_time(start_receive_from_each_loop)
-    start_receive_from_each_loop = MPI_WTIME()
-      ! Figure out what piece to receive from each other PE and receive it
-      RECEIVE_FROM_EACH: do sending_pe = 0, num_pes - 1
-         call get_copy_list(num_copies, sending_pe, copy_list, num_copies_to_receive)
+  ! Loop to give each pe a turn to receive its copies
+  RECEIVING_PE_LOOP: do recv_pe = 0, num_pes - 1
+     ! If I'm the receiving pe, do this block
+     if(my_pe == recv_pe) then
 
-         start_all_my_copies_loop = MPI_WTIME()
-         ! Loop to receive for each copy stored on my_pe
-         ALL_MY_COPIES: do k = 1, num_copies_to_receive 
+        ! Figure out what piece to receive from each other PE and receive it
+        RECEIVE_FROM_EACH: do sending_pe = 0, num_pes - 1
+           call get_copy_list(num_copies, sending_pe, copy_list, num_copies_to_receive)
 
-            global_ens_index = copy_list(k)
+           ! Loop to receive for each copy stored on my_pe
+           ALL_MY_COPIES: do k = 1, num_copies_to_receive
 
-            ! If sending_pe is receiving_pe, just copy
-            if(sending_pe == recv_pe) then
-                start_copy_send_is_rec_loop = MPI_WTIME()
+              global_ens_index = copy_list(k)
 
-               do sv = 1, my_num_vars
-                  ens_handle%copies(global_ens_index, sv) = ens_handle%vars(ens_handle%my_vars(sv), k)
-               end do
-              finish_copy_send_is_rec_loop = MPI_WTIME()
-
-            else
-               if (num_copies_to_receive > 0) then
-                  ! Otherwise, receive this part from the sending pe
-                  call receive_from(sending_pe, transfer_temp(1:my_num_vars)) 
+              ! If sending_pe is receiving_pe, just copy
+              if(sending_pe == recv_pe) then
+                 do sv = 1, my_num_vars
+                    ens_handle%copies(global_ens_index, sv) = ens_handle%vars(ens_handle%my_vars(sv), k)
+                 end do
+              else
+                 if (num_copies_to_receive > 0) then
+                    ! Otherwise, receive this part from the sending pe
+                    call receive_from(sending_pe, transfer_temp(1:my_num_vars))
    
-                  ! Copy the transfer array to my local storage
-                  ens_handle%copies(global_ens_index, :) = transfer_temp(1:my_num_vars)
-               endif
-            endif
-         end do ALL_MY_COPIES
-        finish_all_my_copies_loop = MPI_WTIME()
-
-      end do RECEIVE_FROM_EACH
-       finish_receive_from_each_loop = MPI_WTIME()
-
-   else
-      ! I'm the sending PE, figure out what vars of my copies I'll send.
-      call get_var_list(num_vars, recv_pe, var_list, num_vars_to_send)
+                    ! Copy the transfer array to my local storage
+                    ens_handle%copies(global_ens_index, :) = transfer_temp(1:my_num_vars)
+                 endif
+              endif
+           end do ALL_MY_COPIES
+        end do RECEIVE_FROM_EACH
+     else
+        ! I'm the sending PE, figure out what vars of my copies I'll send.
+        call get_var_list(num_vars, recv_pe, var_list, num_vars_to_send)
        
-      start_send_my_vars_loop = MPI_WTIME()
-      do k = 1, my_num_copies
-         do sv = 1, num_vars_to_send
-            ! Have to use temp because %var section is not contiguous storage
-            transfer_temp(sv) = ens_handle%vars(var_list(sv), k)
-         enddo
-         call send_to(recv_pe, transfer_temp(1:num_vars_to_send))
-      end do
-     finish_send_my_vars_loop = MPI_WTIME()
+        do k = 1, my_num_copies
+           do sv = 1, num_vars_to_send
+              ! Have to use temp because %var section is not contiguous storage
+              transfer_temp(sv) = ens_handle%vars(var_list(sv), k)
+           enddo
+           call send_to(recv_pe, transfer_temp(1:num_vars_to_send))
+        end do
+      
+     endif
+  end do RECEIVING_PE_LOOP
 
-   endif
+else ! use older version
 
-! collect together times
-if (printme==1) then
- write(0, *) 'Vreceive_from_each_loop ', recv_pe , my_task_id(), ':', finish_receive_from_each_loop - start_receive_from_each_loop
- write(0, *) 'Vall_my_copies_loop ', recv_pe, my_task_id(), ':', finish_all_my_copies_loop - start_all_my_copies_loop
-write(0, *) 'Vcopy_send_is_rec_loop ', recv_pe, my_task_id(), ':', finish_copy_send_is_rec_loop - start_copy_send_is_rec_loop
- write(0, *) 'Vcopy_to_local_storage_loop ', recv_pe, my_task_id(), ':', finish_copy_to_local_storage_loop - start_copy_to_local_storage_loop
-  write(0, *) 'Vsend_my_vars_loop ', recv_pe, my_task_id(), ':', finish_send_my_vars_loop - start_send_my_vars_loop
+  ! Loop to give each pe a turn to send its vars
+  SENDING_PE_LOOP: do sending_pe = 0, num_pes - 1
+    ! If I'm the sending pe, do this block
+    if(my_pe == sending_pe) then
+         ! Figure out what piece to send to each other PE and send it
+         SEND_TO_EACH: do recv_pe = 0, num_pes - 1
+           call get_var_list(num_vars, recv_pe, var_list, num_vars_to_send)
+
+           if (num_vars_to_send > 0) then
+             ! Loop to send these vars for each copy stored on my_pe
+             ALL_MY_COPIES_SEND_LOOP: do k = 1, my_num_copies
+
+                ! Fill up the transfer array
+                do sv = 1, num_vars_to_send
+                  transfer_temp(sv) = ens_handle%vars(var_list(sv), k)
+                end do
+
+               ! If sending_pe is receiving_pe, just copy
+               if(sending_pe == recv_pe) then
+                 global_ens_index = ens_handle%my_copies(k)
+                 ens_handle%copies(global_ens_index, :) = transfer_temp(1:num_vars_to_send)
+               else
+                 ! Otherwise, ship this off
+                 call send_to(recv_pe, transfer_temp(1:num_vars_to_send))
+               endif
+             end do ALL_MY_COPIES_SEND_LOOP
+           endif
+         end do SEND_TO_EACH
+
+    else
+       ! I'm not the sending PE, figure out what copies of my vars I'll receive from sending_pe
+        call get_copy_list(num_copies, sending_pe, copy_list, num_copies_to_receive)
+
+        do copy = 1, num_copies_to_receive
+          if (my_num_vars > 0) then
+            ! Have to  use temp because %copies section is not contiguous storage
+            call receive_from(sending_pe, transfer_temp(1:my_num_vars))
+            ! Figure out which global ensemble member this is
+            global_ens_index = copy_list(copy)
+            ! Store this chunk in my local storage
+            ens_handle%copies(global_ens_index, :) = transfer_temp(1:my_num_vars)
+         endif
+        end do
+
+    endif
+
+  end do SENDING_PE_LOOP
+
 endif
 
-end do RECEIVING_PE_LOOP
-
- finish_receiving_pe_loop = MPI_WTIME()
-if(printme==1) then
-  write(0, *) 'V2Creceiving_pe_loop ', my_task_id(), ':', finish_receiving_pe_loop - start_receiving_pe_loop
-endif
 
 ! Free up the temporary storage
 deallocate(var_list, transfer_temp, copy_list)
@@ -990,17 +999,13 @@ end subroutine all_vars_to_all_copies
 
 !-----------------------------------------------------------------
 
-subroutine all_copies_to_all_vars(ens_handle, printme,  label)
-
-use MPI, only : MPI_WTIME
+subroutine all_copies_to_all_vars(ens_handle, label)
 
 ! Converts from having subset of copies of all variables to having
 ! all copies of a subset of variables on a given PE.
 
 type (ensemble_type), intent(inout) :: ens_handle
- character (len=*),    intent(in), optional :: label
-!HK
- integer, intent(in) ::  printme
+character (len=*),    intent(in), optional :: label
 
 integer,  allocatable :: var_list(:), copy_list(:)
 real(r8), allocatable :: transfer_temp(:)
@@ -1009,27 +1014,8 @@ integer               :: max_num_vars, max_num_copies, num_vars_to_receive
 integer               :: sending_pe, recv_pe, k, sv, copy, num_copies_to_send
 integer               :: global_ens_index
 
-! HK:  brute force profling
-! initalize the times to negative numbers
-real(r8) :: start_receiving_pe_loop = -1000
-real(r8) :: finish_receiving_pe_loop = -2000
-
-real(r8) :: start_receive_from_each_loop = -1000
-real(r8) :: finish_receive_from_each_loop = -2000
-
-real(r8) :: start_all_my_copies_loop= -1000
-real(r8) :: finish_all_my_copies_loop= -2000
-
-real(r8) :: start_copies_to_send_loop = -1000
-real(r8) :: finish_copies_to_send_loop = -2000
-
-real(r8) :: start_copy_to_local_storage_loop = -1000
-real(r8) :: finish_copy_to_local_storage_loop = -1000
-
-real(r8) :: start_copy_send_is_rec_loop = -1000
-real(r8) :: finish_copy_send_is_rec_loop = -1000
-
-real(r8) :: start, finish
+!HK loop limit 
+integer               :: send_limit
 
 ! only output if there is a label
 if (present(label)) then
@@ -1057,67 +1043,120 @@ max_num_copies = get_max_num_copies(num_copies)
 allocate(var_list(max_num_vars), transfer_temp(max_num_vars), &
    copy_list(max_num_copies))
 
-! Loop to give each pe a turn to receive its vars
 
-! call cpu_time(start_receiving_pe_loop)
- start_receiving_pe_loop = MPI_WTIME()
+if (use_copy2var_send_loop .eqv. .true. ) then
+!HK Switched loop index from receiving_pe to sending_pe
+! Aim: to make the commication scale better on Yellowstone, as num_pes >> ens_size
+! For small numbers of tasks (32 or less) the recieving_pe loop may be faster.
+! Namelist option use_copy2var_send_loop can be used to select which
+! communication pattern to use
+!    Default: use sending_pe loop (use_copy2var_send_loop = .true.)
+
+SEND_LOOP: do sending_pe = 0, num_pes - 1
+
+     if (my_task_id() /= sending_pe ) then  
+
+        ! figure out what piece to recieve from each other PE and recieve it
+        !    note:  num_vars_to_recive is 0 if I do not have an enemsble member
+        call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
+
+        ! Loop to receive these vars for each copy stored on my_pe
+        ALL_MY_COPIES_SEND_LOOP: do k = 1, my_num_copies
+
+          call receive_from(sending_pe, transfer_temp(1:num_vars_to_receive))
+
+          ! Copy the transfer array to my local storage
+          do sv = 1, num_vars_to_receive
+             ens_handle%vars(var_list(sv), k) = transfer_temp(sv)
+          enddo
+
+        enddo ALL_MY_COPIES_SEND_LOOP
+
+     endif
+
+     if (my_task_id() == sending_pe) then
+   
+         do recv_pe = 0, num_pes - 1 
+
+           ! I'm the sending PE, figure out what copies of my vars I'll send
+           call get_copy_list(num_copies, recv_pe, copy_list, num_copies_to_send)
+
+           send_copies: do copy = 1, num_copies_to_send
+
+               if (my_task_id() /= recv_pe ) then 
+ 
+                  if (my_num_vars > 0) then
+
+                   transfer_temp(1:my_num_vars) = ens_handle%copies(copy_list(copy), :)
+
+                  ! Have to  use temp because %copies section is not contiguous storage
+                   call send_to(recv_pe, transfer_temp(1:my_num_vars))
+                  endif
+       
+               else
+
+                ! figure out what piece to recieve from myself and recieve it
+                call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
+
+                  do k = 1,  my_num_copies
+
+                    ! sending to yourself so just copy
+                    global_ens_index = ens_handle%my_copies(k)
+                    do sv = 1, num_vars_to_receive
+                      ens_handle%vars(var_list(sv), k) = ens_handle%copies(global_ens_index, sv)
+                    end do
+
+                 enddo
+
+               endif
+
+           enddo send_copies
+
+        enddo
+
+      endif
+
+
+ enddo SEND_LOOP
+
+else ! use old communication pattern
+
+
+! Loop to give each pe a turn to receive its vars
 RECEIVING_PE_LOOP: do recv_pe = 0, num_pes - 1
    ! If I'm the receiving pe, do this block
    if(my_pe == recv_pe) then
 
- !      call cpu_time(start_receive_from_each_loop)
-    start_receive_from_each_loop = MPI_WTIME()
-    ! Figure out what piece to receive from each other PE and receive it
+      ! Figure out what piece to receive from each other PE and receive it
       RECEIVE_FROM_EACH: do sending_pe = 0, num_pes - 1
          call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
 
-         !call cpu_time(start_all_my_copies_loop)
-         start_all_my_copies_loop = MPI_WTIME()
          ! Loop to receive these vars for each copy stored on my_pe
          ALL_MY_COPIES: do k = 1, my_num_copies
 
             ! If sending_pe is receiving_pe, just copy
             if(sending_pe == recv_pe) then
                global_ens_index = ens_handle%my_copies(k)
-
-               !call cpu_time(start_copy_send_is_rec_loop)
-                start_copy_send_is_rec_loop = MPI_WTIME()
                do sv = 1, num_vars_to_receive
                   ens_handle%vars(var_list(sv), k) = ens_handle%copies(global_ens_index, sv)
                end do
-              ! call cpu_time(finish_copy_send_is_rec_loop)
-              finish_copy_send_is_rec_loop = MPI_WTIME()
-
             else
                if (num_vars_to_receive > 0) then
                   ! Otherwise, receive this part from the sending pe
                   call receive_from(sending_pe, transfer_temp(1:num_vars_to_receive)) 
    
                   ! Copy the transfer array to my local storage
-                  !call cpu_time(start_copy_to_local_storage_loop)
-                 start_copy_to_local_storage_loop = MPI_WTIME()
                   do sv = 1, num_vars_to_receive
                      ens_handle%vars(var_list(sv), k) = transfer_temp(sv)
                   end do
-                   !call cpu_time(finish_copy_to_local_storage_loop)
-                  finish_copy_to_local_storage_loop = MPI_WTIME()
-
                endif
             endif
          end do ALL_MY_COPIES
-        !call cpu_time(finish_all_my_copies_loop)
-        finish_all_my_copies_loop = MPI_WTIME()
-
       end do RECEIVE_FROM_EACH
-      !call cpu_time(finish_receive_from_each_loop)
-       finish_receive_from_each_loop = MPI_WTIME()
-
    else
       ! I'm the sending PE, figure out what copies of my vars I'll send.
       call get_copy_list(num_copies, recv_pe, copy_list, num_copies_to_send)
        
-      !call cpu_time(start_copies_to_send_loop)
-      start_copies_to_send_loop = MPI_WTIME()
       do copy = 1, num_copies_to_send
          if (my_num_vars > 0) then
             transfer_temp(1:my_num_vars) = ens_handle%copies(copy_list(copy), :)
@@ -1125,29 +1164,12 @@ RECEIVING_PE_LOOP: do recv_pe = 0, num_pes - 1
             call send_to(recv_pe, transfer_temp(1:my_num_vars))
          endif
       end do
-     ! call cpu_time(finish_copies_to_send_loop)
-      finish_copies_to_send_loop = MPI_WTIME()
+      
    endif
-
-! collect together times
-
-if(printme==1) then
-
- write(0, *) 'receive_from_each_loop ', recv_pe , my_task_id(), ':', finish_receive_from_each_loop - start_receive_from_each_loop
- write(0, *) 'all_my_copies_loop ', recv_pe, my_task_id(), ':', finish_all_my_copies_loop - start_all_my_copies_loop
- write(0, *) 'copy_send_is_rec_loop ', recv_pe, my_task_id(), ':', finish_copy_send_is_rec_loop - start_copy_send_is_rec_loop
- write(0, *) 'copy_to_local_storage_loop ', recv_pe, my_task_id(), ':', finish_copy_to_local_storage_loop - start_copy_to_local_storage_loop
- write(0, *) 'copies_to_send_loop ', recv_pe, my_task_id(), ':', finish_copies_to_send_loop - start_copies_to_send_loop
-
-endif
-
 end do RECEIVING_PE_LOOP
 
- !call cpu_time(finish_receiving_pe_loop)
- finish_receiving_pe_loop = MPI_WTIME()
-if (printme==1) then
-  write(0, *) 'receiving_pe_loop ', my_task_id(), ':', finish_receiving_pe_loop - start_receiving_pe_loop
 endif
+
 
 ! Free up the temporary storage
 deallocate(var_list, transfer_temp, copy_list)
@@ -1185,7 +1207,6 @@ end subroutine compute_copy_mean
 !--------------------------------------------------------------------------------
 
 subroutine compute_copy_mean_sd(ens_handle, start_copy, end_copy, mean_copy, sd_copy)
-
 ! Assumes that ens_handle%copies is current; each pe has all copies of subset of vars
 ! Computes the mean and sd of ensemble copies start_copy:end_copy and stores
 ! mean in copy mean_copy and sd in copy sd_copy.

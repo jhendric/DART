@@ -277,7 +277,6 @@ call trace_message('Before setting up space for ensembles')
 ! Allocate model size storage and ens_size storage for metadata for outputting ensembles
 model_size = get_model_size()
 
-
 ! Have ens_mean on all processors for distance computations, really don't want to do this
 allocate(ens_mean(model_size))
 
@@ -562,7 +561,7 @@ AdvanceTime : do
 
    ! Broadcast it to everybody else
    if(ens_handle%my_pe == mean_owner) then
-   ! Make sure the timestamp for the mean is the current time.
+     ! Make sure the timestamp for the mean is the current time.
       call set_ensemble_time(ens_handle, mean_owners_index, curr_ens_time)
       ens_mean = ens_handle%vars(:, mean_owners_index)
       call broadcast_send(my_task_id(), ens_mean)
@@ -1419,7 +1418,7 @@ if(output_forward_op_errors) then
  
    allocate(forward_temp(num_obs_in_set))
 
-! This is two loops around ens_size and observations
+! This is two loops: around ens_size and around observations
 ! If task 0 has an ensemble copy, everyone else has to wait for zero to finish for all_vars_to_all_copies
 ! If task zero does not have a copy, all_vars_to_all_copies is still a synchonization point because task zero
 ! has to recieve some variables from the tasks with copies.
@@ -1584,7 +1583,7 @@ if(my_task_id() == 0) then
 
 ! Update the ensemble spread
 ! Get this copy to process 0
-call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_VAR_START, obs_temp) 
+call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_VAR_START, obs_temp)
 ! Only pe 0 gets to write the sequence
 if(my_task_id() == 0) then
    ! Loop through the observations for this time

@@ -287,7 +287,7 @@ next_ens_time = time2
 ! Release the storage associated with the observation temp variable
 call destroy_obs(observation)
 
-if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then !HK
+if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then
   call set_output(.false.)
 endif
 
