@@ -63,33 +63,37 @@ switch lower(pinfo.model)
       pinfo.var_inds   = varid.var_inds;
       clear varid
 
-   case 'fms_bgrid'
+   case {'fms_bgrid'}
 
       pinfo = GetBgridInfo(pinfo, diagn_file, 'PlotBins');
 
-   case 'cam'
+   case {'cam'}
 
       pinfo = GetCamInfo(pinfo, diagn_file, 'PlotBins');
 
-   case 'clm'
+   case {'clm'}
 
       pinfo = GetClmInfo(pinfo, diagn_file, 'PlotBins');
 
-   case 'wrf'
+   case {'wrf'}
 
       pinfo = GetWRFInfo(pinfo, diagn_file, 'PlotBins');
 
-   case 'pe2lyr'
+   case {'pe2lyr'}
 
       pinfo = GetPe2lyrInfo(pinfo, diagn_file, 'PlotBins');
 
-   case 'mitgcm_ocean'
+   case {'mitgcm_ocean'}
 
       pinfo = GetMITgcm_oceanInfo(pinfo, diagn_file, 'PlotBins');
 
-   case 'mpas_atm'
+   case {'mpas_atm'}
 
       pinfo = GetMPAS_ATMInfo(pinfo, diagn_file, 'PlotBins');
+
+   case {'sqg'}
+
+      pinfo = GetSqgInfo(pinfo, diagn_file, 'PlotBins');
 
    otherwise
 

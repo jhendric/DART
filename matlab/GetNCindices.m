@@ -16,6 +16,9 @@ function [start, count] = GetNCindices(pinfo, whichfile, varname)
 %                    pinfo.lonindex
 %                    pinfo.stateindex
 %                    pinfo.regionindex
+%                    pinfo.cellindex
+%                    pinfo.columnindex
+%                    pinfo.pftindex
 %
 % whichfile          is a character string specifying which
 %                    filename component of 'pinfo' will be used.
@@ -68,6 +71,8 @@ level1  = 0; levelN  = -1;
 state1  = 0; stateN  = -1;
 region1 = 0; regionN = -1;
 cell1   = 0; cellN   = -1;
+column1 = 0; columnN = -1;
+pft1    = 0; pftN    = -1;
 
 if (isfield(pinfo,'timeindex'))
    time1 = pinfo.timeindex - 1;
@@ -79,18 +84,40 @@ end
 if (isfield(pinfo,'tcount'))
    timeN = pinfo.tcount;
 end
+
 if (isfield(pinfo,'levelindex'))
    level1 = pinfo.levelindex - 1;
    levelN = 1;
 end
+if (isfield(pinfo,'level1'))
+   level1 = pinfo.level1 - 1;
+end
+if (isfield(pinfo,'levelcount'))
+   levelN = pinfo.levelcount;
+end
+
 if (isfield(pinfo,'latindex'))
    lat1 = pinfo.latindex - 1;
    latN = 1;
 end
+if (isfield(pinfo,'lat1'))
+   lat1 = pinfo.lat1 - 1;
+end
+if (isfield(pinfo,'latcount'))
+   latN = pinfo.latcount;
+end
+
 if (isfield(pinfo,'lonindex'))
    lon1 = pinfo.lonindex - 1;
    lonN = 1;
 end
+if (isfield(pinfo,'lon1'))
+   lon1 = pinfo.lon1 - 1;
+end
+if (isfield(pinfo,'loncount'))
+   lonN = pinfo.loncount;
+end
+
 if (isfield(pinfo,'stateindex'))
    state1 = pinfo.stateindex - 1;
    stateN = 1;
@@ -101,23 +128,60 @@ end
 if (isfield(pinfo,'statecount'))
    stateN = pinfo.statecount;
 end
+
 if (isfield(pinfo,'copyindex'))
    copy1 = pinfo.copyindex - 1;
    copyN = 1;
 end
-if (isfield(pinfo,'copyindex1'))
-   copy1 = pinfo.copyindex1 - 1;
+if (isfield(pinfo,'copy1'))
+   copy1 = pinfo.copy1 - 1;
 end
 if (isfield(pinfo,'copycount'))
    copyN = pinfo.copycount;
 end
+
 if (isfield(pinfo,'regionindex'))
    region1 = pinfo.regionindex - 1;
    regionN = 1;
 end
+if (isfield(pinfo,'region1'))
+   region1 = pinfo.region1 - 1;
+end
+if (isfield(pinfo,'regioncount'))
+   regionN = pinfo.regioncount;
+end
+
 if (isfield(pinfo,'cellindex'))
    cell1 = pinfo.cellindex - 1;
    cellN = 1;
+end
+if (isfield(pinfo,'cell1'))
+   cell1 = pinfo.cell1 - 1;
+end
+if (isfield(pinfo,'cellcount'))
+   cellN = pinfo.cellcount;
+end
+
+if (isfield(pinfo,'columnindex'))
+   column1 = pinfo.columnindex - 1;
+   columnN = 1;
+end
+if (isfield(pinfo,'column1'))
+   column1 = pinfo.column1 - 1;
+end
+if (isfield(pinfo,'columncount'))
+   columnN = pinfo.columncount;
+end
+
+if (isfield(pinfo,'pftindex'))
+   pft1 = pinfo.pftindex - 1;
+   pftN = 1;
+end
+if (isfield(pinfo,'pft1'))
+   pft1 = pinfo.pft1 - 1;
+end
+if (isfield(pinfo,'pftcount'))
+   pftN = pinfo.pftcount;
 end
 
 % Determine shape of variable in question.
@@ -147,7 +211,7 @@ for i = 1:ndims
    % So the XG coordinate dimension has 'cartesian_axis = X',
    % for example.
 
-   [len, status, value] = is_dimension_cartesian(fname, diminfo.Name);
+   [~, status, value] = is_dimension_cartesian(fname, diminfo.Name);
 
    if (status > 0)
       dimname = value;
@@ -164,7 +228,8 @@ for i = 1:ndims
            case 'copy'
                start(i) = copy1;
                count(i) = copyN;
-           case {'surf','unde','hlev','mlev','plev','heig','leve','bott','ilev','nver','levt','levs'}
+           case {'surf','unde','hlev','mlev','plev','heig','leve','bott', ...
+                 'ilev','nver','levt','levs'}
                start(i) = level1;
                count(i) = levelN;
            case {'tmpj','sout'}
@@ -184,6 +249,9 @@ for i = 1:ndims
            case 'ncel'
                start(i) = cell1;
                count(i) = cellN;
+           case 'colu'
+               start(i) = column1;
+               count(i) = columnN;
            otherwise
                fprintf('GetNCindices encountered unknown coordinate variable %s\n',dimname)
        end
@@ -201,6 +269,9 @@ for i = 1:ndims
            case {'lon','x'}
                start(i) = lon1;
                count(i) = lonN;
+           case 'pft'
+               start(i) = pft1;
+               count(i) = pftN;
            otherwise
                fprintf('GetNCindices encountered unknown coordinate variable %s\n',dimname)
        end

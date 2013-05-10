@@ -73,29 +73,33 @@ switch lower(pinfo.model)
       disp(['Using State Variable IDs ', num2str(pinfo.var_inds)])
       clear varid
 
-   case 'fms_bgrid'
+   case {'fms_bgrid'}
 
       pinfo = GetBgridInfo(pinfo, diagn_file, 'PlotEnsMeanTimeSeries');
 
-   case 'cam'
+   case {'cam'}
 
       pinfo = GetCamInfo(pinfo, diagn_file, 'PlotEnsMeanTimeSeries');
 
-   case 'wrf'
+   case {'wrf'}
 
       pinfo = GetWRFInfo(pinfo, diagn_file, 'PlotEnsMeanTimeSeries');
 
-   case 'pe2lyr'
+   case {'pe2lyr'}
 
       pinfo = GetPe2lyrInfo(pinfo, diagn_file, 'PlotEnsMeanTimeSeries');
 
-   case 'mitgcm_ocean'
+   case {'mitgcm_ocean'}
 
       pinfo = GetMITgcm_oceanInfo(pinfo, diagn_file, 'PlotEnsMeanTimeSeries');
 
-   case 'mpas_atm'
+   case {'mpas_atm'}
 
       pinfo = GetMPAS_ATMInfo(pinfo, diagn_file, 'PlotEnsMeanTimeSeries');
+
+   case {'sqg'}
+
+      pinfo = GetSqgInfo(pinfo, diagn_file, 'PlotEnsMeanTimeSeries');
 
    otherwise
 

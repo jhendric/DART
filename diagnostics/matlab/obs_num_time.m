@@ -45,7 +45,7 @@ ptypes = {'gs-','bd-','ro-','k+-'};    % for each region
 % Get attributes from obs_diag run.
 %----------------------------------------------------------------------
 
-if ( exist(datafile) == 2 )
+if ( exist(datafile,'file') == 2 )
 
    eval(datafile)
 
@@ -63,7 +63,7 @@ if ( exist(datafile) == 2 )
    end
 
 else
-   error(sprintf('%s cannot be found.', datafile))
+   error('%s cannot be found.', datafile)
 end
 
 % set up a structure with all static plotting components
@@ -128,7 +128,7 @@ for ivar = 1:plotdat.nvars,
    figure(page2); clf;
 
    h = plot( xax, NbyRegion(:,1), ptypes{1}, 'LineWidth', 2.0);
-   [legh, objh, outh, outm] = legend(Regions{1});
+   [~, ~, outh, outm] = legend(Regions{1});
    hold on;
 
    for iregion = 2:length(Regions),
@@ -140,7 +140,7 @@ for ivar = 1:plotdat.nvars,
       % outm     cell array for the text in the legend
       nlines = length(outm);
       outm{nlines + 1} = Regions{iregion};
-      [legh, objh, outh, outm] = legend([outh; h],outm,0);
+      [~, ~, outh, outm] = legend([outh; h],outm,0);
    end
 
    legend boxoff
@@ -243,7 +243,7 @@ function BottomAnnotation(main)
 subplot('position',[0.48 0.01 0.04 0.04])
 axis off
 bob = which(main);
-[pathstr,name,ext,versn] = fileparts(bob);
+[pathstr,~,~] = fileparts(bob);
 h = text(0.0,0.5,pathstr);
 set(h,'HorizontalAlignment','center', ...
       'VerticalAlignment','middle',...

@@ -8,7 +8,7 @@ function plotdat = plot_profile(fname,copystring)
 %
 % fname  :  netcdf file produced by 'obs_diag'
 % copystring :  'copy' string == quantity of interest. These
-%            can be any of the ones available in the netcdf 
+%            can be any of the ones available in the netcdf
 %            file 'CopyMetaData' variable.
 %            (ncdump -v CopyMetaData obs_diag_output.nc)
 %
@@ -90,7 +90,7 @@ plotdat.linewidth = 2.0;
 
 plotdat.nvars       = length(plotdat.varnames);
 
-plotdat.copyindex   = get_copy_index(fname,copystring); 
+plotdat.copyindex   = get_copy_index(fname,copystring);
 plotdat.Npossindex  = get_copy_index(fname,'Nposs');
 plotdat.Nusedindex  = get_copy_index(fname,'Nused');
 
@@ -99,16 +99,16 @@ plotdat.Nusedindex  = get_copy_index(fname,'Nused');
 %----------------------------------------------------------------------
 
 for ivar = 1:plotdat.nvars
-    
+
    % create the variable names of interest.
-    
+
    plotdat.myvarname = plotdat.varnames{ivar};
    plotdat.guessvar  = sprintf('%s_VPguess',plotdat.varnames{ivar});
    plotdat.analyvar  = sprintf('%s_VPanaly',plotdat.varnames{ivar});
 
    % remove any existing postscript file - will simply append each
    % level as another 'page' in the .ps file.
-   
+
    psfname = sprintf('%s_%s_profile.ps',plotdat.varnames{ivar},plotdat.copystring);
    fprintf('Removing %s from the current directory.\n',psfname)
    system(sprintf('rm %s',psfname));
@@ -119,10 +119,11 @@ for ivar = 1:plotdat.nvars
    analydims = nc_var_dims(  fname, plotdat.analyvar);
    varinfo   = nc_getvarinfo(fname, plotdat.analyvar);
 
-   if ( findstr('surface',guessdims{2}) > 0 )
+   if (~ isempty(strfind(guessdims{2},'surface')))
       fprintf('%s is a surface field.\n',plotdat.guessvar)
       fprintf('Cannot display a surface field this way.\n')
-   elseif ( findstr('undef',guessdims{2}) > 0 )
+   end
+   if (~ isempty(strfind(guessdims{2},'undef')))
       fprintf('%s has no vertical definition.\n',plotdat.guessvar)
       fprintf('Cannot display this field this way.\n')
    end
@@ -144,15 +145,18 @@ for ivar = 1:plotdat.nvars
       plotdat.YDir = 'normal';
    end
    [levels, indices]   = sort(plotdat.level_org);
-   plotdat.level       = levels;
+   plotdat.level       = unique(levels);
+   if (length(plotdat.level) ~= length(levels))
+      error('There is a duplicated value in the array specifying the levels - must change your input.nml and rerun obs_diag')
+   end
    plotdat.indices     = indices;
    level_edges         = sort(plotdat.level_edges);
    plotdat.level_edges = level_edges;
-   
-   guess = nc_varget(fname, plotdat.guessvar);  
-   analy = nc_varget(fname, plotdat.analyvar); 
+
+   guess = nc_varget(fname, plotdat.guessvar);
+   analy = nc_varget(fname, plotdat.analyvar);
    n = size(analy);
-  
+
    % singleton dimensions are auto-squeezed - which is unfortunate.
    % We want these things to be 3D. [copy-level-region]
    % Sometimes there is one region, sometimes one level, ...
@@ -175,7 +179,7 @@ for ivar = 1:plotdat.nvars
        guess = bob; clear bob
        analy = ted; clear ted
    end
-   
+
    % check to see if there is anything to plot
    nposs = sum(guess(plotdat.Npossindex,:,:));
 
@@ -197,7 +201,7 @@ for ivar = 1:plotdat.nvars
    clf; orient tall
 
    for iregion = 1:plotdat.nregions
-      plotdat.region = iregion;  
+      plotdat.region = iregion;
       plotdat.myregion = deblank(plotdat.region_names(iregion,:));
 
       myplot(plotdat);
@@ -238,8 +242,8 @@ function myplot(plotdat)
    % Determine some quantities for the legend
    nobs = sum(nobs_used);
    if ( nobs > 1 )
-      other_guess = mean(CG(isfinite(CG))); 
-      other_analy = mean(CA(isfinite(CA))); 
+      other_guess = mean(CG(isfinite(CG)));
+      other_analy = mean(CA(isfinite(CA)));
    else
       other_guess = NaN;
       other_analy = NaN;
@@ -253,8 +257,8 @@ function myplot(plotdat)
    % Ultimately, we want to suppress the 'auto' feature of the
    % axis labelling, so we manually set some values that normally
    % don't need to be set.
-   
-   % if more then 4 regions, this will not work (well) ... 
+
+   % if more then 4 regions, this will not work (well) ...
    if ( plotdat.nregions > 2 )
        ax1 = subplot(2,2,plotdat.region);
    else
@@ -265,7 +269,8 @@ function myplot(plotdat)
    end
 
    Stripes(plotdat.Xrange, plotdat.level_edges);
-   set(ax1,'YDir', plotdat.YDir,'YTick',plotdat.level,'Layer','top')
+   set(ax1,'YTick',plotdat.level,'Layer','top')
+   set(ax1,'YDir', plotdat.YDir)
    ylabel(plotdat.level_units)
 
    %% draw the result of the experiment
@@ -301,7 +306,7 @@ function myplot(plotdat)
    h2 = line(nobs_poss,plotdat.level,'Color','b','Parent',ax2);
    h3 = line(nobs_used,plotdat.level,'Color','b','Parent',ax2);
    set(h2,'LineStyle','none','Marker','o');
-   set(h3,'LineStyle','none','Marker','+');   
+   set(h3,'LineStyle','none','Marker','+');
 
    % use same Y ticks
    set(ax2,'YTick',     get(ax1,'YTick'), ...
@@ -354,6 +359,8 @@ set(h, 'HorizontalAlignment','center');
 
 function [y,ydims] = FindVerticalVars(x)
 % Returns UNIQUE (i.e. base) vertical variable names
+% In this context, if the variable has a 'time' dimension
+% it cannot be a variable of interest.
 if ( ~(isfield(x,'allvarnames') && isfield(x,'allvardims')))
    error('Doh! no ''allvarnames'' and ''allvardims'' components')
 end
@@ -363,8 +370,8 @@ basenames = struct([]);
 basedims  = struct([]);
 
 for i = 1:length(x.allvarnames)
-   indx = findstr('time',x.allvardims{i});
-   if (isempty(indx)) 
+   dimnames = lower(x.allvardims{i});
+   if (isempty(strfind(dimnames,'time')))
       j = j + 1;
 
       basenames{j} = ReturnBase(x.allvarnames{i});
@@ -372,7 +379,7 @@ for i = 1:length(x.allvarnames)
    end
 end
 
-[b,i,j] = unique(basenames);
+[~,i,j] = unique(basenames);
 y       = struct([]);
 ydims   = struct([]);
 
@@ -408,22 +415,23 @@ Yrange      = [min(level_edges) max(level_edges)];
 
 
 function s = ReturnBase(string1)
-inds = findstr('_guess',string1);
+s = [];
+inds = strfind(string1,'_guess');
 if (inds > 0 )
    s = string1(1:inds-1);
 end
 
-inds = findstr('_analy',string1);
+inds = strfind(string1,'_analy');
 if (inds > 0 )
    s = string1(1:inds-1);
 end
 
-inds = findstr('_VPguess',string1);
+inds = strfind(string1,'_VPguess');
 if (inds > 0 )
    s = string1(1:inds-1);
 end
 
-inds = findstr('_VPanaly',string1);
+inds = strfind(string1,'_VPanaly');
 if (inds > 0 )
    s = string1(1:inds-1);
 end
@@ -436,7 +444,7 @@ function x = FindRange(y)
 %
 % In this scope, y is bounded from below by 0.0
 %
-% If the numbers are very small ... 
+% If the numbers are very small ...
 
 bob  = [y.ges_copy(:); ...
         y.anl_copy(:)];
@@ -449,7 +457,7 @@ else
    ymin    = min(glommed);
    ymax    = max(glommed);
 
-   if ( ymax > 1.0 ) 
+   if ( ymax > 1.0 )
       ymin = floor(min(glommed));
       ymax =  ceil(max(glommed));
    end
@@ -457,7 +465,7 @@ else
    if (ymin == 0 && ymax == 0)
        ymax = 1;
    end
-   
+
    if (ymin == ymax)
      ymin = ymin - 0.1*ymin;
      ymax = ymax + 0.1*ymax;
@@ -487,7 +495,7 @@ function h = Stripes(x,edges)
 % FIXME:
 % This really should be modified to add a percentage of the data
 % range to provide space for the legend. Right now it is hardwired
-% to assume that we are plotting hPa, on a 'reverse' axis. 
+% to assume that we are plotting hPa, on a 'reverse' axis.
 
 hold on;
 
@@ -498,7 +506,7 @@ hold on;
 h = plot([min(x) max(x)],[min(edges) max(edges)]);
 axlims    = axis;
 axlims(4) = max(edges);
-axlims(3) = -100;   % This gives extra space for the legend.
+axlims(3) = axlims(3) - 0.1*(max(edges) - min(edges)); % extra space for the legend
 axis(axlims)
 
 xc = [ axlims(1) axlims(2) axlims(2) axlims(1) axlims(1) ];
@@ -517,7 +525,7 @@ function [xticks newticklabels] = matchingXticks(ax1, ax2)
 %% This takes the existing X ticks from ax1 (presumed nice)
 % and determines the matching labels for ax2 so we can keep
 % at least one of the axes looking nice.
-   
+
 Dlimits = get(ax1,'XLim');
 DXticks = get(ax1,'XTick');
 nXticks = length(DXticks);

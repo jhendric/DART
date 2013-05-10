@@ -75,33 +75,37 @@ switch lower(pinfo.model)
       pinfo                = SetVariableID(pinfo);
       pinfo.copyindices    = SetCopyID(prior_file);
 
-   case 'fms_bgrid'
+   case {'fms_bgrid'}
 
       pinfo = GetBgridInfo(pinfo, prior_file, 'PlotSawtooth');
 
-   case 'pe2lyr'
+   case {'pe2lyr'}
 
       pinfo = GetPe2lyrInfo(pinfo, prior_file, 'PlotSawtooth');
 
-   case 'wrf'
+   case {'wrf'}
 
       pinfo = GetWRFInfo(pinfo, prior_file, 'PlotSawtooth');
 
-   case 'cam'
+   case {'cam'}
 
       pinfo = GetCamInfo(pinfo, prior_file, 'PlotSawtooth');
       pinfo.copyindices = SetCopyID2(pinfo.prior_file);
       pinfo.copies      = length(pinfo.copyindices);
 
-   case 'mitgcm_ocean'
+   case {'mitgcm_ocean'}
 
       pinfo = GetMITgcm_oceanInfo(pinfo, prior_file, 'PlotSawtooth');
       pinfo.copyindices = SetCopyID2(pinfo.prior_file);
       pinfo.copies      = length(pinfo.copyindices);
 
-   case 'mpas_atm'
+   case {'mpas_atm'}
 
       pinfo = GetMPAS_ATMInfo(pinfo, prior_file, 'PlotSawtooth');
+
+   case {'sqg'}
+
+      pinfo = GetSqgInfo(pinfo, prior_file, 'PlotSawtooth');
 
    otherwise
 
