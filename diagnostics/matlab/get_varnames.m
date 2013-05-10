@@ -46,7 +46,7 @@ for i = 1:Nvarnames
 end
 
 if (isempty(inds))
-   error('No atmospheric variables in %s',name(f))
+   error('No atmospheric variables in %s',fname)
 end
 
 % coerce just the names into a cell array 
