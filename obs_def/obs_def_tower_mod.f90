@@ -64,6 +64,7 @@
 
 !-----------------------------------------------------------------------------
 ! BEGIN DART PREPROCESS MODULE CODE
+
 module obs_def_tower_mod
 
 ! This is the forward observation operator code for CLM for flux tower observations.
@@ -74,12 +75,6 @@ module obs_def_tower_mod
 ! interest are shaped NEP(time, lat, lon), sometimes NEP(time, lndgrid).
 ! 'single column' runs may appear as either lat=lon=1 or lndgrid=1
 !
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use        types_mod, only : r4, r8, digits12, MISSING_R8, PI, deg2rad
 use     location_mod, only : location_type, get_location, get_dist, &
                              set_location, VERTISUNDEF
@@ -120,9 +115,9 @@ real(r8), parameter :: RAD2KM = 40030.0_r8/(2.0_r8 * PI) ! (mean radius of earth
 ! namelist items
 character(len=256) :: casename = 'clm_dart'
 logical            :: debug = .false.
-integer            :: hist_nhtfrq   ! CLM variable ... how often the history files are written out.
-                                    ! Negative value means the output frequency is the absolute 
-                                    ! value (in hours).
+integer            :: hist_nhtfrq = -24 
+! CLM variable hist_nhtfrq ... controls how often to write out the history files.
+! Negative value means the output frequency is the absolute value (in hours).
 
 namelist /obs_def_tower_nml/ casename, debug, hist_nhtfrq
 
@@ -917,5 +912,12 @@ end subroutine test_block
 
 end module obs_def_tower_mod
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+
 ! END DART PREPROCESS MODULE CODE
 !-----------------------------------------------------------------------------
+
