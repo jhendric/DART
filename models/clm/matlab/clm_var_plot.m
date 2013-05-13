@@ -7,13 +7,13 @@ function clm_var_plot(x)
 % levelindex = 1;
 % timeindex  = 1;
 % copystring = 'ensemble member 3';
-% x          = clm_get_var(fname,varname,copystring,levelindex,timeindex);
-% y          = clm_var_plot(x);
+% x = clm_get_var(fname,varname,copystring,levelindex,timeindex);
+% clm_var_plot(x);
 %
 % EXAMPLE 2: as above, compare to comparable field in CLM history file.
 % clmfname   = '/glade/scratch/thoar/enstest_0907/enstest_0907.clm2_0003.r.2000-01-05-00000.nc';
-% x          = clm_get_var(fname,varname,copystring,levelindex,timeindex,clmfname);
-% y          = clm_var_plot(x);
+% x = clm_get_var(fname,varname,copystring,levelindex,timeindex,clmfname);
+% clm_var_plot(x);
 %
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
