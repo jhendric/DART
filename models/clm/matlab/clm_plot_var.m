@@ -1,5 +1,5 @@
-function clm_var_plot(x)
-%% DART clm_var_plot - plots the data structure that results from clm_get_var.
+function clm_plot_var(x)
+%% DART clm_plot_var - plots the data structure that results from clm_get_var.
 %
 % EXAMPLE 1:
 % fname      = 'Prior_Diag.2000-01-05-00000.nc';
@@ -8,12 +8,12 @@ function clm_var_plot(x)
 % timeindex  = 1;
 % copystring = 'ensemble member 3';
 % x = clm_get_var(fname,varname,copystring,levelindex,timeindex);
-% clm_var_plot(x);
+% clm_plot_var(x);
 %
 % EXAMPLE 2: as above, compare to comparable field in CLM history file.
 % clmfname   = '/glade/scratch/thoar/enstest_0907/enstest_0907.clm2_0003.r.2000-01-05-00000.nc';
 % x = clm_get_var(fname,varname,copystring,levelindex,timeindex,clmfname);
-% clm_var_plot(x);
+% clm_plot_var(x);
 %
 
 %% DART software - Copyright 2004 - 2011 UCAR. This open source software is
