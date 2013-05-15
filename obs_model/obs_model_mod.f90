@@ -27,9 +27,9 @@ use time_manager_mod,     only : time_type, set_time, get_time, print_time,   &
                                  operator(/=), operator(>), operator(-),      &
                                  operator(/), operator(+), operator(<), operator(==), &
                                  operator(<=), operator(>=)
-use ensemble_manager_mod, only : get_ensemble_time, ensemble_type, map_task_to_pe
+use ensemble_manager_mod, only : get_ensemble_time, ensemble_type, map_task_to_pe, map_pe_to_task
 use mpi_utilities_mod,    only : my_task_id, task_sync, task_count, block_task, &
-                                 sum_across_tasks, shell_execute
+                                 sum_across_tasks, shell_execute, send_to, receive_from, my_task_id
 
 implicit none
 private
@@ -97,6 +97,10 @@ type(time_type)    :: next_time, time2, start_time, end_time, delta_time, ens_ti
 type(obs_type)     :: observation
 type(obs_def_type) :: obs_def
 logical            :: is_this_last, is_there_one, out_of_range, leaving_early
+
+! ens_handle%writer_time is just so task 0 can get and pass around the time if it does not have an ensemble copy.
+real(r8), dimension(2) :: dummy_ens  = (/1, 1/) ! for send_to time. This is a waste of an array, should just have a version on get_copy that just does get time (Maybe there is one?)
+
 
 ! Initialize if needed
 if(.not. module_initialized) then
@@ -290,7 +294,6 @@ call destroy_obs(observation)
 if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then
   call set_output(.false.)
 endif
-
 
 end subroutine move_ahead
 
