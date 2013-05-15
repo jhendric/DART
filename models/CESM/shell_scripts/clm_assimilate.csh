@@ -79,17 +79,25 @@ echo "valid time of model is $LND_YEAR $LND_MONTH $LND_DAY $LND_SECONDS (seconds
 echo "valid time of model is $LND_YEAR $LND_MONTH $LND_DAY $LND_HOUR (hours)"
 
 #-------------------------------------------------------------------------
-# Determine if current time is 0Z - if so, assimilate.
+# Determine if current time is an assimilation time.
 # If not, return before assimilating.
 #-------------------------------------------------------------------------
 
-if ( $LND_HOUR != 0 ) then
-   echo "Hour is not 0Z so we are skipping the land assimilation"
-   echo "`date` -- END LND_ASSIMILATE"
+if ( $LND_HOUR != 0  &&  $LND_HOUR != 6  &&  $LND_HOUR != 12  &&  $LND_HOUR != 18) then
+   echo "Hour is not 0,6,12 or 18Z so we are skipping the land assimilation"
+   echo "`date` -- END CLM_ASSIMILATE"
    exit 0
 else
    echo "Hour is $LND_HOUR so we are assimilating the land"
 endif
+
+# if you want to only assimilate at 0Z each day, substitute the
+# following two lines for the longer test above.  we have flux tower
+# observations which need to be assimilated every 6 hours; if you
+# aren't going to assimilate them and are only assimilating some obs type
+# that is only available once a day, you can change to this test instead.
+#if ( $LND_HOUR != 0 ) then
+#   echo "Hour is not 0Z so we are skipping the land assimilation"
 
 #-------------------------------------------------------------------------
 # we are going to assimilate, so carry on.

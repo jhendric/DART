@@ -452,13 +452,14 @@ while ($inst <= $num_instances)
    # For a HOP TEST ... hist_empty_htapes = .false.
    # For a HOP TEST ... use a default hist_fincl1 
    #
+   @ thirtymin = $assim_n * 2
 
    #echo "\!finidat = '${refcase}.clm2${instance}.r.${run_refdate}-${run_reftod}.nc'" >> $fname
    echo "hist_empty_htapes = .true."                 >> $fname
    echo "hist_fincl1 = 'NEP'"                        >> $fname
    echo "hist_fincl2 = 'NEP','FSH','EFLX_LH_TOT_R'"  >> $fname
-   echo "hist_nhtfrq = -$assim_n,1,"                 >> $fname
-   echo "hist_mfilt  = 1,12"                         >> $fname
+   echo "hist_nhtfrq = -$assim_n,-$assim_n,"         >> $fname
+   echo "hist_mfilt  = 1,$thirtymin"                 >> $fname
    echo "hist_avgflag_pertape = 'A','A'"             >> $fname
 
    # ===========================================================================
