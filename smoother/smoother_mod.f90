@@ -475,9 +475,8 @@ end subroutine smoother_mean_spread
 !-----------------------------------------------------------
 
 subroutine filter_state_space_diagnostics(curr_ens_time, out_unit, ens_handle, model_size, &
-            num_output_state_members, output_state_mean_index,output_state_spread_index, &
+            num_output_state_members, output_state_mean_index, output_state_spread_index, &
            output_inflation, temp_ens, ENS_MEAN_COPY, ENS_SD_COPY, inflate, INF_COPY, INF_SD_COPY)
-! curr_ens_time
 
 type(netcdf_file_type),      intent(inout) :: out_unit
 type(ensemble_type),         intent(inout) :: ens_handle
@@ -492,6 +491,8 @@ logical,                     intent(in)    :: output_inflation
 
 type(time_type) :: temp_time
 integer         :: ens_offset, j
+
+! Assumes that mean and spread have already been computed
 
 ! must have called init_smoother() before using this routine
 if ( .not. module_initialized ) then

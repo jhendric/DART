@@ -64,6 +64,7 @@
 
 !-----------------------------------------------------------------------------
 ! BEGIN DART PREPROCESS MODULE CODE
+
 module obs_def_tower_mod
 
 ! This is the forward observation operator code for CLM for flux tower observations.
@@ -74,12 +75,6 @@ module obs_def_tower_mod
 ! interest are shaped NEP(time, lat, lon), sometimes NEP(time, lndgrid).
 ! 'single column' runs may appear as either lat=lon=1 or lndgrid=1
 !
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use        types_mod, only : r4, r8, digits12, MISSING_R8, PI, deg2rad
 use     location_mod, only : location_type, get_location, get_dist, &
                              set_location, VERTISUNDEF
@@ -120,8 +115,11 @@ real(r8), parameter :: RAD2KM = 40030.0_r8/(2.0_r8 * PI) ! (mean radius of earth
 ! namelist items
 character(len=256) :: casename = 'clm_dart'
 logical            :: debug = .false.
+integer            :: hist_nhtfrq = -24 
+! CLM variable hist_nhtfrq ... controls how often to write out the history files.
+! Negative value means the output frequency is the absolute value (in hours).
 
-namelist /obs_def_tower_nml/ casename, debug
+namelist /obs_def_tower_nml/ casename, debug, hist_nhtfrq
 
 contains
 
@@ -172,11 +170,24 @@ if (do_nml_file()) write(nmlfileunit, nml=obs_def_tower_nml)
 if (do_nml_term()) write(     *     , nml=obs_def_tower_nml)
 
 ! Need to know what day we are trying to assimilate.
-! The model stops at midnight, we want all the observations for THE PREVIOUS DAY.
-! The CLM h1 files contain everything from 00:00 to 23:30 for the date in the filename.
-! The data for [23:30 -> 00:00] get put in the file for the next day.
+! The CLM h1 files contain everything STARTING with the time in their filename.
+! all output intervals from that run are simply appended to that file.
+! Consequently, we need to know the filename from the START of the model advance
+! that resulted in the current model state. To construct the filename, we need
+! to know one of the namelist variables from CLM. We are mandating that this
+! value gets passed to DART via the obs_def_tower_nml instead of reading
+! the CESM namelist .... hist_nhtfrq must be a negative number in a DART
+! application of CLM ... and the STOP_OPTION must be "HOURS".
+!
+!      | start of the model advance ... *.h1.* file starts getting written
+!      |
+!      X=======================X (CLM model advance)
+!      |<---- hist_nhtfrq ---->|
+!                              | current model state ... current time
 
-tower_time = model_time - set_time(0,1)
+second = abs(hist_nhtfrq)*60*60
+tower_time = model_time - set_time(second,0)
+
 call get_date(tower_time, year, month, day, hour, minute, second)
 second = second + minute*60 + hour*3600
 
@@ -901,5 +912,12 @@ end subroutine test_block
 
 end module obs_def_tower_mod
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+
 ! END DART PREPROCESS MODULE CODE
 !-----------------------------------------------------------------------------
+

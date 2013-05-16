@@ -48,7 +48,7 @@ use adaptive_inflate_mod, only : adaptive_inflate_end, do_varying_ss_inflate,   
                                  output_inflate_diagnostics
 use mpi_utilities_mod,    only : initialize_mpi_utilities, finalize_mpi_utilities,           &
                                  my_task_id, task_sync, broadcast_send, broadcast_recv,      &
-                                 task_count, receive_from, send_to
+                                 task_count
 use smoother_mod,         only : smoother_read_restart, advance_smoother,                    &
                                  smoother_gen_copy_meta_data, smoother_write_restart,        &
                                  init_smoother, do_smoothing, smoother_mean_spread,          &
@@ -194,9 +194,6 @@ real(r8), allocatable   :: ens_mean(:)
 
 logical                 :: ds, all_gone
 
-! ens_handle%writer_time is just so task 0 can get and pass around the time if it does not have an ensemble copy.
-real(r8), dimension(2) :: dummy_ens  = (/1, 1/) ! for send_to time. This is a waste of an array, should just have a version on get_copy that just does get time (Maybe there is one?)
-
 call filter_initialize_modules_used()
 
 ! Read the namelist entry
@@ -299,22 +296,6 @@ call filter_set_initial_time(time1)
 
 ! Read in restart files and initialize the ensemble storage
 call filter_read_restart(ens_handle, time1, model_size)
-
-! Get time to task 0
-if(my_task_id()==0) then
-   if (ens_handle%my_pe == 0 ) then
-      ens_handle%writer_time = ens_handle%time(1)
-   else
-      call receive_from(map_pe_to_task(ens_handle, 0), dummy_ens, ens_handle%writer_time)
-   endif
-endif
-
-if (ens_handle%my_pe == 0) then ! I have copy 1
-  if (my_task_id() /= 0 ) then ! I need to send time to task 0
-    call send_to(0, dummy_ens, ens_handle%time(1))
-  endif
-endif
-
 
 ! Read in or initialize smoother restarts as needed
 if(ds) then
@@ -431,10 +412,6 @@ AdvanceTime : do
 
    ! Check the time before doing the first model advance.  Not all tasks
    ! might have a time, so only check on PE0 if running multitask.
-
-   ! HK - I don't think the following comment is true. I think only tasks with 
-   ! ensemble copies are broadcast, because everyone else leaves move ahead early.
-
    ! This will get broadcast (along with the post-advance time) to all
    ! tasks so everyone has the same times, whether they have copies or not.
    ! If smoothing, we need to know whether the move_ahead actually advanced
@@ -591,7 +568,7 @@ AdvanceTime : do
        (time_step_number / output_interval * output_interval == time_step_number)) then
       call trace_message('Before prior state space diagnostics')
       call timestamp_message('Before prior state space diagnostics')
-      call filter_state_space_diagnostics(PriorStateUnit, ens_handle, &
+      call filter_state_space_diagnostics(curr_ens_time, PriorStateUnit, ens_handle, &
          model_size, num_output_state_members, &
          output_state_mean_index, output_state_spread_index, &
          output_inflation, ens_mean, ENS_MEAN_COPY, ENS_SD_COPY, &
@@ -696,7 +673,7 @@ AdvanceTime : do
        (time_step_number / output_interval * output_interval == time_step_number)) then
       call trace_message('Before posterior state space diagnostics')
       call timestamp_message('Before posterior state space diagnostics')
-      call filter_state_space_diagnostics(PosteriorStateUnit, ens_handle, &
+      call filter_state_space_diagnostics(curr_ens_time, PosteriorStateUnit, ens_handle, &
          model_size, num_output_state_members, output_state_mean_index, &
          output_state_spread_index, &
          output_inflation, ens_mean, ENS_MEAN_COPY, ENS_SD_COPY, &
@@ -737,7 +714,7 @@ AdvanceTime : do
          ! Who stores the ensemble mean copy
          call get_copy_owner_index(ENS_MEAN_COPY, mean_owner, mean_owners_index)
          ! Broadcast it to everybody else
-         if(ens_handle%my_pe == mean_owner) then !HK
+         if(ens_handle%my_pe == mean_owner) then
             ens_mean = ens_handle%vars(:, mean_owners_index)
             call broadcast_send(my_task_id(), ens_mean)
          else
@@ -769,7 +746,7 @@ AdvanceTime : do
    ! If observation space inflation, output the diagnostics
 
    if(do_obs_inflate(prior_inflate) .and. my_task_id() == 0) then
-      call output_inflate_diagnostics(prior_inflate, ens_handle%writer_time) 
+      call output_inflate_diagnostics(prior_inflate, curr_ens_time)
    endif
 
    call trace_message('Near bottom of main loop, cleaning up obs space')
@@ -1226,7 +1203,7 @@ if(init_time_days >= 0) then
 else
    call read_ensemble_restart(ens_handle, 1, ens_size, &
       start_from_restart, restart_in_file_name)
-   if (ens_handle%my_num_copies > 0) time = ens_handle%time(1)   
+   if (ens_handle%my_num_copies > 0) time = ens_handle%time(1)
 endif
 
 ! Temporary print of initial model time
@@ -1432,11 +1409,11 @@ if(output_forward_op_errors) then
  
    allocate(forward_temp(num_obs_in_set))
 
-! This is two loops around ens_size and observations
+! This is two loops: around ens_size and around observations
 ! If task 0 has an ensemble copy, everyone else has to wait for zero to finish for all_vars_to_all_copies
 ! If task zero does not have a copy, all_vars_to_all_copies is still a synchonization point because task zero
 ! has to recieve some variables from the tasks with copies.
-! Q. What if task zero (or multiple writers ) did not take part the all_vars all all_copies
+! Q. What if task zero (or multiple writers ) did not take part the all_vars all all_copies?
 
    do k = 1, ens_size
       ! Get this copy to PE 0
@@ -1611,7 +1588,7 @@ if(my_task_id() == 0) then
 
 ! Update the ensemble spread
 ! Get this copy to process 0
-call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_VAR_START, obs_temp) 
+call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_VAR_START, obs_temp)
 ! Only pe 0 gets to write the sequence
 if(my_task_id() == 0) then
    ! Loop through the observations for this time
@@ -1634,7 +1611,7 @@ do k = 1, num_output_members
    ! Get this copy on pe 0
    call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, k, obs_temp)
    ! Only task 0 gets to write the sequence
-   if(my_task_id() == 0) then 
+   if(my_task_id() == 0) then
       ! Loop through the observations for this time
       do j = 1, obs_ens_handle%num_vars
          ! update the obs values 
@@ -1693,14 +1670,14 @@ integer,             intent(inout)  :: key_bounds(2), num_obs_in_set
 type(time_type),     intent(inout)  :: time1, time2
 type(ensemble_type), intent(in)     :: ens_handle
 
-! Have task0 broadcast these values to all other tasks.
+! Have owner of copy 1 broadcast these values to all other tasks.
 ! Only tasks which contain copies have this info; doing it this way
 ! allows ntasks > nens to work.
 
 real(r8) :: rkey_bounds(2), rnum_obs_in_set(1)
 real(r8) :: rtime(4)
 integer  :: days, secs
-integer  :: owner, owner_index
+integer  :: copy1_owner, owner_index
 
 call get_copy_owner_index(1, copy1_owner, owner_index)
 
@@ -1715,7 +1692,7 @@ if( ens_handle%my_pe == copy1_owner) then
    rtime(4) = days
    call broadcast_send(my_task_id(), rkey_bounds, rnum_obs_in_set, rtime)
 else
-   call broadcast_recv(map_pe_to_task(ens_handle, 0), rkey_bounds, rnum_obs_in_set, rtime)
+   call broadcast_recv(map_pe_to_task(ens_handle, copy1_owner), rkey_bounds, rnum_obs_in_set, rtime)
    key_bounds =     nint(rkey_bounds)
    num_obs_in_set = nint(rnum_obs_in_set(1))
    time1 = set_time(nint(rtime(1)), nint(rtime(2)))

@@ -4,12 +4,6 @@
 
 program obs_diag
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 !-----------------------------------------------------------------------
 ! The programs defines a series of epochs (periods of time) and geographic
 ! regions and accumulates statistics for these epochs and regions.
@@ -129,7 +123,7 @@ logical :: out_of_range, is_there_one, keeper
 ! 8+    reserved for future use
 
 integer             :: org_qc_index, dart_qc_index
-integer             :: qc_integer, my_qc_integer
+integer             :: qc_integer
 integer, parameter  :: QC_MAX = 8
 integer, parameter  :: QC_MAX_PRIOR     = 3
 integer, parameter  :: QC_MAX_POSTERIOR = 1
@@ -222,14 +216,11 @@ integer,         allocatable, dimension(:)   :: obs_used_in_epoch
 integer  :: iregion, iepoch, ivar, ifile, num_obs_in_epoch
 real(r8) :: rlocation
 
-integer  :: obsindex, i, j, iunit, ierr, io
+integer  :: obsindex, i, iunit, ierr, io
 integer  :: seconds, days, Nepochs, Nfiles
 
 integer  :: num_trusted
 logical  :: trusted
-
-integer  :: ivarcount
-integer  :: gesUnit, anlUnit
 
 ! List of observations types
 character(len = stringlength), pointer, dimension(:) :: obs_type_strings
@@ -248,7 +239,7 @@ type(time_type) :: seqT1, seqTN        ! first,last time of obs sequence
 type(time_type) :: obsT1, obsTN        ! first,last time of all observations
 type(time_type) :: obs_time
 
-character(len = 129) :: gesName, anlName, msgstring1, msgstring2
+character(len = 129) :: msgstring1, msgstring2
 character(len = stringlength) :: str1, str2, str3
 
 !-----------------------------------------------------------------------
@@ -325,7 +316,7 @@ allocate(  bincenter(Nepochs),   binedges(2,Nepochs)) ! time_type
 allocate(epochcenter(Nepochs), epochedges(2,Nepochs)) ! 64bit reals for netCDF
 allocate( obs_used_in_epoch(Nepochs) )
 
-call SetSchedule(obsT1, obsTN, Nepochs, binwidth, halfbinwidth, &
+call SetSchedule(obsT1, Nepochs, binwidth, halfbinwidth, &
                  bincenter, binedges, epochcenter, epochedges)
 
 TimeMin = binedges(1,      1) ! minimum time of interest
@@ -1163,7 +1154,6 @@ Subroutine DefineTimes()
 
 logical :: error_out = .false.
 integer :: nbins
-real(r8) :: fbins
 type(time_type) :: test_time
 
 ! do some error-checking first
@@ -1242,10 +1232,10 @@ end subroutine DefineTimes
 
 ! TJH FIXME SetSchedule() should really come from the schedule module
 
-Subroutine SetSchedule(bin1time, binNtime, num_epochs, fullwidth, halfwidth, &
+Subroutine SetSchedule(bin1time, num_epochs, fullwidth, halfwidth, &
    bin_center, bin_edges, epoch_center, epoch_edges)
 
-type(time_type),                 intent(in)  :: bin1time, binNtime
+type(time_type),                 intent(in)  :: bin1time
 integer,                         intent(in)  :: num_epochs
 type(time_type),                 intent(in)  :: fullwidth
 type(time_type),                 intent(in)  :: halfwidth
@@ -2461,7 +2451,13 @@ enddo
 end Subroutine NormalizeTRV
 
 
-
 !~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 end program obs_diag
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

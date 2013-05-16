@@ -98,10 +98,6 @@ type(obs_type)     :: observation
 type(obs_def_type) :: obs_def
 logical            :: is_this_last, is_there_one, out_of_range, leaving_early
 
-! ens_handle%writer_time is just so task 0 can get and pass around the time if it does not have an ensemble copy.
-real(r8), dimension(2) :: dummy_ens  = (/1, 1/) ! for send_to time. This is a waste of an array, should just have a version on get_copy that just does get time (Maybe there is one?)
-
-
 ! Initialize if needed
 if(.not. module_initialized) then
    call initialize_module

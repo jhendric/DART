@@ -65,7 +65,6 @@ type ensemble_type
    ! Time is only related to var complete
    type(time_type), pointer :: time(:)
    integer                  :: distribution_type
-   type(time_type)          :: writer_time
    integer, allocatable     :: task_to_pe_list(:), pe_to_task_list(:) ! List of tasks
    ! Flexible my_pe, layout_type which allows different task layouts for different ensemble handles
    integer                  :: my_pe    
@@ -98,8 +97,7 @@ real(r8) :: perturbation_amplitude  = 0.2_r8
 logical  :: use_copy2var_send_loop = .true.
 logical  :: use_var2copy_rec_loop = .true.
 ! task layout options:
-integer  :: layout = 1 ! default to my_pe = my_task_id(). Other task layouts assume
-                       ! that the user knows the correct tasks_per_node
+integer  :: layout = 1 ! default to my_pe = my_task_id(). Layout2 assumes that the user knows the correct tasks_per_node
 integer  :: tasks_per_node = 1 ! default to 1 if the user does not specify a number of tasks per node.
 logical  :: debug = .false.
 
@@ -1321,7 +1319,7 @@ subroutine assign_tasks_to_pes(ens_handle, nEns_members, layout_type)
 ! memory usage out between nodes.
 !
 ! Possible options:
-!   1. Standard task layout, first n tasks have the ensemble members my_pe = my_task_id()
+!   1. Standard task layout - first n tasks have the ensemble members my_pe = my_task_id()
 !   2. Round-robin on the nodes
 
 type(ensemble_type), intent(inout)    :: ens_handle

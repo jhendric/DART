@@ -48,7 +48,7 @@ use adaptive_inflate_mod, only : adaptive_inflate_end, do_varying_ss_inflate,   
                                  output_inflate_diagnostics
 use mpi_utilities_mod,    only : initialize_mpi_utilities, finalize_mpi_utilities,           &
                                  my_task_id, task_sync, broadcast_send, broadcast_recv,      &
-                                 task_count, receive_from, send_to
+                                 task_count
 use smoother_mod,         only : smoother_read_restart, advance_smoother,                    &
                                  smoother_gen_copy_meta_data, smoother_write_restart,        &
                                  init_smoother, do_smoothing, smoother_mean_spread,          &
@@ -408,7 +408,6 @@ AdvanceTime : do
 
    ! Check the time before doing the first model advance.  Not all tasks
    ! might have a time, so only check on PE0 if running multitask.
-
    ! This will get broadcast (along with the post-advance time) to all
    ! tasks so everyone has the same times, whether they have copies or not.
    ! If smoothing, we need to know whether the move_ahead actually advanced
@@ -1588,7 +1587,7 @@ do k = 1, num_output_members
    ! Get this copy on pe 0
    call get_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, k, obs_temp)
    ! Only task 0 gets to write the sequence
-   if(my_task_id() == 0) then 
+   if(my_task_id() == 0) then
       ! Loop through the observations for this time
       do j = 1, obs_ens_handle%num_vars
          ! update the obs values 
