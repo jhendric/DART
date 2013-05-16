@@ -144,40 +144,40 @@ character(len = 129) :: obs_sequence_list = ""
 
 character(len = stringlength), dimension(MaxTrusted) :: trusted_obs = 'null'
 
-integer :: bin_width_days     = 0    ! width of the assimilation bin - seconds
-integer :: bin_width_seconds  = 0    ! width of the assimilation bin - days
 integer :: max_num_bins       = 9999 ! maximum number of temporal bins to consider
-real(r8):: rat_cri            = 4.0
-real(r8):: input_qc_threshold = 4.0  ! input obs QC values >= this not used
+integer :: bin_width_days     = -1   ! width of the assimilation bin - seconds
+integer :: bin_width_seconds  = -1   ! width of the assimilation bin - days
+integer :: init_skip_days     = 0
+integer :: init_skip_seconds  = 0
 logical :: verbose               = .false.
-logical :: outliers_in_histogram = .false.
+logical :: outliers_in_histogram = .true.
 logical :: create_rank_histogram = .true.
 
 ! index 1 == region 1 == [0.0, 1.0) i.e. Entire domain
 ! index 2 == region 2 == [0.0, 0.5)
 ! index 3 == region 3 == [0.5, 1.0)
 
-integer :: Nregions = 3
+integer :: Nregions = MaxRegions
 real(r8), dimension(MaxRegions) :: lonlim1 = (/ 0.0_r8, 0.0_r8, 0.5_r8, -1.0_r8 /)
 real(r8), dimension(MaxRegions) :: lonlim2 = (/ 1.0_r8, 0.5_r8, 1.0_r8, -1.0_r8 /)
 
 character(len=6), dimension(MaxRegions) :: reg_names = &
                                    (/ 'whole ','yin   ','yang  ','bogus '/)
 
-namelist /obs_diag_nml/ obs_sequence_name, obs_sequence_list,      &
-                        bin_width_days, bin_width_seconds,         &
-                        max_num_bins, rat_cri, input_qc_threshold, &
-                        Nregions, lonlim1, lonlim2, reg_names,     &
-                        verbose, outliers_in_histogram,            &
+namelist /obs_diag_nml/ obs_sequence_name, obs_sequence_list,  &
+                        bin_width_days, bin_width_seconds,     &
+                        init_skip_days, init_skip_seconds, max_num_bins, &
+                        Nregions, lonlim1, lonlim2, reg_names, &
+                        verbose, outliers_in_histogram,        &
                         create_rank_histogram, trusted_obs
 
 !-----------------------------------------------------------------------
 ! Variables used to accumulate the statistics.
 !-----------------------------------------------------------------------
 
-integer, parameter :: Ncopies = 20
+integer, parameter :: Ncopies = 18
 character(len = stringlength), dimension(Ncopies) :: copy_names = &
-   (/ 'Nposs      ', 'Nused      ', 'NbigQC     ', 'NbadIZ     ', &
+   (/ 'Nposs      ', 'Nused      ',                               &
       'rmse       ', 'bias       ', 'spread     ', 'totalspread', &
       'NbadDARTQC ', 'observation', 'ens_mean   ',                &
       'N_DARTqc_0 ', 'N_DARTqc_1 ', 'N_DARTqc_2 ', 'N_DARTqc_3 ', &
@@ -191,8 +191,6 @@ type TRV_type
    character(len=8) :: string
    integer :: num_times = 0, num_regions = 0, num_variables = 0
    integer,  dimension(:,:,:), pointer :: Nposs, Nused, Ntrusted
-   integer,  dimension(:,:,:), pointer :: NbigQC ! # original QC values >= input_qc_threshold
-   integer,  dimension(:,:,:), pointer :: NbadIZ ! # bad (ie huge) Innovation Zscore
    real(r8), dimension(:,:,:), pointer :: rmse, bias, spread, totspread
    integer,  dimension(:,:,:), pointer :: NbadDartQC ! # bad DART QC values
    real(r8), dimension(:,:,:), pointer :: observation, ens_mean
@@ -216,7 +214,7 @@ integer,         allocatable, dimension(:)   :: obs_used_in_epoch
 integer  :: iregion, iepoch, ivar, ifile, num_obs_in_epoch
 real(r8) :: rlocation
 
-integer  :: obsindex, i, iunit, ierr, io
+integer  :: obsindex, i, iunit, ierr, io, ireg
 integer  :: seconds, days, Nepochs, Nfiles
 
 integer  :: num_trusted
@@ -237,7 +235,7 @@ type(time_type) :: TimeMin, TimeMax    ! of the entire period of interest
 type(time_type) :: binwidth, halfbinwidth
 type(time_type) :: seqT1, seqTN        ! first,last time of obs sequence
 type(time_type) :: obsT1, obsTN        ! first,last time of all observations
-type(time_type) :: obs_time
+type(time_type) :: obs_time, skip_time
 
 character(len = 129) :: msgstring1, msgstring2
 character(len = stringlength) :: str1, str2, str3
@@ -308,6 +306,8 @@ call set_calendar_type('GREGORIAN')
 ! presume the first/last times in the input file(s) are to be used.
 !----------------------------------------------------------------------
 
+skip_time = set_time(init_skip_seconds, init_skip_days)
+
 call DetermineFilenames(obsT1, obsTN, Nepochs, Nfiles) ! fills obs_seq_filenames array
 
 call DefineTimes() ! Sets binwidth, halfbinwidth
@@ -324,7 +324,18 @@ TimeMax = binedges(2,Nepochs) ! maximum time of interest
 obs_used_in_epoch = 0
 
 !----------------------------------------------------------------------
+! Rectify the region namelist information
 !----------------------------------------------------------------------
+
+ireg = MaxRegions
+Regions: do i = 1,MaxRegions
+   if ((lonlim1(i) < 0.0_r8) .or. (lonlim2(i) < 0.0_r8) ) then
+      exit Regions
+   else
+      ireg = i
+   endif
+enddo Regions
+Nregions = min(Nregions, ireg)
 
 if (verbose) then
    write(logfileunit,*)
@@ -337,10 +348,6 @@ if (verbose) then
    enddo
 endif
 
-prior_mean(1)       = 0.0_r8
-prior_spread(1)     = 0.0_r8
-posterior_mean(1)   = 0.0_r8
-posterior_spread(1) = 0.0_r8
 
 !----------------------------------------------------------------------
 ! Declares and initializes the guess and analy structures.
@@ -539,6 +546,9 @@ ObsFileLoop : do ifile=1, Nfiles
          obs_err_var = get_obs_def_error_variance(obs_def)
          rlocation   = get_location(obs_loc)
 
+         ! Check to make sure we are past the burn-in 
+         if (obs_time < skip_time) cycle ObservationLoop
+
          ! Check to see if this is a trusted observation
          trusted = .false.
          if ( num_trusted > 0 ) then
@@ -647,17 +657,6 @@ ObsFileLoop : do ifile=1, Nfiles
             if ( .not. keeper ) cycle Areas
 
             !-----------------------------------------------------------
-            ! Count original QC values 'of interest' ...
-            !-----------------------------------------------------------
-
-            if (      org_qc_index  > 0 ) then
-               if (qc(org_qc_index) > input_qc_threshold ) then
-               call IPE(guess%NbigQC(iepoch, iregion, flavor), 1)
-               call IPE(analy%NbigQC(iepoch, iregion, flavor), 1)
-               endif
-            endif
-
-            !-----------------------------------------------------------
             ! Count DART QC values 
             !-----------------------------------------------------------
 
@@ -669,25 +668,6 @@ ObsFileLoop : do ifile=1, Nfiles
 
             call Bin3D(qc_integer, iepoch, iregion, flavor, trusted, obs(1), &
                 obs_err_var, pr_mean, pr_sprd, po_mean, po_sprd, rank_histogram_bin)
-
-            !-----------------------------------------------------------
-            ! Count 'large' innovations
-            !-----------------------------------------------------------
-
-            if( pr_zscore > rat_cri ) then
-               call IPE(guess%NbadIZ(iepoch, iregion, flavor), 1)
-            endif
-
-            if( po_zscore > rat_cri ) then
-               call IPE(analy%NbadIZ(iepoch, iregion, flavor), 1)
-            endif
-
-            if ( pr_zscore > rat_cri ) then
-               if (verbose) then
-                  write(logfileunit,*)'obsindex ',obsindex,' pr_zscore ', pr_zscore
-                  write(logfileunit,*)'val,prm,prs,var ',obs(1), pr_mean, pr_sprd, obs_err_var
-               endif
-            endif
 
          enddo Areas
 
@@ -743,8 +723,6 @@ write(*,*)
 write(*,*) '# observations used  : ',sum(obs_used_in_epoch)
 write(*,*) 'Count summary over all regions - obs may count for multiple regions:'
 write(*,*) '# identity           : ',Nidentity
-write(*,*) '# big Innov  (ratio) : ',sum(guess%NbadIZ)
-write(*,*) '# big (original) QC  : ',sum(guess%NbigQC)
 write(*,*) '# bad DART QC prior  : ',sum(guess%NbadDartQC)
 write(*,*) '# bad DART QC post   : ',sum(analy%NbadDartQC)
 write(*,*) '# TRUSTED            : ',sum(analy%Ntrusted)
@@ -766,14 +744,11 @@ write(*,*) '# poste DART QC 4 : ',sum(analy%NDartQC_4)
 write(*,*) '# poste DART QC 5 : ',sum(analy%NDartQC_5)
 write(*,*) '# poste DART QC 6 : ',sum(analy%NDartQC_6)
 write(*,*) '# poste DART QC 7 : ',sum(analy%NDartQC_7)
-write(*,*)
 
 write(logfileunit,*)
 write(logfileunit,*) '# observations used  : ',sum(obs_used_in_epoch)
 write(logfileunit,*) 'Count summary over all regions - obs may count for multiple regions:'
 write(logfileunit,*) '# identity           : ',Nidentity
-write(logfileunit,*) '# big Innov  (ratio) : ',sum(guess%NbadIZ)
-write(logfileunit,*) '# big (original) QC  : ',sum(guess%NbigQC)
 write(logfileunit,*) '# bad DART QC prior  : ',sum(guess%NbadDartQC)
 write(logfileunit,*) '# bad DART QC post   : ',sum(analy%NbadDartQC)
 write(logfileunit,*) '# TRUSTED            : ',sum(analy%Ntrusted)
@@ -795,6 +770,21 @@ write(logfileunit,*) '# poste DART QC 4 : ',sum(analy%NDartQC_4)
 write(logfileunit,*) '# poste DART QC 5 : ',sum(analy%NDartQC_5)
 write(logfileunit,*) '# poste DART QC 6 : ',sum(analy%NDartQC_6)
 write(logfileunit,*) '# poste DART QC 7 : ',sum(analy%NDartQC_7)
+
+! Print the histogram of innovations as a function of standard deviation. 
+write(     *     ,*)
+write(     *     ,*) 'Table that reflects the outlier_threshold -- '
+write(     *     ,*) 'How are the (good) innovations distributed?'
+write(logfileunit,*)
+write(logfileunit,*) 'Table that reflects the outlier_threshold -- '
+write(logfileunit,*) 'How are the (good) innovations distributed?'
+do i=0,MaxSigmaBins
+   if(nsigma(i) /= 0) then
+      write(     *     ,*)'innovations within ',i+1,' stdev = ',nsigma(i)
+      write(logfileunit,*)'innovations within ',i+1,' stdev = ',nsigma(i)
+   endif
+enddo
+write(     *     ,*)
 write(logfileunit,*)
 
 !----------------------------------------------------------------------
@@ -830,8 +820,6 @@ allocate(guess%rmse(       Nepochs, Nregions, num_obs_types), &
          guess%ens_mean(   Nepochs, Nregions, num_obs_types), &
          guess%Nposs(      Nepochs, Nregions, num_obs_types), &
          guess%Nused(      Nepochs, Nregions, num_obs_types), &
-         guess%NbigQC(     Nepochs, Nregions, num_obs_types), &
-         guess%NbadIZ(     Nepochs, Nregions, num_obs_types), &
          guess%NbadDartQC( Nepochs, Nregions, num_obs_types), &
          guess%NDartQC_0(  Nepochs, Nregions, num_obs_types), &
          guess%NDartQC_1(  Nepochs, Nregions, num_obs_types), &
@@ -851,8 +839,6 @@ guess%observation = 0.0_r8
 guess%ens_mean    = 0.0_r8
 guess%Nposs       = 0
 guess%Nused       = 0
-guess%NbigQC      = 0
-guess%NbadIZ      = 0
 guess%NbadDartQC  = 0
 guess%NDartQC_0   = 0
 guess%NDartQC_1   = 0
@@ -877,8 +863,6 @@ allocate(analy%rmse(       Nepochs, Nregions, num_obs_types), &
          analy%ens_mean(   Nepochs, Nregions, num_obs_types), &
          analy%Nposs(      Nepochs, Nregions, num_obs_types), &
          analy%Nused(      Nepochs, Nregions, num_obs_types), &
-         analy%NbigQC(     Nepochs, Nregions, num_obs_types), &
-         analy%NbadIZ(     Nepochs, Nregions, num_obs_types), &
          analy%NbadDartQC( Nepochs, Nregions, num_obs_types), &
          analy%NDartQC_0(  Nepochs, Nregions, num_obs_types), &
          analy%NDartQC_1(  Nepochs, Nregions, num_obs_types), &
@@ -898,8 +882,6 @@ analy%observation = 0.0_r8
 analy%ens_mean    = 0.0_r8
 analy%Nposs       = 0
 analy%Nused       = 0
-analy%NbigQC      = 0
-analy%NbadIZ      = 0
 analy%NbadDartQC  = 0
 analy%NDartQC_0   = 0
 analy%NDartQC_1   = 0
@@ -928,7 +910,7 @@ deallocate(obs_seq_filenames)
 
 deallocate(guess%rmse,        guess%bias,      guess%spread,    guess%totspread, &
            guess%observation, guess%ens_mean,  guess%Nposs,     guess%Nused,     &
-           guess%NbigQC,      guess%NbadIZ,    guess%NbadDartQC,guess%Ntrusted,  &
+                                               guess%NbadDartQC,guess%Ntrusted,  &
            guess%NDartQC_0,   guess%NDartQC_1, guess%NDartQC_2, guess%NDartQC_3, &
            guess%NDartQC_4,   guess%NDartQC_5, guess%NDartQC_6, guess%NDartQC_7)
 
@@ -938,7 +920,7 @@ if (allocated(ens_copy_index)) deallocate(ens_copy_index)
 
 deallocate(analy%rmse,        analy%bias,      analy%spread,    analy%totspread, &
            analy%observation, analy%ens_mean,  analy%Nposs,     analy%Nused,     &
-           analy%NbigQC,      analy%NbadIZ,    analy%NbadDartQC,analy%Ntrusted,  &
+                                               analy%NbadDartQC,analy%Ntrusted,  &
            analy%NDartQC_0,   analy%NDartQC_1, analy%NDartQC_2, analy%NDartQC_3, &
            analy%NDartQC_4,   analy%NDartQC_5, analy%NDartQC_6, analy%NDartQC_7)
 
@@ -1152,28 +1134,31 @@ Subroutine DefineTimes()
 !  type(time_type), intent(out)   GLOBAL :: halfbinwidth ! half that period
 !  bin_width_days, bin_width_seconds  GLOBAL from namelist
 
-logical :: error_out = .false.
 integer :: nbins
 type(time_type) :: test_time
 
 ! do some error-checking first
 
-if ( (bin_width_days < 0) .or. (bin_width_seconds < 0) ) then
+if ( (bin_width_days < 0) .and. (bin_width_seconds >= 0) ) then
+
    write(msgstring1,*)'bin_width_[days,seconds] must be non-negative, they are ', &
    bin_width_days, bin_width_seconds
-   call error_handler(E_WARN,'DefineTimes',msgstring1,source,revision,revdate)
-   error_out = .true.
-endif
+   call error_handler(E_ERR,'DefineTimes',msgstring1,source,revision,revdate, &
+          text2='namelist parameter out-of-bounds. Fix and try again.')
 
-if ( error_out ) call error_handler(E_ERR,'DefineTimes', &
-    'namelist parameter out-of-bounds. Fix and try again.',source,revision,revdate)
+elseif ( (bin_width_days >= 0) .and. (bin_width_seconds < 0) ) then
 
-! 'space-filling' strategy: bin width and bin separation are same.
-! If the user input is empty, use default Nepochs.
-! If not,  ...
+   write(msgstring1,*)'bin_width_[days,seconds] must be non-negative, they are ', &
+   bin_width_days, bin_width_seconds
+   call error_handler(E_ERR,'DefineTimes',msgstring1,source,revision,revdate, &
+          text2='namelist parameter out-of-bounds. Fix and try again.')
 
-if ((bin_width_days == 0) .and. (bin_width_seconds == 0)) then
+elseif ( (bin_width_days <= 0) .and. (bin_width_seconds <= 0) ) then
+   
    ! This is the 'default' case ... use all possible, up to "max_num_bins".
+   ! 'space-filling' strategy: bin width and bin separation are same.
+   ! Using Nepochs that comes from the number of unique times in the files.
+
    binwidth  = (obsTN - obsT1) / (Nepochs - 1)
    if (Nepochs > max_num_bins) then
       write(msgstring1,*)'default calculation results in ',Nepochs,' time bins.'
@@ -1182,6 +1167,7 @@ if ((bin_width_days == 0) .and. (bin_width_seconds == 0)) then
       Nepochs = max_num_bins 
       obsTN   = obsT1 + (Nepochs-1)*binwidth
    endif
+
 else
    ! honor the user input
    binwidth  = set_time(bin_width_seconds, bin_width_days)
@@ -1802,14 +1788,10 @@ end Function Rank_Histogram
    call nc_check(nf90_put_att(ncid, NF90_GLOBAL, 'bin_width_seconds', seconds ), &
               'WriteNetCDF', 'put_att bin_width_seconds '//trim(fname))
    call nc_check(nf90_put_att(ncid, NF90_GLOBAL, 'time_to_skip', &
-                                        (/ 0, 0, 0, 0, 0, 0/) ), &
+              (/ 0, 0, init_skip_days, 0, 0, init_skip_seconds /) ), &
               'WriteNetCDF', 'put_att time_to_skip '//trim(fname))
    call nc_check(nf90_put_att(ncid, NF90_GLOBAL, 'max_num_bins', Nepochs ), &
               'WriteNetCDF', 'put_att max_num_bins '//trim(fname))
-   call nc_check(nf90_put_att(ncid, NF90_GLOBAL, 'rat_cri', rat_cri ), &
-              'WriteNetCDF', 'put_att rat_cri '//trim(fname))
-   call nc_check(nf90_put_att(ncid, NF90_GLOBAL, 'input_qc_threshold', input_qc_threshold ), &
-              'WriteNetCDF', 'put_att input_qc_threshold '//trim(fname))
    call nc_check(nf90_put_att(ncid, NF90_GLOBAL, 'Nregions', Nregions ), &
               'WriteNetCDF', 'put_att Nregions '//trim(fname))
    call nc_check(nf90_put_att(ncid, NF90_GLOBAL, 'lonlim1', lonlim1(1:Nregions) ), &
@@ -2129,24 +2111,22 @@ end Function Rank_Histogram
 
          rchunk(iregion, 1,itime) = vrbl%Nposs(      itime,iregion,ivar)
          rchunk(iregion, 2,itime) = vrbl%Nused(      itime,iregion,ivar)
-         rchunk(iregion, 3,itime) = vrbl%NbigQC(     itime,iregion,ivar)
-         rchunk(iregion, 4,itime) = vrbl%NbadIZ(     itime,iregion,ivar)
-         rchunk(iregion, 5,itime) = vrbl%rmse(       itime,iregion,ivar)
-         rchunk(iregion, 6,itime) = vrbl%bias(       itime,iregion,ivar)
-         rchunk(iregion, 7,itime) = vrbl%spread(     itime,iregion,ivar)
-         rchunk(iregion, 8,itime) = vrbl%totspread(  itime,iregion,ivar)
-         rchunk(iregion, 9,itime) = vrbl%NbadDartQC( itime,iregion,ivar)
-         rchunk(iregion,10,itime) = vrbl%observation(itime,iregion,ivar)
-         rchunk(iregion,11,itime) = vrbl%ens_mean(   itime,iregion,ivar)
-         rchunk(iregion,12,itime) = vrbl%NDartQC_0(  itime,iregion,ivar)
-         rchunk(iregion,13,itime) = vrbl%NDartQC_1(  itime,iregion,ivar)
-         rchunk(iregion,14,itime) = vrbl%NDartQC_2(  itime,iregion,ivar)
-         rchunk(iregion,15,itime) = vrbl%NDartQC_3(  itime,iregion,ivar)
-         rchunk(iregion,16,itime) = vrbl%NDartQC_4(  itime,iregion,ivar)
-         rchunk(iregion,17,itime) = vrbl%NDartQC_5(  itime,iregion,ivar)
-         rchunk(iregion,18,itime) = vrbl%NDartQC_6(  itime,iregion,ivar)
-         rchunk(iregion,19,itime) = vrbl%NDartQC_7(  itime,iregion,ivar)
-         rchunk(iregion,20,itime) = vrbl%Ntrusted(   itime,iregion,ivar)
+         rchunk(iregion, 3,itime) = vrbl%rmse(       itime,iregion,ivar)
+         rchunk(iregion, 4,itime) = vrbl%bias(       itime,iregion,ivar)
+         rchunk(iregion, 5,itime) = vrbl%spread(     itime,iregion,ivar)
+         rchunk(iregion, 6,itime) = vrbl%totspread(  itime,iregion,ivar)
+         rchunk(iregion, 7,itime) = vrbl%NbadDartQC( itime,iregion,ivar)
+         rchunk(iregion, 8,itime) = vrbl%observation(itime,iregion,ivar)
+         rchunk(iregion, 9,itime) = vrbl%ens_mean(   itime,iregion,ivar)
+         rchunk(iregion,10,itime) = vrbl%NDartQC_0(  itime,iregion,ivar)
+         rchunk(iregion,11,itime) = vrbl%NDartQC_1(  itime,iregion,ivar)
+         rchunk(iregion,12,itime) = vrbl%NDartQC_2(  itime,iregion,ivar)
+         rchunk(iregion,13,itime) = vrbl%NDartQC_3(  itime,iregion,ivar)
+         rchunk(iregion,14,itime) = vrbl%NDartQC_4(  itime,iregion,ivar)
+         rchunk(iregion,15,itime) = vrbl%NDartQC_5(  itime,iregion,ivar)
+         rchunk(iregion,16,itime) = vrbl%NDartQC_6(  itime,iregion,ivar)
+         rchunk(iregion,17,itime) = vrbl%NDartQC_7(  itime,iregion,ivar)
+         rchunk(iregion,18,itime) = vrbl%Ntrusted(   itime,iregion,ivar)
 
       enddo
       enddo
