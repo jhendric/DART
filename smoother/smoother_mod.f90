@@ -31,8 +31,6 @@ use obs_sequence_mod,     only : obs_sequence_type
 use adaptive_inflate_mod, only : adaptive_inflate_type, adaptive_inflate_init, &
                                  do_varying_ss_inflate, do_single_ss_inflate
 
-use time_manager_mod, only : get_time !HK temporary
-
 implicit none
 private
 
@@ -495,15 +493,6 @@ logical,                     intent(in)    :: output_inflation
 type(time_type) :: temp_time
 integer         :: ens_offset, j
 
-type(time_type) local_ens_time
-integer :: hk_seconds, hk_days, sec, day !HK
-local_ens_time = curr_ens_time !curr_ens_time !ens_handle%time(1) !HK
-
-call get_time(ens_handle%time(1), hk_seconds, hk_days)
-call get_time(curr_ens_time, sec, day)
-print*, '  inside filter_state ens_handle%time(1)', hk_seconds, hk_days, 'curr_ens_time', sec, day
-
-
 ! must have called init_smoother() before using this routine
 if ( .not. module_initialized ) then
    write(errstring, *)'cannot be called before init_smoother() called'
@@ -513,12 +502,12 @@ endif
 ! Output ensemble mean
 call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, ENS_MEAN_COPY, temp_ens)
 if(my_task_id() == 0) then
-  call aoutput_diagnostics(out_unit, local_ens_time, temp_ens, output_state_mean_index) !HK curr_ens_time
+  call aoutput_diagnostics(out_unit, curr_ens_time, temp_ens, output_state_mean_index) 
 endif
 
 ! Output ensemble spread
 call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, ENS_SD_COPY, temp_ens) 
-if(my_task_id() == 0) call aoutput_diagnostics(out_unit, local_ens_time, temp_ens, output_state_spread_index)!HK curr_ens_time
+if(my_task_id() == 0) call aoutput_diagnostics(out_unit, curr_ens_time, temp_ens, output_state_spread_index)
 
 ! Compute the offset for copies of the ensemble
 ens_offset = 2
@@ -527,7 +516,6 @@ ens_offset = 2
 do j = 1, num_output_state_members
    ! Get this state copy to task 0; then output it
    call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, j, temp_ens, temp_time)
-   call get_time(temp_time, hk_seconds, hk_days)
    if(my_task_id() == 0) call aoutput_diagnostics( out_unit, temp_time, temp_ens, ens_offset + j)
 end do
 
@@ -542,8 +530,8 @@ if (output_inflation) then
       temp_ens = 1.0_r8
    endif
 
-   if(my_task_id() == 0) call aoutput_diagnostics(out_unit,  local_ens_time, temp_ens, &
-     ens_offset + num_output_state_members + 1)  !HK curr_ens_time
+   if(my_task_id() == 0) call aoutput_diagnostics(out_unit,  curr_ens_time, temp_ens, &
+     ens_offset + num_output_state_members + 1)  
 
 
    if(do_varying_ss_inflate(inflate) .or. do_single_ss_inflate(inflate)) then
@@ -553,9 +541,8 @@ if (output_inflation) then
       temp_ens = 0.0_r8
    endif
 
-
-   if(my_task_id() == 0) call aoutput_diagnostics(out_unit, local_ens_time, temp_ens, &
-      ens_offset + num_output_state_members + 2) !HK curr_ens_time
+   if(my_task_id() == 0) call aoutput_diagnostics(out_unit, curr_ens_time, temp_ens, &
+      ens_offset + num_output_state_members + 2) 
 
 endif
 
@@ -567,23 +554,12 @@ end subroutine filter_state_space_diagnostics
 subroutine smoother_ss_diagnostics(model_size, num_output_state_members, output_inflation, &
    temp_ens, ENS_MEAN_COPY, ENS_SD_COPY, POST_INF_COPY, POST_INF_SD_COPY)
 
-
-use time_manager_mod, only : get_time
-
 integer,         intent(in)  :: model_size, num_output_state_members
 logical,         intent(in)  :: output_inflation
 real(r8),        intent(out) :: temp_ens(model_size)
 integer,         intent(in)  :: ENS_MEAN_COPY, ENS_SD_COPY, POST_INF_COPY, POST_INF_SD_COPY
 
 integer :: smoother_index, i
-
-!HK
-type(time_type) :: curr_ens_time
-integer :: hk_seconds, hk_days, sec, days
-
-!call get_time(lag_handle(smoother_index)%time, hk_seconds, hk_days)
-!call get_time(curr_ens_time, sec, days)
-!print*, ' inside smoother lag_handle(smoother_index)%time(1)', hk_seconds, hk_days
 
 ! must have called init_smoother() before using this routine
 if ( .not. module_initialized ) then
@@ -594,11 +570,11 @@ endif
 do i = 1, num_current_lags
    smoother_index = smoother_head + i - 1
    if(smoother_index > num_lags) smoother_index = smoother_index - num_lags
-   curr_ens_time = lag_handle(smoother_index)%time(1)
-   call filter_state_space_diagnostics(curr_ens_time, SmootherStateUnit(i), lag_handle(smoother_index), &
+   ! HK only ensemble copies have the time
+   call filter_state_space_diagnostics(lag_handle(smoother_index)%time(1), SmootherStateUnit(i), lag_handle(smoother_index), &
       model_size, num_output_state_members, &
       smoother_state_mean_index, smoother_state_spread_index, output_inflation, temp_ens, &
-      ENS_MEAN_COPY, ENS_SD_COPY, lag_inflate, POST_INF_COPY, POST_INF_SD_COPY) !HK curr_ens_time
+      ENS_MEAN_COPY, ENS_SD_COPY, lag_inflate, POST_INF_COPY, POST_INF_SD_COPY)
 end do
 
 

@@ -135,9 +135,6 @@ real(r8)             :: inf_upper_bound(2)        = 1000000.0_r8
 real(r8)             :: inf_sd_lower_bound(2)     = 0.0_r8
 logical              :: output_inflation          = .true.
 
-integer :: hk_seconds, hk_days, sec, days
-
-
 
 namelist /filter_nml/ async, adv_ens_command, ens_size, tasks_per_model_advance,    &
    start_from_restart, output_restart, obs_sequence_in_name, obs_sequence_out_name, &
@@ -557,12 +554,6 @@ AdvanceTime : do
    call timestamp_message('After  computing prior observation values')
    call     trace_message('After  computing prior observation values')
 
-    call get_time(curr_ens_time, hk_seconds, hk_days)
-    call get_time(ens_handle%time(1), sec, days)
-    print*, 'in Filter curr_ens_time', hk_seconds, hk_days, 'ens_handle', sec, days
-
-
-
    ! Do prior state space diagnostic output as required
    ! Use ens_mean which is declared model_size for temp storage in diagnostics
    if ((output_interval > 0) .and. &
@@ -603,10 +594,6 @@ AdvanceTime : do
       PRIOR_INF_COPY, PRIOR_INF_SD_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY, &
       OBS_MEAN_START, OBS_MEAN_END, OBS_VAR_START, &
       OBS_VAR_END, inflate_only = .false.)
-
-    call get_time(curr_ens_time, hk_seconds, hk_days)
-    print*, 'in Filter curr_ens_time', hk_seconds, hk_days
-
 
    call timestamp_message('After  observation assimilation')
    call     trace_message('After  observation assimilation')
@@ -673,16 +660,6 @@ AdvanceTime : do
       call trace_message('After  computing smoother means/spread')
    endif
 
-
-    call get_time(curr_ens_time, hk_seconds, hk_days)
-    call get_time(ens_handle%time(1), sec, days)
-
-     print*, 'in Filter curr_ens_time', hk_seconds, hk_days, 'ens_handle', sec, days
-
-call get_time(ens_handle%time(1), hk_seconds, hk_days)
-call get_time(curr_ens_time, sec, days)
-print*, 'ens_handle%time(1)', hk_seconds, hk_days, 'curr_ens_time', sec, days
-
    ! Do posterior state space diagnostic output as required
    if ((output_interval > 0) .and. &
        (time_step_number / output_interval * output_interval == time_step_number)) then
@@ -695,11 +672,6 @@ print*, 'ens_handle%time(1)', hk_seconds, hk_days, 'curr_ens_time', sec, days
          post_inflate, POST_INF_COPY, POST_INF_SD_COPY)
       ! Cyclic storage for lags with most recent pointed to by smoother_head
       ! ens_mean is passed to avoid extra temp storage in diagnostics
-      call trace_message('Before smoother_ss_diagnostics')
-
-call get_time(ens_handle%time(1), hk_seconds, hk_days)
-call get_time(curr_ens_time, sec, days)
-print*, ' just before smoother ens_handle%time(1)', hk_seconds, hk_days, 'curr_ens_time', sec, days
 
       call smoother_ss_diagnostics(model_size, num_output_state_members, &
          output_inflation, ens_mean, ENS_MEAN_COPY, ENS_SD_COPY, &
@@ -708,17 +680,8 @@ print*, ' just before smoother ens_handle%time(1)', hk_seconds, hk_days, 'curr_e
       call trace_message('After  posterior state space diagnostics')
    endif
 
-call get_time(ens_handle%time(1), hk_seconds, hk_days)
-call get_time(curr_ens_time, sec, days)
-print*, ' just after smoother ens_handle%time(1)', hk_seconds, hk_days, 'curr_ens_time', sec, days
-
 
    call trace_message('Before posterior obs space diagnostics')
-
-call get_time(ens_handle%time(1), hk_seconds, hk_days)
-call get_time(curr_ens_time, sec, days)
-print*, 'ens_handle%time(1)', hk_seconds, hk_days, 'curr_ens_time', sec, days
-
 
    ! Do posterior observation space diagnostics
    call obs_space_diagnostics(obs_ens_handle, forward_op_ens_handle, ens_size, &
@@ -745,7 +708,7 @@ print*, 'ens_handle%time(1)', hk_seconds, hk_days, 'curr_ens_time', sec, days
          ! Who stores the ensemble mean copy
          call get_copy_owner_index(ENS_MEAN_COPY, mean_owner, mean_owners_index)
          ! Broadcast it to everybody else
-         if(ens_handle%my_pe == mean_owner) then !HK
+         if(ens_handle%my_pe == mean_owner) then
             ens_mean = ens_handle%vars(:, mean_owners_index)
             call broadcast_send(my_task_id(), ens_mean)
          else
@@ -772,16 +735,12 @@ print*, 'ens_handle%time(1)', hk_seconds, hk_days, 'curr_ens_time', sec, days
       endif  ! sd >= 0 or sd from restart file
    endif  ! if doing state space posterior inflate
 
-call get_time(ens_handle%time(1), hk_seconds, hk_days)
-call get_time(curr_ens_time, sec, days)
-print*, 'ens_handle%time(1)', hk_seconds, hk_days, 'curr_ens_time', sec, days
-
 
 !-------- End of posterior  inflate ----------------
 
    ! If observation space inflation, output the diagnostics
    if(do_obs_inflate(prior_inflate) .and. my_task_id() == 0) then
-      call output_inflate_diagnostics(prior_inflate, curr_ens_time) !HK ens_handle%time(1)
+      call output_inflate_diagnostics(prior_inflate, curr_ens_time)
    endif
 
    call trace_message('Near bottom of main loop, cleaning up obs space')
