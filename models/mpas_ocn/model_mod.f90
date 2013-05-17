@@ -1303,7 +1303,7 @@ else
    ! Finished with dimension/variable definitions, must end 'define' mode to fill.
    !----------------------------------------------------------------------------
 
-   call nc_check(nf90_enddef(ncfileID), 'prognostic enddef '//trim(filename))
+   call nc_check(nf90_enddef(ncFileID), 'prognostic enddef '//trim(filename))
 
    !----------------------------------------------------------------------------
    ! Fill the coordinate variables that DART needs and has locally
@@ -2430,13 +2430,20 @@ PROGVARLOOP : do ivar=1, nfields
    endif
 
    ! Make note that the variable has been updated by DART
-   !call nc_check(nf90_Redef(ncFileID),'statevector_to_analysis_file', 'redef '//trim(filename))
-   !call nc_check(nf90_put_att(ncFileID, VarID,'DART','variable modified by DART'),&
-   !              'statevector_to_analysis_file', 'modified '//trim(varname))
-   !call nc_check(nf90_enddef(ncfileID),'statevector_to_analysis_file','state enddef '//trim(filename))
+   ! TJH FIXME ... this should work, but does not ... (the sync'ing does not help)
+   ! http://www.unidata.ucar.edu/software/netcdf/docs/netcdf-f90/Adding-New-Dimensions.html#Adding-New-Dimensions
+   ! There is a bug in netCDF when doing this with LARGE files. Crazy.
+
+!  call nc_check(nf90_sync( ncFileID),'statevector_to_analysis_file','sync  at '//trim(varname))
+!  call nc_check(nf90_redef(ncFileID),'statevector_to_analysis_file','redef at '//trim(varname))
+!  call nc_check(nf90_put_att(ncFileID, VarID,'DART','variable modified by DART'),&
+!                'statevector_to_analysis_file', 'modified '//trim(varname))
+!  call nc_check(nf90_enddef(ncFileID),'statevector_to_analysis_file','enddef  '//trim(varname))
 
 enddo PROGVARLOOP
 
+!call nc_check(nf90_sync( ncFileID), &
+!             'statevector_to_analysis_file','sync  '//trim(filename))
 call nc_check(nf90_close(ncFileID), &
              'statevector_to_analysis_file','close '//trim(filename))
 
