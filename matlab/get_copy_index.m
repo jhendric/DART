@@ -55,7 +55,8 @@ if (copy_index < 0)
    end
 end
 
+
 function str2 = dewhite(str1)
-% internal function to remove whitespace from a character string
-i = find( ~isspace(str1) );
-str2 = str1(i);
+%  function to remove ALL whitespace from a character string
+
+str2 = str1(~isspace(str1));
