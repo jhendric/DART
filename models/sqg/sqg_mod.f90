@@ -1,16 +1,7 @@
-!============================================================
-! <next few lines under version control, D O  N O T  E D I T>
-! $Date$
-! $Author$
-! $Revision$
-! $Id$
-!============================================================
-
 !========================================================================
 ! Uniform-PV two-surface QG+1 model in spectral form (Hakim 2000)
 !========================================================================
 
-!========================================================================
 MODULE sqg_mod
 
     USE netcdf
@@ -213,7 +204,7 @@ SUBROUTINE invert(ithspB,ithspT,thxBr,thxTr,thyBr,thyTr,vBr,vTr,uBr,uTr, &
     real,    dimension(mmax,nmax),     intent(in)  :: thbyB,thbyT
     real,    dimension(mmax,nmax),     intent(in)  :: ulinB,ulinT
     real,                              intent(in)  :: lam
-    logical,                            intent(in) :: first,bot,top
+    logical,                           intent(in)  :: first,bot,top
     real,    dimension(mmax,nmax),     intent(out) :: thxBr,thxTr,thyBr,thyTr
     real,    dimension(mmax,nmax),     intent(out) :: uBr,uTr,vBr,vTr
     real,    dimension(mmax,nmax),     intent(out) :: sblre
@@ -1293,7 +1284,7 @@ SUBROUTINE write_diag(output_file,it,thB,thT)
     if ( it .eq. 0 ) then
 
         ! Create a new NetCDF file
-        call nc_check( nf90_create(output_file, NF90_CLOBBER .or. NF90_64BIT_OFFSET, ncid), 'write_diag', 'create ' // trim(output_file) )
+        call nc_check( nf90_create(output_file, ior(NF90_CLOBBER,NF90_64BIT_OFFSET), ncid), 'write_diag', 'create ' // trim(output_file) )
 
         ! Define dimensions
         call nc_check( nf90_def_dim(ncid, "nx",   2*kmax,         vardim(1)), 'write_diag', 'def_dim, nx '   // trim(output_file))
@@ -1425,8 +1416,8 @@ SUBROUTINE terrain(hx,hy,hu,hv)
         if ( verbose .gt. 1 ) print*,'max topo = ',maxval(abs(hspR))
         call xy_to_sp(cmplx(hspR,0.),hspC,2*kmax,2*lmax,kmax,lmax)
         if ( verbose .gt. 1 ) print*,'max topo spectral = ',maxval(abs(hspC))
-        call invert(-hspC,Cblank,Rblank,Rblank,Rblank,Rblank,Rblank, & 
-                    hv,Rblank,hu,Cblank,Cblank,Rblank,Rblank,Rblank, & 
+        call invert(-hspC,Cblank,Rblank,Rblank,Rblank,Rblank,Rblank, &
+                    hv,Rblank,hu,Cblank,Cblank,Rblank,Rblank,Rblank, &
                     Rblank,.TRUE.,.TRUE.,.TRUE.,lam,Cblank,Cblank,Rblank)
         ! hu and hv have the tropo winds due to topography
         if ( verbose .gt. 1 ) print*,'max tropo winds due to topography: ',maxval(abs(hu)),maxval(abs(hv))
@@ -1512,3 +1503,10 @@ END SUBROUTINE nc_check
 
 END MODULE sqg_mod
 !========================================================================
+
+! <next few lines under version control, do not edit>
+! $Date$
+! $Author$
+! $Revision$
+! $Id$
+
