@@ -3,12 +3,6 @@
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
-#
-# <next few lines under version control, do not edit>
-# $URL$
-# $Id$
-# $Revision$
-# $Date$
 
 #-----------------------------------------------------------------------
 #              mkmf: Perl script for makefile construction
@@ -267,7 +261,7 @@ foreach $target ( @targets ) {
 #before proceeding, dump namelist file if any
 if ( @nml_list ) {
   unlink $nmlfile if -e $nmlfile;
-  open NMLFILE, ">$nmlfile"; 
+  open NMLFILE, ">$nmlfile";
   foreach ( @nml_list ) {
     open THISNML, "$_";
     while (<THISNML>) {
@@ -471,3 +465,10 @@ close MAKEFILE;
 print " $opt_m is ready.\n";
 
 exec 'make', '-f', $opt_m if $opt_x;
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Id$
+# $Revision$
+# $Date$
+
