@@ -240,8 +240,6 @@ plotdat.ncopies       = length(nc_varget(fname,'copy'));
 
 plotdat.binseparation      = nc_attget(fname, nc_global, 'bin_separation');
 plotdat.binwidth           = nc_attget(fname, nc_global, 'bin_width');
-plotdat.rat_cri            = nc_attget(fname, nc_global, 'rat_cri');
-plotdat.input_qc_threshold = nc_attget(fname, nc_global, 'input_qc_threshold');
 plotdat.lonlim1            = nc_attget(fname, nc_global, 'lonlim1');
 plotdat.lonlim2            = nc_attget(fname, nc_global, 'lonlim2');
 plotdat.latlim1            = nc_attget(fname, nc_global, 'latlim1');
