@@ -69,7 +69,8 @@ The namelist declaration (i.e. what follows) has a different syntax, naturally.
 <div class=namelist>
 <pre>
 <em class=call>namelist / ensemble_manager_nml / </em>
-   single_restart_file_in, single_restart_file_out, perturbation_amplitude
+   single_restart_file_in, single_restart_file_out, perturbation_amplitude,
+   use_copy2var_send_loop, use_var2copy_rec_loop, layout, tasks_per_node
 </pre>
 </div>
 
@@ -112,7 +113,51 @@ This namelist is read in a file called <em class=file>input.nml</em>
       the initial states into a set of members with enough spread and which
       match the current set of observations.
       Default: 0.2_r8</TD></TR>
+<TR><!--contents--><TD valign=top>use_copy2var_send_loop</TD>
+    <!--  type  --><TD>logical</TD>
+    <!--descript--><TD>MPI communication flag* for all_copies_to_all_vars.
+     Default: .true.</TD></TR>
+<TR><!--contents--><TD valign=top>use_var2copy_rec_loop</TD>
+    <!--  type  --><TD>logical</TD>
+    <!--descript--><TD>MPI communication flag* for all_vars_to_all_copies.
+     Default: .true.</TD></TR>
+ <TR><!--contents--><TD valign=top>layout</TD>
+    <!--  type  --><TD valign=top>integer</TD>
+    <!--descript--><TD>Determines the process (pe) layout on MPI tasks.
+     1 is pe = MPI task. 2 is a round-robin layout around the nodes. Layout 2
+     results in a more even usage of memory across nodes. This may allow you to run
+     with a larger state vector without hitting the memory limit of the node.
+     It may give a slight (5%) increase in perfromance, but this is machine dependent.
+     It has no effect on serial runs of filter.
+     Default: 1</TD></TR>
+<TR><!--contents--><TD valign=top>tasks_per_node</TD>
+    <!--  type  --><TD>integer</TD>
+    <!--descript--><TD>The number of tasks per node.  This
+    is only used if layout = 2. 
+     Default: 1</TD></TR>
 </TABLE>
+
+<P>
+<i>*Note about MPI communication flags:</i>
+<br>
+use_copy2var_send_loop and use_var2copy_rec_loop are flags that change the order of the MPI
+send and MPI receives in the the routines all_copies_to_all_vars and all_vars_to_all_copies.
+The figures below show the data transfered between tasks for an 80 member ensemble.
+The left figure is using 96 tasks, the right figure is using 512 tasks. As the number of tasks
+increases, the 'all to all' data transfer becomes a 'some to all, all to some' transfer and the
+order of MPI send and MPI receives becomes increasingly important.
+The default values give a performance advantage as the number of tasks becomes much greater
+than the the ensemble size.
+However, for small numbers of tasks, i.e. less than the ensemble size, changing the default values
+may improve performance.
+
+
+<P>
+   <table width="100%"><tr>
+   <td><a href="../doc/html/comm_pattern96.png"><img src="../doc/html/comm_pattern96.png" width="400"></a>
+   <td><a href="../doc/html/comm_pattern512.png"><img src="../doc/html/comm_pattern512.png" width="400"></a>
+   </table>
+</P>
 
 </div>
 <br>

@@ -41,7 +41,6 @@ plotdat.copystring    = copystring;
 plotdat.binseparation = nc_attget(fname, nc_global, 'bin_separation');
 plotdat.binwidth      = nc_attget(fname, nc_global, 'bin_width');
 time_to_skip          = nc_attget(fname, nc_global, 'time_to_skip');
-plotdat.rat_cri       = nc_attget(fname, nc_global, 'rat_cri');
 plotdat.lonlim1       = nc_attget(fname, nc_global, 'lonlim1');
 plotdat.lonlim2       = nc_attget(fname, nc_global, 'lonlim2');
 plotdat.latlim1       = nc_attget(fname, nc_global, 'latlim1');

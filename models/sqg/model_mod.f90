@@ -6,14 +6,6 @@
 module model_mod
 
 !========================================================================
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-!========================================================================
-
-!========================================================================
 ! Assimilation interface for:
 ! Uniform-PV two-surface QG+1 model in spectral form (Hakim 2000)
 !========================================================================
@@ -21,8 +13,8 @@ module model_mod
 !================= m o d u l e   i n f o r m a t i o n ==================
 
 use        types_mod, only : r8, MISSING_R8
-use time_manager_mod, only : time_type, set_time, get_time, &
-                             operator(<), operator(+)
+use time_manager_mod, only : time_type, set_time, get_time, set_calendar_type, &
+                             print_time, operator(<), operator(+)
 use     location_mod, only : location_type,      get_close_maxdist_init, &
                              get_close_obs_init, get_close_obs, set_location, &
                              get_location, set_location_missing
@@ -76,12 +68,16 @@ character(len=128), parameter :: &
 !---------------------------------------------------------------
 ! Namelist with default values
 
-logical  :: output_state_vector = .false.
-real(r8) :: channel_center      = 45.0_r8
-real(r8) :: channel_width       = 40.0_r8
-logical  :: debug               = .false.
+logical  :: output_state_vector         = .false.
+real(r8) :: channel_center              = 45.0_r8
+real(r8) :: channel_width               = 40.0_r8
+logical  :: debug                       = .false.
+integer  :: assimilation_period_days    = 0
+integer  :: assimilation_period_seconds = 60*60*6
+
 namelist /model_nml/ output_state_vector, &
                      channel_center, channel_width, &
+                     assimilation_period_days, assimilation_period_seconds, &
                      debug
 
 real,     dimension(mmax,nmax), parameter :: Rblank = 0.0
@@ -92,8 +88,8 @@ integer, parameter :: model_size = 2 * (2*kmax) * (2*lmax)
 ! Define the location of the state variables in module storage
 type(location_type), allocatable :: state_loc(:)
     
-type(time_type)                  :: time_step
-character(len=129)               :: errstring
+type(time_type)     :: time_step, model_stride
+character(len=129)  :: msgstring1,msgstring2
 
 type model_static
    logical                               :: top, bot
@@ -133,6 +129,10 @@ call check_namelist_read(iunit, io, "model_nml")
 ! Record the namelist values used for the run ...
 if (do_nml_file()) write(nmlfileunit, nml=model_nml)
 if (do_nml_term()) write(     *     , nml=model_nml)
+
+call set_calendar_type('Gregorian')  ! TJH addition
+
+model_stride = set_model_stride()
 
 ! evenly spaced longitudes, latitudes and two levels
 allocate( sqg_static%lons(2*kmax) )
@@ -281,7 +281,7 @@ end subroutine init_conditions
 
 !========================================================================
 
-subroutine adv_1step(x, current_time, target_time)
+subroutine adv_1step(x, current_time)
 !-------------------------------------------------
 ! Does a time advance for sQG model with state vector as
 ! input and output.
@@ -291,12 +291,11 @@ subroutine adv_1step(x, current_time, target_time)
 
 real(r8),        intent(inout)        :: x(:)
 type(time_type), intent(in)           :: current_time
-type(time_type), intent(in), optional :: target_time
 
 real(r8) :: cxB,cyB,cxT,cyT
 integer  :: j
 integer  :: itime, cdays, cseconds, tdays, tseconds
-type(time_type) :: ctime
+type(time_type) :: ctime, target_time
 
 real,    allocatable, dimension(:,:,:) :: thxy
 real,    allocatable, dimension(:,:)   :: thxyB, thxyT
@@ -355,9 +354,10 @@ sB     = 0.0
 thspB1 = 0.0; thspB2 = 0.0
 thspT1 = 0.0; thspT2 = 0.0
 
-! advance from current_time to target_time:
+! advance from current_time 
 itime = 1
 ctime = current_time
+target_time = current_time + model_stride
 do while ( ctime < target_time )
 
    ! save old stream-function for Ekman calculation:
@@ -408,7 +408,8 @@ do while ( ctime < target_time )
    if ( sqg_static%top ) call tadv(thspT, tthspT, thspT1, thspT2, sqg_static%dco, first)
 
    ! zero out k=K, l=L modes on the bottom boundary:
-   thspB(kmax,:) = 0.0 ; thspB(lmax,:) = 0.0
+   thspB(kmax,:) = 0.0
+   thspB(lmax,:) = 0.0
        
    itime = itime + 1
    ctime = ctime + time_step
@@ -477,8 +478,6 @@ subroutine init_time(time)
 
 type(time_type), intent(out) :: time
 
-! for now, just set to 0
-print*,'init_time'
 time = set_time(0,0)
 
 end subroutine init_time
@@ -514,8 +513,8 @@ lev = lon_lat_lev(3); level = int(lev)
 if ( (level < 1) .or. (level > 2) ) then
    istatus = 1
    obs_val = MISSING_R8
-   write(errstring,*)'level ',level,' must be 1 or 2'
-   call error_handler(E_ERR,'model_mod:model_interpolate', errstring, source, revision, revdate)
+   write(msgstring1,*)'level ',level,' must be 1 or 2'
+   call error_handler(E_ERR,'model_mod:model_interpolate', msgstring1, source, revision, revdate)
 endif
 
 ! Get globally defined lat / lon grid specs
@@ -564,10 +563,10 @@ val(2,2) = get_val(x, lon_above, lat_above, level)
 ! Do the weighted average for interpolation
 if ( debug ) write(*,*) 'fracts ', lon_fract, lat_fract
 do i = 1, 2
-   a(i) = lon_fract * val(2, i) + (1.0 - lon_fract) * val(1, i)
+   a(i) = lon_fract * val(2, i) + (1.0_r8 - lon_fract) * val(1, i)
 end do
 
-obs_val = lat_fract * a(2) + (1.0 - lat_fract) * a(1)
+obs_val = lat_fract * a(2) + (1.0_r8 - lat_fract) * a(1)
 
 end subroutine model_interpolate
 
@@ -589,8 +588,8 @@ indx = (level-1)*(2*lmax)*(2*kmax) + (lat_index-1)*(2*kmax) + lon_index
 !! (it is out for performance reasons, but if you get any strange values, this
 !! is a good first check to re-enable.)
 !if (indx < 1 .or. indx > size(x)) then
-!   write(errstring,*)'index ',indx,' not between 1 and ', size(x), ' (should not be possible)'
-!   call error_handler(E_ERR,'model_mod:get_val', errstring, source, revision, revdate)
+!   write(msgstring1,*)'index ',indx,' not between 1 and ', size(x), ' (should not be possible)'
+!   call error_handler(E_ERR,'model_mod:get_val', msgstring1, source, revision, revdate)
 !endif
 
 get_val = x(indx)
@@ -601,11 +600,12 @@ end function get_val
 
 function get_model_time_step()
 !-----------------------------
-! Returns the time step of the model
+! Returns the time step of a single model advance, 
+! NOT the dynamical timestep of the model.
 
 type(time_type) :: get_model_time_step
 
-get_model_time_step = time_step
+get_model_time_step = model_stride
 
 end function get_model_time_step
 
@@ -626,8 +626,8 @@ integer  :: location_index
 
 ! avoid out-of-range queries
 if ( index_in > model_size ) then
-   write(errstring,*)'index_in ',index_in,' must be between 1 and ', model_size
-   call error_handler(E_ERR,'model_mod:get_state_meta_data', errstring, source, revision, revdate)
+   write(msgstring1,*)'index_in ',index_in,' must be between 1 and ', model_size
+   call error_handler(E_ERR,'model_mod:get_state_meta_data', msgstring1, source, revision, revdate)
 endif
 
 lev_index =  (index_in-1) / ((2*lmax)*(2*kmax)) + 1
@@ -725,9 +725,9 @@ call nc_check(nf90_inq_dimid(ncid=ncFileID, name="time", dimid= TimeDimID), &
                             "nc_write_model_atts", "inq_dimid time," // trim(filename))
 
 if ( TimeDimID /= unlimitedDimId ) then
-   write(errstring,*)"Time Dimension ID ",TimeDimID, &
+   write(msgstring1,*)"Time Dimension ID ",TimeDimID, &
                      " should equal Unlimited Dimension ID",unlimitedDimID
-   call error_handler(E_ERR,"nc_write_model_atts", errstring, source, revision, revdate)
+   call error_handler(E_ERR,"nc_write_model_atts", msgstring1, source, revision, revdate)
 endif
 
 !-------------------------------------------------------------------------------
@@ -1005,10 +1005,9 @@ real,     dimension(:,:,:), intent(in)  :: theta
 real(r8), dimension(:),     intent(out) :: statevec
 
 if ( product(shape(theta)) /= product(shape(statevec)) ) then
-   write(errstring,*)'size mismatch : product(shape(theta) /= product(shape(statevec))'
-   call error_handler(E_MSG,'sqg_to_dart',errstring,source,revision,revdate)
-   write(errstring,*)'size mismatch : ', product(shape(theta)), ' /= ', product(shape(statevec))
-   call error_handler(E_ERR,'sqg_to_dart',errstring,source,revision,revdate)
+   write(msgstring1,*)'size mismatch : product(shape(theta) /= product(shape(statevec))'
+   write(msgstring2,*)'size mismatch : ', product(shape(theta)), ' /= ', product(shape(statevec))
+   call error_handler(E_ERR,'sqg_to_dart',msgstring1,source,revision,revdate,text2=msgstring2)
 else
    statevec = reshape(theta,shape(statevec))
 endif
@@ -1025,17 +1024,14 @@ real(r8), dimension(:),     intent(in)  :: statevec
 real,     dimension(:,:,:), intent(out) :: theta
 
 if ( product(shape(statevec)) /= product(shape(theta)) ) then
-   write(errstring,*)'size mismatch : product(shape(statevec)) /= product(shape(theta))'
-   call error_handler(E_MSG,'dart_to_sqg',errstring,source,revision,revdate)
-   write(errstring,*)'size mismatch : ', product(shape(statevec)), ' /= ', product(shape(theta))
-   call error_handler(E_ERR,'dart_to_sqg',errstring,source,revision,revdate)
+   write(msgstring1,*)'size mismatch : product(shape(statevec)) /= product(shape(theta))'
+   write(msgstring2,*)'size mismatch : ', product(shape(statevec)), ' /= ', product(shape(theta))
+   call error_handler(E_ERR,'dart_to_sqg',msgstring1,source,revision,revdate,text2=msgstring2)
 else
    theta = reshape(statevec,shape(theta))
 endif
 
 end subroutine dart_to_sqg
-
-!========================================================================
 
 !========================================================================
 
@@ -1051,7 +1047,43 @@ end function get_model_static_data
 
 !========================================================================
 
+function set_model_stride()
+!------------------------------------------------------------------
+! Defines the minimum amount of time to advance the model in one 'go'.
+! This is NOT the dynamical timestep of the model. It is usually a
+! MULTIPLE of the dynamical timestep - since most models stop that way.
+!
+! If we can advance the model for 6hour chunks, for example - 
+!
+! Also : All observations +/- half this timestep are assimilated.
+! In essence, this defines the minimum window used for assimilation.
+
+type(time_type) :: set_model_stride
+
+! Check the user input
+if ((assimilation_period_seconds < 0) .or. (assimilation_period_days < 0)) then
+   write(msgstring1,*)'model_nml:assimilation_period_[seconds,days] must both be positive.'
+   write(msgstring2,*)'they are : ', assimilation_period_seconds, assimilation_period_days
+   call error_handler(E_ERR,'set_model_stride',msgstring1,source,revision,revdate,text2=msgstring2)
+elseif ((assimilation_period_seconds == 0) .and. (assimilation_period_days == 0)) then
+   write(msgstring1,*)'at least one of model_nml:assimilation_period_[seconds,days] must be positive.'
+   write(msgstring2,*)'they are : ', assimilation_period_seconds, assimilation_period_days
+   call error_handler(E_ERR,'set_model_stride',msgstring1,source,revision,revdate,text2=msgstring2)
+else
+   ! FIXME ... ensure that stride is a multiple of 'time_step'
+   set_model_stride = set_time(assimilation_period_seconds, assimilation_period_days)
+endif
+
+end function set_model_stride
+
 !========================================================================
 ! End of model_mod
 !========================================================================
 end module model_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+

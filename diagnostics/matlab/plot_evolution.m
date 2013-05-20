@@ -85,17 +85,15 @@ if (plotdat.nregions == 1 && (size(plotdat.region_names,2) == 1) )
    plotdat.region_names = deblank(plotdat.region_names');
 end
 
-dimensionality             = local_nc_attget(fname, nc_global, 'LocationRank');
-plotdat.binseparation      = local_nc_attget(fname, nc_global, 'bin_separation');
-plotdat.binwidth           = local_nc_attget(fname, nc_global, 'bin_width');
-time_to_skip               = local_nc_attget(fname, nc_global, 'time_to_skip');
-plotdat.rat_cri            = local_nc_attget(fname, nc_global, 'rat_cri');
-plotdat.input_qc_threshold = local_nc_attget(fname, nc_global, 'input_qc_threshold');
-plotdat.lonlim1            = local_nc_attget(fname, nc_global, 'lonlim1');
-plotdat.lonlim2            = local_nc_attget(fname, nc_global, 'lonlim2');
+dimensionality             = nc_attget(fname, nc_global, 'LocationRank');
+plotdat.biasconv           = nc_attget(fname, nc_global, 'bias_convention');
+plotdat.binseparation      = nc_attget(fname, nc_global, 'bin_separation');
+plotdat.binwidth           = nc_attget(fname, nc_global, 'bin_width');
+time_to_skip               = nc_attget(fname, nc_global, 'time_to_skip');
+plotdat.lonlim1            = nc_attget(fname, nc_global, 'lonlim1');
+plotdat.lonlim2            = nc_attget(fname, nc_global, 'lonlim2');
 plotdat.latlim1            = local_nc_attget(fname, nc_global, 'latlim1');
 plotdat.latlim2            = local_nc_attget(fname, nc_global, 'latlim2');
-plotdat.biasconv           = local_nc_attget(fname, nc_global, 'bias_convention');
 
 % Coordinate between time types and dates
 

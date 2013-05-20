@@ -3,31 +3,27 @@
 # DART software - Copyright 2004 - 2011 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
-#
-# <next few lines under version control, do not edit>
-# $URL$
-# $Id$
-# $Revision$
-# $Date$
 
 # typical use with mkmf
-# mkmf -t mkmf.template.xxxx -c"-Duse_netCDF" ...
+# mkmf -t mkmf.template.xxxx ...
 #
-# Most likely NETCDF and LIBS need to be customized for your site
+# NOTE: The intel compiler can provide a lot more
+#       information if you LEAVE the object and module files intact.
+#       Do not remove the *.o and *.mod files when debugging code.
 #
-# 
 # Building DART with the commercial Intel compiler for the iMacs:
-# 
+#
 # You will need to have a version of the (free) netCDF software
 # library package:
 #
 #      http://www.unidata.ucar.edu/software/netcdf
-# 
+#
 #
 # users have had problems with the default stack size on OS X.
 # the -Wl,-stack_size argument below increases the stack large
 # enough to run large models.
 #
+# IF YOU HAVE MORE CURRENT COMPILER INFORMATION, PLEASE SHARE IT WITH US.
 
 MPIFC = mpif90
 MPILD = mpif90
@@ -36,16 +32,28 @@ LD = ifort
 
 # If your NETCDF environment variable is not set correctly, 
 # uncomment the following line and set value properly. 
-# NETCDF = /usr/local
+NETCDF = /Users/hkershaw/gnu_4.5.0
 
-INCS = -I${NETCDF}/include
-LIBS = -L${NETCDF}/lib -lnetcdf
+# If your NETCDF environment variable is not set correctly,
+# uncomment the following line and set value to where lib and include
+# are found for the netcdf files that match this compiler.
+#
+# NETCDF = /opt/local
+
+INCS = -I$(NETCDF)/include
+LIBS = -L$(NETCDF)/lib -lnetcdff -lnetcdf
 
 # for Intel 9.x:
-FFLAGS  = $(INCS) -O2 
+FFLAGS  = $(INCS) -O2
 LDFLAGS = $(INCS) -Wl,-stack_size,10000000 $(LIBS)
 
 # for Intel 10.x:
 #FFLAGS  = $(INCS) -O2 -m64 -heap-arrays -vec-report0 -fpe0
 #LDFLAGS = $(INCS) $(LIBS)
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Id$
+# $Revision$
+# $Date$
 
