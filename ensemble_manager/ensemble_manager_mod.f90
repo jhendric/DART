@@ -1370,7 +1370,7 @@ count(:) = 1  ! keep track of the pes assigned to each node
 i = 0         ! keep track of the # of pes assigned
 
 do while (i < num_pes)
-   do j = num_nodes, 1, -1
+   do j = 1, num_nodes
 
       if(j == num_nodes) then
          if(count(j) <= last_node_task_number) then
