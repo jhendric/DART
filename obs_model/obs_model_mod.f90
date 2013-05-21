@@ -27,9 +27,9 @@ use time_manager_mod,     only : time_type, set_time, get_time, print_time,   &
                                  operator(/=), operator(>), operator(-),      &
                                  operator(/), operator(+), operator(<), operator(==), &
                                  operator(<=), operator(>=)
-use ensemble_manager_mod, only : get_ensemble_time, ensemble_type
+use ensemble_manager_mod, only : get_ensemble_time, ensemble_type, map_task_to_pe, map_pe_to_task
 use mpi_utilities_mod,    only : my_task_id, task_sync, task_count, block_task, &
-                                 sum_across_tasks, shell_execute
+                                 sum_across_tasks, shell_execute, send_to, receive_from, my_task_id
 
 implicit none
 private
@@ -132,6 +132,15 @@ if (.not. have_members(ens_handle, ens_size)) return
 ! it is possible we are at the end of the observations and there in fact
 ! is no need to advance.  if so, can return.
 
+! ens_handle%my_pe 0 does the output.
+! Don't want two pes outputing if task 0 also has a copy
+! FIMXE Commment 
+if ( map_task_to_pe(ens_handle, 0) >= ens_handle%num_copies .and. &
+   ens_handle%my_pe == 0 .and. my_task_id() /= 0) then
+  call set_output(.true.)
+endif
+
+
 ! Initialize a temporary observation type to use
 ! after here, must delete observation before returning.
 call init_obs(observation, get_num_copies(seq), get_num_qc(seq))
@@ -149,6 +158,11 @@ endif
 if (leaving_early) then
    ! need to destroy obs here before returning
    call destroy_obs(observation)
+
+   if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then
+    call set_output(.false.)
+   endif
+
    return
 endif
 
@@ -275,6 +289,9 @@ next_ens_time = time2
 ! Release the storage associated with the observation temp variable
 call destroy_obs(observation)
 
+if (ens_handle%my_pe == 0 .and. my_task_id() /= 0) then
+  call set_output(.false.)
+endif
 
 end subroutine move_ahead
 

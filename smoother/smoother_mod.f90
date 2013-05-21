@@ -21,7 +21,7 @@ use  utilities_mod,       only : file_exist, get_unit, check_namelist_read, do_o
 use ensemble_manager_mod, only : ensemble_type, init_ensemble_manager, read_ensemble_restart, &
                                  write_ensemble_restart, all_vars_to_all_copies,              &
                                  duplicate_ens, compute_copy_mean, compute_copy_mean_sd,      &
-                                 all_copies_to_all_vars, get_copy
+                                 all_copies_to_all_vars, get_copy, map_task_to_pe
 use time_manager_mod,     only : time_type, operator(==), print_time
 use assim_model_mod,      only : static_init_assim_model, get_model_size,                    &
                                  netcdf_file_type, init_diag_output, finalize_diag_output,   &
@@ -473,10 +473,11 @@ end subroutine smoother_mean_spread
 
 !-----------------------------------------------------------
 
-subroutine filter_state_space_diagnostics(out_unit, ens_handle, model_size, &
-   num_output_state_members, output_state_mean_index, output_state_spread_index, &
-   output_inflation, temp_ens, ENS_MEAN_COPY, ENS_SD_COPY, inflate, INF_COPY, INF_SD_COPY)
+subroutine filter_state_space_diagnostics(curr_ens_time, out_unit, ens_handle, model_size, &
+            num_output_state_members, output_state_mean_index, output_state_spread_index, &
+           output_inflation, temp_ens, ENS_MEAN_COPY, ENS_SD_COPY, inflate, INF_COPY, INF_SD_COPY)
 
+type(time_type),             intent(in)    :: curr_ens_time
 type(netcdf_file_type),      intent(inout) :: out_unit
 type(ensemble_type),         intent(inout) :: ens_handle
 integer,                     intent(in)    :: model_size, num_output_state_members
@@ -499,20 +500,22 @@ if ( .not. module_initialized ) then
 endif
 
 ! Output ensemble mean
-call get_copy(0, ens_handle, ENS_MEAN_COPY, temp_ens)
-if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%time(1), temp_ens, output_state_mean_index)
+call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, ENS_MEAN_COPY, temp_ens)
+if(my_task_id() == 0) call aoutput_diagnostics(out_unit, curr_ens_time, temp_ens,  &
+   output_state_mean_index)
 
 ! Output ensemble spread
-call get_copy(0, ens_handle, ENS_SD_COPY, temp_ens)
-if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%time(1), temp_ens, output_state_spread_index)
+call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, ENS_SD_COPY, temp_ens) 
+if(my_task_id() == 0) call aoutput_diagnostics(out_unit, curr_ens_time, temp_ens, &
+   output_state_spread_index)
 
 ! Compute the offset for copies of the ensemble
 ens_offset = 2
 
 ! Output state diagnostics as required: NOTE: Prior has been inflated
 do j = 1, num_output_state_members
-   ! Get this state copy to PE 0; then output it
-   call get_copy(0, ens_handle, j, temp_ens, temp_time)
+   ! Get this state copy to task 0; then output it
+   call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, j, temp_ens, temp_time)
    if(my_task_id() == 0) call aoutput_diagnostics( out_unit, temp_time, temp_ens, ens_offset + j)
 end do
 
@@ -520,23 +523,26 @@ end do
 if (output_inflation) then
    ! Output the spatially varying inflation if used
    if(do_varying_ss_inflate(inflate) .or. do_single_ss_inflate(inflate)) then
-      call get_copy(0, ens_handle, INF_COPY, temp_ens)
+      call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, INF_COPY, temp_ens)
    else
       ! Output inflation value as 1 if not in use (no inflation)
       temp_ens = 1.0_r8
    endif
-   if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%time(1), temp_ens, &
-      ens_offset + num_output_state_members + 1)
+
+   if(my_task_id() == 0) call aoutput_diagnostics(out_unit,  curr_ens_time, temp_ens, &
+     ens_offset + num_output_state_members + 1)  
 
 
    if(do_varying_ss_inflate(inflate) .or. do_single_ss_inflate(inflate)) then
-      call get_copy(0, ens_handle, INF_SD_COPY, temp_ens)
+      call get_copy(map_task_to_pe(ens_handle, 0), ens_handle, INF_SD_COPY, temp_ens)
    else
       ! Output inflation sd as 0 if not in use
       temp_ens = 0.0_r8
    endif
-   if(my_task_id() == 0) call aoutput_diagnostics(out_unit, ens_handle%time(1), temp_ens, &
-      ens_offset + num_output_state_members + 2)
+
+   if(my_task_id() == 0) call aoutput_diagnostics(out_unit, curr_ens_time, temp_ens, &
+      ens_offset + num_output_state_members + 2) 
+
 endif
 
 end subroutine filter_state_space_diagnostics
@@ -547,10 +553,10 @@ end subroutine filter_state_space_diagnostics
 subroutine smoother_ss_diagnostics(model_size, num_output_state_members, output_inflation, &
    temp_ens, ENS_MEAN_COPY, ENS_SD_COPY, POST_INF_COPY, POST_INF_SD_COPY)
 
-   integer,  intent(in)  :: model_size, num_output_state_members
-   logical,  intent(in)  :: output_inflation
-   real(r8), intent(out) :: temp_ens(model_size)
-   integer,  intent(in)  :: ENS_MEAN_COPY, ENS_SD_COPY, POST_INF_COPY, POST_INF_SD_COPY
+integer,         intent(in)  :: model_size, num_output_state_members
+logical,         intent(in)  :: output_inflation
+real(r8),        intent(out) :: temp_ens(model_size)
+integer,         intent(in)  :: ENS_MEAN_COPY, ENS_SD_COPY, POST_INF_COPY, POST_INF_SD_COPY
 
 integer :: smoother_index, i
 
@@ -563,8 +569,9 @@ endif
 do i = 1, num_current_lags
    smoother_index = smoother_head + i - 1
    if(smoother_index > num_lags) smoother_index = smoother_index - num_lags
-   call filter_state_space_diagnostics(SmootherStateUnit(i), lag_handle(smoother_index), &
-      model_size, num_output_state_members, &
+   ! only ensemble copies have the time
+   call filter_state_space_diagnostics(lag_handle(smoother_index)%time(1), SmootherStateUnit(i), &
+      lag_handle(smoother_index), model_size, num_output_state_members, &
       smoother_state_mean_index, smoother_state_spread_index, output_inflation, temp_ens, &
       ENS_MEAN_COPY, ENS_SD_COPY, lag_inflate, POST_INF_COPY, POST_INF_SD_COPY)
 end do

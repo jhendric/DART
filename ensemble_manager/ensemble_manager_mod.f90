@@ -29,6 +29,7 @@ use assim_model_mod,   only : aread_state_restart, awrite_state_restart, &
 use time_manager_mod,  only : time_type, set_time
 use random_seq_mod,    only : random_seq_type, init_random_seq, random_gaussian
 use mpi_utilities_mod, only : task_count, my_task_id, send_to, receive_from, task_sync
+use sort_mod,          only : index_sort
 
 implicit none
 private
@@ -49,7 +50,8 @@ public :: init_ensemble_manager,      end_ensemble_manager,     get_ensemble_tim
           get_my_vars,                compute_copy_mean,        compute_copy_mean_sd,   &
           get_copy,                   put_copy,                 all_vars_to_all_copies, &
           all_copies_to_all_vars,     read_ensemble_restart,    write_ensemble_restart, &
-          compute_copy_mean_var,      get_copy_owner_index,     set_ensemble_time
+          compute_copy_mean_var,      get_copy_owner_index,     set_ensemble_time,      &
+          map_task_to_pe,             map_pe_to_task
 
 type ensemble_type
    !DIRECT ACCESS INTO STORAGE IS USED TO REDUCE COPYING: BE CAREFUL
@@ -63,6 +65,11 @@ type ensemble_type
    ! Time is only related to var complete
    type(time_type), pointer :: time(:)
    integer                  :: distribution_type
+   integer, allocatable     :: task_to_pe_list(:), pe_to_task_list(:) ! List of tasks
+   ! Flexible my_pe, layout_type which allows different task layouts for different ensemble handles
+   integer                  :: my_pe    
+   integer                  :: layout_type           
+
 end type ensemble_type
 
 ! Logical flag for initialization of module
@@ -72,7 +79,7 @@ logical              :: module_initialized = .false.
 character(len = 129) :: errstring
 
 ! Module storage for pe information for this process avoids recomputation
-integer              :: my_pe, num_pes
+integer              :: num_pes
 
 !-----------------------------------------------------------------
 !
@@ -86,15 +93,22 @@ logical  :: single_restart_file_in  = .true.
 logical  :: single_restart_file_out = .true.
 ! Size of perturbations for creating ensembles when model won't do it
 real(r8) :: perturbation_amplitude  = 0.2_r8
-! Options to change order of loops in the transposes
+! Options to change order of communication loops in the transpose routines
 logical  :: use_copy2var_send_loop = .true.
 logical  :: use_var2copy_rec_loop = .true.
+! task layout options:
+integer  :: layout = 1 ! default to my_pe = my_task_id(). Layout2 assumes that the user knows the correct tasks_per_node
+integer  :: tasks_per_node = 1 ! default to 1 if the user does not specify a number of tasks per node.
+logical  :: debug = .false.
 
 namelist / ensemble_manager_nml / single_restart_file_in,  &
                                   single_restart_file_out, &
                                   perturbation_amplitude,  &
                                   use_copy2var_send_loop,  &
-                                  use_var2copy_rec_loop
+                                  use_var2copy_rec_loop,   &
+                                  layout, tasks_per_node,  &
+                                  debug
+                                  
 !-----------------------------------------------------------------
 
 contains
@@ -102,11 +116,12 @@ contains
 !-----------------------------------------------------------------
 
 subroutine init_ensemble_manager(ens_handle, num_copies, &
-   num_vars, distribution_type_in)
+   num_vars, distribution_type_in, layout_type)
 
 type(ensemble_type), intent(out)            :: ens_handle
 integer,             intent(in)             :: num_copies, num_vars
 integer,             intent(in), optional   :: distribution_type_in
+integer,             intent(in), optional   :: layout_type
 
 integer :: iunit, io
 
@@ -136,12 +151,36 @@ if ( .not. module_initialized ) then
 
    ! Get mpi information for this process; it's stored in module storage
    num_pes = task_count()
-   my_pe = my_task_id()
 endif
+
+! Optional layout_type argument to assign how my_pe is related to my_task_id
+! layout_type can be set individually for each ensemble handle. It is not advisable to do this
+! because get_obs_ens assumes that the layout is the same for each ensemble handle.
+if(.not. present(layout_type) ) then
+   ens_handle%layout_type = layout ! namelist option
+else
+   ens_handle%layout_type = layout_type
+endif
+
+! Check for error: only layout_types 1 and 2 are implemented
+if (ens_handle%layout_type /= 1 .and. ens_handle%layout_type /=2 ) then
+   call error_handler(E_ERR, 'init_ensemble_manager', 'only layout values 1 (standard), 2(round-robin) allowed ', source, revision, revdate)
+endif
+
+allocate(ens_handle%task_to_pe_list(num_pes))
+allocate(ens_handle%pe_to_task_list(num_pes))
+
+call assign_tasks_to_pes(ens_handle, num_copies, ens_handle%layout_type)
+ens_handle%my_pe = map_task_to_pe(ens_handle, my_task_id())
 
 ! Set the global storage bounds for the number of copies and variables
 ens_handle%num_copies = num_copies
 ens_handle%num_vars = num_vars
+
+if(debug .and. my_task_id()==0) then
+   print*, 'pe_to_task_list', ens_handle%pe_to_task_list
+   print*, 'task_to_pe_list', ens_handle%task_to_pe_list
+endif
 
 ! Figure out how the ensemble copies are partitioned
 call set_up_ens_distribution(ens_handle)
@@ -199,15 +238,15 @@ endif
 !-------- Block for single restart file or single member  being perturbed -----
 if(single_restart_file_in .or. .not. start_from_restart .or. &
    single_file_override) then 
-   ! Single restart file is read only by master_pe and then distributed
-   if(my_pe == 0) iunit = open_restart_read(file_name)
+   ! Single restart file is read only by task 0 and then distributed
+   if(my_task_id() == 0) iunit = open_restart_read(file_name)
    allocate(ens(ens_handle%num_vars))   ! used to be on stack.
 
    ! Loop through the total number of copies
    do i = start_copy, end_copy
-      ! Only master_pe does reading. Everybody can do their own perturbing
-      if(my_pe == 0) then
-         ! Read restarts in sequence; only read once for not start_from_restart
+     ! Only task 0 does reading. Everybody can do their own perturbing
+       if(my_task_id() == 0) then
+       ! Read restarts in sequence; only read once for not start_from_restart
          if(start_from_restart .or. i == start_copy) &
             call aread_state_restart(ens_time, ens, iunit)
          ! Override this time if requested by namelist
@@ -215,15 +254,16 @@ if(single_restart_file_in .or. .not. start_from_restart .or. &
       endif
 
       ! Store this copy in the appropriate place on the appropriate process
-      call put_copy(0, ens_handle, i, ens, ens_time)
-
+      ! map from my_pe to physical task number all done in send and recieves only
+     call put_copy(map_task_to_pe(ens_handle,0), ens_handle, i, ens, ens_time)
    end do
    
    deallocate(ens)
-   ! Master pe must close the file it's been reading
-   if(my_pe == 0) call close_restart(iunit)
+   ! Task 0 must close the file it's been reading
+   if(my_task_id() == 0) call close_restart(iunit)
 
 else
+
 !----------- Block that follows is for multiple restart files -----------
    ! Loop to read in all my ensemble members
    READ_MULTIPLE_RESTARTS: do i = 1, ens_handle%my_num_copies
@@ -299,17 +339,18 @@ endif
 ! Need to force single restart file for inflation files
 if(single_restart_file_out .or. single_file_forced) then
 
-   ! Single restart file is written only by the master_pe
-   if(my_pe == 0) then
-      iunit = open_restart_write(file_name)
+   ! Single restart file is written only by task 0
+   if(my_task_id() == 0) then
+
+     iunit = open_restart_write(file_name)
 
       ! Loop to write each ensemble member
       allocate(ens(ens_handle%num_vars))   ! used to be on stack.
       do i = start_copy, end_copy
          ! Figure out where this ensemble member is being stored
          call get_copy_owner_index(i, owner, owners_index)
-         ! If it's on the master pe, just write it
-         if(owner == 0) then
+         ! If it's on task 0, just write it
+         if(map_pe_to_task(ens_handle, owner) == 0) then
             call awrite_state_restart(ens_handle%time(owners_index), &
                ens_handle%vars(:, owners_index), iunit)
          else
@@ -317,15 +358,13 @@ if(single_restart_file_out .or. single_file_forced) then
             ! This communication assumes index numbers are monotonically increasing
             ! and that communications is blocking so that there are not multiple 
             ! outstanding messages from the same processors (also see send_to below).
-            call receive_from(owner, ens, ens_time)
+            call receive_from(map_pe_to_task(ens_handle, owner), ens, ens_time)
             call awrite_state_restart(ens_time, ens, iunit)
          endif
       end do
       deallocate(ens)
       call close_restart(iunit)
-   else
-      ! If I'm not the master pe with a single restart, I must send my copies
-      ! to master pe for writing to file
+   else ! I must send my copies to task 0 for writing to file
       do i = 1, ens_handle%my_num_copies
          ! Figure out which global index this is
          global_index = ens_handle%my_copies(i)
@@ -393,9 +432,9 @@ endif
 call get_copy_owner_index(copy, owner, owners_index)
 
 !----------- Block of code that must be done by receiving pe -----------------------------
-if(my_pe == receiving_pe) then
+if(ens_handle%my_pe == receiving_pe) then
    ! If PE that stores is the same, just copy and return
-   if(my_pe == owner) then
+   if(ens_handle%my_pe == owner) then
       vars = ens_handle%vars(:, owners_index)
       if(present(mtime)) mtime = ens_handle%time(owners_index)
       ! If I'm the receiving PE and also the owner, I'm all finished; return
@@ -403,16 +442,17 @@ if(my_pe == receiving_pe) then
    endif
  
    ! Otherwise, must wait to receive vars and time from storing pe
-      call receive_from(owner, vars, mtime)
+      call receive_from(map_pe_to_task(ens_handle, owner), vars, mtime)
 endif
 
 !----- Block of code that must be done by PE that stores the copy IF it is NOT receiver -----
-if(my_pe == owner) then
+if(ens_handle%my_pe == owner) then
    ! Send copy to receiving pe
+
    if(present(mtime)) then
-      call send_to(receiving_pe, ens_handle%vars(:, owners_index), ens_handle%time(owners_index))
+      call send_to(map_pe_to_task(ens_handle, receiving_pe), ens_handle%vars(:, owners_index), ens_handle%time(owners_index))
    else
-      call send_to(receiving_pe, ens_handle%vars(:, owners_index))
+      call send_to(map_pe_to_task(ens_handle, receiving_pe), ens_handle%vars(:, owners_index))
    endif
 endif
 !------ End of block ---------------------------------------------------------------------
@@ -454,9 +494,9 @@ endif
 call get_copy_owner_index(copy, owner, owners_index)
 
 ! Block of code that must be done by PE that is to send the copy
-if(my_pe == sending_pe) then
+if(ens_handle%my_pe == sending_pe) then
    ! If PE that stores is the same, just copy and return
-   if(my_pe == owner) then
+   if(ens_handle%my_pe == owner) then
       ens_handle%vars(:, owners_index) = vars
       if(present(mtime)) ens_handle%time(owners_index) = mtime
       ! If I'm the sending PE and also the owner, I'm all finished; return
@@ -464,16 +504,17 @@ if(my_pe == sending_pe) then
    endif
  
    ! Otherwise, must send vars and possibly time to storing pe
-      call send_to(owner, vars, mtime)
+   call send_to(map_pe_to_task(ens_handle, owner), vars, mtime)
+
 endif
 
 ! Block of code that must be done by PE that stores the copy IF it is NOT sender
-if(my_pe == owner) then
+if(ens_handle%my_pe == owner) then
    ! Need to receive copy from sending_pe
    if(present(mtime)) then
-      call receive_from(sending_pe, ens_handle%vars(:, owners_index), ens_handle%time(owners_index))
+      call receive_from(map_pe_to_task(ens_handle, sending_pe), ens_handle%vars(:, owners_index), ens_handle%time(owners_index))
    else
-      call receive_from(sending_pe, ens_handle%vars(:, owners_index))
+      call receive_from(map_pe_to_task(ens_handle, sending_pe), ens_handle%vars(:, owners_index))
    endif
 endif
 
@@ -527,7 +568,7 @@ type(ensemble_type), intent(inout) :: ens_handle
 
 ! Free up the allocated storage
 deallocate(ens_handle%my_copies, ens_handle%time, ens_handle%my_vars, &
-           ens_handle%vars,    ens_handle%copies)
+           ens_handle%vars,    ens_handle%copies, ens_handle%task_to_pe_list, ens_handle%pe_to_task_list)
 
 end subroutine end_ensemble_manager
 
@@ -658,7 +699,7 @@ integer :: num_per_pe_below, num_left_over, i
 ! Compute the total number of copies I'll get for var complete
 num_per_pe_below = ens_handle%num_copies / num_pes
 num_left_over = ens_handle%num_copies - num_per_pe_below * num_pes
-if(num_left_over >= (my_pe + 1)) then
+if(num_left_over >= (ens_handle%my_pe + 1)) then
    ens_handle%my_num_copies = num_per_pe_below + 1
 else
    ens_handle%my_num_copies = num_per_pe_below
@@ -667,7 +708,7 @@ endif
 ! Do the same thing for copy complete: figure out which vars I get
 num_per_pe_below = ens_handle%num_vars / num_pes
 num_left_over = ens_handle%num_vars - num_per_pe_below * num_pes
-if(num_left_over >= (my_pe + 1)) then
+if(num_left_over >= (ens_handle%my_pe + 1)) then
    ens_handle%my_num_vars = num_per_pe_below + 1
 else
    ens_handle%my_num_vars = num_per_pe_below
@@ -685,22 +726,22 @@ ens_handle%vars = MISSING_R8
 ens_handle%copies = MISSING_R8
 
 ! Fill out the number of my members
-call get_copy_list(ens_handle%num_copies, my_pe, ens_handle%my_copies, i)
+call get_copy_list(ens_handle%num_copies, ens_handle%my_pe, ens_handle%my_copies, i)
 
 ! Initialize times to missing
+! This is only initializing times for pes that have ensemble copies
 do i = 1, ens_handle%my_num_copies
    ens_handle%time(i) = set_time(0, 0)
 end do
 
 ! Fill out the number of my vars
-call get_var_list(ens_handle%num_vars, my_pe, ens_handle%my_vars, i)
+call get_var_list(ens_handle%num_vars, ens_handle%my_pe, ens_handle%my_vars, i)
 
 end subroutine set_up_ens_distribution
 
 !-----------------------------------------------------------------
 
 subroutine get_copy_owner_index(copy_number, owner, owners_index)
-!!!subroutine get_copy_owner_index(copy_number, owner, owners_index, distribution_type)
 
 ! Given the copy number, returns which PE stores it when copy complete
 ! and its index in that pes local storage. Depends on distribution_type
@@ -708,10 +749,10 @@ subroutine get_copy_owner_index(copy_number, owner, owners_index)
 
 integer, intent(in)  :: copy_number
 integer, intent(out) :: owner, owners_index
-!!!integer, intent(in) :: distribution_type
 
 integer :: div
 
+! Asummes distribution type 1
 div = (copy_number - 1) / num_pes
 owner = copy_number - div * num_pes - 1
 owners_index = div + 1
@@ -721,7 +762,6 @@ end subroutine get_copy_owner_index
 !-----------------------------------------------------------------
 
 subroutine get_var_owner_index(var_number, owner, owners_index)
-!!!subroutine get_var_owner_index(var_number, owner, owners_index, distribution_type)
 
 ! Given the var number, returns which PE stores it when var complete
 ! and its index in that pes local storage. Depends on distribution_type
@@ -729,10 +769,10 @@ subroutine get_var_owner_index(var_number, owner, owners_index)
 
 integer, intent(in)  :: var_number
 integer, intent(out) :: owner, owners_index
-!!!integer, intent(in) :: distribution_type
 
 integer :: div
 
+! Asummes distribution type 1
 div = (var_number - 1) / num_pes
 owner = var_number - div * num_pes - 1
 owners_index = div + 1
@@ -855,7 +895,7 @@ character (len=*),    intent(in), optional :: label
 
 integer,  allocatable :: var_list(:), copy_list(:)
 real(r8), allocatable :: transfer_temp(:)
-integer               :: num_copies, num_vars, my_num_vars, my_num_copies
+integer               :: num_copies, num_vars, my_num_vars, my_num_copies, my_pe
 integer               :: max_num_vars, max_num_copies, num_copies_to_receive
 integer               :: sending_pe, recv_pe, k, sv, num_vars_to_send, copy
 integer               :: global_ens_index
@@ -876,6 +916,7 @@ num_copies    = ens_handle%num_copies
 num_vars      = ens_handle%num_vars
 my_num_vars   = ens_handle%my_num_vars
 my_num_copies = ens_handle%my_num_copies
+my_pe         = ens_handle%my_pe
 
 ! What is maximum number of vars stored on a copy complete pe?
 max_num_vars = get_max_num_vars(num_vars)
@@ -910,7 +951,7 @@ if ( use_var2copy_rec_loop .eqv. .true. ) then ! use updated version
               else
                  if (num_copies_to_receive > 0) then
                     ! Otherwise, receive this part from the sending pe
-                    call receive_from(sending_pe, transfer_temp(1:my_num_vars))
+                    call receive_from(map_pe_to_task(ens_handle, sending_pe), transfer_temp(1:my_num_vars))
    
                     ! Copy the transfer array to my local storage
                     ens_handle%copies(global_ens_index, :) = transfer_temp(1:my_num_vars)
@@ -927,7 +968,7 @@ if ( use_var2copy_rec_loop .eqv. .true. ) then ! use updated version
               ! Have to use temp because %var section is not contiguous storage
               transfer_temp(sv) = ens_handle%vars(var_list(sv), k)
            enddo
-           call send_to(recv_pe, transfer_temp(1:num_vars_to_send))
+           call send_to(map_pe_to_task(ens_handle, recv_pe), transfer_temp(1:num_vars_to_send))
         end do
       
      endif
@@ -958,7 +999,7 @@ else ! use older version
                  ens_handle%copies(global_ens_index, :) = transfer_temp(1:num_vars_to_send)
                else
                  ! Otherwise, ship this off
-                 call send_to(recv_pe, transfer_temp(1:num_vars_to_send))
+                 call send_to(map_pe_to_task(ens_handle, recv_pe), transfer_temp(1:num_vars_to_send))
                endif
              end do ALL_MY_COPIES_SEND_LOOP
            endif
@@ -971,7 +1012,7 @@ else ! use older version
         do copy = 1, num_copies_to_receive
           if (my_num_vars > 0) then
             ! Have to  use temp because %copies section is not contiguous storage
-            call receive_from(sending_pe, transfer_temp(1:my_num_vars))
+            call receive_from(map_pe_to_task(ens_handle, sending_pe), transfer_temp(1:my_num_vars))
             ! Figure out which global ensemble member this is
             global_ens_index = copy_list(copy)
             ! Store this chunk in my local storage
@@ -1008,7 +1049,7 @@ character (len=*),    intent(in), optional :: label
 
 integer,  allocatable :: var_list(:), copy_list(:)
 real(r8), allocatable :: transfer_temp(:)
-integer               :: num_copies, num_vars, my_num_vars, my_num_copies
+integer               :: num_copies, num_vars, my_num_vars, my_num_copies, my_pe
 integer               :: max_num_vars, max_num_copies, num_vars_to_receive
 integer               :: sending_pe, recv_pe, k, sv, copy, num_copies_to_send
 integer               :: global_ens_index
@@ -1029,6 +1070,7 @@ num_copies    = ens_handle%num_copies
 num_vars      = ens_handle%num_vars
 my_num_vars   = ens_handle%my_num_vars
 my_num_copies = ens_handle%my_num_copies
+my_pe         = ens_handle%my_pe
 
 ! What is maximum number of vars stored on a copy complete pe?
 max_num_vars = get_max_num_vars(num_vars)
@@ -1041,53 +1083,51 @@ allocate(var_list(max_num_vars), transfer_temp(max_num_vars), &
 
 
 if (use_copy2var_send_loop .eqv. .true. ) then
-!HK Switched loop index from receiving_pe to sending_pe
+! Switched loop index from receiving_pe to sending_pe
 ! Aim: to make the commication scale better on Yellowstone, as num_pes >> ens_size
 ! For small numbers of tasks (32 or less) the recieving_pe loop may be faster.
 ! Namelist option use_copy2var_send_loop can be used to select which
 ! communication pattern to use
 !    Default: use sending_pe loop (use_copy2var_send_loop = .true.)
 
-SEND_LOOP: do sending_pe = 0, num_pes - 1
-
-   if (my_task_id() /= sending_pe ) then
+SENDING_PE_LOOP: do sending_pe = 0, num_pes - 1
+ 
+   if (my_pe /= sending_pe ) then
 
       ! figure out what piece to recieve from each other PE and recieve it
       call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
 
-      if (num_vars_to_receive > 0) then
+      if( num_vars_to_receive > 0 ) then
          ! Loop to receive these vars for each copy stored on my_pe
          ALL_MY_COPIES_RECV_LOOP: do k = 1, my_num_copies
 
-            call receive_from(sending_pe, transfer_temp(1:num_vars_to_receive))
-
+            call receive_from(map_pe_to_task(ens_handle, sending_pe), transfer_temp(1:num_vars_to_receive))
             ! Copy the transfer array to my local storage
             do sv = 1, num_vars_to_receive
                ens_handle%vars(var_list(sv), k) = transfer_temp(sv)
             enddo
+
          enddo ALL_MY_COPIES_RECV_LOOP
       endif
 
    else
 
       do recv_pe = 0, num_pes - 1
-
-         ! I'm the sending PE, figure out what copies of my vars I'll send
-         call get_copy_list(num_copies, recv_pe, copy_list, num_copies_to_send)
+      ! I'm the sending PE, figure out what copies of my vars I'll send
+      call get_copy_list(num_copies, recv_pe, copy_list, num_copies_to_send)
 
          SEND_COPIES: do copy = 1, num_copies_to_send
-
-            if (my_task_id() /= recv_pe ) then
-
+            if (my_pe /= recv_pe ) then
                if (my_num_vars > 0) then
                   transfer_temp(1:my_num_vars) = ens_handle%copies(copy_list(copy), :)
                   ! Have to  use temp because %copies section is not contiguous storage
-                  call send_to(recv_pe, transfer_temp(1:my_num_vars))
+                  call send_to(map_pe_to_task(ens_handle, recv_pe), transfer_temp(1:my_num_vars))
                endif
+
             else
+
                ! figure out what piece to recieve from myself and recieve it
                call get_var_list(num_vars, sending_pe, var_list, num_vars_to_receive)
-
                do k = 1,  my_num_copies
                   ! sending to yourself so just copy
                   global_ens_index = ens_handle%my_copies(k)
@@ -1098,9 +1138,10 @@ SEND_LOOP: do sending_pe = 0, num_pes - 1
             endif
          enddo SEND_COPIES
       enddo
+
    endif
 
-enddo SEND_LOOP
+enddo SENDING_PE_LOOP
 
 else ! use old communication pattern
 
@@ -1125,7 +1166,7 @@ RECEIVING_PE_LOOP: do recv_pe = 0, num_pes - 1
             else
                if (num_vars_to_receive > 0) then
                   ! Otherwise, receive this part from the sending pe
-                  call receive_from(sending_pe, transfer_temp(1:num_vars_to_receive)) 
+                  call receive_from(map_pe_to_task(ens_handle, sending_pe), transfer_temp(1:num_vars_to_receive))
    
                   ! Copy the transfer array to my local storage
                   do sv = 1, num_vars_to_receive
@@ -1143,7 +1184,7 @@ RECEIVING_PE_LOOP: do recv_pe = 0, num_pes - 1
          if (my_num_vars > 0) then
             transfer_temp(1:my_num_vars) = ens_handle%copies(copy_list(copy), :)
             ! Have to  use temp because %copies section is not contiguous storage
-            call send_to(recv_pe, transfer_temp(1:my_num_vars))
+            call send_to(map_pe_to_task(ens_handle, recv_pe), transfer_temp(1:my_num_vars))
          endif
       end do
       
@@ -1263,7 +1304,7 @@ endif
 if (should_output) then
    old_flag = do_output()
    call set_output(.true.)
-   write(tbuf, "(A,I4,A)") 'PE', my_pe, ': '//trim(msg)
+   write(tbuf, "(A,I4,A)") 'Task', my_task_id(), ': '//trim(msg)
    call timestamp(trim(tbuf), pos='brief')  ! was debug
    call set_output(old_flag)
 endif
@@ -1272,4 +1313,193 @@ end subroutine timestamp_message
 
 !--------------------------------------------------------------------------------
 
+subroutine assign_tasks_to_pes(ens_handle, nEns_members, layout_type)
+! Calulate the task layout based on the tasks per node and the total number of tasks.
+! Allows the user to spread out the ensemble members as much as possible to balance 
+! memory usage between nodes.
+!
+! Possible options:
+!   1. Standard task layout - first n tasks have the ensemble members my_pe = my_task_id()
+!   2. Round-robin on the nodes
+
+type(ensemble_type), intent(inout)    :: ens_handle
+integer,             intent(in)       :: nEns_members
+integer,             intent(inout)    :: layout_type
+
+if (layout_type /= 1 .and. layout_type /=2) call error_handler(E_ERR,'assign_tasks_to_pes', &
+    'not a valid layout_type, must be 1 (standard) or 2 (round-robin)',source,revision,revdate)
+
+if (nEns_members >= num_pes) then   ! if nEns_members >= task_count() then don't try to spread them out
+   call simple_layout(ens_handle, num_pes)
+   return
+endif
+
+if (tasks_per_node >= num_pes) then ! all tasks are on one node, don't try to spread them out
+   call simple_layout(ens_handle, num_pes)
+   return
+endif
+
+if (layout_type == 1) then 
+   call simple_layout(ens_handle, num_pes)
+else
+   call round_robin(ens_handle)
+endif
+
+end subroutine assign_tasks_to_pes
+
+!------------------------------------------------------------------------------
+subroutine round_robin(ens_handle)
+! Round-robin MPI task layout starting at the first node.  
+! Starting on the first node forces pe 0 = task 0. 
+! The smoother code assumes task 0 has an ensemble member.
+! If you want to break the assumption that pe 0 = task 0, this routine is a good 
+! place to start. Test with the smoother. 
+
+type(ensemble_type), intent(inout)   :: ens_handle
+integer                              :: last_node_task_number, num_nodes
+integer                              :: i, j
+integer, allocatable                 :: count(:)
+
+
+! Find number of nodes and find number of tasks on last node
+call calc_tasks_on_each_node(num_nodes, last_node_task_number)
+
+allocate(count(num_nodes))
+
+count(:) = 1  ! keep track of the pes assigned to each node
+i = 0         ! keep track of the # of pes assigned
+
+do while (i < num_pes)   ! until you run out of processors
+   do j = 1, num_nodes   ! loop around the nodes
+
+      if(j == num_nodes) then  ! special case for the last node - it could have fewer tasks than the other nodes
+         if(count(j) <= last_node_task_number) then
+            ens_handle%task_to_pe_list(tasks_per_node*(j-1) + count(j)) = i
+            count(j) = count(j) + 1
+            i = i + 1
+         endif
+      else
+         if(count(j) <= tasks_per_node) then
+            ens_handle%task_to_pe_list(tasks_per_node*(j-1) + count(j)) = i
+            count(j) = count(j) + 1
+            i = i + 1
+         endif
+      endif
+
+   enddo
+enddo
+
+deallocate(count)
+
+call create_pe_to_task_list(ens_handle)
+
+end subroutine round_robin
+!-------------------------------------------------------------------------------
+subroutine create_pe_to_task_list(ens_handle)
+! Creates the ens_handle%pe_to_task_list
+! ens_handle%task_to_pe_list must have been assigned first, otherwise this 
+! routine will just return nonsense. 
+
+!FIXME set ens_handle%task_to_pe_list to -1 when it is allocated, then test if has been changed
+
+type(ensemble_type), intent(inout)   :: ens_handle
+integer                              :: temp_sort(num_pes), idx(num_pes)
+integer                              :: ii
+
+temp_sort = ens_handle%task_to_pe_list
+call sort_task_list(temp_sort, idx, num_pes)
+
+do ii = 1, num_pes
+   ens_handle%pe_to_task_list(ii) = temp_sort(idx(ii))
+enddo
+
+end subroutine create_pe_to_task_list
+
+!-------------------------------------------------------------------------------
+
+subroutine calc_tasks_on_each_node(nodes, last_node_task_number)
+! Finds the of number nodes and how many tasks are on the last node, given the 
+! number of tasks and the tasks_per_node (ptile).
+! The total number of tasks is num_pes = task_count()
+! The last node may have fewer tasks, for example, if ptile = 16 and the number of
+! mpi tasks = 17
+
+integer, intent(out)  :: last_node_task_number, nodes
+
+if ( mod(num_pes, tasks_per_node) == 0) then
+   nodes = num_pes / tasks_per_node
+   last_node_task_number = tasks_per_node
+else
+   nodes = num_pes / tasks_per_node + 1
+   last_node_task_number = tasks_per_node - (nodes*tasks_per_node - num_pes)
+endif
+
+end subroutine calc_tasks_on_each_node
+
+!-----------------------------------------------------------------------------
+subroutine simple_layout(ens_handle, n)
+! assigns the arrays task_to_pe_list and pe_to_task list for the simple layout
+! where my_pe = my_task_id()
+
+type(ensemble_type), intent(inout) :: ens_handle
+integer,             intent(in)    :: n
+integer                            :: ii
+
+do ii = 0, num_pes - 1
+   ens_handle%task_to_pe_list(ii + 1) = ii
+enddo
+
+ens_handle%pe_to_task_list = ens_handle%task_to_pe_list
+
+end subroutine simple_layout
+
+!------------------------------------------------------------------------------
+subroutine sort_task_list(x, idx, n)
+! sorts an array and returns the sorted array, and the index of the original
+! array
+
+integer, intent(in)    :: n 
+integer, intent(inout) :: x(n)   ! array to be sorted
+integer, intent(out)   :: idx(n) ! index of sorted array
+
+integer                :: xcopy(n), i
+
+xcopy = x
+
+call index_sort(x, idx, n)
+
+do i = 1, n
+   x(i) = xcopy(idx(i))
+enddo
+
+end subroutine sort_task_list
+
+!--------------------------------------------------------------------------------
+function map_pe_to_task(ens_handle, p)
+! Return the physical task for my_pe
+
+type(ensemble_type), intent(in) :: ens_handle
+integer,             intent(in)    :: p
+integer                            :: map_pe_to_task
+
+map_pe_to_task = ens_handle%pe_to_task_list(p + 1)
+
+end function map_pe_to_task
+
+!--------------------------------------------------------------------------------
+function map_task_to_pe(ens_handle, t)
+! Return my_pe corresponding to the physical task
+
+type(ensemble_type), intent(in) :: ens_handle
+integer,             intent(in) :: t
+integer                         :: map_task_to_pe
+
+map_task_to_pe = ens_handle%task_to_pe_list(t + 1)
+
+end function map_task_to_pe
+
+!---------------------------------------------------------------------------------
+
 end module ensemble_manager_mod
+
+
