@@ -351,12 +351,13 @@ subroutine decode_header(iunit)
 ! Reads the first line of the header and parses the information.
 ! I should break the line into words and match which word with each
 ! desired string. But not today ...
-! FIXME ... decode the header ... do not assume ...
+! FIXME ... decode the header ... do not assume ... 
+!    Ameriflux/level_4_to_obs.f90 is a good place to start. 
+!    Must count whitespace gaps instead of commas for word delineation.
 !
 !YYYY-MM-DD HH:MM  MOD PROBE PRESS  SCALE SANPE INTEN OTHER CORR ERR
 !2010-06-02 19:12 2555 1.000 0.990 02.066 2.486 1.030 1.000 2954 058
 !2010-06-02 20:13 2593 1.000 0.987 02.066 2.486 1.030 1.000 2989 058
-!
 
 integer, intent(in) :: iunit
 
