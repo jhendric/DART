@@ -78,15 +78,16 @@ namelist /level4_to_obs_nml/ text_input_file, obs_out_file, year, &
 ! globally-scoped variables
 !-----------------------------------------------------------------------
 
-character(len=256)      :: input_line, string1, string2, string3
+character(len=300)      :: input_line, bigline
+character(len=256)      :: string1, string2, string3
 integer                 :: iline, nlines
-logical                 :: file_exist, first_obs
-integer                 :: n, i, oday, osec, rcio, iunit
+logical                 :: first_obs
+integer                 :: oday, osec, rcio, iunit
 integer                 :: num_copies, num_qc, max_obs
 real(r8)                :: oerr, qc
 type(obs_sequence_type) :: obs_seq
 type(obs_type)          :: obs, prev_obs
-type(time_type)         :: time_obs, prev_time, offset
+type(time_type)         :: prev_time, offset
 real(r8), parameter     :: umol_to_gC = (1.0_r8/1000000.0_r8) * 12.0_r8
 
 type towerdata
@@ -202,13 +203,15 @@ call decode_header(iunit)
 obsloop: do iline = 2,nlines
 
    ! read in entire text line into a buffer
-   read(iunit,'(A)',iostat=rcio) input_line
+   read(iunit,'(A)',iostat=rcio) bigline
    if (rcio < 0) exit obsloop
    if (rcio > 0) then
       write (string1,'(''Cannot read (error '',i3,'') line '',i8,'' in '',A)') &
                     rcio, iline, trim(text_input_file)
       call error_handler(E_ERR,'main', string1, source, revision, revdate)
    endif
+
+   input_line = adjustl(bigline)
 
    ! parse the line into the tower structure (including the observation time)
    call stringparse(input_line, iline)
@@ -441,30 +444,171 @@ end function count_file_lines
 
 subroutine decode_header(iunit)
 ! Reads the first line of the header and parses the information.
-! FIXME ... decode the header ... do not assume ...
+! And by parse, I mean determine which columns are the columns
+! of interest.
+
 integer, intent(in) :: iunit
 
-read(iunit,'(A)',iostat=rcio) input_line
+integer, parameter :: maxwordlength = 30
+integer :: i,charcount,columncount,wordlength,maxlength
+character(len=maxwordlength), dimension(:), allocatable :: columns
+integer, dimension(10) :: qc = 0
+
+! Read the line and strip off any leading whitespace.
+
+read(iunit,'(A)',iostat=rcio) bigline
 if (rcio /= 0) then
-  write(string1,*)'Cannot parse header. Begins <',trim(input_line(1:40)),'>'
+  write(string1,*)'Cannot parse header. Begins <',trim(bigline(1:40)),'>'
   call error_handler(E_ERR,'decode_header',string1, source, revision, revdate)
 endif
 
-call error_handler(E_MSG,'decode_header','hardcoding values for now ... dangerous', &
-                     source, revision, revdate)
+input_line = adjustl(bigline)
 
-tower%monthindex = 1
-tower%dayindex   = 2
-tower%hourindex  = 3
-tower%doyindex   = 4
-tower%hindex     = 15
-tower%hQCindex   = 16
-tower%leindex    = 17
-tower%leQCindex  = 18
-tower%neeindex   = 26
-tower%neeQCindex = 27
+! Count how many commas are in the line - use this to determine how many columns
+
+charcount = CountChar(input_line,',')
+columncount = charcount + 1
+allocate(columns(columncount))
+
+columncount  = 0  ! track the number of columns
+wordlength   = 0  ! number of characters in the column descriptor
+charcount    = 0  ! the position of the (last) comma
+do i = 1,len_trim(input_line)
+   if (input_line(i:i) == ',') then
+      columncount = columncount + 1
+      if (wordlength > maxwordlength) then
+         write(string1,*)'unexpected long word ... starts <',&
+                           input_line((i-wordlength):(i-1)),'>'
+         call error_handler(E_ERR,'decode_header',string1, source, revision, revdate)
+      endif
+      columns(columncount) = input_line((i-wordlength):(i-1)) 
+      if (verbose) write(*,*)'word(',columncount,') is ',columns(columncount)
+      wordlength = 0
+      charcount = i
+   else
+      wordlength = wordlength + 1
+   endif
+enddo
+
+! There is one more column after the last comma
+
+columns(columncount+1) = input_line((charcount+1):len_trim(input_line))
+
+! Finally get to the task at hand
+
+tower%monthindex = Match(columns,'Month')         ! used to be  1
+tower%dayindex   = Match(columns,'Day')           ! used to be  2
+tower%hourindex  = Match(columns,'Hour')          ! used to be  3
+tower%doyindex   = Match(columns,'DoY')           ! used to be  4
+tower%hindex     = Match(columns,'H_f')           ! used to be 15
+tower%hQCindex   = Match(columns,'H_fqc')         ! used to be 16
+tower%leindex    = Match(columns,'LE_f')          ! used to be 17
+tower%leQCindex  = Match(columns,'LE_fqc')        ! used to be 18
+tower%neeindex   = Match(columns,'NEE_or_fMDS')   ! used to be 26
+tower%neeQCindex = Match(columns,'NEE_or_fMDSqc') ! used to be 27
+
+! Check to make sure we got all the indices we need
+
+qc( 1) = CheckIndex( tower%monthindex , 'Month' )
+qc( 2) = CheckIndex( tower%dayindex   , 'Day' )
+qc( 3) = CheckIndex( tower%hourindex  , 'Hour' )
+qc( 4) = CheckIndex( tower%doyindex   , 'DoY' )
+qc( 5) = CheckIndex( tower%hindex     , 'H_f' )
+qc( 6) = CheckIndex( tower%hQCindex   , 'H_fqc' )
+qc( 7) = CheckIndex( tower%leindex    , 'LE_f' )
+qc( 8) = CheckIndex( tower%leQCindex  , 'LE_fqc' )
+qc( 9) = CheckIndex( tower%neeindex   , 'NEE_or_fMDS' )
+qc(10) = CheckIndex( tower%neeQCindex , 'NEE_or_fMDSqc' )
+
+if (any(qc /= 0) ) then
+  write(string1,*)'Did not find all the required column indices.'
+  call error_handler(E_ERR,'decode_header',string1, source, revision, revdate)
+endif
+
+! Summarize if desired
+
+if (verbose) then
+   write(*,*)'index is ', tower%monthindex ,' at one point it was  1'
+   write(*,*)'index is ', tower%dayindex   ,' at one point it was  2'
+   write(*,*)'index is ', tower%hourindex  ,' at one point it was  3'
+   write(*,*)'index is ', tower%doyindex   ,' at one point it was  4'
+   write(*,*)'index is ', tower%hindex     ,' at one point it was 15'
+   write(*,*)'index is ', tower%hQCindex   ,' at one point it was 16'
+   write(*,*)'index is ', tower%leindex    ,' at one point it was 17'
+   write(*,*)'index is ', tower%leQCindex  ,' at one point it was 18'
+   write(*,*)'index is ', tower%neeindex   ,' at one point it was 26'
+   write(*,*)'index is ', tower%neeQCindex ,' at one point it was 27'
+endif
+
+deallocate(columns)
 
 end subroutine decode_header
+
+
+
+function CountChar(str1,solo)
+! Count the number of instances of the single character in a character string.
+! useful when parsing a comma-separated list, for example.
+! Count the commas and add 1 to get the number of items in the list.
+
+integer                      :: CountChar
+character(len=*), intent(in) :: str1
+character,        intent(in) :: solo
+
+integer :: i
+
+CountChar = 0
+do i = 1,len_trim(str1)
+   if (str1(i:i) == solo) CountChar = CountChar + 1
+enddo
+
+end function CountChar
+
+
+
+function Match(sentence,word)
+! Determine the first occurrence of the 'word' in a sentence.
+! In this context, a sentence is a character array, the dimension
+! of the array is the number of words in the sentence.
+! This is a case-sensitive match. Trailing blanks are removed.
+
+integer :: Match
+character(len=*), dimension(:), intent(in) :: sentence
+character(len=*),               intent(in) :: word
+
+integer :: i
+
+Match = 0
+WordLoop : do i = 1,len(sentence)
+   if (trim(sentence(i)) == trim(word)) then
+      Match = i
+      return
+   endif
+enddo WordLoop
+
+end function Match
+
+
+
+function CheckIndex( myindex, context )
+! Routine to issue a warning if the index was not found.
+! Returns an error code ... 0 means the index WAS found
+! a negative number means the index was NOT found - an error condition.
+! I want to check ALL the indexes before fatally ending.
+
+integer                       :: CheckIndex
+integer,          intent(in)  :: myindex
+character(len=*), intent(in)  :: context
+
+if (myindex == 0) then
+   write(string1,*)'Did not find column header matching ',trim(context)
+   call error_handler(E_MSG,'decode_header:CheckIndex',string1, source, revision, revdate)
+   CheckIndex = -1 ! not a good thing
+else
+   CheckIndex = 0  ! Good to go
+endif
+
+end function CheckIndex
 
 
 
@@ -482,8 +626,8 @@ values = MISSING_R8
 
 read(str1,*,iostat=rcio) values
 if (rcio /= 0) then
-  write(string1,*)'Cannot parse line',linenum,'. Begins <',trim(str1(1:40)),'>'
-  call error_handler(E_ERR,'stringparse',string1, source, revision, revdate)
+   write(string1,*)'Cannot parse line',linenum,'. Begins <',trim(str1(1:40)),'>'
+   call error_handler(E_ERR,'stringparse',string1, source, revision, revdate)
 endif
 
 ! Stuff what we want into the tower structure
