@@ -141,7 +141,7 @@ module utilities_mod
 !
 !-----------------------------------------------------------------------
 
-use types_mod, only : r8, PI
+use types_mod, only : r4, r8, digits12, i4, i8, PI
 use netcdf
 
 implicit none
@@ -227,7 +227,7 @@ contains
    integer :: iunit, io
 
    character(len=129) :: lname
-
+   character(len=169) :: string1,string2,string3
 
       if ( module_initialized ) then ! nothing to do
 
@@ -347,6 +347,25 @@ contains
             endif
             if (do_nml_file()) write(nmlfileunit, nml=utilities_nml)
             if (do_nml_term()) write(     *     , nml=utilities_nml)
+         endif
+
+         ! Record the values used for variable types:
+         if (do_output_flag .and. print_debug) then
+        
+            write(     *     ,*)  ! a little whitespace is nice
+            write(logfileunit,*)  ! a little whitespace is nice
+
+            write(string1,*)'..  digits12 is ',digits12
+            write(string2,*)'r8       is ',r8
+            write(string3,*)'r4       is ',r4
+            call error_handler(E_DBG, 'initialize_utilities', string1, &
+                               source, revision, revdate, text2=string2, text3=string3)
+
+            write(string1,*)'..  integer  is ',kind(iunit) ! any integer variable will do
+            write(string2,*)'i8       is ',i8
+            write(string3,*)'i4       is ',i4
+            call error_handler(E_DBG, 'initialize_utilities', string1, &
+                               source, revision, revdate, text2=string2, text3=string3)
          endif
 
       endif
@@ -1687,7 +1706,7 @@ character(len=129), SAVE :: dir_base
 character(len=129), SAVE :: filename
 character(len=129), SAVE :: dir_ext
 
-integer :: slashindex, splitindex, i, strlen
+integer :: slashindex, splitindex, i, strlen, ios
 
 if (len(fname) > len(dir_base) ) then
    write(msgstring,*)'input filename not guaranteed to fit in local variables'
@@ -1743,8 +1762,13 @@ if (ifile == 1) then ! First time through ... find things.
          dir_base   = dir_name(1:splitindex-1)
          dir_ext    = dir_name(splitindex+1:slashindex-1)
          dir_prec   = slashindex - splitindex - 1
-
-         read(dir_ext,*) filenum
+    
+         read(dir_ext,*,iostat=ios) filenum
+         if(ios /= 0) then
+            ! Directory has an '_' separating two alphabetic parts
+            ! Nothing to increment.
+            filenum = -1
+         endif
       endif
 
    else ! we have one single file - on the first trip through
