@@ -531,13 +531,13 @@ obs_kind_names(132) = obs_kind_type(KIND_VERTICAL_TEC          ,'KIND_VERTICAL_T
 
 num_kind_assimilate = 0
 do i = 1, max_obs_specific
-   if(assimilate_these_obs_types(i) == 'null') exit
+   if(assimilate_these_obs_types(i) == 'null' .or. len_trim(assimilate_these_obs_types(i)) == 0 ) exit
    num_kind_assimilate = i
 end do
 
 num_kind_evaluate = 0
 do i = 1, max_obs_specific
-   if(evaluate_these_obs_types(i) == 'null') exit
+   if(evaluate_these_obs_types(i) == 'null' .or. len_trim(evaluate_these_obs_types(i)) == 0) exit
    num_kind_evaluate = i
 end do
 
