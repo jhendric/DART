@@ -115,6 +115,7 @@
   /
 
 &preprocess_nml
+           overwrite_output = .true.,
     input_obs_kind_mod_file = '../../../obs_kind/DEFAULT_obs_kind_mod.F90',
    output_obs_kind_mod_file = '../../../obs_kind/obs_kind_mod.f90',
      input_obs_def_mod_file = '../../../obs_def/DEFAULT_obs_def_mod.F90',
@@ -131,7 +132,6 @@
                               '../../../obs_def/obs_def_reanalysis_bufr_mod.f90',
                               '../../../obs_def/obs_def_rel_humidity_mod.f90',
                               '../../../obs_def/obs_def_tower_mod.f90',
-   force = .true.,
   /
 
 &assim_model_nml

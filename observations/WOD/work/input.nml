@@ -25,7 +25,7 @@
   !wod_input_file = '../CTD/STD/CTDS2000', 
 
 &preprocess_nml
-    force = .true.,
+           overwrite_output = .true.,
     input_obs_kind_mod_file = '../../../obs_kind/DEFAULT_obs_kind_mod.F90',
    output_obs_kind_mod_file = '../../../obs_kind/obs_kind_mod.f90',
      input_obs_def_mod_file = '../../../obs_def/DEFAULT_obs_def_mod.F90',
