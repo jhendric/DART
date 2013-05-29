@@ -60,7 +60,7 @@ integer, parameter :: num_copies = 1,   &   ! number of copies in sequence
                       num_qc     = 1        ! number of QC entries
 
 
-integer  :: ncid, nsta, nlev, n, i, oday, osec, nused, j, k, index
+integer  :: ncid, nsta, nlev, n, i, oday, osec, nused, k, index
 logical  :: file_exist, first_obs
 real(r8) :: uwnd_miss, vwnd_miss
 

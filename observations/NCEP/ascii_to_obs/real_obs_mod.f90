@@ -122,7 +122,7 @@ integer :: days, seconds
 integer :: day0, sec0
 integer :: hour, imin, sec
 integer :: obs_num, calender_type
-type(time_type) :: current_day, next_day, time_obs, prev_time
+type(time_type) :: current_day, time_obs, prev_time
 
 integer, parameter :: num_fail_kinds = 6
 integer :: iskip(num_fail_kinds)
@@ -143,8 +143,8 @@ character(len=32) :: skip_reasons(num_fail_kinds) = (/ &
 
 integer :: obs_unit
 integer :: obs_prof, obs_kind, obs_kind_gen, which_vert, iqc, obstype, pc
-real (r8) :: obs_err, lon, lat, lev, zob, time, pre_time, rcount, zob2
-real (r8) :: vloc, obs_value, aqc, var2
+real (r8) :: obs_err, lon, lat, lev, zob, time, rcount, zob2
+real (r8) :: vloc, obs_value, aqc
 
 real (r8) :: bin_beg, bin_end
 

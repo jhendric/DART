@@ -54,7 +54,7 @@ logical :: iruse, visuse, wvuse, swiruse, file_exist, qifile, eefile, &
            userfqc, useqiqc, useeeqc, first_obs
 
 integer :: in_unit, i, oday, osec, nused, iyear, imonth, iday, ihour, & 
-           imin, isec, qctype
+           imin, qctype
 real(r8) :: lat, lon, pres, wdir, wspd, uwnd, vwnd, oerr, latu(nmaxwnd), &
             lonu(nmaxwnd), prsu(nmaxwnd), qc, qcthresh, rfqc, qiqc, eeqc
 

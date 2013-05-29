@@ -286,7 +286,7 @@ private
       !dimension jtottax(maxtcode,maxtax),itaxerr(maxtcode,maxtax)
       !dimension itaxorigerr(maxtcode,maxtax)
 
-      integer :: n, nn, n0, n1, n2, i, j, k, ij, castid
+      integer :: n, nn, n0, n2, i, castid
       integer :: nbio, inc, nchar, nlines, istartc, icruise, npinf
       integer :: npi, inchad, ica, icn, ns, insec, inbio, nbothtot, itaxtot
 

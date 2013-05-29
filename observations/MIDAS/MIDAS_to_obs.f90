@@ -4,12 +4,6 @@
 
 program MIDAS_to_obs
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
 ! MIDAS_to_obs - reads the MIDAS data as created by Alex in a netCDF file
@@ -19,7 +13,7 @@ program MIDAS_to_obs
 use          types_mod, only : r8, MISSING_R8, metadatalength
 
 use      utilities_mod, only : initialize_utilities, finalize_utilities, &
-                               register_module, error_handler, E_ERR, &
+                               register_module, error_handler, E_ERR, E_MSG, &
                                do_nml_file, do_nml_term, &
                                check_namelist_read, find_namelist_in_file, &
                                nmlfileunit, file_exist, nc_check
@@ -173,7 +167,8 @@ if ( get_num_obs(obs_seq) > 0 ) then
    if (verbose) print *, 'writing obs_seq, obs_count = ', get_num_obs(obs_seq)
    call write_obs_seq(obs_seq, obs_out_file)
 else
-   call error_handler(E_MSG,'lkljlkjkj'
+   write(string1,*)'There are no observations to write.'
+   call error_handler(E_MSG,'MIDAS_to_obs',string1,source,revision,revdate)
 endif
 
 ! end of main program
@@ -322,4 +317,10 @@ end subroutine get_slab
 !----------------------------------------------------------------------------
 
 end program MIDAS_to_obs
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
 

@@ -66,21 +66,17 @@ integer, parameter :: num_copies = 1,   &   ! number of copies in sequence
                       num_qc     = 1        ! number of QC entries
 
 
-logical :: iruse, visuse, wvuse, swiruse, allbands
+logical :: iruse, visuse, wvuse, allbands
 
-character (len=5)   :: rtype
 integer  :: ncid, nobs, n, i, oday, osec, nused
 logical  :: file_exist, first_obs
 real(r8) :: wdir_miss, wspd_miss
 integer  :: band_miss
 
 ! FIXME:from ssec version
-!logical :: iruse, visuse, wvuse, swiruse, file_exist, qifile, eefile, &
-!           userfqc, useqiqc, useeeqc
+!logical :: iruse, visuse, wvuse, file_exist, qifile, eefile
 
-integer :: iyear, imonth, iday, ihour, imin, isec, qctype
-real(r8) :: uwnd, vwnd, oerr, &
-            qc, qcthresh, rfqc, qiqc, eeqc
+real(r8) :: uwnd, vwnd, oerr, qc
 ! end FIXME
 
 

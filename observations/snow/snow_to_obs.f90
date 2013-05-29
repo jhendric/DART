@@ -40,13 +40,13 @@ implicit none
 
 character(len=64), parameter :: obs_out_file    = 'obs_seq.out'
 
-integer :: n, i, oday, osec, rcio, iunit, otype, io
+integer :: oday, osec, rcio, iunit, io
 integer :: num_copies, num_qc, max_obs, ix, iy
            
 logical  :: file_exist, first_obs
 
-real(r8) :: temp, terr, qc, wdir, wspeed, werr
-real(r8) :: lat, lon, vert, uwnd, uerr, vwnd, verr
+real(r8) :: terr, qc
+real(r8) :: lat, lon, vert
 real(r8) :: dlon, dlat
 real(r8), allocatable :: coverage(:)
 

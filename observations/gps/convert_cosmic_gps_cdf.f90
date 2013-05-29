@@ -58,15 +58,14 @@ integer, parameter ::   num_copies = 1,   &   ! number of copies in sequence
 
 character (len=129) :: msgstring, next_infile
 character (len=80)  :: name
-character (len=19)  :: datestr
 character (len=6)   :: subset
-integer :: rcode, ncid, varid, nlevels, k, nfiles, num_new_obs, oday, osec, &
+integer :: ncid, varid, nlevels, k, nfiles, num_new_obs, oday, osec, &
            iyear, imonth, iday, ihour, imin, isec, glat, glon, zloc, obs_num, &
            io, iunit, nobs, filenum, dummy
 logical :: file_exist, first_obs, did_obs, from_list = .false.
 real(r8) :: hght_miss, refr_miss, azim_miss, oerr,               & 
             qc, lato, lono, hghto, refro, azimo, wght, nx, ny,   & 
-            nz, ds, htop, rfict, obsval, phs, obs_val(1), qc_val(1)
+            nz, rfict, obsval, phs, obs_val(1), qc_val(1)
 
 real(r8), allocatable :: lat(:), lon(:), hght(:), refr(:), azim(:), & 
                          hghtp(:), refrp(:)
@@ -74,7 +73,7 @@ real(r8), allocatable :: lat(:), lon(:), hght(:), refr(:), azim(:), &
 type(obs_def_type)      :: obs_def
 type(obs_sequence_type) :: obs_seq
 type(obs_type)          :: obs, prev_obs
-type(time_type)         :: time_obs, time_anal, prev_time
+type(time_type)         :: time_obs, prev_time
 
 !------------------------------------------------------------------------
 !  Declare namelist parameters
