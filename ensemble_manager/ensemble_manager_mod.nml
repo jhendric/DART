@@ -2,7 +2,10 @@
    single_restart_file_in  = .true.,
    single_restart_file_out = .true.,
    perturbation_amplitude  = 0.2,
-   use_copy2var_send_loop = .true.,
-   use_var2copy_rec_loop = .true. 
+   layout = 1,
+   tasks_per_node = 1,
+   communication_configuration = 1,
+   flag_unneeded_transposes = .false.,
+   debug = .false.
  /
 

@@ -52,9 +52,9 @@ public :: init_ensemble_manager,      end_ensemble_manager,     get_ensemble_tim
           get_copy,                   put_copy,                 all_vars_to_all_copies, &
           all_copies_to_all_vars,     read_ensemble_restart,    write_ensemble_restart, &
           compute_copy_mean_var,      get_copy_owner_index,     set_ensemble_time,      &
-          broadcast_copy,             prepare_to_write_to_vars,          prepare_to_write_to_copies,      &
-          prepare_to_read_from_vars,          prepare_to_read_from_copies,      prepare_to_update_vars,          &
-          prepare_to_update_copies,            print_ens_handle,                                 &
+          broadcast_copy,             prepare_to_write_to_vars, prepare_to_write_to_copies, &
+          prepare_to_read_from_vars,  prepare_to_read_from_copies, prepare_to_update_vars,  &
+          prepare_to_update_copies,   print_ens_handle,                                 &
           map_task_to_pe,             map_pe_to_task
 
 type ensemble_type

@@ -70,7 +70,8 @@ The namelist declaration (i.e. what follows) has a different syntax, naturally.
 <pre>
 <em class=call>namelist / ensemble_manager_nml / </em>
    single_restart_file_in, single_restart_file_out, perturbation_amplitude,
-   use_copy2var_send_loop, use_var2copy_rec_loop, layout, tasks_per_node
+   layout, tasks_per_node, communication_configuration, flag_unneeded_transposes,
+   debug
 </pre>
 </div>
 
@@ -113,14 +114,6 @@ This namelist is read in a file called <em class=file>input.nml</em>
       the initial states into a set of members with enough spread and which
       match the current set of observations.
       Default: 0.2_r8</TD></TR>
-<TR><!--contents--><TD valign=top>use_copy2var_send_loop</TD>
-    <!--  type  --><TD>logical</TD>
-    <!--descript--><TD>MPI communication flag* for all_copies_to_all_vars.
-     Default: .true.</TD></TR>
-<TR><!--contents--><TD valign=top>use_var2copy_rec_loop</TD>
-    <!--  type  --><TD>logical</TD>
-    <!--descript--><TD>MPI communication flag* for all_vars_to_all_copies.
-     Default: .true.</TD></TR>
  <TR><!--contents--><TD valign=top>layout</TD>
     <!--  type  --><TD valign=top>integer</TD>
     <!--descript--><TD>Determines the process (pe) layout on MPI tasks.
@@ -135,12 +128,30 @@ This namelist is read in a file called <em class=file>input.nml</em>
     <!--descript--><TD>The number of tasks per node.  This
     is only used if layout = 2. 
      Default: 1</TD></TR>
+<TR><!--contents--><TD valign=top>communication_configuration</TD>
+    <!--  type  --><TD>integer</TD>
+    <!--descript--><TD>For most users, the default value of 1 is the best choice.
+     However there are multiple strategies for the internal MPI communication 
+     patterns (see *Note below).  Values from 
+     1 to 4 select different options; try the various options to see if one might
+     be faster than the others.  
+     Default: 1</TD></TR>
+<TR><!--contents--><TD valign=top>flag_unneeded_transposes</TD>
+    <!--  type  --><TD>logical</TD>
+    <!--descript--><TD>If true, print out when unnecessary transposes are executed.
+     This is generally used only during debugging and should be .false. in most cases.
+     Default: .false.</TD></TR>
+<TR><!--contents--><TD valign=top>debug</TD>
+    <!--  type  --><TD>logical</TD>
+    <!--descript--><TD>If true print debugging information.
+     Default: .false.</TD></TR>
 </TABLE>
 
 <P>
 <i>*Note about MPI communication flags:</i>
 <br />
-use_copy2var_send_loop and use_var2copy_rec_loop are flags that change the order of the MPI
+The communication_configuration flags select various combinations of the internal settings for
+use_copy2var_send_loop and use_var2copy_rec_loop.  These flags change the order of the MPI
 send and MPI receives in the the routines all_copies_to_all_vars and all_vars_to_all_copies.
 The figures below show the data transferred between tasks for an 80 member ensemble.
 The left figure is using 96 tasks, the right figure is using 512 tasks. As the number of tasks
