@@ -353,7 +353,7 @@ end subroutine set_obs_def_time
 !----------------------------------------------------------------------------
 
 subroutine get_expected_obs_from_def(key, obs_def, obs_kind_ind, ens_index, &
-   state, state_time, obs_val, istatus, assimilate_this_ob, evaluate_this_ob)
+   state, state_time, isprior, obs_val, istatus, assimilate_this_ob, evaluate_this_ob)
 
 ! Compute forward operator for a particular obs_def
 integer,            intent(in)  :: key
@@ -361,6 +361,7 @@ type(obs_def_type), intent(in)  :: obs_def
 integer,            intent(in)  :: obs_kind_ind, ens_index
 real(r8),           intent(in)  :: state(:)
 type(time_type),    intent(in)  :: state_time
+logical,            intent(in)  :: isprior
 real(r8),           intent(out) :: obs_val
 integer,            intent(out) :: istatus
 logical,            intent(out) :: assimilate_this_ob, evaluate_this_ob
@@ -398,6 +399,7 @@ if(assimilate_this_ob .or. evaluate_this_ob) then
       !   obs_kind_ind -- the index of the observation specific type 
       !   obs_time     -- the time of the observation
       !   error_var    -- the observation error variance
+      !   isprior      -- true for prior eval; false for posterior
       !
       ! the routine must return values for:
       !   obs_val -- the computed forward operator value
