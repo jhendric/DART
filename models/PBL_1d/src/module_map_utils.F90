@@ -631,10 +631,10 @@ CONTAINS
     ! intersects the Earth's surface at each of the distinctly different
     ! latitudes
     IF (ABS(truelat1-truelat2) .GT. 0.1_r8) THEN
-      cone = ALOG10(COS(truelat1*rad_per_deg)) - &
-             ALOG10(COS(truelat2*rad_per_deg))
-      cone = cone /(ALOG10(TAN((45.0_r8 - ABS(truelat1)/2.0_r8) * rad_per_deg)) - &
-             ALOG10(TAN((45.0_r8 - ABS(truelat2)/2.0_r8) * rad_per_deg)))        
+      cone = LOG10(COS(truelat1*rad_per_deg)) - &
+             LOG10(COS(truelat2*rad_per_deg))
+      cone = cone /(LOG10(TAN((45.0_r8 - ABS(truelat1)/2.0_r8) * rad_per_deg)) - &
+             LOG10(TAN((45.0_r8 - ABS(truelat2)/2.0_r8) * rad_per_deg)))        
     ELSE
        cone = SIN(ABS(truelat1)*rad_per_deg )  
     ENDIF
@@ -795,7 +795,7 @@ CONTAINS
 
     proj%rsw = 0.0_r8
     IF (proj%lat1 .NE. 0.0_r8) THEN
-      proj%rsw = (ALOG(TAN(0.5_r8*((proj%lat1+90.0_r8)*rad_per_deg))))/proj%dlon
+      proj%rsw = (LOG(TAN(0.5_r8*((proj%lat1+90.0_r8)*rad_per_deg))))/proj%dlon
     ENDIF
     RETURN
   END SUBROUTINE set_merc
@@ -816,7 +816,7 @@ CONTAINS
     IF (deltalon .LT. -180.0_r8) deltalon = deltalon + 360.0_r8
     IF (deltalon .GT. 180.0_r8) deltalon = deltalon - 360.0_r8
     i = 1.0_r8 + (deltalon/(proj%dlon*deg_per_rad))
-    j = 1.0_r8 + (ALOG(TAN(0.5_r8*((lat + 90.0_r8) * rad_per_deg)))) / &
+    j = 1.0_r8 + (LOG(TAN(0.5_r8*((lat + 90.0_r8) * rad_per_deg)))) / &
            proj%dlon - proj%rsw
 
     RETURN
