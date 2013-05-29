@@ -16,7 +16,7 @@ module obs_mod
 
 use model_mod, only : lat_max, num_lon, location_type, dp_to_grid, lon, lat, &
    num_fourier, num_spherical, barot_to_dp
-use nag_wrap_mod
+use random_sequence_mod, only : init_random, random_gaussian
 
 private
 public :: num_obs, obs_var, take_obs, ens_ics, obs_location, state_to_obs
@@ -30,11 +30,8 @@ character(len=128), parameter :: &
    revision = "$Revision$", &
    revdate  = "$Date$"
 
-!integer, parameter :: num_x_obs = 32, num_y_obs = 16
-!integer, parameter :: num_x_obs = 20, num_y_obs = 16
 integer, parameter :: num_x_obs = 40, num_y_obs = 32
 integer, parameter :: num_obs = num_x_obs * num_y_obs
-!!!integer, parameter :: num_obs = lat_max * num_lon
 
 ! Global storage for obs locations
 double precision obs_lon(num_obs), obs_lat(num_obs)
@@ -259,15 +256,17 @@ implicit none
 double precision, intent(in) :: x(:)
 double precision, intent(out) :: as(:, :)
 integer :: i, j
+type(random_type), save :: r
+logical, save :: first = .true.
 
+if (first) then
+   call init_random(r)
+   first = .false.
+endif
 
-!WARNING: MANY CHANGES
 do i = 1, size(x)
    do j = 1, size(as, 2)
-!       as(i, j) = x(i) + 1e3 * g05ddf_wrap(dble(0.0), dble(1.0))
-!!!       as(i, j) = x(i) + 1e2 * g05ddf_wrap(dble(0.0), dble(1.0))
-       as(i, j) = x(i) + 2e5 * g05ddf_wrap(dble(0.0), dble(1.0))
-!       as(i, j) = x(i) + 5e5 * g05ddf_wrap(dble(0.0), dble(1.0))
+       as(i, j) = x(i) + 2e5 * random_gaussian(r, 0.0, 1.0)
 !      write(*, *) 'as ', i, j, x(i), as(i, j)
    end do
 end do
