@@ -152,9 +152,37 @@ echo "Running DART test on $host"
 @ modelnum = 10
 
 if ( 1 == 1 ) then
-foreach MODEL ( 9var lorenz_63 lorenz_84 lorenz_96 lorenz_96_2scale \
-    lorenz_04 forced_lorenz_96 null_model ikeda bgrid_solo pe2lyr cam wrf ) 
-    # PBL_1d MITgcm_annulus )
+foreach MODEL ( \
+  9var \
+  am2 \
+  bgrid_solo \
+  cam \
+  #cosmo \
+  forced_lorenz_96 \
+  #gitm \
+  ikeda \
+  lorenz_04 \
+  lorenz_63 \
+  lorenz_84 \
+  lorenz_96 \
+  lorenz_96_2scale \
+  MITgcm_annulus \
+  MITgcm_ocean \
+  mpas_atm \
+  mpas_ocn \
+  NAAPS \
+  NCOMMAS \
+  null_model \
+  #PBL_1d \
+  pe2lyr \
+  POP \
+  #rose \
+  simple_advection \
+  template \
+  tiegcm \
+  wrf )
+  # intentionally omitted:
+  #  forced_barot MITgcm_annulus PBL_1d rose
     
     echo "=================================================================="
     echo "Compiling $MODEL at "`date`
@@ -194,6 +222,23 @@ cd ${DARTHOME}/observations
 echo
 echo "=================================================================="
 echo "Observation converter testing complete at "`date`
+echo "=================================================================="
+echo
+
+echo
+echo
+echo
+echo "=================================================================="
+echo "Testing location modules at "`date`
+echo "=================================================================="
+echo
+
+cd ${DARTHOME}/location
+./testall.csh
+
+echo
+echo "=================================================================="
+echo "Location module testing complete at "`date`
 echo "=================================================================="
 echo
 
