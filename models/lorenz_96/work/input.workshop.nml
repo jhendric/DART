@@ -137,6 +137,9 @@
    print_debug    = .false.,
    /
 
+&mpi_utilities_nml
+   /
+
 &preprocess_nml
           overwrite_output = .true.,
     input_obs_def_mod_file = '../../../obs_def/DEFAULT_obs_def_mod.F90',
