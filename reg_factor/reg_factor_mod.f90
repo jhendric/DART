@@ -136,7 +136,7 @@ if(select_regression == 1) then
       ! Write out diagnostic information
       if(save_reg_diagnostics) then
        
-! DATA REDUCTION FOR WORKSHOP PURPSOSES
+! DATA REDUCTION FOR WORKSHOP PURPOSES
          if(obs_index <= 4 .and. state_index > 0) then
 
          call get_time(obs_time, secs, days)

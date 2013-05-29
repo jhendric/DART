@@ -179,11 +179,13 @@ if (do_nml_term()) write(     *     , nml=obs_def_tower_nml)
 ! the CESM namelist .... hist_nhtfrq must be a negative number in a DART
 ! application of CLM ... and the STOP_OPTION must be "HOURS".
 !
-!      | start of the model advance ... *.h1.* file starts getting written
-!      |
-!      X=======================X (CLM model advance)
-!      |<---- hist_nhtfrq ---->|
-!                              | current model state ... current time
+!  | start of the model advance ... *.h1.* file starts getting written
+!  |
+!  X==X==X==X==X==X==X==X==X==X==X==[O] (CLM model advance)
+!  |<------- hist_nhtfrq ------->|   |
+!                                |   | END of the model advance
+!                                |
+!                                | END of the data in the *.h1.* file
 
 second = abs(hist_nhtfrq)*60*60
 tower_time = model_time - set_time(second,0)
