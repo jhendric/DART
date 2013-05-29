@@ -26,7 +26,7 @@ use utilities_mod, only : get_unit, close_file, register_module, error_handler, 
                           do_output, dump_unit_attributes, find_namelist_in_file,  &
                           check_namelist_read, nc_check, do_nml_file, do_nml_term, &
                           find_textfile_dims, file_to_text, timestamp, set_output, &
-                          ascii_file_format
+                          ascii_file_format, set_output
 use     model_mod, only : get_model_size, static_init_model, get_state_meta_data,  &
                           get_model_time_step, model_interpolate, init_conditions, &
                           init_time, adv_1step, end_model, nc_write_model_atts,    &
@@ -890,6 +890,12 @@ endif
 
 ! If the model_state read fails ... dump diagnostics.
 if ( ios /= 0 ) then
+   ! messages are being used as error lines below.  in an MPI filter,
+   ! all messages are suppressed that aren't from PE0.  if an error
+   ! happens in another task, these lines won't be printed unless we
+   ! turn on output.
+   call set_output(.true.)
+
    write(msgstring,*)'dimension of model state is ',size(model_state)
    call error_handler(E_MSG,'aread_state_restart',msgstring,source,revision,revdate)
 
