@@ -13,12 +13,12 @@
    /
 
 &utilities_nml
-   module_details = .false.,
+   module_details = .FALSE.,
    termlevel      = 2
    /
 
 &obs_sequence_nml
-   write_binary_obs_sequence = .false.  
+   write_binary_obs_sequence = .FALSE.
    /
 
 
@@ -34,3 +34,11 @@
    maxgoodqc       = 3,
    verbose         = .TRUE.
    /
+
+&obs_sequence_tool_nml
+   filename_seq_list = 'station_list.txt',
+   filename_out    = 'obs_seq.out',
+   gregorian_cal   = .TRUE.
+   /
+
+
