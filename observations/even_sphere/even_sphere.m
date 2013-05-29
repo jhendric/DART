@@ -17,14 +17,26 @@
 close all; clear;
 
 % Generate obs_sequence input for this problem
-% Mandatory levels are : 1000 mb, 850 mb, 700 mb, 500 mb, 400 mb, 
-% 300 mb, 200 mb, 150 mb, 100 mb, 50 mb, 30 mb, 20 mb, 10 mb, 7 mb, 5 
 
 % For diagnostic test need a null data value and a null qc value
 diagnostic_test = false;
 
-% Input is in hectopascals
+% Input is in hectopascals - this was intended to be the mandatory levels (see below).
 levels = [1000 850 700 500 400 300 200 150 100 50 30 20 10 7 5];
+
+% the nice thing about standards is there are so many of them.  mandatory levels, according to:
+% wisconsin: http://www.meteor.wisc.edu/~hopkins/aos100/raobdoc.htm
+% the surface, 1000, 925, 850, 700, 500, 400, 300, 250, 200, 150, 100, 70, 50, and 10 mb.
+%
+% the AMS glossary: http://amsglossary.allenpress.com/glossary/search?id=mandatory-level1
+% 1000, 850, 700, 500, 400, 300, 200, 150, 100, 50, 30, 20, 10, 7, 5, 3, 2, and 1 mb.
+%
+% the Office of Federal Coordinator of Meterology: http://www.ofcm.gov/fmh3/text/chapter5.htm
+% 1000, 925, 850, 700, 500, 400, 300, 250, 200, 150, 100, 70, 50, 30, 20, 10 hPa, plus it says
+% that these levels should be considered standard: 7, 5, 3, 2, and 1 hPa.
+%
+% the ones that this program generates right now:
+% 1000, 850, 700, 500, 400, 300, 200, 150, 100, 50, 30, 20, 10, 7, 5 mb.
 
 % Date information is overwritten by create_fixed_network_sequence
 year = 2008;
