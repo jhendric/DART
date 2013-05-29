@@ -34,7 +34,7 @@ use  obs_sequence_mod, only : obs_sequence_type, obs_type, read_obs_seq,     &
                               write_obs_seq, init_obs_sequence, get_num_obs, & 
                               set_copy_meta_data, set_qc_meta_data
 use obs_utilities_mod, only : create_3d_obs, add_obs_to_seq
-use      obs_kind_mod, only : SNOWCOVER_FRAC
+use      obs_kind_mod, only : MODIS_SNOWCOVER_FRAC
 
 implicit none
 
@@ -176,7 +176,7 @@ if (debug) print *, ix, iy, 'got coverage ', coverage(ix)
 
       ! make an obs derived type, and then add it to the sequence
       call create_3d_obs(lat, lon, vert, VERTISSURFACE, coverage(ix), &
-                         SNOWCOVER_FRAC, terr, oday, osec, qc, obs)
+                         MODIS_SNOWCOVER_FRAC, terr, oday, osec, qc, obs)
       call add_obs_to_seq(obs_seq, obs, time_obs, prev_obs, prev_time, first_obs)
    
       if (debug) print *, 'added snow obs to output seq'
