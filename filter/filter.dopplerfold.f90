@@ -21,8 +21,9 @@ use obs_sequence_mod,     only : read_obs_seq, obs_type, obs_sequence_type,     
                                  set_qc_meta_data, get_expected_obs, get_first_obs,          &
                                  get_obs_time_range, delete_obs_from_seq, delete_seq_head,   &
                                  delete_seq_tail, replace_obs_values, replace_qc,            &
-                                 destroy_obs_sequence, get_qc_meta_data
-use obs_def_mod,          only : obs_def_type, get_obs_def_error_variance, get_obs_def_time
+                                 destroy_obs_sequence, get_qc_meta_data, add_qc
+use obs_def_mod,          only : obs_def_type, get_obs_def_error_variance, get_obs_def_time, &
+                                 get_obs_kind
 use time_manager_mod,     only : time_type, get_time, set_time, operator(/=), operator(>),   &
                                  operator(-), print_time
 use utilities_mod,        only : register_module,  error_handler, E_ERR, E_MSG, E_DBG,       &
@@ -40,8 +41,10 @@ use ensemble_manager_mod, only : init_ensemble_manager, end_ensemble_manager,   
                                  read_ensemble_restart, write_ensemble_restart,              &
                                  compute_copy_mean, compute_copy_mean_sd,                    &
                                  compute_copy_mean_var, duplicate_ens, get_copy_owner_index, &
-                                 get_ensemble_time, set_ensemble_time,                       &
-                                 map_task_to_pe,  map_pe_to_task
+                                 get_ensemble_time, set_ensemble_time, broadcast_copy,       &
+                                 prepare_to_read_from_vars, prepare_to_write_to_vars, prepare_to_read_from_copies,    &
+                                 prepare_to_write_to_copies, get_ensemble_time, set_ensemble_time,    &
+                                 map_task_to_pe,  map_pe_to_task, prepare_to_update_copies
 use adaptive_inflate_mod, only : adaptive_inflate_end, do_varying_ss_inflate,                &
                                  do_single_ss_inflate, inflate_ens, adaptive_inflate_init,   &
                                  do_obs_inflate, adaptive_inflate_type,                      &
@@ -276,6 +279,7 @@ call timestamp_message('After  setting up space for observations')
 call     trace_message('After  setting up space for observations')
 
 call trace_message('Before setting up space for ensembles')
+
 ! Allocate model size storage and ens_size storage for metadata for outputting ensembles
 model_size = get_model_size()
 
@@ -509,6 +513,7 @@ AdvanceTime : do
    if(do_single_ss_inflate(prior_inflate) .or. do_varying_ss_inflate(prior_inflate)) then
       call trace_message('Before prior inflation damping and prep')
       if (inf_damping(1) /= 1.0_r8) then
+         call prepare_to_update_copies(ens_handle)
          ens_handle%copies(PRIOR_INF_COPY, :) = 1.0_r8 + &
             inf_damping(1) * (ens_handle%copies(PRIOR_INF_COPY, :) - 1.0_r8) 
       endif
@@ -531,26 +536,27 @@ AdvanceTime : do
    ! and obs_values. ens_size is the number of regular ensemble members, 
    ! not the number of copies
    call get_obs_ens(ens_handle, obs_ens_handle, forward_op_ens_handle, &
-      seq, keys, obs_val_index, num_obs_in_set, &
-      OBS_ERR_VAR_COPY, OBS_VAL_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY)
+      seq, keys, obs_val_index, input_qc_index, num_obs_in_set, &
+      OBS_ERR_VAR_COPY, OBS_VAL_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY, &
+      isprior=.true.)
 
    ! Although they are integer, keys are one 'copy' of obs ensemble 
    ! (the last one?)
    call put_copy(map_task_to_pe(obs_ens_handle, 0), obs_ens_handle, OBS_KEY_COPY, keys * 1.0_r8)  
-   ! Ship the ensemble mean to the model; some models need this for 
-   ! computing distances.  find out who stores the ensemble mean copy.
+
+   ! While we're here, make sure the timestamp on the actual ensemble copy
+   ! for the mean has the current time.  If the user requests it be written
+   ! out, it needs a valid timestamp.
    call get_copy_owner_index(ENS_MEAN_COPY, mean_owner, mean_owners_index)
-   ! Broadcast it to everybody else
    if(ens_handle%my_pe == mean_owner) then
       ! Make sure the timestamp for the mean is the current time.
       call set_ensemble_time(ens_handle, mean_owners_index, curr_ens_time)
-      ens_mean = ens_handle%vars(:, mean_owners_index)
-      call broadcast_send(my_task_id(), ens_mean)
-   else
-      call broadcast_recv(map_pe_to_task(ens_handle, mean_owner), ens_mean)
    endif
 
-   ! Now send the mean to the model in case it's needed
+   ! Make sure all tasks have a copy of the ensemble mean.
+   call broadcast_copy(ens_handle, ENS_MEAN_COPY, ens_mean)
+
+   ! Now send the mean to the model_mod in case it's needed
    call ens_mean_for_model(ens_mean)
 
    call timestamp_message('After  computing prior observation values')
@@ -581,8 +587,9 @@ AdvanceTime : do
       OBS_VAL_COPY, OBS_ERR_VAR_COPY, DART_qc_index)
    call trace_message('After  observation space diagnostics')
   
-   ! Need obs to be copy complete for assimilation
-   call all_vars_to_all_copies(obs_ens_handle)
+   ! FIXME:  i believe both copies and vars are equal at the end
+   ! of the obs_space diags, so we can skip this. 
+   !call all_vars_to_all_copies(obs_ens_handle)
 
    write(msgstring, '(A,I8,A)') 'Ready to assimilate up to', size(keys), ' observations'
    call trace_message(msgstring, 'filter:', -1)
@@ -626,6 +633,7 @@ AdvanceTime : do
    if(do_single_ss_inflate(post_inflate) .or. do_varying_ss_inflate(post_inflate)) then
       call trace_message('Before posterior inflation damping and prep')
       if (inf_damping(2) /= 1.0_r8) then
+         call prepare_to_update_copies(ens_handle)
          ens_handle%copies(POST_INF_COPY, :) = 1.0_r8 + &
             inf_damping(2) * (ens_handle%copies(POST_INF_COPY, :) - 1.0_r8) 
       endif
@@ -650,8 +658,9 @@ AdvanceTime : do
    ! and obs_values.  ens_size is the number of regular ensemble members, 
    ! not the number of copies
    call get_obs_ens(ens_handle, obs_ens_handle, forward_op_ens_handle, &
-      seq, keys, obs_val_index, num_obs_in_set, &
-      OBS_ERR_VAR_COPY, OBS_VAL_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY)
+      seq, keys, obs_val_index, input_qc_index, num_obs_in_set, &
+      OBS_ERR_VAR_COPY, OBS_VAL_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY, &
+      isprior=.false.)
 
    call timestamp_message('After  computing posterior observation values')
    call     trace_message('After  computing posterior observation values')
@@ -707,15 +716,7 @@ AdvanceTime : do
          call timestamp_message('Before computing posterior state space inflation')
 
          ! Ship the ensemble mean to the model; some models need this for computing distances
-         ! Who stores the ensemble mean copy
-         call get_copy_owner_index(ENS_MEAN_COPY, mean_owner, mean_owners_index)
-         ! Broadcast it to everybody else
-         if(ens_handle%my_pe == mean_owner) then
-            ens_mean = ens_handle%vars(:, mean_owners_index)
-            call broadcast_send(map_pe_to_task(ens_handle, mean_owner), ens_mean)
-         else
-            call broadcast_recv(map_pe_to_task(ens_handle, mean_owner), ens_mean)
-         endif
+         call broadcast_copy(ens_handle, ENS_MEAN_COPY, ens_mean)
 
          ! Now send the mean to the model in case it's needed
          call ens_mean_for_model(ens_mean)
@@ -969,8 +970,8 @@ type(obs_sequence_type), intent(inout) :: seq
 integer,                 intent(out)   :: in_obs_copy, obs_val_index
 integer,                 intent(out)   :: input_qc_index, DART_qc_index
 
-character(len = metadatalength) :: qc_meta_data = 'DART quality control'
 character(len = metadatalength) :: no_qc_meta_data = 'No incoming data QC'
+character(len = metadatalength) :: dqc_meta_data   = 'DART quality control'
 character(len = 129) :: obs_seq_read_format
 integer              :: obs_seq_file_id, num_obs_copies
 integer              :: tnum_copies, tnum_qc, tnum_obs, tmax_num_obs, qc_num_inc, num_qc
@@ -981,31 +982,61 @@ logical              :: pre_I_format
 ! Prior and posterior values for all selected fields (so times 2)
 num_obs_copies = 2 * num_output_obs_members + 4
 
-! Input file can have one qc field or none, not prepared to have more
-! The one that exists would be the NCEP and perfect_model_obs generated values in general
+! Input file can have one qc field, none, or more.  note that read_obs_seq_header
+! does NOT return the actual metadata values, which would be helpful in trying
+! to decide if we need to add copies or qcs.
 call read_obs_seq_header(obs_sequence_in_name, tnum_copies, tnum_qc, tnum_obs, tmax_num_obs, &
    obs_seq_file_id, obs_seq_read_format, pre_I_format, close_the_file = .true.)
 
-if(tnum_qc == 0) then
-   input_qc_index = 1
-   DART_qc_index = 2
-   ! Need 2 new qc fields, for dummy incoming qc and for the DART qc
-   qc_num_inc = 2
-   ! original code
-   !input_qc_index = 0
-   !DART_qc_index = 1
-else if(tnum_qc == 1) then
-   input_qc_index = 1
-   DART_qc_index = 2
-   ! Need 1 new qc field for the DART quality control
-   qc_num_inc = 1
+
+! if there are less than 2 incoming qc fields, we will need
+! to make at least 2 (one for the dummy data qc and one for
+! the dart qc).
+if (tnum_qc < 2) then
+   qc_num_inc = 2 - tnum_qc
 else
-   write(msgstring, *) 'input obs_seq file has ', tnum_qc, ' qc fields; must be < 2'
-   call error_handler(E_ERR,'filter_setup_obs_sequence', msgstring, source, revision, revdate)
+   qc_num_inc = 0
 endif
 
-! Read in with enough space for diagnostic output values and add'l qc field
+! Read in with enough space for diagnostic output values and add'l qc field(s)
 call read_obs_seq(obs_sequence_in_name, num_obs_copies, qc_num_inc, 0, seq)
+
+! check to be sure that we have an incoming qc field.  if not, look for
+! a blank qc field
+input_qc_index = get_obs_qc_index(seq)
+if (input_qc_index < 0) then
+   input_qc_index = get_blank_qc_index(seq)
+   if (input_qc_index < 0) then
+      ! Need 1 new qc field for dummy incoming qc
+      call add_qc(seq, 1)
+      input_qc_index = get_blank_qc_index(seq)
+      if (input_qc_index < 0) then
+         call error_handler(E_ERR,'filter_setup_obs_sequence', &
+           'error adding blank qc field to sequence; should not happen', &
+            source, revision, revdate)
+      endif
+   endif
+   ! Since we are constructing a dummy QC, label it as such
+   call set_qc_meta_data(seq, input_qc_index, no_qc_meta_data)
+endif
+
+! check to be sure we either find an existing dart qc field and
+! reuse it, or we add a new one.
+DART_qc_index = get_obs_dartqc_index(seq)
+if (DART_qc_index < 0) then
+   DART_qc_index = get_blank_qc_index(seq)
+   if (DART_qc_index < 0) then
+      ! Need 1 new qc field for the DART quality control
+      call add_qc(seq, 1)
+      DART_qc_index = get_blank_qc_index(seq)
+      if (DART_qc_index < 0) then
+         call error_handler(E_ERR,'filter_setup_obs_sequence', &
+           'error adding blank qc field to sequence; should not happen', &
+            source, revision, revdate)
+      endif
+   endif
+   call set_qc_meta_data(seq, DART_qc_index, dqc_meta_data)
+endif
 
 ! Get num of obs copies and num_qc
 num_qc = get_num_qc(seq)
@@ -1014,12 +1045,9 @@ in_obs_copy = get_num_copies(seq) - num_obs_copies
 ! Create an observation type temporary for use in filter
 call init_obs(observation, get_num_copies(seq), num_qc)
 
-! Set initial DART quality control to 0 for all observations
-! Leaving them uninitialized, obs_space_diagnostics should set them all without reading them
-call set_qc_meta_data(seq, DART_qc_index, qc_meta_data)
-
-! If we are constructing a dummy QC, label it as such
-if (tnum_qc == 0) call set_qc_meta_data(seq, input_qc_index, no_qc_meta_data)
+! Set initial DART quality control to 0 for all observations?
+! Or leave them uninitialized, since
+! obs_space_diagnostics should set them all without reading them
 
 ! Determine which copy has actual obs
 obs_val_index = get_obs_copy_index(seq)
@@ -1036,7 +1064,7 @@ integer                             :: get_obs_copy_index
 integer :: i
 
 ! Determine which copy in sequence has actual obs
-!--------
+
 do i = 1, get_num_copies(seq)
    get_obs_copy_index = i
    ! Need to look for 'observation'
@@ -1059,7 +1087,7 @@ integer                             :: get_obs_prior_index
 integer :: i
 
 ! Determine which copy in sequence has prior mean, if any.
-!--------
+
 do i = 1, get_num_copies(seq)
    get_obs_prior_index = i
    ! Need to look for 'prior mean'
@@ -1085,9 +1113,13 @@ integer :: i
 ! the metadata has to have.  look for 'qc' or 'QC' and the
 ! first metadata that matches (much like 'observation' above)
 ! is the winner.
-!--------
+
 do i = 1, get_num_qc(seq)
    get_obs_qc_index = i
+
+   ! Need to avoid 'QC metadata not initialized'
+   if(index(get_qc_meta_data(seq, i), 'QC metadata not initialized') > 0) cycle
+  
    ! Need to look for 'QC' or 'qc'
    if(index(get_qc_meta_data(seq, i), 'QC') > 0) return
    if(index(get_qc_meta_data(seq, i), 'qc') > 0) return
@@ -1110,7 +1142,7 @@ integer                             :: get_obs_dartqc_index
 integer :: i
 
 ! Determine which qc, if any, has the DART qc
-!--------
+
 do i = 1, get_num_qc(seq)
    get_obs_dartqc_index = i
    ! Need to look for 'DART quality control'
@@ -1121,6 +1153,28 @@ end do
 get_obs_dartqc_index = -1
 
 end function get_obs_dartqc_index
+
+!-------------------------------------------------------------------------
+
+function get_blank_qc_index(seq)
+
+type(obs_sequence_type), intent(in) :: seq
+integer                             :: get_blank_qc_index
+
+integer :: i
+
+! Determine which qc, if any, is blank
+
+do i = 1, get_num_qc(seq)
+   get_blank_qc_index = i
+   ! Need to look for 'QC metadata not initialized'
+   if(index(get_qc_meta_data(seq, i), 'QC metadata not initialized') > 0) return
+end do
+! Falling off end means unused slot not found; not fatal!
+
+get_blank_qc_index = -1
+
+end function get_blank_qc_index
 
 !-------------------------------------------------------------------------
 
@@ -1201,8 +1255,8 @@ endif
 
 ! Temporary print of initial model time
 if(ens_handle%my_pe == 0) then
-   call get_time(time, secs, days)
    ! FIXME for the future: if pe 0 is not task 0, pe 0 can not print debug messages
+   call get_time(time, secs, days)
    write(msgstring, *) 'initial model time of 1st ensemble member (days,seconds) ',days,secs
    call error_handler(E_DBG,'filter_read_restart',msgstring,source,revision,revdate)
 endif
@@ -1220,6 +1274,7 @@ type(adaptive_inflate_type), intent(inout) :: inflate
 integer :: j, group, grp_bot, grp_top, grp_size
 
 ! Assumes that the ensemble is copy complete
+call prepare_to_update_copies(ens_handle)
 
 ! Inflate each group separately;  Divide ensemble into num_groups groups
 grp_size = ens_size / num_groups
@@ -1241,7 +1296,8 @@ end subroutine filter_ensemble_inflate
 !-------------------------------------------------------------------------
 
 subroutine get_obs_ens(ens_handle, obs_ens_handle, forward_op_ens_handle, seq, keys, &
-   obs_val_index, num_obs_in_set, OBS_ERR_VAR_COPY, OBS_VAL_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY)
+   obs_val_index, input_qc_index, num_obs_in_set, &
+   OBS_ERR_VAR_COPY, OBS_VAL_COPY, OBS_KEY_COPY, OBS_GLOBAL_QC_COPY, isprior)
 
 ! Computes forward observation operators and related quality control indicators.
 
@@ -1249,9 +1305,10 @@ type(ensemble_type),     intent(in)    :: ens_handle
 type(ensemble_type),     intent(inout) :: obs_ens_handle, forward_op_ens_handle 
 type(obs_sequence_type), intent(in)    :: seq
 integer,                 intent(in)    :: keys(:)
-integer,                 intent(in)    :: obs_val_index, num_obs_in_set
+integer,                 intent(in)    :: obs_val_index, input_qc_index, num_obs_in_set
 integer,                 intent(in)    :: OBS_ERR_VAR_COPY, OBS_VAL_COPY
 integer,                 intent(in)    :: OBS_KEY_COPY, OBS_GLOBAL_QC_COPY
+logical,                 intent(in)    :: isprior
 
 real(r8)           :: input_qc(1), obs_value(1), obs_err_var, thisvar(1)
 integer            :: j, k, my_num_copies, istatus , global_ens_index, thiskey(1)
@@ -1267,14 +1324,17 @@ type(obs_def_type) :: obs_def
 ! Loop through my copies and compute expected value
 my_num_copies = get_my_num_copies(obs_ens_handle)
 
+call prepare_to_write_to_vars(obs_ens_handle)
+call prepare_to_write_to_vars(forward_op_ens_handle)
+call prepare_to_read_from_vars(ens_handle)
+
 ! Loop through all observations in the set
 ALL_OBSERVATIONS: do j = 1, num_obs_in_set
    ! Get the information on this observation by placing it in temporary
    call get_obs_from_key(seq, keys(j), observation)
    call get_obs_def(observation, obs_def)
    ! Check to see if this observation fails input qc test
-!!!PAR WARNING: WHAT IF THERE IS NO INPUT QC FIELD??? NEED TO BE PREPARED FOR THIS
-   call get_qc(observation, input_qc, qc_indx = 1)
+   call get_qc(observation, input_qc, input_qc_index)
    ! If it is bad, set forward operator status value to -99 and return missing_r8 for obs_value
 
    ! PAR THIS SUBROUTINE SHOULD EVENTUALLY GO IN THE QUALITY CONTROL MODULE
@@ -1301,18 +1361,19 @@ ALL_OBSERVATIONS: do j = 1, num_obs_in_set
    ! Loop through all copies stored by this process and set values as needed
    do k = 1, my_num_copies
       global_ens_index = obs_ens_handle%my_copies(k)
+
       ! If I have a copy that is a standard ensemble member, compute expected value
       if(global_ens_index <= ens_size) then
          ! temporaries to avoid passing array sections which was slow on PGI compiler
          thiskey(1) = keys(j)
          call get_expected_obs(seq, thiskey, &
-            global_ens_index, ens_handle%vars(:, k), ens_handle%time(1), &
+            global_ens_index, ens_handle%vars(:, k), ens_handle%time(1), isprior, &
             thisvar, istatus, assimilate_this_ob, evaluate_this_ob)
          obs_ens_handle%vars(j, k) = thisvar(1)
+
          ! If istatus is 0 (successful) then put 0 for assimilate, -1 for evaluate only
          ! and -2 for neither evaluate or assimilate. Otherwise pass through the istatus
          ! in the forward operator evaluation field
-!!!WATCH ASSUMPTIONS ABOUT INDEXING
          if(istatus == 0) then
             if ((assimilate_this_ob .or. evaluate_this_ob) .and. (thisvar(1) == missing_r8)) then
                write(msgstring, *) 'istatus was 0 (OK) but forward operator returned missing value.'
@@ -1331,10 +1392,12 @@ ALL_OBSERVATIONS: do j = 1, num_obs_in_set
          else
             forward_op_ens_handle%vars(j, k) = istatus
          endif
+
       ! Otherwise, see if this is the copy for error variance or observed value         
       else if(global_ens_index == OBS_ERR_VAR_COPY) then
          ! This copy is the instrument observation error variance; read and store
          obs_ens_handle%vars(j, k) = obs_err_var
+
       else if(global_ens_index == OBS_VAL_COPY) then
          ! This copy is the observation from the instrument; read and store
          obs_ens_handle%vars(j, k) = obs_value(1)
@@ -1452,6 +1515,8 @@ if (observations_updateable) then
     OBS_ERR_VAR_COPY, DART_qc_index, PRIOR_DIAG)
 endif
 
+call prepare_to_read_from_copies(forward_op_ens_handle)
+call prepare_to_update_copies(obs_ens_handle)
 
 ! At this point can compute outlier test and consolidate forward operator qc
 do j = 1, obs_ens_handle%my_num_vars
@@ -1560,7 +1625,7 @@ enddo
 ! OR FAILED OUTLIER, ETC. NEEDS TO BE DONE BY PE 0 ONLY. PUT IT HERE FOR FIRST
 ! BUT IN QC MOD FOR THE SECOND???  
 
-! Is this next call really needed, or does it already exist on input???
+! Make var complete for get_copy() calls below.
 call all_copies_to_all_vars(obs_ens_handle)
 
 ! allocate temp space for sending data
@@ -1860,6 +1925,8 @@ if (first_time) then
    first_time = .false.
 endif
 
+call prepare_to_read_from_copies(obs_ens_handle)
+
 ! if you want to do something different based on the observation specific type:
 
 this_obs_key = obs_ens_handle%copies(OBS_KEY_COPY, j)
@@ -1914,8 +1981,8 @@ use obs_def_radar_mod, only    : get_obs_def_radial_vel
 use location_mod, only         : location_type
 use ensemble_manager_mod, only : ensemble_type, get_my_num_copies, &
                                  all_copies_to_all_vars, all_vars_to_all_copies, &
-                                 get_copy_owner_index
-use mpi_utilities_mod, only    : my_task_id, broadcast_send, broadcast_recv
+                                 get_copy_owner_index, broadcast_copy
+use mpi_utilities_mod, only    : my_task_id !, broadcast_send, broadcast_recv
 
 
 ! Do prior observation space diagnostics on the set of obs corresponding to keys
@@ -1961,6 +2028,8 @@ if (prior_post /= PRIOR_DIAG) return
 ! for quiet execution, set it to false.
 verbose = .true.
 
+call prepare_to_update_copies(obs_ens_handle)
+
 do j = 1, obs_ens_handle%my_num_vars
    ! get the key number associated with each of my subset of obs
    ! then get the obs and extract info from it.
@@ -2004,13 +2073,7 @@ call all_copies_to_all_vars(obs_ens_handle)
 
 ! Figure out which PE has all the obs values and broadcast
 ! them into a temporary array on the other PEs.
-call get_copy_owner_index(OBS_VAL_COPY, owner, owners_index)
-if(ens_handle%my_pe == owner) then
-   updated_obs = obs_ens_handle%vars(:, owners_index)
-   call broadcast_send(map_pe_to_task(ens_handle,owner), updated_obs)
-else
-   call broadcast_recv(map_pe_to_task(ens_handle,owner), updated_obs)
-endif
+call broadcast_copy(obs_ens_handle, OBS_VAL_COPY, updated_obs)
 
 ! Each PE has an independent copy of the observation
 ! sequence.  These values must be updated.  Rather than

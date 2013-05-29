@@ -27,7 +27,8 @@ use time_manager_mod,     only : time_type, set_time, get_time, print_time,   &
                                  operator(/=), operator(>), operator(-),      &
                                  operator(/), operator(+), operator(<), operator(==), &
                                  operator(<=), operator(>=)
-use ensemble_manager_mod, only : get_ensemble_time, ensemble_type, map_task_to_pe, map_pe_to_task
+use ensemble_manager_mod, only : get_ensemble_time, ensemble_type, map_task_to_pe, map_pe_to_task, &
+                                 prepare_to_update_vars
 use mpi_utilities_mod,    only : my_task_id, task_sync, task_count, block_task, &
                                  sum_across_tasks, shell_execute, send_to, receive_from, my_task_id
 
@@ -362,6 +363,8 @@ ENSEMBLE_MEMBERS: do i = 1, ens_handle%my_num_copies
 
    ! Ok, this task does need to advance something. 
    need_advance = 1
+
+   call prepare_to_update_vars(ens_handle)
 
    ! Increment number of ensemble member copies I have.
    my_num_state_copies = my_num_state_copies + 1

@@ -19,7 +19,7 @@ use utilities_mod,        only : file_exist, get_unit, register_module, &
 use random_seq_mod,       only : random_seq_type, random_gaussian, init_random_seq
 use ensemble_manager_mod, only : ensemble_type, all_vars_to_all_copies, all_copies_to_all_vars, &
                                  read_ensemble_restart, write_ensemble_restart, get_copy_owner_index, &
-                                 map_pe_to_task
+                                 prepare_to_write_to_vars, prepare_to_read_from_vars, prepare_to_update_vars, map_pe_to_task
 use mpi_utilities_mod,    only : my_task_id, send_to, receive_from
 
 implicit none
@@ -206,11 +206,17 @@ if(inf_flavor >= 2) then
       ! a transpose.
       if (.not. mean_from_restart) then
          call get_copy_owner_index(ss_inflate_index, owner, owners_index)
-         if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = inf_initial
+         if (owner == ens_handle%my_pe) then
+            call prepare_to_write_to_vars(ens_handle)
+            ens_handle%vars(:, owners_index) = inf_initial
+         endif
       endif
       if (.not. sd_from_restart) then
          call get_copy_owner_index(ss_inflate_sd_index, owner, owners_index)
-         if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = sd_initial
+         if (owner == ens_handle%my_pe)  then
+            call prepare_to_write_to_vars(ens_handle)
+            ens_handle%vars(:, owners_index) = sd_initial
+         endif
       endif
    endif
 
@@ -225,6 +231,7 @@ if(inf_flavor >= 2) then
       ! if inflation array is already on PE0, just figure out the
       ! largest value in the array and we're done.
       if (owner == 0) then
+         call prepare_to_read_from_vars(ens_handle)
          minmax_mean(1) = minval(ens_handle%vars(:, owners_index))
          minmax_mean(2) = maxval(ens_handle%vars(:, owners_index))
       else
@@ -234,6 +241,7 @@ if(inf_flavor >= 2) then
          if (ens_handle%my_pe == 0) then
             call receive_from(map_pe_to_task(ens_handle, owner), minmax_mean)
          else if (ens_handle%my_pe == owner) then
+            call prepare_to_read_from_vars(ens_handle)
             minmax_mean(1) = minval(ens_handle%vars(:, owners_index))
             minmax_mean(2) = maxval(ens_handle%vars(:, owners_index))
             call send_to(map_pe_to_task(ens_handle, 0), minmax_mean)
@@ -245,6 +253,7 @@ if(inf_flavor >= 2) then
       ! if inflation sd array is already on PE0, just figure out the
       ! largest value in the array and we're done.
       if (owner == 0) then
+         call prepare_to_read_from_vars(ens_handle)
          minmax_sd(1) = minval(ens_handle%vars(:, owners_index))
          minmax_sd(2) = maxval(ens_handle%vars(:, owners_index))
       else
@@ -254,6 +263,7 @@ if(inf_flavor >= 2) then
          if (ens_handle%my_pe == 0) then
             call receive_from(map_pe_to_task(ens_handle, owner), minmax_sd)
          else if (ens_handle%my_pe == owner) then 
+            call prepare_to_read_from_vars(ens_handle)
             minmax_sd(1) = minval(ens_handle%vars(:, owners_index))
             minmax_sd(2) = maxval(ens_handle%vars(:, owners_index))
             call send_to(map_pe_to_task(ens_handle, 0), minmax_sd)
@@ -269,9 +279,15 @@ if(inf_flavor >= 2) then
    ! ensure the entire array contains a single constant value to match what the code uses.
    if(inf_flavor == 3) then
       call get_copy_owner_index(ss_inflate_index, owner, owners_index)
-      if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index)
+      if (owner == ens_handle%my_pe) then
+         call prepare_to_update_vars(ens_handle)
+         ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index)
+      endif
       call get_copy_owner_index(ss_inflate_sd_index, owner, owners_index)
-      if (owner == ens_handle%my_pe) ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index)
+      if (owner == ens_handle%my_pe) then
+         call prepare_to_update_vars(ens_handle)
+         ens_handle%vars(:, owners_index) = ens_handle%vars(1, owners_index)
+      endif
    endif
 
 !------ Block for obs. space inflation initialization ------

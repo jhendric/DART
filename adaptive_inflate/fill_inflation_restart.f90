@@ -20,8 +20,9 @@ use types_mod,            only : r8, PI
 use utilities_mod,        only : error_handler, E_ERR, E_MSG,       &
                                  initialize_utilities, finalize_utilities
 
-use ensemble_manager_mod, only : ensemble_type, write_ensemble_restart, &
-                                 init_ensemble_manager, end_ensemble_manager
+use ensemble_manager_mod, only : ensemble_type, write_ensemble_restart,       &
+                                 init_ensemble_manager, end_ensemble_manager, &
+                                 prepare_to_write_to_vars
 
 use assim_model_mod,      only : static_init_assim_model
 
@@ -75,6 +76,7 @@ write(msgstring, *) 'Model size/restart data length = ', model_size
 call error_handler(E_MSG,'',msgstring)
 
 call init_ensemble_manager(ens_handle, 2, model_size)
+call prepare_to_write_to_vars(ens_handle)
 
 ens_handle%vars(:, ss_inflate_index   ) = inf_initial
 ens_handle%vars(:, ss_inflate_sd_index) =  sd_initial

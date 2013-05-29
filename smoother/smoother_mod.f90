@@ -158,8 +158,7 @@ num_current_lags = 0
 ! If starting from restart, read these in
 if(start_from_restart) then
    READ_LAGS: do i = 1, num_lags
-      smoother_index = smoother_head + i - 1
-      if(smoother_index > num_lags) smoother_index = smoother_index - num_lags
+      smoother_index = next_index(i)
       write(file_name, '("Lag_", I5.5, "_", A)') i, trim(restart_in_file_name)
       write(temp_name, '(A, ".", I4.4)') trim(file_name), 1
       if (file_exist(file_name) .or. file_exist(temp_name)) then
@@ -177,8 +176,7 @@ if(start_from_restart) then
          ! lag ic file does not exist yet, duplicate the filter ics 
          ! for the rest of the lags and break out of the i loop
          do j = i, num_lags
-            smoother_index = smoother_head + j - 1
-            if(smoother_index > num_lags) smoother_index = smoother_index - num_lags
+            smoother_index = next_index(j)
             call duplicate_ens(ens_handle, lag_handle(smoother_index), .true.)
    !write(errstring, '(A,I4,A,I4)') 'filling restart data ', i, ' into cycle number', smoother_index
    !call error_handler(E_MSG, 'smoother_read_restart', errstring)
@@ -351,8 +349,7 @@ if (.not. output_restart) return
 ! Storage is cyclic with oldest lag pointed to by head, and 
 ! head + 1 the most recent lag
 do i = 1, num_current_lags
-   smoother_index = smoother_head + i - 1
-   if(smoother_index > num_lags) smoother_index = smoother_index - num_lags
+   smoother_index = next_index(i)
    write(file_name, '("Lag_", I5.5, "_", A)') i, trim(restart_out_file_name)
    call write_ensemble_restart(lag_handle(smoother_index), file_name, start_copy, end_copy)
    !write(errstring, '(A,I4,A,I4)') 'writing restart file ', i, ' from cycle number', smoother_index
@@ -387,8 +384,7 @@ if ( .not. module_initialized ) then
 endif
 
 do i = 1, num_current_lags
-   smoother_index = smoother_head + i - 1
-   if(smoother_index > num_lags) smoother_index = smoother_index - num_lags
+   smoother_index = next_index(i)
    call all_vars_to_all_copies(lag_handle(smoother_index))
 
    !write(errstring, '(A,I4,A,I4)') 'starting assimilate pass for lag', i, &
@@ -456,16 +452,12 @@ if ( .not. module_initialized ) then
    call error_handler(E_ERR,'smoother_mean_spread',errstring,source,revision,revdate)
 endif
 
+! Must be called when smoother handles are copy complete.
+! Leaves the data var complete before it returns.
 do i = 1, num_current_lags
-   smoother_index = smoother_head + i - 1
-   if(smoother_index > num_lags) smoother_index = smoother_index - num_lags
-   call compute_copy_mean_sd(lag_handle(smoother_index), 1, ens_size, ENS_MEAN_COPY, ENS_SD_COPY)
-end do
+   smoother_index = next_index(i)
 
-! Now back to var complete for diagnostics
-do i = 1, num_current_lags
-   smoother_index = smoother_head + i - 1
-   if(smoother_index > num_lags) smoother_index = smoother_index - num_lags
+   call compute_copy_mean_sd(lag_handle(smoother_index), 1, ens_size, ENS_MEAN_COPY, ENS_SD_COPY)
    call all_copies_to_all_vars(lag_handle(smoother_index))
 end do
 
@@ -567,8 +559,10 @@ if ( .not. module_initialized ) then
 endif
 
 do i = 1, num_current_lags
-   smoother_index = smoother_head + i - 1
-   if(smoother_index > num_lags) smoother_index = smoother_index - num_lags
+   smoother_index = next_index(i)
+
+   ! FIXME: is this still needed?
+   call all_copies_to_all_vars(lag_handle(smoother_index))
    ! only ensemble copies have the time
    call filter_state_space_diagnostics(lag_handle(smoother_index)%time(1), SmootherStateUnit(i), &
       lag_handle(smoother_index), model_size, num_output_state_members, &
@@ -610,6 +604,28 @@ if(num_current_lags < num_lags) num_current_lags = num_current_lags + 1
 
 
 end subroutine smoother_inc_lags
+
+!-----------------------------------------------------------
+
+function next_index(i)
+ integer, intent(in) :: i
+ integer             :: next_index
+! the index numbers for the collection of lag_handles is
+! a circular list.  increment and do the wrap if needed.
+
+if ( .not. module_initialized ) then
+   write(errstring, *)'cannot be called before init_smoother() called'
+   call error_handler(E_ERR,'smoother_inc_lags',errstring,source,revision,revdate)
+endif
+
+
+next_index = smoother_head + i - 1
+if(next_index > num_lags) next_index = next_index - num_lags
+
+!write(errstring, *)'next_index called, index =', next_index
+!call error_handler(E_MSG,'next_index',errstring)
+
+end function next_index
 
 !-----------------------------------------------------------
 

@@ -25,7 +25,7 @@ use assim_model_mod,     only : static_init_assim_model, get_model_size,   &
                                 close_restart
 
 use ensemble_manager_mod, only : init_ensemble_manager, ensemble_type,     &
-                                 put_copy, get_copy
+                                 put_copy, prepare_to_write_to_vars, prepare_to_read_from_vars
 
 use mpi_utilities_mod,    only : initialize_mpi_utilities, task_count,     &
                                  finalize_mpi_utilities
@@ -182,6 +182,7 @@ if (one_by_one) then
 
    ! Initialize the ens manager with enough room for a single ensemble member.
    call init_ensemble_manager(ens_handle, num_copies=1, num_vars=model_size)
+   call prepare_to_write_to_vars(ens_handle)
 
    do member=1, ens_size
  
@@ -235,6 +236,7 @@ else
    ! Initialize the ens manager with enough room for all ensemble members.
    ! Either read, write, or both will need this.
    call init_ensemble_manager(ens_handle, num_copies=ens_size, num_vars=model_size)
+   call prepare_to_write_to_vars(ens_handle)
 
    ! make the defaults be a single filename, and overwrite them below if
    ! there are individual files.

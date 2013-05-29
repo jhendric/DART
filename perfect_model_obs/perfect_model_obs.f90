@@ -40,7 +40,8 @@ use mpi_utilities_mod,    only : task_count, task_sync
 use   random_seq_mod,     only : random_seq_type, init_random_seq, random_gaussian
 use ensemble_manager_mod, only : init_ensemble_manager, write_ensemble_restart,              &
                                  end_ensemble_manager, ensemble_type, read_ensemble_restart, &
-                                 get_my_num_copies, get_ensemble_time
+                                 get_my_num_copies, get_ensemble_time, prepare_to_write_to_vars,      &
+                                 prepare_to_read_from_vars
 
 implicit none
 
@@ -314,10 +315,12 @@ AdvanceTime: do
 
    call trace_message('After  setup for next group of observations')
 
+   call prepare_to_read_from_vars(ens_handle)
+
    ! Output the true state to the netcdf file
    if((output_interval > 0) .and. &
       (time_step_number / output_interval * output_interval == time_step_number)) then
- 
+
       call trace_message('Before updating truth diagnostics file')
       call aoutput_diagnostics(StateUnit, ens_handle%time(1), ens_handle%vars(:, 1), 1)
       call trace_message('After  updating truth diagnostics file')
@@ -347,7 +350,7 @@ AdvanceTime: do
 
       ! Compute the observations from the state
       call get_expected_obs(seq, keys(j:j), &
-         1, ens_handle%vars(:, 1), ens_handle%time(1), &
+         1, ens_handle%vars(:, 1), ens_handle%time(1), .true., &
          true_obs(1:1), istatus, assimilate_this_ob, evaluate_this_ob)
 
       ! Get the observational error covariance (diagonal at present)
@@ -474,6 +477,8 @@ integer         :: secs, days
 
 ! First initialize the ensemble manager storage, only 1 copy for perfect
 call init_ensemble_manager(ens_handle, 1, model_size, 1)
+
+call prepare_to_write_to_vars(ens_handle)
 
 ! If not start_from_restart, use model to get ics for state and time
 if(.not. start_from_restart) then
