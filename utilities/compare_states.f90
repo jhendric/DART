@@ -50,7 +50,7 @@ integer :: dimid(maxd), dimlen(maxd), odimid(maxd), odimlen(maxd)
 character(128) :: dimname(maxd), odimname(maxd)
 integer :: nin1Dimensions, nin1Variables, nin1Attributes, in1unlimitedDimID
 integer :: nin2Dimensions, nin2Variables, nin2Attributes, in2unlimitedDimID
-real(r8) :: min1, min2, max1, max2
+real(r8) :: min1, min2, max1, max2, delmin, delmax
 
 ! arrays for all possible dimensions
 real(r8), pointer ::   oned1(:),               oned2(:)       
@@ -202,7 +202,7 @@ fieldloop : do i=1, 10000
    endif
 
    if (debug) then
-      write(msgstring, *) ' invarid1: ', trim(nextfield)//' ',  invarid1
+      write(msgstring, *) 'invarid1: ', trim(nextfield)//' ',  invarid1
       call error_handler(E_MSG, 'compare_states', msgstring)
       write(msgstring, *) 'invarid2: ', trim(nextfield)//' ', invarid2
       call error_handler(E_MSG, 'compare_states', msgstring)
@@ -295,6 +295,8 @@ fieldloop : do i=1, 10000
          max1 = maxval(oned1)
          min2 = minval(oned2)
          max2 = maxval(oned2)
+         delmin = minval(abs(oned1-oned2))
+         delmax = maxval(abs(oned1-oned2))
          nitems = count(oned1 .ne. oned2)
          deallocate(oned1, oned2)
       case (2)
@@ -306,6 +308,8 @@ fieldloop : do i=1, 10000
          max1 = maxval(twod1)
          min2 = minval(twod2)
          max2 = maxval(twod2)
+         delmin = minval(abs(twod1-twod2))
+         delmax = maxval(abs(twod1-twod2))
          nitems = count(twod1 .ne. twod2)
          deallocate(twod1, twod2)
       case (3)
@@ -317,6 +321,8 @@ fieldloop : do i=1, 10000
          max1 = maxval(threed1)
          min2 = minval(threed2)
          max2 = maxval(threed2)
+         delmin = minval(abs(threed1-threed2))
+         delmax = maxval(abs(threed1-threed2))
          nitems = count(threed1 .ne. threed2)
          deallocate(threed1, threed2)
       case (4)
@@ -328,6 +334,8 @@ fieldloop : do i=1, 10000
          max1 = maxval(fourd1)
          min2 = minval(fourd2)
          max2 = maxval(fourd2)
+         delmin = minval(abs(fourd1-fourd2))
+         delmax = maxval(abs(fourd1-fourd2))
          nitems = count(fourd1 .ne. fourd2)
          deallocate(fourd1, fourd2)
       case (5)
@@ -339,6 +347,8 @@ fieldloop : do i=1, 10000
          max1 = maxval(fived1)
          min2 = minval(fived2)
          max2 = maxval(fived2)
+         delmin = minval(abs(fived1-fived2))
+         delmax = maxval(abs(fived1-fived2))
          nitems = count(fived1 .ne. fived2)
          deallocate(fived1, fived2)
       case (6)
@@ -350,6 +360,8 @@ fieldloop : do i=1, 10000
          max1 = maxval(sixd1)
          min2 = minval(sixd2)
          max2 = maxval(sixd2)
+         delmin = minval(abs(sixd1-sixd2))
+         delmax = maxval(abs(sixd1-sixd2))
          nitems = count(sixd1 .ne. sixd2)
          deallocate(sixd1, sixd2)
       case (7)
@@ -361,6 +373,8 @@ fieldloop : do i=1, 10000
          max1 = maxval(sevend1)
          min2 = minval(sevend2)
          max2 = maxval(sevend2)
+         delmin = minval(abs(sevend1-sevend2))
+         delmax = maxval(abs(sevend1-sevend2))
          nitems = count(sevend1 .ne. sevend2)
          deallocate(sevend1, sevend2)
       case default
@@ -370,16 +384,21 @@ fieldloop : do i=1, 10000
    end select
 
    ! common reporting code
-   write(msgstring, *) 'min/max 1: ', min1, max1
-   call error_handler(E_MSG, 'compare_states', msgstring, source, revision, revdate)
-   write(msgstring, *) 'min/max 2: ', min2, max2
-   call error_handler(E_MSG, 'compare_states', msgstring, source, revision, revdate)
    if (nitems > 0) then
       write(msgstring, *) 'arrays differ in ', nitems, ' places'
+      call error_handler(E_MSG, 'compare_states', msgstring, source, revision, revdate)
+      write(msgstring, *) 'min/max file1: ', min1, max1
+      call error_handler(E_MSG, 'compare_states', msgstring, source, revision, revdate)
+      write(msgstring, *) 'min/max file2: ', min2, max2
+      call error_handler(E_MSG, 'compare_states', msgstring, source, revision, revdate)
+      write(msgstring, *) 'delta min/max: ', delmin, delmax
+      call error_handler(E_MSG, 'compare_states', msgstring, source, revision, revdate)
    else
       write(msgstring, *) 'arrays same'
+      call error_handler(E_MSG, 'compare_states', msgstring, source, revision, revdate)
+      write(msgstring, *) 'min/max value: ', min1, max1
+      call error_handler(E_MSG, 'compare_states', msgstring, source, revision, revdate)
    endif
-   call error_handler(E_MSG, 'compare_states', msgstring, source, revision, revdate)
 
 enddo fieldloop
 
