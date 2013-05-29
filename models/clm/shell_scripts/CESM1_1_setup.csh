@@ -106,7 +106,7 @@ setenv DARTroot     /glade/u/home/${USER}/svn/DART/dev
 set stagedir = /glade/scratch/afox/bptmp/MD_40_PME/run/MD_40_PME
 
 # ==============================================================================
-# configure settings
+# configure settings ... run_startdate format is yyyy-mm-dd
 # ==============================================================================
 
 setenv stream_year_first 2000
@@ -120,14 +120,21 @@ setenv run_refdate $refyear-$refmon-$refday
 
 # ==============================================================================
 # runtime settings --  How many assimilation steps will be done after this one
+#                      plus archiving options
 #
+# resubmit      How many job steps to run on continue runs (will be 0 initially)
 # stop_option   Units for determining the forecast length between assimilations
-# stop_n        Number of time units in the forecast
+# stop_n        Number of time units in the model_advance
+# assim_n       Number of time units between assimilations
+#
 # ==============================================================================
 
-setenv resubmit      0
-setenv stop_option   nhours
-setenv stop_n        24
+setenv resubmit            0
+setenv stop_option         nhours
+setenv stop_n              24
+setenv assim_n             24
+setenv short_term_archiver on
+setenv long_term_archiver  off
 
 # ==============================================================================
 # job settings
@@ -140,7 +147,7 @@ setenv stop_n        24
 
 setenv ACCOUNT      P8685nnnn
 setenv timewall     0:20
-setenv queue        regular
+setenv queue        economy
 setenv ptile        15
 
 # ==============================================================================
@@ -170,6 +177,48 @@ switch ("`hostname`")
 
    breaksw
 endsw
+
+# ==============================================================================
+# some simple error checking before diving into the work
+# ==============================================================================
+
+# fatal idea to make caseroot the same dir as where this setup script is
+# since the build process removes all files in the caseroot dir before
+# populating it.  try to prevent shooting yourself in the foot.
+if ( $caseroot == `dirname $0` ) then
+   echo "ERROR: the setup script should not be located in the caseroot"
+   echo "directory, because all files in the caseroot dir will be removed"
+   echo "before creating the new case.  move the script to a safer place."
+   exit -1
+endif
+
+# make sure these variables point to valid directories
+foreach VAR ( cesm_datadir cesmroot DARTroot )
+   # VAR is the shell variable name, DIR is the value
+   set DIR = `eval echo \${$VAR}`
+   if ( ! -d $DIR ) then
+      echo "ERROR: directory '$DIR' not found"
+      echo " In the setup script check the setting of: $VAR "
+      exit -1
+   endif
+end
+
+# make sure there is a filter in these dirs
+foreach MODEL ( clm )
+   set targetdir = $DARTroot/models/$MODEL/work
+   if ( ! -x $targetdir/filter ) then
+      echo "WARNING: executable file 'filter' not found"
+      echo " Looking for: $targetdir/filter "
+      echo " Trying to rebuild all model files now."
+      (cd $targetdir; ./quickbuild.csh -mpi)
+      if ( ! -x $targetdir/filter ) then
+         echo "ERROR: executable file 'filter' not found"
+         echo " Unsuccessfully tried to rebuild: $targetdir/filter "
+         echo " Required DART assimilation executables are not found "
+         exit -1
+      endif
+   endif
+end
 
 # ==============================================================================
 # Create the case.
@@ -206,31 +255,32 @@ foreach FILE ( *xml )
    endif
 end
 
-if ($num_instances == 4) then
+if ( $num_instances < 10) then
 
    # This is only for the purpose of debugging the code.
    # A more efficient layout must be done when running a full assimilation.
 
    @ cpl_pes  = $ptile
-   @ atm_pes  = $ptile * $num_instances
-   @ ice_pes  = $ptile
-   @ lnd_pes  = $ptile * $num_instances
-   @ rof_pes  = $ptile * $num_instances
+   @ atm_pes  = $ptile * $num_instances * 2
    @ glc_pes  = $ptile
+   @ rof_pes  = $ptile * $num_instances * 2
+   @ lnd_pes  = $ptile * $num_instances * 2
+   @ ice_pes  = $ptile
    @ ocn_pes  = $ptile
 
 else
 
-   # layout for 30 members.
-   # Made in conjunction with Mike Levy, David Bailey and Jim Edwards.
-   
-   @ cpl_pes = 450
-   @ atm_pes = 450
-   @ ice_pes = 450
-   @ lnd_pes = 450
-   @ rof_pes = 450
-   @ glc_pes = 450
-   @ ocn_pes = 1800
+   # This is only for the purpose of debugging the code.
+   # Every component runs sequentially on all pes.
+   # A more efficient layout must be found
+
+   @ cpl_pes = $ptile * $num_instances
+   @ atm_pes = $ptile * $num_instances
+   @ glc_pes = $ptile * $num_instances
+   @ rof_pes = $ptile * $num_instances
+   @ lnd_pes = $ptile * $num_instances
+   @ ice_pes = $ptile * $num_instances
+   @ ocn_pes = $ptile * $num_instances 
    
 endif
 
@@ -238,20 +288,27 @@ echo "task layout"
 echo ""
 echo "CPL gets $cpl_pes"
 echo "ATM gets $atm_pes"
-echo "ICE gets $ice_pes"
-echo "LND gets $lnd_pes"
-echo "ROF gets $rof_pes"
 echo "GLC gets $glc_pes"
+echo "ROF gets $rof_pes"
+echo "LND gets $lnd_pes"
+echo "ICE gets $ice_pes"
 echo "OCN gets $ocn_pes"
 echo ""
 
 ./xmlchange NTHRDS_CPL=1,NTASKS_CPL=$cpl_pes
 ./xmlchange NTHRDS_ATM=1,NTASKS_ATM=$atm_pes,NINST_ATM=$num_instances
-./xmlchange NTHRDS_ICE=1,NTASKS_ICE=$ice_pes,NINST_ICE=1
-./xmlchange NTHRDS_LND=1,NTASKS_LND=$lnd_pes,NINST_LND=$num_instances
-./xmlchange NTHRDS_ROF=1,NTASKS_ROF=$rof_pes,NINST_ROF=$num_instances
 ./xmlchange NTHRDS_GLC=1,NTASKS_GLC=$glc_pes,NINST_GLC=1
+./xmlchange NTHRDS_ROF=1,NTASKS_ROF=$rof_pes,NINST_ROF=$num_instances
+./xmlchange NTHRDS_LND=1,NTASKS_LND=$lnd_pes,NINST_LND=$num_instances
+./xmlchange NTHRDS_ICE=1,NTASKS_ICE=$ice_pes,NINST_ICE=1
 ./xmlchange NTHRDS_OCN=1,NTASKS_OCN=$ocn_pes,NINST_OCN=1
+./xmlchange ROOTPE_CPL=0
+./xmlchange ROOTPE_ATM=0
+./xmlchange ROOTPE_GLC=0
+./xmlchange ROOTPE_ROF=0
+./xmlchange ROOTPE_LND=0
+./xmlchange ROOTPE_ICE=0
+./xmlchange ROOTPE_OCN=0
 
 # http://www.cesm.ucar.edu/models/cesm1.1/cesm/doc/usersguide/c1158.html#run_start_stop
 # "A hybrid run indicates that CESM is initialized more like a startup, but uses
@@ -277,15 +334,6 @@ echo ""
 ./xmlchange EXEROOT=${exeroot}
 ./xmlchange PIO_TYPENAME=pnetcdf
 
-# DOUT_S     is to turn on/off the short-term archiving
-# DOUT_L_MS  is to store to the HPSS (formerly "MSS")
-
-./xmlchange DOUT_S_ROOT=${archdir}
-./xmlchange DOUT_S=TRUE
-./xmlchange DOUT_S_SAVE_INT_REST_FILES=FALSE
-./xmlchange DOUT_L_MS=FALSE
-./xmlchange DOUT_L_MSROOT="csm/${case}"
-./xmlchange DOUT_L_HTAR=FALSE
 
 ./xmlchange DATM_MODE=CPLHIST3HrWx
 ./xmlchange DATM_CPLHIST_CASE=$case
@@ -307,10 +355,26 @@ echo ""
 ./xmlchange ROF_GRID='null'
 ./xmlchange CLM_CONFIG_OPTS='-bgc cn'
 
+if ($short_term_archiver == 'off') then
+   ./xmlchange DOUT_S=FALSE
+else
+   ./xmlchange DOUT_S=TRUE
+   ./xmlchange DOUT_S_ROOT=${archdir}
+   ./xmlchange DOUT_S_SAVE_INT_REST_FILES=FALSE
+endif
+if ($long_term_archiver == 'off') then
+   ./xmlchange DOUT_L_MS=FALSE
+else
+   ./xmlchange DOUT_L_MS=TRUE
+   ./xmlchange DOUT_L_MSROOT="csm/${case}"
+   ./xmlchange DOUT_L_HTAR=FALSE
+endif
+
 # level of debug output, 0=minimum, 1=normal, 2=more, 3=too much, valid values: 0,1,2,3 (integer)
 
 ./xmlchange DEBUG=FALSE
 ./xmlchange INFO_DBUG=0
+
 
 # ==============================================================================
 # Set up the case.
@@ -375,13 +439,15 @@ while ($inst <= $num_instances)
    # for two reasons - one is that you don't need to copy the files and rename them
    # (tedious), the second is that the full pathname provides a means of tracking 
    # the origin of the initial ensemble.
+ 
+   @ thirtymin = $assim_n * 2
 
    echo "finidat = '${stagedir}.clm2_$instance.r.${run_refdate}-${run_reftod}.nc'" >> $fname
    echo "hist_empty_htapes = .false."                >> $fname
    echo "hist_fincl1 = 'NEP'"                        >> $fname
    echo "hist_fincl2 = 'NEP','FSH','EFLX_LH_TOT_R'"  >> $fname
    echo "hist_nhtfrq = -$stop_n,1,"                  >> $fname
-   echo "hist_mfilt  = 1,48"                         >> $fname
+   echo "hist_mfilt  = 1,$thirtymin"                 >> $fname
    echo "hist_avgflag_pertape = 'A','A'"             >> $fname
 
    @ inst ++
@@ -467,7 +533,7 @@ if (    -d     ~/${cesmtag}/SourceMods ) then
 else
    echo "ERROR - No SourceMods for this case."
    echo "ERROR - No SourceMods for this case."
-   echo "DART requires modifications to several src.pop2/ files."
+   echo "DART requires modifications to several src files."
    echo "These files can be downloaded from:"
    echo "http://www.image.ucar.edu/pub/DART/CESM/DART_SourceMods_cesm1_1_1.tar"
    echo "untar these into your HOME directory - they will create a"
@@ -576,7 +642,10 @@ set CplLogFile = `ls -1t cpl.log* | head -n 1`
 if ($CplLogFile == "") then
    echo 'ERROR: Model did not complete - no cpl.log file present - exiting.'
    echo 'ERROR: Assimilation will not be attempted.'
-   exit -1
+   setenv LSB_PJL_TASK_GEOMETRY "{(0)}"
+   setenv EXITCODE -1
+   mpirun.lsf ${CASEROOT}/shell_exit.sh
+   exit $EXITCODE
 endif
 
 grep 'SUCCESSFUL TERMINATION' $CplLogFile
@@ -587,12 +656,18 @@ if ( $status == 0 ) then
       echo "`date` -- DART HAS FINISHED"
    else
       echo "`date` -- DART FILTER ERROR - ABANDON HOPE"
-      exit -3
+      setenv LSB_PJL_TASK_GEOMETRY "{(0)}"
+      setenv EXITCODE -3
+      mpirun.lsf ${CASEROOT}/shell_exit.sh
+      exit $EXITCODE
    endif
 else
    echo 'ERROR: Model did not complete successfully - exiting.'
    echo 'ERROR: Assimilation will not be attempted.'
-   exit -2
+   setenv LSB_PJL_TASK_GEOMETRY "{(0)}"
+   setenv EXITCODE -2
+   mpirun.lsf ${CASEROOT}/shell_exit.sh
+   exit $EXITCODE
 endif
 
 # END OF DART BLOCK
@@ -641,6 +716,8 @@ chmod 0755 ${case}.run
 
 if ( ~ -e  Tools/st_archive.sh.original ) then
    ${COPY} Tools/st_archive.sh Tools/st_archive.sh.original
+else
+   echo "a Tools/st_archive.sh backup copy already exists"
 endif
 
 # NOTE: the assimilate.csh script and input.nml must be modified for your
@@ -651,8 +728,9 @@ endif
 #       If you don't, you should give up now. Really.
 
 ${COPY} ${DARTroot}/models/clm/shell_scripts/st_archive.sh   Tools/
-${COPY} ${DARTroot}/models/clm/shell_scripts/assimilate.csh  assimilate.csh
-${COPY} ${DARTroot}/models/clm/work/input.nml                input.nml
+${COPY} ${DARTroot}/models/clm/shell_scripts/assimilate.csh  .
+${COPY} ${DARTroot}/models/clm/work/input.nml                .
+${COPY} ${DARTroot}/shell_scripts/shell_exit.sh              .
 
 # ==============================================================================
 # Stage the DART executables in the CESM execution root directory: EXEROOT
@@ -671,26 +749,27 @@ end
 # What to do next
 # ==============================================================================
 
-echo ''
+echo ""
 echo "Time to check the case."
-echo ''
+echo ""
 echo "cd into ${caseroot}"
+echo ""
 echo "Modify what you like in input.nml, make sure the observation directory"
 echo "names set in assimilate.csh match those on your system, and submit"
 echo "the CESM job by running:"
 echo "./${case}.submit"
-echo ''
+echo ""
 echo "For continued submissions after the initial startup,"
 echo "make the following changes to the env_run variables:"
-echo ''
+echo ""
 echo "  ./xmlchange -file env_run.xml -id CONTINUE_RUN  -val TRUE"
 echo "  ./xmlchange -file env_run.xml -id RESUBMIT      -val <your_favorite_number>"
-echo ''
+echo ""
 echo "Check the streams listed in the streams text files.  If more or different"
 echo 'dates need to be added, then do this in the $CASEROOT/user_*files*'
 echo "then invoke 'preview_namelists' so you can check the information in the"
 echo "CaseDocs or ${rundir} directories."
-echo ''
+echo ""
 
 exit 0
 

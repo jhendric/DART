@@ -37,7 +37,7 @@ switch ("`hostname`")
       set   LINK = 'ln -fvs'
       set REMOVE = 'rm -fr'
 
-      set BASEOBSDIR = /glade/p/image/Observations/FluxTower
+      set BASEOBSDIR = /glade/p/image/Observations/land
       set    DARTDIR = ${HOME}/svn/DART/dev
       set  LAUNCHCMD = mpirun.lsf
    breaksw

@@ -121,6 +121,13 @@ else
    exit -2
 endif
 
+# Modify the DART input.nml such that casename is always correct.
+
+ex input.nml <<ex_end
+g;casename ;s;= .*;= "../$MYCASE",;
+wq
+ex_end
+
 echo "`date` -- END COPY BLOCK"
 
 #=========================================================================
