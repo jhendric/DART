@@ -1,9 +1,9 @@
 ! Update vector with a Gaussian noise.
-! x(i) *= (1. + G * gasdev)
+! x(i) *= (1. + G * gaussian)
  
 module gau_param
 
-use random_nr_mod, only :    random_seq_type, init_ran1, gasdev
+use random_seq_mod, only : random_seq_type, init_random_seq, random_gaussian
 
 implicit none
 
@@ -53,9 +53,10 @@ subroutine march_ahead()
 integer :: i, getpid, tempr
 
 tempr = mod(getpid(),54000)
-call init_ran1(sr, tempr)
+call init_random_seq(sr, tempr)
 do i = 1, model_size
-   x(i) = x(i)*(1._r8 + G * gasdev(sr)) ! Advance the parameter with a Gaussian noise
+   ! Advance the parameter with a Gaussian noise
+   x(i) = x(i)*(1._r8 + G * random_gaussian(sr, 0.0_r8, 1.0_r8)) 
 end do
 
 end  subroutine march_ahead
