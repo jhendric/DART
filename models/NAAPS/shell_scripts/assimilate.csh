@@ -112,7 +112,7 @@ foreach FILE ( prior post )
    # These files may or may not exist. This causes some complexity.
    # So - we look for the 'newest' and use it. And Pray.
 
-   (ls -rt1 ../${FILE}_inflate.*.restart.* | tail -1 >! latestfile) > & /dev/null
+   (ls -rt1 ../${FILE}_inflate.*.restart.* | tail -n 1 >! latestfile) > & /dev/null
    set nfiles = `cat latestfile | wc -l`
 
    if ( $nfiles > 0 ) then

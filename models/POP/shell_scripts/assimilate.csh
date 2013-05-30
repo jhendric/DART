@@ -76,7 +76,7 @@ cd $temp_dir
 # Piping stuff through 'bc' strips off any preceeding zeros.
 #-------------------------------------------------------------------------
 
-set FILE = `head -1 ../rpointer.ocn_0001.restart`
+set FILE = `head -n 1 ../rpointer.ocn_0001.restart`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
@@ -239,7 +239,7 @@ if ( $PRIOR_INF > 0 ) then
       echo "inf_flavor(1) = $PRIOR_INF, using namelist values."
    else
       # Look for the output from the previous assimilation
-      (ls -rt1 ../pop_${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../pop_${PRIOR_INF_OFNAME}.* | tail -n 1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -266,7 +266,7 @@ if ( $POSTE_INF > 0 ) then
    else
 
       # Look for the output from the previous assimilation
-      (ls -rt1 ../pop_${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../pop_${POSTE_INF_OFNAME}.* | tail -n 1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -369,7 +369,7 @@ echo "`date` -- END POP-TO-DART for all ${ensemble_size} members."
 # POP always needs a pop_in and a pop.r.nc to start.
 # Lots of ways to get the filename
 
-set OCN_RESTART_FILENAME = `head -1 ../rpointer.ocn_0001.restart`
+set OCN_RESTART_FILENAME = `head -n 1 ../rpointer.ocn_0001.restart`
 
 ${LINK} ../$OCN_RESTART_FILENAME pop.r.nc
 ${LINK} ../pop2_in_0001          pop_in

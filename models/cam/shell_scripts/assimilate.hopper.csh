@@ -31,7 +31,7 @@ cd $temp_dir
 # of the form "./${CASE}.cam_${ensemble_member}.r.2000-01-06-00000.nc"
 #-------------------------------------------------------------------------
 
-set FILE = `head -1 ../rpointer.atm_0001`
+set FILE = `head -n 1 ../rpointer.atm_0001`
 set FILE = $FILE:t
 set FILE = $FILE:r
 set MYCASE = `echo $FILE | sed -e "s#\..*##"`
@@ -189,7 +189,7 @@ if ( $PRIOR_INF > 0 ) then
    endif
 
    # Look for the output from the previous assimilation
-   (ls -rt1 ../${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+   (ls -rt1 ../${PRIOR_INF_OFNAME}.* | tail -n 1 >! latestfile) > & /dev/null
    set nfiles = `cat latestfile | wc -l`
 
    # If one exists, use it as input for this assimilation
@@ -216,7 +216,7 @@ if ( $POSTE_INF > 0 ) then
    endif
 
    # Look for the output from the previous assimilation
-   (ls -rt1 ../${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+   (ls -rt1 ../${POSTE_INF_OFNAME}.* | tail -n 1 >! latestfile) > & /dev/null
    set nfiles = `cat latestfile | wc -l`
 
    # If one exists, use it as input for this assimilation
@@ -260,7 +260,7 @@ while ( ${member} <= ${ensemble_size} )
    cd $MYTEMPDIR
 
    set POINTER_FILENAME = `printf rpointer.atm_%04d ${member}`
-   set MODEL_RESTART_FILENAME = `head -1 ../../${POINTER_FILENAME}`
+   set MODEL_RESTART_FILENAME = `head -n 1 ../../${POINTER_FILENAME}`
    set MODEL_INITIAL_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
    ${LINK} ../../$MODEL_INITIAL_FILENAME caminput.nc
    ${LINK} ../cam_phis.nc .
@@ -305,7 +305,7 @@ wait
 
 # cam always needs a cam_initial.nc and a cam_history.nc to start.
 
-set MODEL_RESTART_FILENAME = `head -1 ../rpointer.atm_0001`
+set MODEL_RESTART_FILENAME = `head -n 1 ../rpointer.atm_0001`
 set MODEL_INITIAL_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.i\.#"`
 set MODEL_HISTORY_FILENAME = `echo ${MODEL_RESTART_FILENAME} | sed "s#\.r\.#\.h0\.#"`
 
@@ -379,7 +379,7 @@ while ( ${member} <= ${ensemble_size} )
    set LND_POINTER_FILENAME = `printf rpointer.lnd_%04d ${member}`
    set ICE_POINTER_FILENAME = `printf rpointer.ice_%04d ${member}`
 
-   set ATM_RESTART_FILENAME = `head -1 ../../${ATM_POINTER_FILENAME}`
+   set ATM_RESTART_FILENAME = `head -n 1 ../../${ATM_POINTER_FILENAME}`
    set LND_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.clm2_#"`
    set ICE_RESTART_FILENAME = `echo ${ATM_RESTART_FILENAME} | sed "s#\.cam_#\.cice_#"`
 
