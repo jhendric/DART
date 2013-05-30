@@ -166,9 +166,13 @@ integer, parameter, public :: &
     KIND_INFRARED_BRIGHT_TEMP        = 61, &
     KIND_LANDMASK                    = 62
 
-! kind for unstructured grids
+! kind for unstructured grids 
 integer, parameter, public :: &
     KIND_EDGE_NORMAL_SPEED           = 63
+
+! kind for cloud liquid water path
+integer, parameter, public :: &
+    KIND_CLW_PATH                    = 64
 
 ! kinds for planetary remote sensing (wglawson, c.lee)
 integer, parameter, public :: &
@@ -332,7 +336,7 @@ integer :: map(2, max_obs_specific) = -1
 type obs_type_type
    integer              :: index
    character(len = paramname_length) :: name
-   integer              :: var_type
+   integer              :: generic_kind
    logical              :: assimilate
    logical              :: evaluate
 end type obs_type_type
@@ -461,6 +465,7 @@ obs_kind_names(60) = obs_kind_type(KIND_INFRARED_RADIANCE, 'KIND_INFRARED_RADIAN
 obs_kind_names(61) = obs_kind_type(KIND_INFRARED_BRIGHT_TEMP, 'KIND_INFRARED_BRIGHT_TEMP')
 obs_kind_names(62) = obs_kind_type(KIND_LANDMASK, 'KIND_LANDMASK')
 obs_kind_names(63) = obs_kind_type(KIND_EDGE_NORMAL_SPEED, 'KIND_EDGE_NORMAL_SPEED')
+obs_kind_names(64) = obs_kind_type(KIND_CLW_PATH, 'KIND_CLW_PATH')
 
 obs_kind_names(70) = obs_kind_type(KIND_SKIN_TEMPERATURE, 'KIND_SKIN_TEMPERATURE')
 obs_kind_names(71) = obs_kind_type(KIND_NADIR_RADIANCE, 'KIND_NADIR_RADIANCE')
@@ -648,23 +653,23 @@ end function map_def_index
 
 !----------------------------------------------------------------------------
 
-function get_obs_kind_name(obs_kind_ind)
+function get_obs_kind_name(obs_type_ind)
 
 ! Returns observation type name
 
-integer, intent(in) :: obs_kind_ind
+integer, intent(in) :: obs_type_ind
 character(len = paramname_length) :: get_obs_kind_name
 
 if ( .not. module_initialized ) call initialize_module
 
-if (obs_kind_ind < 1 .or. obs_kind_ind > max_obs_specific) then
-   write(msg_string,'(''index out of range 1 <= '',i6,'' <= '',i6)') &
-                                       obs_kind_ind, max_obs_specific
+if (obs_type_ind < 1 .or. obs_type_ind > max_obs_specific) then
+   write(msg_string,'(A,I6,A,I6)') 'specific type number ', obs_type_ind, &
+                                   ' must be between 1 and ', max_obs_specific
    call error_handler(E_ERR, 'get_obs_kind_name', msg_string, &
                       source, revision, revdate)
 endif
 
-get_obs_kind_name = obs_type_info(obs_kind_ind)%name
+get_obs_kind_name = obs_type_info(obs_type_ind)%name
 
 end function get_obs_kind_name
 
@@ -683,7 +688,8 @@ character(len=paramname_length) :: get_raw_obs_kind_name
 if (.not. module_initialized) call initialize_module
 
 if (obs_kind_ind < 1 .or. obs_kind_ind > max_obs_generic) then
-   write(msg_string, *) 'index out of range 1<=val<=', max_obs_generic
+   write(msg_string,'(A,I6,A,I6)') 'generic kind number ', obs_kind_ind, &
+                                   ' must be between 1 and ', max_obs_generic
    call error_handler(E_ERR, 'get_raw_obs_kind_name', msg_string, &
                       source, revision, revdate)
 endif
@@ -693,20 +699,20 @@ get_raw_obs_kind_name = obs_kind_names(obs_kind_ind)%name
 end function get_raw_obs_kind_name
 !----------------------------------------------------------------------------
 
-function get_obs_kind_index(obs_kind_name)
+function get_obs_kind_index(obs_type_name)
 
 ! Returns the integer index corresponding to an observation type string name
 ! Returns a -1 if this string is not in list
 
-character(len = *), intent(in)  :: obs_kind_name
+character(len = *), intent(in)  :: obs_type_name
 integer                         :: get_obs_kind_index
 
 integer :: i
-character(len=len(obs_kind_name)) :: string1
+character(len=len(obs_type_name)) :: string1
 
 if ( .not. module_initialized ) call initialize_module
 
-string1 = adjustl(obs_kind_name)
+string1 = adjustl(obs_type_name)
 
 do i = 1, max_obs_specific
    if(trim(string1) == trim(obs_type_info(i)%name) ) then
@@ -780,46 +786,47 @@ end function get_num_raw_obs_kinds
 
 !----------------------------------------------------------------------------
 
-function assimilate_this_obs_kind(obs_kind_ind)
+function assimilate_this_obs_kind(obs_type_ind)
 
-! Returns true if this obs_kind is being assimilated
+! Returns true if this obs_type is being assimilated
 
 logical             :: assimilate_this_obs_kind
-integer, intent(in) :: obs_kind_ind
+integer, intent(in) :: obs_type_ind
 
 if ( .not. module_initialized ) call initialize_module
 
-assimilate_this_obs_kind = obs_type_info(obs_kind_ind)%assimilate
+assimilate_this_obs_kind = obs_type_info(obs_type_ind)%assimilate
 
 end function assimilate_this_obs_kind
 
 !----------------------------------------------------------------------------
 
-function evaluate_this_obs_kind(obs_kind_ind)
+function evaluate_this_obs_kind(obs_type_ind)
 
-! Returns true if this obs_kind is being assimilated
+! Returns true if this obs_type is being assimilated
 
 logical             :: evaluate_this_obs_kind
-integer, intent(in) :: obs_kind_ind
+integer, intent(in) :: obs_type_ind
 
 if ( .not. module_initialized ) call initialize_module
 
-evaluate_this_obs_kind = obs_type_info(obs_kind_ind)%evaluate
+evaluate_this_obs_kind = obs_type_info(obs_type_ind)%evaluate
 
 end function evaluate_this_obs_kind
 
 !----------------------------------------------------------------------------
 
-function get_obs_kind_var_type(obs_kind_ind)
+function get_obs_kind_var_type(obs_type_ind)
 
-! Returns underlying variable type of this observation
+! Returns the associated generic kind associated with the
+! specific type of this observation
 
-integer, intent(in) :: obs_kind_ind
+integer, intent(in) :: obs_type_ind
 integer             :: get_obs_kind_var_type
 
 if ( .not. module_initialized ) call initialize_module
 
-get_obs_kind_var_type = obs_type_info(obs_kind_ind)%var_type
+get_obs_kind_var_type = obs_type_info(obs_type_ind)%generic_kind
 
 end function get_obs_kind_var_type
 

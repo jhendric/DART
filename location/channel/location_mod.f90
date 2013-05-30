@@ -85,9 +85,9 @@ end type octree_type
 
 type box_type
    private
-   integer, pointer  :: obs_box(:)           ! (nobs); List of obs indices in boxes
-   integer, pointer  :: count(:, :, :)       ! (nx, ny, nz); # of obs in each box
-   integer, pointer  :: start(:, :, :)       ! (nx, ny, nz); Start of list of obs in this box
+   integer, pointer  :: loc_box(:)           ! (nloc); List of loc indices in boxes
+   integer, pointer  :: count(:, :, :)       ! (nx, ny, nz); # of locs in each box
+   integer, pointer  :: start(:, :, :)       ! (nx, ny, nz); Start of list of locs in this box
    real(r8)          :: bot_x, top_x         ! extents in x, y, z
    real(r8)          :: bot_y, top_y 
    real(r8)          :: bot_z, top_z 
@@ -120,17 +120,12 @@ real(r8) :: radius     ! used only for converting points on a sphere into x,y,z 
 ! If maxdist stays the same, don't need to do box distance calculations
 integer :: last_maxdist = -1.0
 
-!-----------------------------------------------------------------
-! Namelist with default values
-
-! FIXME: give these better defaults?  or put in namelist
-! right now they are recomputed based on the setting of nboxes;
-! each is about the cube root of nboxes, but if the bounds are
-! very different distances in each dim, we may want better control
-! over the ratios of each.
 integer :: nx               = 10
 integer :: ny               = 10
 integer :: nz               = 10
+
+!-----------------------------------------------------------------
+! Namelist with default values
 
 logical :: output_box_info  = .false.
 integer :: print_box_level  = 0
@@ -192,7 +187,7 @@ end subroutine initialize_module
 
 !----------------------------------------------------------------------------
 
-function get_dist(loc1, loc2, kind1, kind2)
+function get_dist(loc1, loc2, type1, kind2)
 
 ! returns the distance between 2 locations 
 
@@ -207,7 +202,7 @@ function get_dist(loc1, loc2, kind1, kind2)
 ! 
 
 type(location_type), intent(in) :: loc1, loc2
-integer, optional,   intent(in) :: kind1, kind2
+integer, optional,   intent(in) :: type1, kind2
 real(r8)                        :: get_dist
 
 real(r8) :: x_dif, y_dif, z_dif
@@ -559,7 +554,7 @@ ierr = -1 ! assume things will fail ...
 call nc_check(nf90_def_dim(ncid=ncFileID, name='location', len=LocationDims, &
        dimid = LocDimID), 'nc_write_location_atts', 'def_dim:location '//trim(fname))
 
-! Define the observation location variable and attributes
+! Define the location variable and attributes
 
 call nc_check(nf90_def_var(ncid=ncFileID, name='location', xtype=nf90_double, &
           dimids=(/ LocDimID, ObsNumDimID /), varid=VarID), &
@@ -656,13 +651,13 @@ end subroutine get_close_obs_init
 
 !----------------------------------------------------------------------------
 
-subroutine get_close_init_boxes(gc, num, obs)
+subroutine get_close_init_boxes(gc, num, locs)
  
-! Initializes part of get_close accelerator that depends on the particular obs
+! Initializes part of get_close accelerator that depends on the particular loc
 
 type(get_close_type), intent(inout) :: gc
 integer,              intent(in)    :: num
-type(location_type),  intent(in)    :: obs(num)
+type(location_type),  intent(in)    :: locs(num)
 
 integer :: i, j, k, cum_start, l
 integer :: x_box(num), y_box(num), z_box(num)
@@ -671,10 +666,10 @@ integer :: tstart(nx, ny, nz)
 if ( .not. module_initialized ) call initialize_module
 
 ! Allocate storage for obs number dependent part
-allocate(gc%box%obs_box(num))
-gc%box%obs_box(:) = -1
+allocate(gc%box%loc_box(num))
+gc%box%loc_box(:) = -1
 
-! Set the value of num_obs in the structure
+! Set the value of num_locs in the structure
 gc%num = num
 
 ! If num == 0, no point in going any further.
@@ -685,23 +680,23 @@ nx = nint(real(nboxes, r8)**0.33333)   ! roughly cube root
 ny = nint(real(nboxes, r8)**0.33333)   ! roughly cube root
 nz = nint(real(nboxes, r8) / real(nx * ny, r8))  ! whatever is left
 
-! Determine where the boxes should be for this set of obs and maxdist
-call find_box_ranges(gc, obs, num)
+! Determine where the boxes should be for this set of locs and maxdist
+call find_box_ranges(gc, locs, num)
 
-! Begin by computing the number of observations in each box in x,y,z
+! Begin by computing the number of locations in each box in x,y,z
 gc%box%count = 0
 do i = 1, num
 
-!print *, i, obs(i)%x, obs(i)%y, obs(i)%z
-   x_box(i) = floor((obs(i)%x - gc%box%bot_x) / gc%box%x_width) + 1
+!print *, i, locs(i)%x, locs(i)%y, locs(i)%z
+   x_box(i) = floor((locs(i)%x - gc%box%bot_x) / gc%box%x_width) + 1
    if(x_box(i) > nx) x_box(i) = nx
    if(x_box(i) < 1)  x_box(i) = 1
 
-   y_box(i) = floor((obs(i)%y - gc%box%bot_y) / gc%box%y_width) + 1
+   y_box(i) = floor((locs(i)%y - gc%box%bot_y) / gc%box%y_width) + 1
    if(y_box(i) > ny) y_box(i) = ny
    if(y_box(i) < 1)  y_box(i) = 1
 
-   z_box(i) = floor((obs(i)%z - gc%box%bot_z) / gc%box%z_width) + 1
+   z_box(i) = floor((locs(i)%z - gc%box%bot_z) / gc%box%z_width) + 1
    if(z_box(i) > nz) z_box(i) = nz
    if(z_box(i) < 1)  z_box(i) = 1
 
@@ -724,7 +719,7 @@ end do
 ! Now we know how many are in each box, get a list of which are in each box
 tstart = gc%box%start
 do i = 1, num
-   gc%box%obs_box(tstart(x_box(i), y_box(i), z_box(i))) = i
+   gc%box%loc_box(tstart(x_box(i), y_box(i), z_box(i))) = i
    tstart(x_box(i), y_box(i), z_box(i)) = tstart(x_box(i), y_box(i), z_box(i)) + 1
 end do
 
@@ -733,7 +728,7 @@ do i = 1, nx
       do k = 1, nz
 if (gc%box%count(i,j,k) > 0) print *, i,j,k, gc%box%count(i,j,k), gc%box%start(i,j,k)
          do l=1, gc%box%count(i,j,k)
-!print *, l, gc%box%obs_box(l)
+!print *, l, gc%box%loc_box(l)
          enddo
       end do
    end do
@@ -767,7 +762,7 @@ subroutine get_close_init_otree(gc, num, locs)
  
 ! Octree version
 
-! Initializes part of get_close accelerator that depends on the particular obs
+! Initializes part of get_close accelerator that depends on the particular locs
 
 type(get_close_type), intent(inout), target :: gc
 integer,              intent(in)    :: num
@@ -782,7 +777,7 @@ if ( .not. module_initialized ) call initialize_module
 
 r => gc%root
 
-! Set the value of num_obs in the structure
+! Set the value of num_locs in the structure
 gc%num = num
 
 ! If num == 0, no point in going any further.
@@ -856,7 +851,7 @@ subroutine get_close_destroy_boxes(gc)
 
 type(get_close_type), intent(inout) :: gc
 
-deallocate(gc%box%obs_box, gc%box%count, gc%box%start)
+deallocate(gc%box%loc_box, gc%box%count, gc%box%start)
 
 end subroutine get_close_destroy_boxes
 
@@ -899,23 +894,23 @@ end subroutine get_close_maxdist_init
 
 !----------------------------------------------------------------------------
 
-subroutine get_close_obs(gc, base_obs_loc, base_obs_kind, obs, obs_kind, &
+subroutine get_close_obs(gc, base_obs_loc, base_obs_type, obs, obs_kind, &
    num_close, close_ind, dist)
 
 ! FIXME: these work on any locations. the names of these args should be:  
-!   gc, base_loc, base_kind, locs, locs_kinds, ... 
+!   gc, base_loc, base_type, locs, locs_kinds, ... 
 
 type(get_close_type), intent(in)  :: gc
-type(location_type),  intent(in)  :: base_obs_loc, obs(:)
-integer,              intent(in)  :: base_obs_kind, obs_kind(:)
+type(location_type),  intent(in)  :: base_obs_loc,  obs(:)
+integer,              intent(in)  :: base_obs_type, obs_kind(:)
 integer,              intent(out) :: num_close, close_ind(:)
 real(r8), optional,   intent(out) :: dist(:)
 
 if (use_octree) then
-   call get_close_otree(gc, base_obs_loc, base_obs_kind, obs, obs_kind, &
+   call get_close_otree(gc, base_obs_loc, base_obs_type, obs, obs_kind, &
                         num_close, close_ind, dist)
 else
-   call get_close_boxes(gc, base_obs_loc, base_obs_kind, obs, obs_kind, &
+   call get_close_boxes(gc, base_obs_loc, base_obs_type, obs, obs_kind, &
                         num_close, close_ind, dist)
 endif
 
@@ -923,15 +918,12 @@ end subroutine get_close_obs
 
 !----------------------------------------------------------------------------
 
-subroutine get_close_boxes(gc, base_obs_loc, base_obs_kind, obs, obs_kind, &
+subroutine get_close_boxes(gc, base_loc, base_type, loc, loc_kind, &
    num_close, close_ind, dist)
 
-! FIXME: these work on any locations. the names of these args should be:  
-!   gc, base_loc, base_kind, locs, locs_kinds, ... 
-
 type(get_close_type), intent(in)  :: gc
-type(location_type),  intent(in)  :: base_obs_loc, obs(:)
-integer,              intent(in)  :: base_obs_kind, obs_kind(:)
+type(location_type),  intent(in)  :: base_loc,  loc(:)
+integer,              intent(in)  :: base_type, loc_kind(:)
 integer,              intent(out) :: num_close, close_ind(:)
 real(r8), optional,   intent(out) :: dist(:)
 
@@ -956,13 +948,13 @@ close_ind = -99
 if(present(dist)) dist = -1e38_r8  ! big but negative
 this_dist = 1e38_r8                ! something big and positive.
 
-! the list of locations in the obs() argument must be the same
+! the list of locations in the loc() argument must be the same
 ! as the list of locations passed into get_close_obs_init(), so
-! gc%num and size(obs) better be the same.   if the list changes,
+! gc%num and size(loc) better be the same.   if the list changes,
 ! you have to destroy the old gc and init a new one.
-if (size(obs) /= gc%num) then
-   write(errstring,*)'obs() array must match one passed to get_close_obs_init()'
-   call error_handler(E_ERR, 'get_close_obs', errstring, source, revision, revdate)
+if (size(loc) /= gc%num) then
+   write(errstring,*)'loc() array must match one passed to get_close_obs_init()'
+   call error_handler(E_ERR, 'get_close_boxes', errstring, source, revision, revdate)
 endif
 
 ! If num == 0, no point in going any further. 
@@ -974,15 +966,15 @@ this_maxdist = gc%maxdist
 ! For validation, it is useful to be able to compare against exact
 ! exhaustive search
 if(compare_to_correct) then
-   call exhaustive_collect(gc, base_obs_loc, obs, &
+   call exhaustive_collect(gc, base_loc, loc, &
                            cnum_close, cclose_ind, cdist)
 endif
 
 
 ! Begin by figuring out which box the base loc is in
-x_box = floor((base_obs_loc%x - gc%box%bot_x) / gc%box%x_width) + 1
-y_box = floor((base_obs_loc%y - gc%box%bot_y) / gc%box%y_width) + 1
-z_box = floor((base_obs_loc%z - gc%box%bot_z) / gc%box%z_width) + 1
+x_box = floor((base_loc%x - gc%box%bot_x) / gc%box%x_width) + 1
+y_box = floor((base_loc%y - gc%box%bot_y) / gc%box%y_width) + 1
+z_box = floor((base_loc%z - gc%box%bot_z) / gc%box%z_width) + 1
 
 ! If it is not in any box, then it is more than the maxdist away from everybody
 if(x_box > nx .or. x_box < 1 .or. x_box < 0) return
@@ -1025,17 +1017,17 @@ do i = start_x, end_x
          st = gc%box%start(i,j,k)
 
 
-         ! Loop to check how close all obs in the box are; add those that are close
+         ! Loop to check how close all loc in the box are; add those that are close
          do l = 1, n_in_box
 
-            t_ind = gc%box%obs_box(st - 1 + l)
+            t_ind = gc%box%loc_box(st - 1 + l)
 !print *, 'l, t_ind = ', l, t_ind
 
             ! Only compute distance if dist is present
             if(present(dist)) then
-               this_dist = get_dist(base_obs_loc, obs(t_ind))
+               this_dist = get_dist(base_loc, loc(t_ind))
 !print *, 'this_dist = ', this_dist
-               ! If this obs' distance is less than cutoff, add it in list
+               ! If this loc's distance is less than cutoff, add it in list
                if(this_dist <= this_maxdist) then
                   num_close = num_close + 1
                   close_ind(num_close) = t_ind
@@ -1063,15 +1055,12 @@ end subroutine get_close_boxes
 
 !----------------------------------------------------------------------------
 
-subroutine get_close_otree(gc, base_obs_loc, base_obs_kind, obs, obs_kind, &
+subroutine get_close_otree(gc, base_loc, base_type, loc, loc_kind, &
    num_close, close_ind, dist)
 
-! FIXME: these work on any locations. the names of these args should be:  
-!   gc, base_loc, base_kind, locs, locs_kinds, ... 
-
 type(get_close_type), intent(in), target  :: gc
-type(location_type),  intent(in)  :: base_obs_loc, obs(:)
-integer,              intent(in)  :: base_obs_kind, obs_kind(:)
+type(location_type),  intent(in)  :: base_loc,  loc(:)
+integer,              intent(in)  :: base_type, loc_kind(:)
 integer,              intent(out) :: num_close, close_ind(:)
 real(r8), optional,   intent(out) :: dist(:)
 
@@ -1098,13 +1087,13 @@ close_ind = -99
 if(present(dist)) dist = -1e38_r8  ! big but negative
 this_dist = 1e38_r8                ! something big and positive.
 
-! the list of locations in the obs() argument must be the same
+! the list of locations in the loc() argument must be the same
 ! as the list of locations passed into get_close_obs_init(), so
-! gc%num and size(obs) better be the same.   if the list changes,
+! gc%num and size(loc) better be the same.   if the list changes,
 ! you have to destroy the old gc and init a new one.
-if (size(obs) /= gc%num) then
-   write(errstring,*)'obs() array must match one passed to get_close_obs_init()'
-   call error_handler(E_ERR, 'get_close_obs', errstring, source, revision, revdate)
+if (size(loc) /= gc%num) then
+   write(errstring,*)'loc() array must match one passed to get_close_obs_init()'
+   call error_handler(E_ERR, 'get_close_otree', errstring, source, revision, revdate)
 endif
 
 ! If num == 0, no point in going any further. 
@@ -1114,7 +1103,7 @@ if (gc%num == 0) return
 ! For validation, it is useful to be able to compare against exact
 ! exhaustive search
 if(compare_to_correct) then
-   call exhaustive_collect(gc, base_obs_loc, obs, &
+   call exhaustive_collect(gc, base_loc, loc, &
                            cnum_close, cclose_ind, cdist)
 endif
 
@@ -1125,7 +1114,7 @@ endif
 ! the range that this branch covers.  maxdist doesn't have to
 ! be a constant in this case - it can be specified per search.
 
-call collect_nearby(gc%root, base_obs_loc, gc%maxdist, obs, base_obs_kind, obs_kind, &
+call collect_nearby(gc%root, base_loc, gc%maxdist, loc, base_type, loc_kind, &
                     num_close, close_ind, dist)
 
 
@@ -1410,13 +1399,13 @@ nearest = -99
 rc = -1
 dist = 1e38_r8                ! something big and positive.
 
-! the list of locations in the obs() argument must be the same
+! the list of locations in the loc() argument must be the same
 ! as the list of locations passed into get_close_obs_init(), so
-! gc%num and size(obs) better be the same.   if the list changes,
+! gc%num and size(loc) better be the same.   if the list changes,
 ! you have to destroy the old gc and init a new one.
 if (size(loc_list) /= gc%num) then
-   write(errstring,*)'obs() array must match one passed to get_close_obs_init()'
-   call error_handler(E_ERR, 'get_close_obs', errstring, source, revision, revdate)
+   write(errstring,*)'loc() array must match one passed to get_close_obs_init()'
+   call error_handler(E_ERR, 'find_nearest_boxes', errstring, source, revision, revdate)
 endif
 
 ! If num == 0, no point in going any further. 
@@ -1470,15 +1459,15 @@ do i = start_x, end_x
          st = gc%box%start(i,j,k)
 
 
-         ! Loop to check how close all obs in the box are; add those that are close
+         ! Loop to check how close all loc in the box are; add those that are close
          do l = 1, n_in_box
 
-            t_ind = gc%box%obs_box(st - 1 + l)
+            t_ind = gc%box%loc_box(st - 1 + l)
 !print *, 'l, t_ind = ', l, t_ind
 
             this_dist = get_dist(base_loc, loc_list(t_ind))
 !print *, 'this_dist = ', this_dist
-            ! If this obs' distance is less than current nearest, it's new nearest
+            ! If this loc's distance is less than current nearest, it's new nearest
             if(this_dist <= dist) then
                nearest = t_ind
                dist = this_dist
@@ -1599,7 +1588,7 @@ been_called = been_called + 1
 ! 2 = all parts of all arrays.
 ! -8 = special for grid-decomposition debugging
 
-! by default do not print all the obs_box or start contents (it can
+! by default do not print all the loc_box or start contents (it can
 ! be very long).  but give the option to print more info or even an
 ! entire contents dump.  'sample' is the number to print for the
 ! short version.  (this value prints about 5-6 lines of data.)
@@ -1652,31 +1641,31 @@ endif
 ! this one can be very large.   print only the first nth unless
 ! instructed otherwise.  (print n+1 because 1 more value fits on
 ! the line because it prints ( i ) and not ( i, j ) like the others.)
-if (associated(gc%box%obs_box)) then
-   i = size(gc%box%obs_box,1)
+if (associated(gc%box%loc_box)) then
+   i = size(gc%box%loc_box,1)
    if (i/= gc%num) then
-      write(errstring,*) ' warning: size of obs_box incorrect, nobs, i =', gc%num, i
+      write(errstring,*) ' warning: size of loc_box incorrect, nlocs, i =', gc%num, i
       call error_handler(E_MSG, 'locations_mod', errstring)
    endif
    if (howmuch > 1) then
       ! DEBUG
-      write(errstring,"(A,I8,A,36(I8,1X))") ' obs_box(',i,') =', gc%box%obs_box(1:min(i,36))  ! (nobs)
-      !write(errstring,*) ' obs_box(',i,') =', gc%box%obs_box    ! (nobs)
+      write(errstring,"(A,I8,A,36(I8,1X))") ' loc_box(',i,') =', gc%box%loc_box(1:min(i,36))  ! (nlocs)
+      !write(errstring,*) ' loc_box(',i,') =', gc%box%loc_box    ! (nlocs)
       call error_handler(E_MSG, 'locations_mod', errstring)
    else if(howmuch > 0) then
-      write(errstring,*) ' obs_box(',i,') =', gc%box%obs_box(1:min(i,sample+1))
+      write(errstring,*) ' loc_box(',i,') =', gc%box%loc_box(1:min(i,sample+1))
       call error_handler(E_MSG, 'locations_mod', errstring)
-      write(errstring,*) '  <rest of obs_box omitted>'
+      write(errstring,*) '  <rest of loc_box omitted>'
       call error_handler(E_MSG, 'locations_mod', errstring)
    endif
 else
    if (howmuch > 0) then
-      write(errstring,*) ' obs_box unallocated'
+      write(errstring,*) ' loc_box unallocated'
       call error_handler(E_MSG, 'locations_mod', errstring)
    endif
 endif
 
-! like obs_box, this one can be very large.   print only the first nth unless
+! like loc_box, this one can be very large.   print only the first nth unless
 ! instructed otherwise
 if (associated(gc%box%start)) then
    i = size(gc%box%start,1)
@@ -1741,7 +1730,7 @@ endif
 
 
 ! initialize all ticks to false.  turn them true as they are found
-! in the obs_box list, and complain about duplicates or misses.
+! in the loc_box list, and complain about duplicates or misses.
 tickmark = .FALSE.
 
 do i=1, nx
@@ -1753,13 +1742,13 @@ do i=1, nx
             if ((index < 1) .or. (index > gc%num)) then
                write(errstring, *) 'exiting at first bad value; could be more'
                call error_handler(E_MSG, 'locations_mod', errstring)
-               write(errstring, *) 'bad obs list index, in box: ', index, i, j, k
+               write(errstring, *) 'bad locs list index, in box: ', index, i, j, k
                call error_handler(E_ERR, 'locations_mod', errstring)
             endif
             if (tickmark(index)) then
                write(errstring, *) 'exiting at first bad value; could be more'
                call error_handler(E_MSG, 'locations_mod', errstring)
-               write(errstring, *) 'error: obs found in more than one box list.  index, box: ', &
+               write(errstring, *) 'error: loc found in more than one box list.  index, box: ', &
                             index, i, j, k
                call error_handler(E_ERR, 'locations_mod', errstring)
             endif
@@ -1773,7 +1762,7 @@ do i=1, gc%num
   if (.not. tickmark(i)) then
      write(errstring, *) 'exiting at first bad value; could be more'
      call error_handler(E_MSG, 'locations_mod', errstring)
-     write(errstring,*) 'obs not found in any box list: ', i
+     write(errstring,*) 'loc not found in any box list: ', i
      call error_handler(E_ERR, 'locations_mod', errstring)
   endif
 enddo
@@ -1943,12 +1932,12 @@ end function region_intersects_block
 
 !----------------------------------------------------------------------------
 
-recursive subroutine collect_nearby(r, base_loc, maxdist, loc_list, base_kind, kind_list, &
+recursive subroutine collect_nearby(r, base_loc, maxdist, loc_list, base_type, kind_list, &
                                    num_close, close_ind, dist)
 
 type(octree_type), intent(in) :: r
 type(location_type), intent(in)    :: base_loc, loc_list(:)
-integer,             intent(in)    :: base_kind, kind_list(:)
+integer,             intent(in)    :: base_type, kind_list(:)
 real(r8),            intent(in)    :: maxdist
 integer,             intent(inout) :: num_close, close_ind(:)
 real(r8), optional,  intent(inout) :: dist(:)
@@ -1980,7 +1969,7 @@ if (r%count < 0) then
    do i=1,2
     do j=1,2
      do k=1,2      
-        call collect_nearby(r%children(i,j,k)%p, base_loc, maxdist, loc_list, base_kind, kind_list, &
+        call collect_nearby(r%children(i,j,k)%p, base_loc, maxdist, loc_list, base_type, kind_list, &
                                    num_close, close_ind, dist)
      enddo
     enddo
@@ -1994,22 +1983,22 @@ else
 
       ! Only compute distance if dist is present
       if(present(dist)) then
-         this_dist = get_dist(base_loc, loc_list(t_ind), base_kind, kind_list(t_ind))
+         this_dist = get_dist(base_loc, loc_list(t_ind), base_type, kind_list(t_ind))
 !print *, 'this_dist = ', this_dist
-         ! If dist is present and this obs' distance is less than cutoff, add it in list
+         ! If dist is present and this loc's distance is less than cutoff, add it in list
          if(this_dist <= maxdist) then
             num_close = num_close + 1
             close_ind(num_close) = t_ind
             dist(num_close) = this_dist
-!print *, 'adding obs to list'
+!print *, 'adding loc to list'
          else
-!print *, 'not adding obs to list, dist > maxdist', this_dist, maxdist
+!print *, 'not adding loc to list, dist > maxdist', this_dist, maxdist
          endif
       else
          ! Dist isn't present; add this ob to list without computing distance
          num_close = num_close + 1
          close_ind(num_close) = t_ind
-!print *, 'adding obs to list, dist not present'
+!print *, 'adding loc to list, dist not present'
       endif
 
    enddo
@@ -2064,7 +2053,7 @@ num_close = 0
 do i = 1, gc%num 
    this_dist = get_dist(base_loc, loc_list(i))
    if(this_dist <= gc%maxdist) then
-      ! Add this obs to correct list
+      ! Add this loc to correct list
       num_close = num_close + 1
       close_ind(num_close) = i
       close_dist(num_close) = this_dist

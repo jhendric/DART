@@ -48,7 +48,7 @@ contains
 
 
 
-function comp_cov_factor(z_in, c, obs_loc, obs_kind, target_loc, target_kind, &
+function comp_cov_factor(z_in, c, obs_loc, obs_type, target_loc, target_kind, &
    localization_override)
 !----------------------------------------------------------------------
 ! function comp_cov_factor(z_in, c)
@@ -74,7 +74,7 @@ implicit none
 
 real(r8),                      intent(in) :: z_in, c
 type(location_type), optional, intent(in) :: obs_loc, target_loc
-integer,             optional, intent(in) :: obs_kind, target_kind
+integer,             optional, intent(in) :: obs_type, target_kind
 integer,             optional, intent(in) :: localization_override
 real(r8)                                  :: comp_cov_factor
 

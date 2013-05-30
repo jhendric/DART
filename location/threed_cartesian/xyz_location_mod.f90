@@ -153,14 +153,14 @@ end subroutine initialize_module
 
 !----------------------------------------------------------------------------
 
-function xyz_get_dist(loc1, loc2, kind1, kind2)
+function xyz_get_dist(loc1, loc2, type1, kind2)
 
 ! returns the distance between 2 locations 
 
-! In spite of the names, the 3rd and 4th argument are actually specific types
-! (e.g. RADIOSONDE_TEMPERATURE, AIRCRAFT_TEMPERATURE).  The types are part of
+! the 3rd name is a specific type, the 4th is a generic kind.
+! These types/kinds are part of
 ! the interface in case user-code wants to do a more sophisticated distance
-! calculation based on the base or target types.  In the usual case this
+! calculation based on the base type or target kind.  In the usual case this
 ! code still doesn't use the types, but there's an undocumented feature that
 ! allows you to maintain the original vertical normalization even when
 ! changing the cutoff distance in the horizontal.  For that to work we
@@ -168,8 +168,8 @@ function xyz_get_dist(loc1, loc2, kind1, kind2)
 ! 
 
 type(xyz_location_type), intent(in) :: loc1, loc2
-integer, optional,   intent(in) :: kind1, kind2
-real(r8)                        :: xyz_get_dist
+integer, optional,       intent(in) :: type1, kind2
+real(r8)                            :: xyz_get_dist
 
 real(r8) :: x_dif, y_dif, z_dif
 

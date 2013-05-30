@@ -89,13 +89,13 @@ end subroutine initialize_module
 
 !----------------------------------------------------------------------------
 
-function get_dist(loc1, loc2, kind1, kind2)
+function get_dist(loc1, loc2, type1, kind2)
 
 ! Return distance between 2 locations.  The vertical type must
 ! be the same for this to return a value.
 
 type(location_type), intent(in) :: loc1, loc2
-integer, optional,   intent(in) :: kind1, kind2
+integer, optional,   intent(in) :: type1, kind2
 real(r8)                        :: get_dist
 
 if ( .not. module_initialized ) call initialize_module
@@ -587,7 +587,7 @@ end subroutine get_close_maxdist_init
 
 !----------------------------------------------------------------------------
 
-subroutine get_close_obs(gc, base_obs_loc, base_obs_kind, obs, obs_kind, &
+subroutine get_close_obs(gc, base_obs_loc, base_obs_type, obs, obs_kind, &
    num_close, close_ind, dist)
 
 ! Default version with no smarts; no need to be smart in 1D
@@ -595,7 +595,7 @@ subroutine get_close_obs(gc, base_obs_loc, base_obs_kind, obs, obs_kind, &
 
 type(get_close_type), intent(in)  :: gc
 type(location_type),  intent(in)  :: base_obs_loc, obs(:)
-integer,              intent(in)  :: base_obs_kind, obs_kind(:)
+integer,              intent(in)  :: base_obs_type, obs_kind(:)
 integer,              intent(out) :: num_close, close_ind(:)
 real(r8), optional,   intent(out) :: dist(:)
 
@@ -614,7 +614,7 @@ endif
 ! Return list of obs that are within maxdist and their distances
 num_close = 0
 do i = 1, gc%num
-   this_dist = get_dist(base_obs_loc, obs(i), base_obs_kind, obs_kind(i))
+   this_dist = get_dist(base_obs_loc, obs(i), base_obs_type, obs_kind(i))
    if(this_dist <= gc%maxdist) then
       ! Add this ob to the list
       num_close = num_close + 1

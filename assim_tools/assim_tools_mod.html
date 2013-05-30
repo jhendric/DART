@@ -295,7 +295,8 @@ filter_kind, cutoff, sort_obs_inc, print_every_nth_obs, &amp;
 spread_restoration, sampling_error_correction, &amp;
 adaptive_localization_threshold, adaptive_cutoff_floor, &amp;
 output_localization_diagnostics, localization_diagnostics_file, &amp;
-special_localization_obs_types, special_localization_cutoffs
+special_localization_obs_types, special_localization_cutoffs, &amp;
+close_obs_caching
 </pre>
 </div>
 
@@ -418,6 +419,15 @@ This namelist is read in a file called <em class=file>input.nml</em>
                         estimate the expected run time for a large observation file, 
                         or to verify progress is being made in cases with suspected problems.
              Default: 0 </TD></TR>
+
+<TR><!--contents--><TD valign=top>close_obs_caching </TD>
+    <!--  type  --><TD valign=top>logical             </TD>
+    <!--descript--><TD> Leave this set to the default of .TRUE. unless you are using
+                        specialized_localization_cutoffs.  In that case to get accurate
+                        results, set it to .FALSE..  This also needs to be .FALSE. if
+                        you have a get_close_obs() routine that uses the types/kinds of
+                        the obs to adjust the distances. 
+             Default: .TRUE. </TD></TR>
 
 </TABLE>
 
