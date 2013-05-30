@@ -1129,7 +1129,7 @@ if (ens_handle%valid == VALID_BOTH) then
            'vars & copies both valid, transpose not needed', source, revision, revdate, &
             text2=msgstring)
    endif
-   return
+   !return
 else if (ens_handle%valid /= VALID_VARS) then
    write(msgstring, *) 'ens_handle ', ens_handle%id_num
    call error_handler(E_ERR, 'all_vars_to_all_copies', &
@@ -1301,7 +1301,7 @@ if (ens_handle%valid == VALID_BOTH) then
            'vars & copies both valid, transpose not needed', source, revision, revdate, &
             text2=msgstring)
    endif
-   return
+   !return
 else if (ens_handle%valid /= VALID_COPIES) then
    write(msgstring, *) 'ens_handle ', ens_handle%id_num
    call error_handler(E_ERR, 'all_copies_to_all_vars', &
