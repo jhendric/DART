@@ -4,12 +4,6 @@
 
 program filter
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 !------------------------------------------------------------------------------
 use types_mod,            only : r8, missing_r8, metadatalength
 use obs_sequence_mod,     only : read_obs_seq, obs_type, obs_sequence_type,                  &
@@ -1432,7 +1426,7 @@ integer,                 intent(in)    :: OBS_GLOBAL_QC_COPY, OBS_VAL_COPY
 integer,                 intent(in)    :: OBS_ERR_VAR_COPY, DART_qc_index
 
 integer               :: j, k, ens_offset, forward_min, forward_max
-integer               :: forward_unit, ivalue, low_qc_limit, high_qc_limit
+integer               :: forward_unit, ivalue
 real(r8)              :: error, diff_sd, ratio
 real(r8), allocatable :: obs_temp(:), forward_temp(:)
 real(r8)              :: obs_prior_mean, obs_prior_var, obs_val, obs_err_var
@@ -2108,3 +2102,10 @@ end subroutine update_observations_radar
 !-------------------------------------------------------------------------
 
 end program filter
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+
