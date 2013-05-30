@@ -327,7 +327,7 @@ if ( ncopies < 1 )
    disp('To be a valid ensemble member, the CopyMetaData for the member')
    disp('must start with the character string ''ensemble member''')
    disp('None of them in do in your file.')
-   fprintf('%s claims to have %d copies\n',fname, num_copies)
+   fprintf('%s claims to have %d copies\n',fname, numcopies)
    error('netcdf file has no ensemble members.')
 end
 
@@ -339,11 +339,14 @@ for i = 1:ncopies
    fprintf('ID %2d  is  %s\n',i,deblank(metadata(i,:)))
 end
 
-IDstring = input( sprintf('Enter %d IDs to plot.\n(no intervening syntax, please)\n',numcopies) ,'s');
-copyid   = str2num(IDstring);
+IDstring = input( sprintf('Enter %d ID(s) to plot.\n(no intervening syntax, please)\n',numcopies) ,'s');
+bob      = str2num(IDstring);
 
-if (length(copyid) ~= numcopies)
-   error('only entered %d, needed %d ... quitting',length(copyid),numcopies)
+% If entered more than desired, just use first N
+if (length(bob) >= numcopies)
+   copyid = bob(1:numcopies);
+else
+   error('only entered %d, needed %d ... quitting',length(bob),numcopies)
 end
 
 copystrings = cell(1,numcopies);
