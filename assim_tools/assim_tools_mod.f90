@@ -124,6 +124,12 @@ character(len = 129) :: localization_diagnostics_file = "localization_diagnostic
 logical  :: rectangular_quadrature          = .true.
 logical  :: gaussian_likelihood_tails       = .false.
 
+! Some models are allowed to have MISSING_R8 values in the DART state vector.
+! If they are encountered, it is not necessarily a FATAL error.
+! Most of the time, if a MISSING_R8 is encountered, DART should die.
+! CLM and POP (more?) should have allow_missing_in_state = .true.
+logical  :: allow_missing_in_state = .false.
+
 ! Not in the namelist; this var disables the experimental
 ! linear and spherical case code in the adaptive localization 
 ! sections.  to try out the alternatives, set this to .false.
@@ -134,7 +140,8 @@ namelist / assim_tools_nml / filter_kind, cutoff, sort_obs_inc, &
    adaptive_localization_threshold, adaptive_cutoff_floor,                 &
    print_every_nth_obs, rectangular_quadrature, gaussian_likelihood_tails, &
    output_localization_diagnostics, localization_diagnostics_file,         &
-   special_localization_obs_types, special_localization_cutoffs
+   special_localization_obs_types, special_localization_cutoffs,           &
+   allow_missing_in_state
 
 !============================================================================
 
@@ -334,6 +341,7 @@ logical :: local_single_ss_inflate
 logical :: local_varying_ss_inflate
 logical :: local_obs_inflate
 logical :: get_close_buffering
+logical :: missing_in_state
 
 ! we are going to read/write the copies array
 call prepare_to_update_copies(ens_handle)
@@ -753,6 +761,23 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
    STATE_UPDATE: do j = 1, num_close_states
       state_index = close_state_ind(j)
 
+      ! Some models can take evasive action if one or more of the ensembles have
+      ! a missing value. Generally means 'do nothing' (as opposed to DIE) 
+      missing_in_state = any(ens_handle%copies(1:ens_size, state_index) == MISSING_R8)
+      
+      if ( missing_in_state ) then
+         if ( allow_missing_in_state ) then
+            cycle STATE_UPDATE
+         else
+            ! FIXME ... at some point ... convey which instances are missing
+            write(msgstring,*)'Encountered a MISSING_R8 in DART at state index ',state_index
+            write(msgstring2,*)'namelist value of allow_missing_in_state (.false.) &
+                            &implies a fatal error.'
+            call error_handler(E_ERR, 'filter_assim', msgstring, &
+               source, revision, revdate, text2=msgstring2)
+         endif
+      endif
+
       ! Get the initial values of inflation for this variable if state varying inflation
       if(local_varying_ss_inflate) then
          varying_ss_inflate    = ens_handle%copies(ENS_INF_COPY,    state_index)
@@ -859,8 +884,13 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
    ! Now everybody updates their obs priors (only ones after this one)
    OBS_UPDATE: do j = 1, num_close_obs
       obs_index = close_obs_ind(j)
+
       ! Only have to update obs that have not yet been used
       if(my_obs_indx(obs_index) > i) then
+
+         ! If the forward observation operator failed, no need to 
+         ! update the unassimilated observations 
+         if (any(obs_ens_handle%copies(1:ens_size, obs_index) == MISSING_R8)) cycle OBS_UPDATE
 
          ! Compute the distance and the covar_factor
          cov_factor = comp_cov_factor(close_obs_dist(j), cutoff_rev, &
@@ -1032,7 +1062,7 @@ else
       call obs_increment_eakf(ens, ens_size, prior_mean, prior_var, &
          obs, obs_var, obs_inc, net_a)
    else if(filter_kind == 2) then
-      call obs_increment_enkf(ens, ens_size, prior_mean, prior_var, obs, obs_var, obs_inc)
+      call obs_increment_enkf(ens, ens_size, prior_var, obs, obs_var, obs_inc)
    else if(filter_kind == 3) then
       call obs_increment_kernel(ens, ens_size, obs, obs_var, obs_inc)
    else if(filter_kind == 4) then
@@ -1044,8 +1074,7 @@ else
    else if(filter_kind == 7) then
       call obs_increment_boxcar(ens, ens_size, obs, obs_var, obs_inc, rel_weights)
    else if(filter_kind == 8) then
-      call obs_increment_boxcar2(ens, ens_size, prior_mean, prior_var, &
-         obs, obs_var, obs_inc)
+      call obs_increment_boxcar2(ens, ens_size, prior_var, obs, obs_var, obs_inc)
    else 
       call error_handler(E_ERR,'obs_increment', &
                  'Illegal value of filter_kind in assim_tools namelist [1-8 OK]', &
@@ -1321,7 +1350,7 @@ end subroutine obs_increment_particle
 
 
 
-subroutine obs_increment_enkf(ens, ens_size, prior_mean, prior_var, obs, obs_var, obs_inc)
+subroutine obs_increment_enkf(ens, ens_size, prior_var, obs, obs_var, obs_inc)
 !========================================================================
 ! subroutine obs_increment_enkf(ens, ens_size, obs, obs_var, obs_inc)
 !
@@ -1329,7 +1358,7 @@ subroutine obs_increment_enkf(ens, ens_size, prior_mean, prior_var, obs, obs_var
 ! ENKF version of obs increment
 
 integer,  intent(in)  :: ens_size
-real(r8), intent(in)  :: ens(ens_size), prior_mean, prior_var, obs, obs_var
+real(r8), intent(in)  :: ens(ens_size), prior_var, obs, obs_var
 real(r8), intent(out) :: obs_inc(ens_size)
 
 real(r8) :: obs_var_inv, prior_var_inv, new_var, new_mean(ens_size)
@@ -1488,7 +1517,27 @@ real(r8) :: obs_state_cov, intermed
 real(r8) :: restoration_inc(ens_size), state_mean, state_var, correl
 real(r8) :: factor, exp_true_correl, mean_factor
 
+logical :: missing_in_state = .false.
+logical :: missing_in_obs   = .false.
+logical :: missing_in_incs  = .false.
+
+! FIXME if there are some missing values in the state or obs
+! we cannot just include them in the math ... not sure if this
+! routine can be called in these situations ... but ...
+
+if (2 == 1) then ! DEBUG VERBOSE 
+   missing_in_state = any(state   == MISSING_R8)
+   missing_in_obs   = any(obs     == MISSING_R8)
+   missing_in_incs  = any(obs_inc == MISSING_R8)
+
+   if ( missing_in_state .or. missing_in_obs .or. missing_in_incs ) then
+      write(msgstring,*) 'Should not have missing values at this point'
+      call error_handler(E_ERR,'update_from_obs_inc',msgstring,source,revision,revdate)
+   endif
+endif
+
 ! For efficiency, just compute regression coefficient here unless correl is needed
+
 state_mean = sum(state) / ens_size
 obs_state_cov = sum( (state - state_mean) * (obs - obs_prior_mean) ) / (ens_size - 1)
 
@@ -1865,7 +1914,7 @@ end subroutine obs_increment_boxcar
 
 
 
-subroutine obs_increment_boxcar2(ens, ens_size, prior_mean, prior_var, &
+subroutine obs_increment_boxcar2(ens, ens_size, prior_var, &
    obs, obs_var, obs_inc)
 !------------------------------------------------------------------------
 ! 
@@ -1900,7 +1949,7 @@ subroutine obs_increment_boxcar2(ens, ens_size, prior_mean, prior_var, &
 ! jla@ucar.edu if you are interested in trying it. 
 
 integer,  intent(in)  :: ens_size
-real(r8), intent(in)  :: ens(ens_size), prior_mean, prior_var, obs, obs_var
+real(r8), intent(in)  :: ens(ens_size), prior_var, obs, obs_var
 real(r8), intent(out) :: obs_inc(ens_size)
 
 integer  :: i, e_ind(ens_size), lowest_box, j

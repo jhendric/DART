@@ -81,6 +81,7 @@
 &assim_tools_nml
    filter_kind                     = 1,
    cutoff                          = 1.00,
+   allow_missing_in_state          = .true.,
    sort_obs_inc                    = .true.,
    spread_restoration              = .false.,
    sampling_error_correction       = .false.,
@@ -171,21 +172,21 @@
                                   'H2OSOI_LIQ',  'KIND_SOIL_MOISTURE',
                                   'H2OSOI_ICE',  'KIND_ICE',
                                   'T_SOISNO',    'KIND_SOIL_TEMPERATURE',
+                                  'cpool',       'KIND_CARBON',
+                                  'frootc',      'KIND_ROOT_CARBON',
+                                  'leafc',       'KIND_LEAF_CARBON',
+                                  'leafn',       'KIND_LEAF_NITROGEN',
    /
 
-                                  'frootc',      'KIND_ROOT_CARBON',
                                   'livecrootc',  'KIND_ROOT_CARBON',
                                   'deadcrootc',  'KIND_ROOT_CARBON',
                                   'livestemc',   'KIND_STEM_CARBON',
                                   'deadstemc',   'KIND_STEM_CARBON',
-                                  'leafc',       'KIND_LEAF_CARBON',
-                                  'cpool',       'KIND_CARBON',
                                   'frootn',      'KIND_ROOT_NITROGEN',
                                   'livecrootn',  'KIND_ROOT_NITROGEN',
                                   'deadcrootn',  'KIND_ROOT_NITROGEN',
                                   'livestemn',   'KIND_STEM_NITROGEN',
                                   'deadstemn',   'KIND_STEM_NITROGEN',
-                                  'leafn',       'KIND_LEAF_NITROGEN',
                                   'litr1c',      'KIND_LEAF_CARBON',
                                   'litr2c',      'KIND_LEAF_CARBON',
                                   'litr3c',      'KIND_LEAF_CARBON',
@@ -227,7 +228,7 @@
 
 
 &utilities_nml
-   TERMLEVEL = 1,
+   TERMLEVEL = 2,
    module_details = .false.,
    logfilename = 'dart_log.out',
    nmlfilename = 'dart_log.nml',

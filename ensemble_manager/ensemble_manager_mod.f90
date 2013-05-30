@@ -356,6 +356,7 @@ if(.not. start_from_restart) then
             ! To reproduce for varying pe count, need  fixed sequence for each copy
             call init_random_seq(random_seq, global_copy_index)
             do j = 1, ens_handle%num_vars
+               if (ens_handle%vars(j,i) /= MISSING_R8) &
                ens_handle%vars(j, i) = random_gaussian(random_seq, ens_handle%vars(j, i), &
                   perturbation_amplitude)
             end do
@@ -1337,7 +1338,7 @@ allocate(var_list(max_num_vars), transfer_temp(max_num_vars), &
 if (use_copy2var_send_loop .eqv. .true. ) then
 ! Switched loop index from receiving_pe to sending_pe
 ! Aim: to make the commication scale better on Yellowstone, as num_pes >> ens_size
-! For small numbers of tasks (32 or less) the recieving_pe loop may be faster.
+! For small numbers of tasks (32 or less) the receiving_pe loop may be faster.
 ! Namelist option use_copy2var_send_loop can be used to select which
 ! communication pattern to use
 !    Default: use sending_pe loop (use_copy2var_send_loop = .true.)
@@ -1479,9 +1480,13 @@ endif
 
 num_copies = end_copy - start_copy + 1
 
-do i = 1, ens_handle%my_num_vars
-   ens_handle%copies(mean_copy, i) = sum(ens_handle%copies(start_copy:end_copy, i)) / num_copies
-end do
+MYLOOP : do i = 1, ens_handle%my_num_vars
+   if (any(ens_handle%copies(start_copy:end_copy, i) == MISSING_R8)) then
+      ens_handle%copies(mean_copy, i) = MISSING_R8
+   else
+      ens_handle%copies(mean_copy, i) = sum(ens_handle%copies(start_copy:end_copy, i)) / num_copies
+   endif
+end do MYLOOP
 
 end subroutine compute_copy_mean
 
@@ -1507,13 +1512,21 @@ endif
 
 num_copies = end_copy - start_copy + 1
 
-do i = 1, ens_handle%my_num_vars
-   ens_handle%copies(mean_copy, i) = sum(ens_handle%copies(start_copy:end_copy, i)) / num_copies
-   ens_handle%copies(sd_copy, i)   = sqrt((sum((ens_handle%copies(start_copy:end_copy, i) - &
-      ens_handle%copies(mean_copy, i))**2) / (num_copies - 1)))
-end do
+MYLOOP : do i = 1, ens_handle%my_num_vars
+
+   if (any(ens_handle%copies(start_copy:end_copy, i) == MISSING_R8)) then
+      ens_handle%copies(mean_copy, i) = MISSING_R8
+      ens_handle%copies(  sd_copy, i) = MISSING_R8
+   else
+      ens_handle%copies(mean_copy, i) = sum(ens_handle%copies(start_copy:end_copy, i)) / num_copies
+      ens_handle%copies(  sd_copy, i) = sqrt((sum((ens_handle%copies(start_copy:end_copy, i) - &
+                                        ens_handle%copies(mean_copy, i))**2) / (num_copies - 1)))
+   endif
+
+end do MYLOOP
 
 end subroutine compute_copy_mean_sd
+
 !--------------------------------------------------------------------------------
 
 subroutine compute_copy_mean_var(ens_handle, start_copy, end_copy, mean_copy, var_copy)
@@ -1537,11 +1550,16 @@ endif
 
 num_copies = end_copy - start_copy + 1
 
-do i = 1, ens_handle%my_num_vars
-   ens_handle%copies(mean_copy, i) = sum(ens_handle%copies(start_copy:end_copy, i)) / num_copies
-   ens_handle%copies(var_copy, i)   = (sum((ens_handle%copies(start_copy:end_copy, i) - &
-      ens_handle%copies(mean_copy, i))**2) / (num_copies - 1))
-end do
+MYLOOP : do i = 1, ens_handle%my_num_vars
+   if (any(ens_handle%copies(start_copy:end_copy, i) == MISSING_R8)) then
+      ens_handle%copies(mean_copy, i) = MISSING_R8
+      ens_handle%copies( var_copy, i) = MISSING_R8
+   else
+      ens_handle%copies(mean_copy, i) = sum(ens_handle%copies(start_copy:end_copy, i)) / num_copies
+      ens_handle%copies( var_copy, i) = (sum((ens_handle%copies(start_copy:end_copy, i) - &
+         ens_handle%copies(mean_copy, i))**2) / (num_copies - 1))
+   endif
+end do MYLOOP
 
 end subroutine compute_copy_mean_var
 
