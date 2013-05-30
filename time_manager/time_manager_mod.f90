@@ -1121,7 +1121,7 @@ type(time_type), intent(in)  :: time
 integer,         intent(out) :: second, minute, hour, day, month, year
 
 integer :: t
-integer :: num_days, iyear, days_this_year
+integer :: num_days
 
 ! "base_year" for Mars will be defined as 1 (earliest wrfout file has year = 1)
 integer, parameter :: base_year= 1
