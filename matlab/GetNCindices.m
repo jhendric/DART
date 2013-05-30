@@ -19,6 +19,9 @@ function [start, count] = GetNCindices(pinfo, whichfile, varname)
 %                    pinfo.cellindex
 %                    pinfo.columnindex
 %                    pinfo.pftindex
+%                    pinfo.rankbinindex
+%                    pinfo.boundsindex
+%                    pinfo.obstypesindex
 %
 % whichfile          is a character string specifying which
 %                    filename component of 'pinfo' will be used.
@@ -60,19 +63,22 @@ end
 
 if ( exist(fname,'file') ~= 2 ), error('%s does not exist.',fname); end
 
-% If the structure has subsetting information, use it.
+% If the structure has subsetting information, we will ultimately use it.
 % Otherwise, use the whole extent.
 
-lat1    = 0; latN    = -1;
-lon1    = 0; lonN    = -1;
-time1   = 0; timeN   = -1;
-copy1   = 0; copyN   = -1;
-level1  = 0; levelN  = -1;
-state1  = 0; stateN  = -1;
-region1 = 0; regionN = -1;
-cell1   = 0; cellN   = -1;
-column1 = 0; columnN = -1;
-pft1    = 0; pftN    = -1;
+lat1        = 0; latN        = -1;
+lon1        = 0; lonN        = -1;
+time1       = 0; timeN       = -1;
+copy1       = 0; copyN       = -1;
+level1      = 0; levelN      = -1;
+state1      = 0; stateN      = -1;
+region1     = 0; regionN     = -1;
+cell1       = 0; cellN       = -1;
+column1     = 0; columnN     = -1;
+pft1        = 0; pftN        = -1;
+rankbin1    = 0; rankbinN    = -1;
+bounds1     = 0; boundsN     = -1;
+obstypes1   = 0; obstypesN   = -1;
 
 if (isfield(pinfo,'timeindex'))
    time1 = pinfo.timeindex - 1;
@@ -184,6 +190,39 @@ if (isfield(pinfo,'pftcount'))
    pftN = pinfo.pftcount;
 end
 
+if (isfield( pinfo,'rankbinindex'))
+   rankbin1 = pinfo.rankbinindex - 1;
+   rankbinN = 1;
+end
+if (isfield( pinfo,'rankbin1'))
+   rankbin1 = pinfo.rankbin1 - 1;
+end
+if (isfield( pinfo,'rankbincount'))
+   rankbinN = pinfo.rankbincount;
+end
+
+if (isfield( pinfo,'boundsindex'))
+   bounds1 = pinfo.boundsindex - 1;
+   boundsN = 1;
+end
+if (isfield( pinfo,'bounds1'))
+   bounds1 = pinfo.bounds1 - 1;
+end
+if (isfield( pinfo,'boundscount'))
+   boundsN = pinfo.boundscount;
+end
+
+if (isfield( pinfo,'obstypesindex'))
+   obstypes1 = pinfo.obstypesindex - 1;
+   obstypesN = 1;
+end
+if (isfield( pinfo,'obstypes1'))
+   obstypes1 = pinfo.obstypes1 - 1;
+end
+if (isfield( pinfo,'obstypescount'))
+   obstypesN = pinfo.obstypescount;
+end
+
 % Determine shape of variable in question.
 
 varinfo = nc_getvarinfo(fname,varname);
@@ -252,6 +291,15 @@ for i = 1:ndims
            case 'colu'
                start(i) = column1;
                count(i) = columnN;
+           case 'rank'
+               start(i) = rankbin1;
+               count(i) = rankbinN;
+           case 'boun'
+               start(i) = bounds1;
+               count(i) = boundsN;
+           case 'obst'
+               start(i) = obstypes1;
+               count(i) = obstypesN;
            otherwise
                fprintf('GetNCindices encountered unknown coordinate variable %s\n',dimname)
        end
