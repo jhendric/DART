@@ -35,7 +35,7 @@ use time_manager_mod, only : time_type, print_time, print_date, operator(-), &
                              get_time, get_date
 use        model_mod, only : static_init_model, statevector_to_analysis_file, &
                              get_model_size, get_model_analysis_filename,     &
-                             write_model_time
+                             write_model_time, print_variable_ranges
 
 implicit none
 
@@ -52,10 +52,12 @@ character(len=128), parameter :: &
 character(len=256)  :: dart_to_model_input_file = 'dart.ic'
 logical             :: advance_time_present     = .false.
 character(len=256)  :: time_filename            = 'mpas_time'
+logical             :: print_data_ranges        = .true.
 
 namelist /dart_to_model_nml/ dart_to_model_input_file, &
-                             advance_time_present,      &
-                             time_filename
+                             advance_time_present,     &
+                             time_filename,            &
+                             print_data_ranges
 
 !----------------------------------------------------------------------
 
@@ -104,14 +106,22 @@ else
 endif
 call close_restart(iunit)
 
-print *, 'read state vector'
+!----------------------------------------------------------------------
+! if requested, print out the data ranges variable by variable
+! (note if we are clamping data values, that happens in the
+! conversion routine and these values are before the clamping happens.)
+!----------------------------------------------------------------------
+if (print_data_ranges) then
+    call print_variable_ranges(statevector)
+endif
+
+
 !----------------------------------------------------------------------
 ! update the current model state vector
 ! Convey the amount of time to integrate the model ...
 ! time_manager_nml: stop_option, stop_count increments
 !----------------------------------------------------------------------
 
-print *, 'calling analysis file to state vector'
 call statevector_to_analysis_file(statevector, model_analysis_filename, model_time)
 
 ! write time into in text format (YYYY-MM-DD_hh:mm:ss) into a file.

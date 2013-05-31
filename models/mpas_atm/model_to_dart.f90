@@ -29,7 +29,8 @@ use        types_mod, only : r8
 use    utilities_mod, only : initialize_utilities, finalize_utilities, &
                              find_namelist_in_file, check_namelist_read
 use        model_mod, only : get_model_size, analysis_file_to_statevector, &
-                             get_model_analysis_filename, static_init_model
+                             get_model_analysis_filename, static_init_model, &
+                             print_variable_ranges
 use  assim_model_mod, only : awrite_state_restart, open_restart_write, close_restart
 use time_manager_mod, only : time_type, print_time, print_date
 
@@ -46,9 +47,11 @@ character(len=128), parameter :: &
 !-----------------------------------------------------------------------
 
 character(len=128) :: model_to_dart_output_file  = 'dart.ud'
+logical            :: print_data_ranges          = .true.
 
 namelist /model_to_dart_nml/    &
-     model_to_dart_output_file
+     model_to_dart_output_file, &
+     print_data_ranges
 
 !----------------------------------------------------------------------
 ! global storage
@@ -91,6 +94,13 @@ write(*,*) ' to DART file ', "'"//trim(model_to_dart_output_file)//"'"
 ! Read the valid time and the state from the MPAS netcdf file
 !----------------------------------------------------------------------
 call analysis_file_to_statevector(model_analysis_filename, statevector, model_time) 
+
+!----------------------------------------------------------------------
+! if requested, print out the data ranges variable by variable
+!----------------------------------------------------------------------
+if (print_data_ranges) then
+    call print_variable_ranges(statevector)
+endif
 
 !----------------------------------------------------------------------
 ! Write the valid time and the state to the dart restart file
