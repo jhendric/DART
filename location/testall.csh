@@ -26,7 +26,7 @@ foreach i ( $LIST )
  echo start $i test
  echo start $i test
  echo start $i test
- mkmf_location_test
+ ./mkmf_location_test
  make
  ls -l location_test
  ./location_test  < test.in
