@@ -7,24 +7,27 @@ program dart_to_am2
 !----------------------------------------------------------------------
 ! purpose: interface between AM2 and DART
 !
-! method: Read DART state vector ("proprietary" format), but not time(s).
+! method: Read a namelist for run-time information.
+!         Read DART state vector ("proprietary" format)
 !         Reform state vector back into AM2 fields.
 !         Replace those fields on the AM2 initial file with the new values,
 !         preserving all other information on the file.
+!         If a new target model time is included in the header of the DART file,
+!         the new time is written to "newappend.nml"
 !
-! author: Patrick Hofmann 3/7/08
-!         based on prog_var_to_vector and vector_to_prog_var by Robert Pincus
-! mod:    to read temp_ic (assim_model_state_ic; 2 times) or temp_ud (1 time) and put
-!         the fields into the AM2 initial files
+! author: Tim Hoar 31 May 2013
+!         based on earlier trans_sv_pv.f90 which used non-portable
+!         command-line arguments.
 !
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8
 use    utilities_mod, only : get_unit, file_exist, open_file, logfileunit, &
                              initialize_utilities, finalize_utilities, &
-                             find_namelist_in_file, check_namelist_read, close_file
+                             find_namelist_in_file, check_namelist_read, &
+                             nmlfileunit, close_file, do_nml_file, do_nml_term
 use        model_mod, only : model_type, static_init_model, init_model_instance, &
-                             write_model_init, vector_to_prog_var 
+                             end_model_instance, vector_to_prog_var, write_model_init
 use  assim_model_mod, only : get_model_size, aread_state_restart, &
                              open_restart_read, close_restart
 use time_manager_mod, only : time_type, read_time, get_time, &
@@ -73,9 +76,23 @@ namelist /coupler_nml/ &
 
 call initialize_utilities('dart_to_am2')
 
+! Read the namelist information
 call find_namelist_in_file("input.nml", "dart_to_am2_nml", iunit)
 read(iunit, nml = dart_to_am2_nml, iostat = io)
 call check_namelist_read(iunit, io, "dart_to_am2_nml")
+
+! Record the namelist values 
+if (do_nml_file()) write(nmlfileunit, nml=dart_to_am2_nml)
+if (do_nml_term()) write(     *     , nml=dart_to_am2_nml)
+
+write(*,*)
+write(*,'(''dart_to_am2:converting am2 restart file '',A, &
+      &'' to DART file '',A)') &
+       trim(restart_file), trim(dart_to_am2_input_file)
+
+!----------------------------------------------------------------------
+! Get to work
+!----------------------------------------------------------------------
 
 call static_init_model()
 x_size = get_model_size()
@@ -111,6 +128,7 @@ where(var%tracers(:,:,:,3) > 1) var%tracers(:,:,:,3) = 1
 
 ! write fields to the netCDF initial file
 call write_model_init(restart_file, tracer_file, var)
+call end_model_instance(var)
 
 !----------------------------------------------------------------------
 ! Write a new coupler namelist with advance-to-time if need be.
@@ -131,6 +149,8 @@ if (advance_time_present) then
    read(iunit, nml = coupler_nml, iostat = io)
    call check_namelist_read(iunit, io, "coupler_nml")
 
+   ! TJH Comment: get_date() gets YYYY,MM,DD,HH,MM,SS, which seems
+   ! TJH        : exactly what is needed ... why only change DD,SS
    ! Change days and hours to advance
    days = day
    hours = sec/3600

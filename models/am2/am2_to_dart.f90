@@ -7,13 +7,15 @@ program am2_to_dart
 !----------------------------------------------------------------------
 ! purpose: interface between AM2 and DART
 !
-! method: Read AM2 'initial' file for model state, but not time (netCDF format).
-!         Get target time from assim_model_state_ic (temp_ic).
-!         Reform fields into a state vector.
+! method: Read a namelist for run-time information.
+!         Read AM2 'restart' file for model state
+!         Read AM2 coupler.res file for model time (for some reason)
+!         Reform fields into a DART state vector.
 !         Write out state vector in "proprietary" format for DART
 !
-! author: Patrick Hofmann, updated: 6/2/2008
-!         based on prog_var_to_vector and vector_to_prog_var by Jeff Anderson
+! author: Tim Hoar 31 May 2013
+!         based on previous trans_pv_sv.f90 which used non-portable
+!         command-line arguments. 
 !
 !----------------------------------------------------------------------
 
@@ -21,12 +23,13 @@ use        types_mod, only : r8
 use    utilities_mod, only : initialize_utilities, finalize_utilities, &
                              nmlfileunit, do_nml_file, do_nml_term, &
                              find_namelist_in_file, check_namelist_read, &
-                             open_file, close_file
-use        model_mod, only : model_type, init_model_instance, end_model_instance, &
-                             prog_var_to_vector, read_model_init
+                             open_file, close_file, logfileunit
+use        model_mod, only : model_type, static_init_model, init_model_instance, &
+                             end_model_instance, prog_var_to_vector, read_model_init
 use  assim_model_mod, only : get_model_size, awrite_state_restart, &
                              open_restart_write, close_restart
-use time_manager_mod, only : time_type, set_time, set_date
+use time_manager_mod, only : time_type, set_time, set_date, &
+                             print_time, print_date
 
 implicit none
 
@@ -57,14 +60,11 @@ real(r8), allocatable  :: statevector(:)
 integer                :: iunit, io, x_size, big_cld_iw, small_trcs
 integer                :: year, month, day, hour, minute, second
 
-!if(iargc()  == 0) stop "You must specify State Vector and input AM2 files"
-!call getarg(1, am2_to_dart_output_file)
-!call getarg(2, restart_file)
-!call getarg(3, tracer_file)
+!------------------------------------------------------------------
 
 call initialize_utilities('am2_to_dart')
 
-! Read the namelist entry
+! Read the namelist information
 call find_namelist_in_file("input.nml", "am2_to_dart_nml", iunit)
 read(iunit, nml = am2_to_dart_nml, iostat = io)
 call check_namelist_read(iunit, io, "am2_to_dart_nml")
@@ -82,6 +82,7 @@ write(*,'(''am2_to_dart:converting am2 restart file '',A, &
 ! Get to work
 !----------------------------------------------------------------------
 
+call static_init_model()
 x_size = get_model_size()
 allocate(statevector(x_size))
 
@@ -118,6 +119,8 @@ call close_file(iunit)
 
 ! Set model_time
 model_time = set_date(year, month, day, hour, minute, second)
+call print_date(model_time,'am2_to_dart: AM2 model date')
+call print_date(model_time,'am2_to_dart: AM2 model date',logfileunit)
 
 ! write out state vector in "proprietary" format
 iunit = open_restart_write(am2_to_dart_output_file)
