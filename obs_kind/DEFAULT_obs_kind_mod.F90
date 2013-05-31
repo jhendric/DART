@@ -210,7 +210,7 @@ integer, parameter, public :: &
   KIND_DENSITY_NEUTRAL_N2P           = 96, &
   KIND_DENSITY_NEUTRAL_H             = 97, &
   KIND_DENSITY_NEUTRAL_HE            = 98, &
-  KIND_DENSITY_NEUTRAL_AR            = 99, &
+  KIND_DENSITY_NEUTRAL_CO2            = 99, &
   KIND_DENSITY_NEUTRAL_O1D           = 100, &
   KIND_DENSITY_ION_O4SP              = 101, &
   KIND_DENSITY_ION_O2P               = 102, &
@@ -233,7 +233,7 @@ integer, parameter, public :: &
   KIND_VELOCITY_VERTICAL_N2          = 119, &
   KIND_VELOCITY_VERTICAL_N4S         = 120, &
   KIND_VELOCITY_VERTICAL_NO          = 121, &
-  KIND_TOTAL_ELECTRON_CONTENT        = 122
+  KIND_GND_GPS_VTEC                  = 122
  
 !! PRIVATE ONLY TO THIS MODULE. see comment below near the max_obs_specific
 !! declaration.
@@ -453,7 +453,7 @@ obs_kind_names(95) = obs_kind_type(KIND_DENSITY_NEUTRAL_N2D, 'KIND_DENSITY_NEUTR
 obs_kind_names(96) = obs_kind_type(KIND_DENSITY_NEUTRAL_N2P, 'KIND_DENSITY_NEUTRAL_N2P')
 obs_kind_names(97) = obs_kind_type(KIND_DENSITY_NEUTRAL_H, 'KIND_DENSITY_NEUTRAL_H')
 obs_kind_names(98) = obs_kind_type(KIND_DENSITY_NEUTRAL_HE, 'KIND_DENSITY_NEUTRAL_HE')
-obs_kind_names(99) = obs_kind_type(KIND_DENSITY_NEUTRAL_AR, 'KIND_DENSITY_NEUTRAL_AR')
+obs_kind_names(99) = obs_kind_type(KIND_DENSITY_NEUTRAL_CO2, 'KIND_DENSITY_NEUTRAL_CO2')
 obs_kind_names(100) = obs_kind_type(KIND_DENSITY_NEUTRAL_O1D, 'KIND_DENSITY_NEUTRAL_O1D')
 obs_kind_names(101) = obs_kind_type(KIND_DENSITY_ION_O4SP, 'KIND_DENSITY_ION_O4SP')
 obs_kind_names(102) = obs_kind_type(KIND_DENSITY_ION_O2P, 'KIND_DENSITY_ION_O2P')
@@ -476,7 +476,7 @@ obs_kind_names(118) = obs_kind_type(KIND_VELOCITY_VERTICAL_O2, 'KIND_VELOCITY_VE
 obs_kind_names(119) = obs_kind_type(KIND_VELOCITY_VERTICAL_N2, 'KIND_VELOCITY_VERTICAL_N2')
 obs_kind_names(120) = obs_kind_type(KIND_VELOCITY_VERTICAL_N4S, 'KIND_VELOCITY_VERTICAL_N4S')
 obs_kind_names(121) = obs_kind_type(KIND_VELOCITY_VERTICAL_NO, 'KIND_VELOCITY_VERTICAL_NO')
-obs_kind_names(122) = obs_kind_type(KIND_TOTAL_ELECTRON_CONTENT, 'KIND_TOTAL_ELECTRON_CONTENT')
+obs_kind_names(122) = obs_kind_type(KIND_GND_GPS_VTEC, 'KIND_GND_GPS_VTEC')
 
 ! count here, then output below 
 

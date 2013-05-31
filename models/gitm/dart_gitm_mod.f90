@@ -15,8 +15,6 @@ module dart_gitm_mod
 ! unrestricted GITM modules are confined to this module.
 
 use ModConstants
-!use ModKind ! commented out since ModKind isn't in GITM2/src/ dir - it is in GITM2/share/Library/src/ dir
-!use ModTime 
 use ModSizeGitm
 use ModPlanet 
 
@@ -175,11 +173,11 @@ character(len=NF90_MAX_NAME),  intent(out) :: units
       long_name    = 'density of He molecules'
       units        = 'mol/m3'
 
-   case ('iAr_NDensityS')
+   case ('iCO2_NDensityS')
       gitm_varname = 'NDensityS'
       gitm_dim     = 4
-      gitm_index = iAr_
-      long_name    = 'density of Ar molecules'
+      gitm_index = iCO2_
+      long_name    = 'density of CO2 molecules'
       units        = 'mol/m3'
 
    case ('iO_1D_NDensityS')
@@ -264,12 +262,12 @@ character(len=NF90_MAX_NAME),  intent(out) :: units
       long_name    = 'density of the electrons'
       units        = 'mol/m3'
 
-   case ('Temperature') ! write(iRestartUnit_)  Temperature(:,:,:,iBlock)
+   case ('Temperature') ! write(iRestartUnit_) Temperature(:,:,:,iBlock)*TempUnit(:,:,:)
       gitm_varname = 'Temperature'
       gitm_dim     = -1
       gitm_index   = -1
       long_name    = 'temperature (quantity tied to the square of velocity of the particles)'
-      units        = 'scaled Kelvin'
+      units        = 'Kelvin'
 
    case ('ITemperature') ! write(iRestartUnit_) ITemperature(:,:,:,iBlock)
       gitm_varname = 'ITemperature'
@@ -361,6 +359,20 @@ character(len=NF90_MAX_NAME),  intent(out) :: units
       gitm_index   = iNO_
       long_name    = 'the vertical velocity of the NO molecule' 
       units        = 'm/s'
+
+   case ('f107') ! write(iRestartUnit_) f107_est !Alex !Does DART assume that anything that has gitm_dim = -1 is 3D? 
+      gitm_varname = 'f107'
+      gitm_dim     = -1
+      gitm_index   = -1
+      long_name    = 'f107 solar flux index'
+      units        = '1 Solar Flux Unit 10^-22 Wa m^-2 Hz^-1'
+
+   case ('Rho')
+      gitm_varname = 'Rho'
+      gitm_dim     = -1
+      gitm_index   = -1
+      long_name    = 'mass density'
+      units        = 'kg/m3'
 
    case default
 

@@ -61,7 +61,7 @@ namelist /dart_to_gitm_nml/ dart_to_gitm_input_file, &
 integer               :: iunit, io, x_size, diff1, diff2
 type(time_type)       :: model_time, adv_to_time, base_time
 real(r8), allocatable :: statevector(:)
-logical               :: verbose              = .FALSE.
+logical               :: verbose              = .TRUE.
 
 !----------------------------------------------------------------------
 

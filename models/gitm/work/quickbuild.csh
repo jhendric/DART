@@ -21,6 +21,21 @@
 
 set MODEL = "gitm"
 
+#----------------------------------------------------------------------
+# GITM has a dynamically-generated GITM/share/Library/src/ModKind.f90
+# that is needed to build any DART target.
+#----------------------------------------------------------------------
+
+if ( ! -e ../GITM2/share/Library/src/ModKind.f90 ) then
+   mkdir -p ../GITM2/share/Library/src
+   \cp -vf ../GITM2/src/ModKind.f90 ../GITM2/share/Library/src/ModKind.f90 
+   echo "WARNING : using a template ModKind.f90 file ..."
+   echo "WARNING : using a template ModKind.f90 file ..."
+   echo "WARNING : using a template ModKind.f90 file ..."
+   echo "Normally built by GITM in GITM/share/Library/src/ModKind.f90"
+   sleep 3
+endif
+
 @ n = 1
 
 echo
@@ -56,6 +71,8 @@ foreach TARGET ( mkmf_* )
    endsw
 end
 
+\rm -f *.o *.mod input.nml*default
+
 if ( $#argv == 1 && "$1" == "-mpi" ) then
   echo "Success: All single task DART programs compiled."  
   echo "Script now compiling MPI parallel versions of the DART programs."
@@ -83,7 +100,7 @@ endif
 # Build the MPI-enabled target(s) 
 #----------------------------------------------------------------------
 
-\rm -f *.o *.mod filter wakeup_filter
+\rm -f filter wakeup_filter
 
 @ n = $n + 1
 echo
@@ -107,7 +124,7 @@ echo "build number $n is mkmf_wakeup_filter"
 csh  mkmf_wakeup_filter -mpi
 make || exit $n
 
-\rm -f *.o *.mod
+\rm -f *.o *.mod input.nml*default
 
 echo
 echo 'time to run filter here:'

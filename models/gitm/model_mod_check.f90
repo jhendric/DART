@@ -291,7 +291,7 @@ character(len=32) :: kind_name
 logical :: matched
 
 ! Check user input ... if there is no 'vertical' ...  
-if ( (count(loc_of_interest >= 0.0_r8) < 3) .or. &
+if ( (count(loc_of_interest >= 0.0_r8) < 2) .or. & !alex lat can be negative
      (LocationDims < 3 ) ) then
    write(*,*)
    write(*,*)'Interface not fully implemented.' 

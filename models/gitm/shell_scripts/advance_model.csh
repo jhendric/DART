@@ -10,20 +10,20 @@
 # where the model advance is executed as a separate process.
 # Can be used as-is with most low-order models and the bgrid model which
 # can be advanced using the integrate_model executable.
-# 
+#
 # Arguments are (created by 'filter' or 'perfect_model_obs' and include):
 # 1) the process number of caller,
-# 2) the number of ensemble members/state copies belonging to that process, and 
+# 2) the number of ensemble members/state copies belonging to that process, and
 # 3) the name of the control_file for that process.
-# 
+#
 # If this script finishes and the 'control_file' still exists, it is
 # an ERROR CONDITION and means one or more of the ensemble members did
 # not advance properly. Despite our best attempts to trap on this
 # condition, some MPI installations simply hang, some properly terminate.
 #
-# This script loops over all the entries in the control_file to advance 
-# any/all of the ensemble members.  The number of trips through the 
-# loop is the second argument to this script. The control_file contains 
+# This script loops over all the entries in the control_file to advance
+# any/all of the ensemble members.  The number of trips through the
+# loop is the second argument to this script. The control_file contains
 # the information about which ensemble members are to be advanced by THIS TASK.
 # Sometimes it may be just one ensemble member, sometimes all of them.
 # Read DART/doc/html/filter_async_modes.html and the mpi_intro.html
@@ -35,6 +35,9 @@
 # 2) copies/converts the DART state vector to something the model can ingest
 # 3) runs the model
 # 4) copies/converts the model output to input expected by DART
+#
+# Alex: if you read clean.sh, this is exactly the same thing, just adapted into
+# DART framework and written in CSH instead of BASH (so beware of @ and setenv and `)
 
 set      process = $1
 set   num_states = $2
@@ -47,22 +50,6 @@ set control_file = $3
 #          members being advanced by this script.
 #----------------------------------------------------------------------
 
-# Create a unique temporary working directory for this process's stuff
-# The run-time directory for the entire experiment is called CENTRALDIR;
-# we need to provide a safe haven for each TASK ... in 'temp_dir'.
-
-set temp_dir = 'advance_temp'${process}
-
-# Create a clean temporary directory and go there
-\rm -rf  $temp_dir  || exit 1
-mkdir -p $temp_dir  || exit 1
-cd       $temp_dir  || exit 1
-
-# Get the program and input.nml
-ln -s ../dart_to_gitm     .  || exit 1
-ln -s ../gitm_to_dart     .  || exit 1
-cp    ../input.nml        .  || exit 1
-
 # Loop through each state
 set state_copy = 1
 set ensemble_member_line = 1
@@ -70,55 +57,130 @@ set      input_file_line = 2
 set     output_file_line = 3
 
 while($state_copy <= $num_states)
-   
-   set ensemble_member = `head -$ensemble_member_line ../$control_file | tail -1`
-   set input_file      = `head -$input_file_line      ../$control_file | tail -1`
-   set output_file     = `head -$output_file_line     ../$control_file | tail -1`
-   
+
+    set ensemble_member = `head -$ensemble_member_line $control_file | tail -1`
+    set input_file      = `head -$input_file_line      $control_file | tail -1`
+    set output_file     = `head -$output_file_line     $control_file | tail -1`
+
+    # Create a unique temporary working directory for this process's stuff
+    # The run-time directory for the entire experiment is called CENTRALDIR;
+    # we need to provide a safe haven for each TASK ... in 'temp_dir'.
+
+    set temp_dir = 'advance_temp_e'${ensemble_member}
+
+    #making the directory is done in script called clean in work dir. CD is done later too
+
+    #Get the program and input.nml DONE IN start_GITM.sh
+
    #-------------------------------------------------------------------
-   # Block 2: copy/convert the DART state vector to something the 
+   # Block 2: copy/convert the DART state vector to something the
    #          model can ingest. In this case, just copy.
-   #          In general, there is more to it. 
+   #          In general, there is more to it.
    #
    #          * copy/link ensemble-member-specific files
    #          * convey the advance-to-time to the model
-   #          * convert the DART state vector to model format 
+   #          * convert the DART state vector to model format
    #-------------------------------------------------------------------
 
-   ./dart_to_gitm            || exit 2
+   mv $input_file $temp_dir/temp_ic || exit 2
 
    #-------------------------------------------------------------------
    # Block 3: advance the model
    #          In this case, we are saving the run-time messages to
    #          a LOCAL file, which makes debugging easier.
-   #          integrate_model is hardcoded to expect input in temp_ic 
-   #          and it creates temp_ud as output. 
+   #          integrate_model is hardcoded to expect input in temp_ic
+   #          and it creates temp_ud as output.
    #          Your model will likely be different.
    #-------------------------------------------------------------------
 
-   echo mpirun GITM here
+   cd $temp_dir  || exit 3
 
-   #-------------------------------------------------------------------
-   # Block 4: Move the updated state vector back to CENTRALDIR
-   #          (temp_ud was created by integrate_model and is in the 
-   #          right format already.) In general, you must convert your 
-   #          model output to a DART ics file with the proper name.
-   #-------------------------------------------------------------------
+   echo 'advance_model.csh is currently in' `pwd`
+   \cp restartOUT/header.rst restartOUT.out/.
+   ./dart_to_gitm || exit 4    #convert DART ic file to GITM restart file
+   \rm UA/restartOUT/*.rst     #rm restart files so that if GITM fails while running, I'd know for sure
+   echo 'advance_model.csh: ./dart_to_gitm succeeded'
 
-   ./gitm_to_dart             || exit 4
+   #create a full UAM.in (the one with start and end times)
+   cat DART_GITM_time_control.txt UAM.in > UAM.in.temporary
+   mv UAM.in.temporary UAM.in
+
+   echo ' '    >> UAM.in
+   echo '#END' >> UAM.in
+   echo 'advance_model.csh: UAM.in was successfully created'
+
+   @ nop = 10 #changed by pbs_file
+   @ b = $nop * $ensemble_member
+   rm hf
+   head -n $b $PBS_NODEFILE | tail -n $nop > hf
+   cat hf
+
+   #run each ensemble member in the background on separate processors specified in hf
+   (mpiexec -hostfile hf -n $nop ./GITM.exe >& ens_log.txt) &
+
+   cd ..
 
    @ state_copy++
    @ ensemble_member_line = $ensemble_member_line + 3
    @ input_file_line = $input_file_line + 3
    @ output_file_line = $output_file_line + 3
+
 end
 
-# Change back to original directory and get rid of temporary directory.
-# If all goes well, there should be no need to keep this directory.
-# If you are debugging, you may want to keep this directory. 
 
-cd ..
-\rm -rf $temp_dir
+sleep 1
+
+
+# Loop through each state again as to wait for finish and collect the ud files
+set state_copy = 1
+set ensemble_member_line = 1
+set      input_file_line = 2
+set     output_file_line = 3
+
+while($state_copy <= $num_states)
+
+   set ensemble_member = `head -$ensemble_member_line $control_file | tail -1`
+   set input_file      = `head -$input_file_line      $control_file | tail -1`
+   set output_file     = `head -$output_file_line     $control_file | tail -1`
+
+   set temp_dir = 'advance_temp_e'${ensemble_member}
+
+   cd $temp_dir || exit 6
+
+   # I don't check for temp_ud, because it might be open (exists), but be empty - GITM
+   # is still writing to it. Extra safety check
+   test -e GITM.DONE
+   set s = $?
+   while ( $s == 1 ) #while it doesn't exist
+      echo "G.D doesn't exist in " $temp_dir
+      sleep 1
+      test -e GITM.DONE
+      set s=$?
+   end
+   rm GITM.DONE
+
+   pwd
+   echo 'advance_model.csh: Listing files because sometimes the restart files were different size.'
+   echo '                   Check that they have the same size, as the blocks are equal!'
+   ls -l UA/restartOUT
+
+   rm UAM.in                    #remove the used full UAM.in
+   cp UAM.in.truncated UAM.in   #prepare a truncated UAM.in for the next assimilation window
+   ./gitm_to_dart || exit 7     #convert GITM restart files to DART ud file
+
+   echo 'advance_model.csh: ./gitm_to_dart successful'
+
+   # move the temp_ud into ../ (work) and name it something like filter_0003
+   mv temp_ud ../$output_file || exit 8
+
+   cd ..
+
+   @ state_copy++
+   @ ensemble_member_line = $ensemble_member_line + 3
+   @ input_file_line = $input_file_line + 3
+   @ output_file_line = $output_file_line + 3
+
+end
 
 # MANDATORY - Remove the control_file to signal completion. If it still
 # exists in CENTRALDIR after all the ensemble members have been advanced,

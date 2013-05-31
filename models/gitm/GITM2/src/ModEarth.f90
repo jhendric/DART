@@ -2,23 +2,25 @@
 module ModPlanet
 
   use ModConstants
+  use ModSizeGITM, only: nAlts
 
   implicit none
 
-  integer, parameter :: nSpecies = 5
   integer, parameter :: iO_3P_  = 1
   integer, parameter :: iO2_ = 2
   integer, parameter :: iN2_ = 3
   integer, parameter :: iN_4S_ =  4
   integer, parameter :: iNO_   =  5
+  integer, parameter :: nSpecies = 5
 
-  integer, parameter :: nSpeciesTotal = 11
   integer, parameter :: iN_2D_ =  6
   integer, parameter :: iN_2P_ =  7
   integer, parameter :: iH_    =  8
   integer, parameter :: iHe_   =  9
-  integer, parameter :: iAr_   = 10
+!  integer, parameter :: iAr_   = 10
+  integer, parameter :: iCO2_  = 10
   integer, parameter :: iO_1D_ = 11
+  integer, parameter :: nSpeciesTotal = 11
 
   integer, parameter  :: iO_4SP_ = 1
   integer, parameter  :: iO2P_   = 2
@@ -107,6 +109,8 @@ module ModPlanet
  real, parameter :: SunOrbit_D = 100.46435
  real, parameter :: SunOrbit_E = 129597740.63
 
+  !Used as a damping term in Vertical solver.
+  real :: VertTau(nAlts)
 
   logical :: IsEarth = .true.
   logical :: IsMars = .false.
@@ -124,26 +128,65 @@ module ModPlanet
 
   ! These are the numerical coefficients in Table 1 in m^2 instead of cm^2
 
- real, parameter, dimension(5, 5) :: Diff0 = 1.0e4 * reshape( (/ &
-       ! 0      02     N2      N     NO
-       !---------------------------------+
-       0.00,  0.260, 0.260, 0.300, 0.181/1.0,&            ! O
-       0.26,  0.000, 0.181, 0.220, 0.181/1.,&            ! O2
-       0.26/4,  0.181, 0.000, 0.220, 0.181/1.,&            ! N2
-       0.30,  0.220, 0.220, 0.000, .181/1., &
-       0.181/1.,  0.181/1., 0.181/1., 0.181/1., 0.00 /), (/5,5/) )  ! N
+  real, parameter, dimension(5, 5) :: Diff0 = 1.0e17 * reshape( (/ &
+       !   0       02      N2       N      NO
+       !--------------------------------------+
+       0.000,   0.969,  0.969,  0.969,  0.715,&              ! O
+       0.969,   0.000,  0.715,  0.969,  0.715,&              ! O2
+       0.969,   0.715,  0.000,  0.969,  0.527,&              ! N2
+       0.969,   0.969,  0.969,  0.000,  0.969, &             ! N
+       0.715,   0.715,  0.527,  0.969,  0.000 /), (/5,5/) )  ! NO
 
   ! These are the exponents
   real, parameter, dimension(5, 5) :: DiffExp = reshape( (/ &
-       ! 0      02     N2
+       !   0      02      N2      N     NO
        !---------------------------------+
-       0.00,  0.75,  0.75, 0.75,  0.75, &             ! O
-       0.75,  0.00,  0.75, 0.75, 0.75, &             ! O2
-       0.75,  0.75,  0.00, 0.75, 0.75, &             ! N2
-       0.75,  0.75,  0.75, 0.00,  0.75, &            !N
-        0.75,  0.75,  0.75, 0.75,0.0  /), (/5,5/) )  ! NO
+       0.000,  0.774,  0.774, 0.774,  0.750, &              ! O
+       0.774,  0.000,  0.750, 0.774,  0.750, &              ! O2
+       0.774,  0.750,  0.000, 0.774,  0.810, &              ! N2
+       0.774,  0.774,  0.774, 0.000,  0.774, &              ! N
+       0.750,  0.750,  0.810, 0.774,  0.000  /), (/5,5/) )  ! NO
 
+! Unknowns!!!!
+!  real, parameter, dimension(5, 5) :: Diff0 = 1.0e17 * reshape( (/ &
+!       !   0       02      N2       N      NO
+!       !--------------------------------------+
+!       0.000,   0.969,  0.969,  0.???,  0.???,&            ! O
+!       0.969,   0.000,  0.715,  0.???,  0.???,&            ! O2
+!       0.969,   0.715,  0.000,  0.969,  0.527,&            ! N2
+!       0.???,   0.???,  0.969,  0.000,  0.???, & ! N
+!       0.???,   0.???,  0.527,  0.???,  0.000 /), (/5,5/) )  ! NO
+!
+!  ! These are the exponents
+!  real, parameter, dimension(5, 5) :: DiffExp = reshape( (/ &
+!       !   0      02      N2      N     NO
+!       !---------------------------------+
+!       0.000,  0.774,  0.774, 0.???,  0.???, &              ! O
+!       0.774,  0.000,  0.750, 0.???,  0.???, &              ! O2
+!       0.774,  0.750,  0.000, 0.774,  0.810, &              ! N2
+!       0.???,  0.???,  0.774, 0.000,  0.???, &              ! N
+!       0.???,  0.???,  0.810, 0.???,  0.000  /), (/5,5/) )  ! NO
 
+! Colegrove:
+!
+! real, parameter, dimension(5, 5) :: Diff0 = 1.0e4 * reshape( (/ &
+!       !   0      02      N2       N      NO
+!       !---------------------------------+
+!       0.000,  0.260,  0.260,  0.300,  0.181, &             !  O
+!       0.260,  0.000,  0.181,  0.220,  0.181, &             ! O2
+!       0.260,  0.181,  0.000,  0.220,  0.181, &             ! N2
+!       0.300,  0.220,  0.220,  0.000,  0.181, &             !  N
+!       0.181,  0.181,  0.181,  0.181,  0.000 /), (/5,5/) )  ! NO
+!
+!  ! These are the exponents
+!  real, parameter, dimension(5, 5) :: DiffExp = reshape( (/ &
+!       ! 0      02     N2
+!       !---------------------------------+
+!       0.00,  0.75,  0.75, 0.75,  0.75, &             ! O
+!       0.75,  0.00,  0.75, 0.75,  0.75, &             ! O2
+!       0.75,  0.75,  0.00, 0.75,  0.75, &             ! N2
+!       0.75,  0.75,  0.75, 0.00,  0.75, &            !N
+!       0.75,  0.75,  0.75, 0.75,  0.0  /), (/5,5/) )  ! NO
 
 !  real, parameter, dimension(4, 4) :: Diff0 = 1.0e4 * reshape( (/ &
 !       ! 0      02     N2      N     NO
@@ -162,7 +205,7 @@ module ModPlanet
 !       0.75,  0.75,  0.00, 0.75, &             ! N2
 !       0.75,  0.75,  0.75, 0.00 /), (/4,4/) )  ! N
 
-  real, parameter:: AltMinIono=100.0 ! in km
+!!!!!!!  real,  AltMinIono=100.0 ! in km
 
 contains
 
@@ -175,12 +218,13 @@ contains
     Mass(iH_)    = 1.0 * AMU
     Mass(iHe_)   = 4.0 * AMU
     Mass(iN_4S_) = 14.0 * AMU
-    Mass(iO_3P_)    = 16.0 * AMU
+    Mass(iO_3P_)  = 16.0 * AMU
     Mass(iN_2D_) = Mass(iN_4S_)
     Mass(iN_2P_) = Mass(iN_4S_)
     Mass(iN2_)   = 2*Mass(iN_4S_)
     Mass(iO2_)   = 2*Mass(iO_3P_)
     Mass(iNO_)   = Mass(iN_4S_)+Mass(iO_3P_)
+    Mass(iCO2_)  = 12.0*AMU + 2*Mass(iO_3P_)
 
     cSpecies(iH_)    = "H"
     cSpecies(iHe_)   = "He"
@@ -192,7 +236,8 @@ contains
     cSpecies(iN_2P_) = "N(!U2!NP)"
     cSpecies(iNO_)   = "NO"
     cSpecies(iO_1D_) = "O(!U1!ND)"
-    cSpecies(iAr_)   = "Ar"
+    cSpecies(iCO2_)   = "CO!D2!N"
+!    cSpecies(iAr_)   = "Ar"
 
     cIons(iO_4SP_) = "O_4SP_!U+!N"
     cIons(iO2P_)   = "O!D2!U+!N"
@@ -222,6 +267,8 @@ contains
     MassI(iNOP_) = Mass(iN_4S_) + Mass(iO_3P_)
     MassI(ie_) = Mass_Electron
 
+    VertTau = 1.0e9
+
     itime = 0
     itime(1) = iVernalYear
     itime(2) = iVernalMonth
@@ -229,7 +276,7 @@ contains
     itime(4) = iVernalHour
     itime(5) = iVernalMinute
     itime(6) = iVernalSecond
-!   call time_int_to_real(itime, VernalTime)   ! TJH ... FIXME, perhaps
+    call time_int_to_real(itime, VernalTime)
 
   end subroutine init_planet
 
@@ -251,6 +298,8 @@ contains
   return
   end subroutine init_aerosol
 
-
+  subroutine init_topography
+    return
+  end subroutine init_topography
 
 end module ModPlanet
