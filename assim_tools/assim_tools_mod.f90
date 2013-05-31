@@ -353,6 +353,18 @@ if(.not. module_initialized) then
    module_initialized = .true.
 endif
 
+! filter kinds 1 and 8 return sorted increments, however non-deterministic
+! inflation can scramble these. the sort is expensive, so help users get better 
+! performance by rejecting namelist combinations that do unneeded work.
+if (sort_obs_inc) then
+   if(deterministic_inflate(inflate) .and. ((filter_kind == 1) .or. (filter_kind == 8))) then
+      write(msgstring,  *) 'sort_obs_inc is unneeded with deterministic filter_kind ', filter_kind
+      write(msgstring2, *) 'the increments are already sorted when inflation is deterministic'
+      call error_handler(E_ERR,'filter_assim:', msgstring, source, revision, revdate, &
+                         text2=msgstring2)
+   endif
+endif
+
 !GSR open the dignostics file
 if(output_localization_diagnostics .and. my_task_id() == 0) then
   localization_unit = open_file(localization_diagnostics_file, action = 'append')
@@ -659,8 +671,8 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
    ! set the cutoff default, keep a copy of the original value, and avoid
    ! looking up the cutoff in a list if the incoming obs is an identity ob
    ! (and therefore has a negative kind).
-   if (base_obs_kind > 0) then
-      cutoff_orig = cutoff_list(base_obs_kind)
+   if (base_obs_type > 0) then
+      cutoff_orig = cutoff_list(base_obs_type)
    else
       cutoff_orig = cutoff
    endif
@@ -760,6 +772,17 @@ SEQUENTIAL_OBS: do i = 1, obs_ens_handle%num_vars
    ! Loop through to update each of my state variables that is potentially close
    STATE_UPDATE: do j = 1, num_close_states
       state_index = close_state_ind(j)
+
+      !! or this, for performance reasons?  it won't warn you if there are missing
+      ! values when you don't expect them, but it also won't do the any() unless
+      ! the namelist says you might expect to see them.
+      !if ( allow_missing_in_state ) then
+      !   ! Some models can take evasive action if one or more of the ensembles have
+      !   ! a missing value. Generally means 'do nothing' (as opposed to DIE) 
+      !   missing_in_state = any(ens_handle%copies(1:ens_size, state_index) == MISSING_R8)
+      !   if ( missing_in_state ) then
+      !      cycle STATE_UPDATE
+      !endif
 
       ! Some models can take evasive action if one or more of the ensembles have
       ! a missing value. Generally means 'do nothing' (as opposed to DIE) 
@@ -1091,19 +1114,13 @@ if(do_obs_inflate(inflate)) obs_inc = obs_inc + inflate_inc
 ! plus non-deterministic obs space covariance inflation. This is expensive, so
 ! don't use it if it's not needed.
 if (sort_obs_inc) then
-   if (filter_kind == 1) then
-      ! sort does nothing and we skip the code
-      ! FIXME: are there other kinds where the sort has no effect?
-      ! add more cases here.
-   else
-      new_val = ens_in + obs_inc
-      ! Sorting to make increments as small as possible
-      call index_sort(ens_in, ens_index, ens_size)
-      call index_sort(new_val, new_index, ens_size)
-      do i = 1, ens_size
-         obs_inc(ens_index(i)) = new_val(new_index(i)) - ens_in(ens_index(i))
-      end do
-   endif
+   new_val = ens_in + obs_inc
+   ! Sorting to make increments as small as possible
+   call index_sort(ens_in, ens_index, ens_size)
+   call index_sort(new_val, new_index, ens_size)
+   do i = 1, ens_size
+      obs_inc(ens_index(i)) = new_val(new_index(i)) - ens_in(ens_index(i))
+   end do
 endif
 
 ! Get the net change in spread if obs space inflation was used
