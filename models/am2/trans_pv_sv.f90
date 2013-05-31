@@ -2,13 +2,7 @@
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
 
-program trans_pv_sv
-
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
+program am2_to_dart
 
 !----------------------------------------------------------------------
 ! purpose: interface between AM2 and DART
@@ -24,64 +18,78 @@ program trans_pv_sv
 !----------------------------------------------------------------------
 
 use        types_mod, only : r8
-use    utilities_mod, only : get_unit, file_exist, &
-                             initialize_utilities, finalize_utilities
+use    utilities_mod, only : initialize_utilities, finalize_utilities, &
+                             nmlfileunit, do_nml_file, do_nml_term, &
+                             find_namelist_in_file, check_namelist_read, &
+                             open_file, close_file
 use        model_mod, only : model_type, init_model_instance, end_model_instance, &
                              prog_var_to_vector, read_model_init
-use  assim_model_mod, only : assim_model_type, static_init_assim_model, &
-     init_assim_model, get_model_size , set_model_state_vector, write_state_restart, &
-     set_model_time, open_restart_read, open_restart_write, close_restart, &
-     aread_state_restart
-use time_manager_mod, only : time_type, read_time, set_time, set_date
+use  assim_model_mod, only : get_model_size, awrite_state_restart, &
+                             open_restart_write, close_restart
+use time_manager_mod, only : time_type, set_time, set_date
 
 implicit none
 
-interface
-  integer function iargc()
-  end function iargc
-end interface
+! version controlled file description for error handling, do not edit
+character(len=128), parameter :: &
+   source   = "$URL$", &
+   revision = "$Revision$", &
+   revdate  = "$Date$"
 
-!integer, external :: iargc
+!-----------------------------------------------------------------------
+! namelist parameters with default values.
+!-----------------------------------------------------------------------
 
-character (len = 128) :: dartSVout, RstFileIn, TrcFileIn
-character (len = 256) :: string1, string2
+character(len=128) :: restart_file = 'fv_rst.res.nc'
+character(len=128) :: tracer_file  = 'atmos_tracers.res.nc'
+character(len=128) :: am2_to_dart_output_file  = 'dart_ics'
+
+namelist /am2_to_dart_nml/ restart_file, tracer_file, am2_to_dart_output_file
 
 !----------------------------------------------------------------------
+! global storage
+!----------------------------------------------------------------------
 
-! Temporary allocatable storage to read in a native format for cam state
-type(assim_model_type) :: x
+character(len=256)     :: string1
 type(model_type)       :: var
-type(time_type)        :: model_time, adv_to_time
-real(r8), allocatable  :: x_state(:)
-integer                :: file_unit, x_size, big_cld_iw, small_trcs
+type(time_type)        :: model_time
+real(r8), allocatable  :: statevector(:)
+integer                :: iunit, io, x_size, big_cld_iw, small_trcs
 integer                :: year, month, day, hour, minute, second
-logical                :: do_output = .false.
 
-if(iargc()  == 0) stop "You must specify State Vector and input AM2 files"
-call getarg(1, dartSVout)
-call getarg(2, RstFileIn)
-call getarg(3, TrcFileIn)
+!if(iargc()  == 0) stop "You must specify State Vector and input AM2 files"
+!call getarg(1, am2_to_dart_output_file)
+!call getarg(2, restart_file)
+!call getarg(3, tracer_file)
 
-call initialize_utilities('Trans_pv_sv')
+call initialize_utilities('am2_to_dart')
 
-if(file_exist('element1')) do_output = .true.
+! Read the namelist entry
+call find_namelist_in_file("input.nml", "am2_to_dart_nml", iunit)
+read(iunit, nml = am2_to_dart_nml, iostat = io)
+call check_namelist_read(iunit, io, "am2_to_dart_nml")
 
-! Static init assim model calls static_init_model
-! which now (merge/MPI) calls read_model_init)
-call static_init_assim_model()
+! Record the namelist values 
+if (do_nml_file()) write(nmlfileunit, nml=am2_to_dart_nml)
+if (do_nml_term()) write(     *     , nml=am2_to_dart_nml)
 
-! Initialize the assim_model instance
-call init_assim_model(x)
+write(*,*)
+write(*,'(''am2_to_dart:converting am2 restart file '',A, &
+      &'' to DART file '',A)') &
+       trim(restart_file), trim(am2_to_dart_output_file)
 
-! Allocate the local state vector
+!----------------------------------------------------------------------
+! Get to work
+!----------------------------------------------------------------------
+
 x_size = get_model_size()
-allocate(x_state(x_size))
+allocate(statevector(x_size))
 
 ! Allocate the instance of the AM2 model type for storage  
 call init_model_instance(var)
 
 ! Read the file AM2 state fragments into var, but not time
-call read_model_init(RstFileIn, TrcFileIn, var)
+call read_model_init(restart_file, tracer_file, var)
 
 ! Ensure that all tracers that are <=1e-10 get set to zero.
 ! Further, ensure that CF is <=1 and exit if CLW or CIW are >1e-1
@@ -98,34 +106,31 @@ call read_model_init(RstFileIn, TrcFileIn, var)
 !where(var%tracers(:,:,:,3) > 1) var%tracers(:,:,:,3) = 1
 
 ! transform fields into state vector for DART
-call prog_var_to_vector(var, x_state)
-
+call prog_var_to_vector(var, statevector)
 call end_model_instance(var)
 
-! Put this in the structure
-call set_model_state_vector(x, x_state)
-
 ! Get current model time from line 3 of coupler.res
-open(50, file = 'coupler.res',form = 'formatted', action = 'read')
-read(50,*) string1
-!print*, string1
-read(50,*) string2
-!print*, string2
-read(50,*) year, month, day, hour, minute, second 
-close(50)
+iunit = open_file('coupler.res',form = 'formatted', action = 'read')
+read(iunit,*) string1
+read(iunit,*) string1
+read(iunit,*) year, month, day, hour, minute, second 
+call close_file(iunit)
 
 ! Set model_time
 model_time = set_date(year, month, day, hour, minute, second)
-call set_model_time(x, model_time)
 
-!call close_restart(file_unit)
-
-! Get channel for output,
 ! write out state vector in "proprietary" format
-file_unit = open_restart_write(dartSVout)
-call write_state_restart(x, file_unit)
-call close_restart(file_unit)
+iunit = open_restart_write(am2_to_dart_output_file)
+call awrite_state_restart(model_time, statevector, iunit)
+call close_restart(iunit)
 
-call finalize_utilities()
+call finalize_utilities('am2_to_dart')
 
-end program trans_pv_sv
+end program am2_to_dart
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
+
