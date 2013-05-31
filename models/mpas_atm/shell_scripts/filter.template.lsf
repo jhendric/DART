@@ -2,7 +2,7 @@
 ############################################
 #BSUB -J JOB_NAME
 #BSUB -o logs/JOB_NAME.%J.log
-#BSUB -q standby
+#BSUB -q QUEUE  
 #BSUB -n NENS
 #BSUB -P PROJ_NUMBER
 #BSUB -W JOB_TIME
@@ -20,7 +20,7 @@ echo "host is " `hostname`
 echo $start_time >&! filter_started
 
 setenv TARGET_CPU_LIST -1
-mpirun.lsf /usr/local/bin/launch ./filter
+mpirun.lsf job_memusage.exe ./filter     
 wait
 
 if ( -e obs_seq.final )  touch filter_done

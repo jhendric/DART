@@ -4,7 +4,7 @@
 #BSUB -o logs/JOB_NAME.%J.log
 #BSUB -P PROJ_NUMBER
 #BSUB -W 00:10
-#BSUB -q standby
+#BSUB -q QUEUE  
 #BSUB -n 32
 #BSUB -x
 #==================================================================
