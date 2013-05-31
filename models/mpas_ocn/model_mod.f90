@@ -308,9 +308,11 @@ real(r8), allocatable :: edgeNormalVectors(:,:)
 ! Boundary information might be needed ... regional configuration?
 ! Read if available.
 
-integer,  allocatable :: boundaryEdge(:,:)
-integer,  allocatable :: boundaryVertex(:,:)
-integer,  allocatable :: maxLevelCell(:)
+integer,  allocatable :: boundaryCell(:,:) ! logical, cells that are on boundaries
+integer,  allocatable :: maxLevelEdgeTop(:) ! 
+integer,  allocatable :: boundaryEdge(:,:) ! logical, edges that are boundaries
+integer,  allocatable :: boundaryVertex(:,:) ! logical, vertices that are on boundaries
+integer,  allocatable :: maxLevelCell(:) ! list of maximum (deepest) level for each cell
 
 real(r8), allocatable :: ens_mean(:)   ! needed to convert vertical distances consistently
 
@@ -475,24 +477,52 @@ allocate(latEdge(nEdges), lonEdge(nEdges))
 allocate(xVertex(nVertices), yVertex(nVertices), zVertex(nVertices))
 allocate(xEdge(nEdges), yEdge(nEdges), zEdge(nEdges))
 
+allocate(maxLevelEdgeTop(nEdges))
+allocate(boundaryEdge(nVertLevels, nEdges))
+allocate(boundaryCell(nVertLevels,nCells))
+
 ! this reads in latCell, lonCell, hZLevel, zMid, cellsOnVertex
 call get_grid()
+
+! determine which edges are boundaries
+! (this requires 'maxLevelEdgeTop' to exist in the restart file)
+boundaryEdge(:,1:nEdges) = 1
+do iloc=1, nEdges
+   if(maxLevelEdgeTop(iloc) > 0) then
+      boundaryEdge(1:maxLevelEdgeTop(iloc),iloc) = 0
+   endif
+end do
+
+! determine which cells are on boundaries
+boundaryCell(:,1:nCells) = 0
+do iloc=1, nEdges
+   do kloc=1, nVertLevels
+	 if(boundaryEdge(kloc,iloc) .eq. 1) then
+		if(cellsOnEdge(1,iloc) > 0) then
+		   boundaryCell(kloc,cellsOnEdge(1,iloc)) = 1	
+		endif
+		if(cellsOnEdge(2,iloc) > 0) then
+		   boundaryCell(kloc,cellsOnEdge(2,iloc)) = 1	
+		endif
+     endif
+   end do
+end do
 
 ! FIXME: This code is supposed to check whether an edge has 2 neighbours or 1 neighbour and then
 !        compute the depth accordingly.  HOWEVER, the array cellsOnEdge does not change with
 !        depth, but it should as an edge may have 2 neighbour cells at the top but not at depth.
-do kloc=1, nEdges
- do iloc=1, nVertLevels
-   cel1 = cellsOnEdge(1,kloc)
-   cel2 = cellsOnEdge(2,kloc)
+do iloc=1, nEdges
+ do kloc=1, nVertLevels
+   cel1 = cellsOnEdge(1,iloc)
+   cel2 = cellsOnEdge(2,iloc)
    if (cel1>0 .and. cel2>0) then
-      zGridEdge(iloc,kloc) = (zGridCenter(iloc,cel1) + zGridCenter(iloc,cel2))*0.5_r8
+      zGridEdge(kloc,iloc) = (zGridCenter(kloc,cel1) + zGridCenter(kloc,cel2))*0.5_r8
    else if (cel1>0) then
-      zGridEdge(iloc,kloc) = zGridCenter(iloc,cel1)
+      zGridEdge(kloc,iloc) = zGridCenter(kloc,cel1)
    else if (cel2>0) then
-      zGridEdge(iloc,kloc) = zGridCenter(iloc,cel2)
+      zGridEdge(kloc,iloc) = zGridCenter(kloc,cel2)
    else  !this is bad...
-      write(string1,*)'Edge ',kloc,' at vertlevel ',iloc,' has no neighbouring cells!'
+      write(string1,*)'Edge ',iloc,' at vertlevel ',kloc,' has no neighbouring cells!'
       call error_handler(E_ERR,'static_init_model', string1, source, revision, revdate)
    endif
  enddo
@@ -1303,7 +1333,7 @@ else
    ! Finished with dimension/variable definitions, must end 'define' mode to fill.
    !----------------------------------------------------------------------------
 
-   call nc_check(nf90_enddef(ncFileID), 'prognostic enddef '//trim(filename))
+   call nc_check(nf90_enddef(ncfileID), 'prognostic enddef '//trim(filename))
 
    !----------------------------------------------------------------------------
    ! Fill the coordinate variables that DART needs and has locally
@@ -2430,20 +2460,13 @@ PROGVARLOOP : do ivar=1, nfields
    endif
 
    ! Make note that the variable has been updated by DART
-   ! TJH FIXME ... this should work, but does not ... (the sync'ing does not help)
-   ! http://www.unidata.ucar.edu/software/netcdf/docs/netcdf-f90/Adding-New-Dimensions.html#Adding-New-Dimensions
-   ! There is a bug in netCDF when doing this with LARGE files. Crazy.
-
-!  call nc_check(nf90_sync( ncFileID),'statevector_to_analysis_file','sync  at '//trim(varname))
-!  call nc_check(nf90_redef(ncFileID),'statevector_to_analysis_file','redef at '//trim(varname))
-!  call nc_check(nf90_put_att(ncFileID, VarID,'DART','variable modified by DART'),&
-!                'statevector_to_analysis_file', 'modified '//trim(varname))
-!  call nc_check(nf90_enddef(ncFileID),'statevector_to_analysis_file','enddef  '//trim(varname))
+   !!! call nc_check(nf90_Redef(ncFileID),'statevector_to_analysis_file', 'redef '//trim(filename))
+   !!! call nc_check(nf90_put_att(ncFileID, VarID,'DART','variable modified by DART'),&
+   !!!              'statevector_to_analysis_file', 'modified '//trim(varname))
+   !!! call nc_check(nf90_enddef(ncfileID),'statevector_to_analysis_file','state enddef '//trim(filename))
 
 enddo PROGVARLOOP
 
-!call nc_check(nf90_sync( ncFileID), &
-!             'statevector_to_analysis_file','sync  '//trim(filename))
 call nc_check(nf90_close(ncFileID), &
              'statevector_to_analysis_file','close '//trim(filename))
 
@@ -2912,6 +2935,11 @@ call nc_check(nf90_inq_varid(ncid, 'verticesOnCell', VarID), &
 call nc_check(nf90_get_var( ncid, VarID, verticesOnCell), &
       'get_grid', 'get_var verticesOnCell '//trim(grid_definition_filename))
 
+call nc_check(nf90_inq_varid(ncid, 'maxLevelEdgeTop', VarID), &
+      'get_grid', 'inq_varid maxLevelEdgeTop '//trim(grid_definition_filename))
+call nc_check(nf90_get_var( ncid, VarID, maxLevelEdgeTop), &
+      'get_grid', 'get_var maxLevelEdgeTop '//trim(grid_definition_filename))
+
 ! Get the boundary information if available.
 ! Assuming the existence of this variable is sufficient to determine if
 ! the grid is defined everywhere or not.
@@ -2919,10 +2947,10 @@ call nc_check(nf90_get_var( ncid, VarID, verticesOnCell), &
 call nc_check(nf90_inquire_variable(ncid, VarID, dimids=dimIDs, ndims=numdims), &
               'get_grid', 'inquire boundaryEdge'//trim(model_analysis_filename))
 
-!do i=1, numdims
-!   call nc_check(nf90_inquire_dimension(ncid, dimIDs(i), len=dimlen, name=dimname),'get_grid')
-!   write(*,*)'boundaryEdge inquire length for dimension (',i,') is ',dimlen,' '//trim(dimname)
-!enddo
+do i=1, numdims
+   call nc_check(nf90_inquire_dimension(ncid, dimIDs(i), len=dimlen, name=dimname),'get_grid')
+   write(*,*)'boundaryEdge inquire length for dimension (',i,') is ',dimlen,' '//trim(dimname)
+enddo
 
 if ( nf90_inq_varid(ncid, 'boundaryEdge', VarID) == NF90_NOERR ) then
    allocate(boundaryEdge(nVertLevels,nEdges))
@@ -2976,6 +3004,7 @@ if ((debug > 9) .and. do_output()) then
    write(*,*)'yEdge             range ',minval(yEdge),             maxval(yEdge)
    write(*,*)'zEdge             range ',minval(zEdge),             maxval(zEdge)
    write(*,*)'verticesOnCell    range ',minval(verticesOnCell),    maxval(verticesOnCell)
+   write(*,*)'verticesOnCell    range ',minval(maxLevelEdgeTop),    maxval(maxLevelEdgeTop)
    if (allocated(boundaryEdge)) &
    write(*,*)'boundaryEdge      range ',minval(boundaryEdge),      maxval(boundaryEdge)
    if (allocated(boundaryVertex)) &
@@ -4369,7 +4398,6 @@ if(vert_is_height(loc)) then
          call find_depth_bounds(vert, nVertLevels, zGridCenter(:, ids(i)), &
                                  lower(i), upper(i), fract(i), ier)
       else
-
          call find_depth_bounds(vert, nVertLevels, zGridEdge(:, ids(i)), &
                                  lower(i), upper(i), fract(i), ier)
       endif
@@ -4771,7 +4799,6 @@ do i=1, nedges
    call latlon_to_xyz(latCell(neighborcells(i)), lonCell(neighborcells(i)), &
       xdata(i), ydata(i), zdata(i))
 enddo
-
 
 ! get the cartesian coordinates in the cell plane for the closest center
 call latlon_to_xyz(latCell(cellid), lonCell(cellid), t1(1), t1(2), t1(3))
@@ -5222,37 +5249,18 @@ function on_boundary(cellid)
 integer,  intent(in)  :: cellid
 logical               :: on_boundary
 
-! do this completely with topology of the grid.  if any of
-! the cell edges are marked as boundary edges, return no.
-! otherwise return yes.
+integer :: vertical
 
-integer :: nedges, i, edgeid, vertical
+vertical = 1
 
 if (global_grid) then
    on_boundary = .false.
    return
 endif
 
-! how many edges (same # for verts) to check
-nedges = nEdgesOnCell(cellid)
+write(*,*) 'boundaryCell ', cellid, boundaryCell(vertical,cellid)
 
-! go around the edges and check the boundary array.
-! if any are boundaries, return true.  else, false.
-
-do i=1, nedges
-   edgeid = edgesOnCell(i, cellid)
-
-   vertical = 1
-
-   ! FIXME: this is an int array.  is it 0=false,1=true?
-   if (boundaryEdge(edgeid, vertical) > 0) then
-      on_boundary = .true.
-      return
-   endif
-
-enddo
-
-on_boundary = .false.
+on_boundary = boundaryCell(vertical,cellid) .eq. 1
 
 end function on_boundary
 
@@ -5301,6 +5309,7 @@ nedges = nEdgesOnCell(cellid)
 ! is conservative for now - we certainly won't try to interpolate
 ! outside the existing grid.
 
+! FIXME: can this loop over edges be replaced by a single test of the 'boundaryCell' array?
 do i=1, nedges
    edgeid = edgesOnCell(i, cellid)
 
@@ -5310,7 +5319,7 @@ do i=1, nedges
    ! has pressure or depth as its vertical coordinate.
    vert = 1
 
-   if (boundaryEdge(edgeid, vert) > 0) then
+   if (boundaryEdge(vert, edgeid) > 0) then
       inside_cell = .false.
       return
    endif
