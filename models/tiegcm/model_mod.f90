@@ -79,6 +79,12 @@ public :: model_type,             &
           read_TIEGCM_secondary,  &
           read_TIEGCM_namelist
 
+! dependencies for obs_def_upper_atm_mod.f90 (mainly for the GITM-based operators)
+! These routines allow access to routines untested with TIEGCM. The routines are
+! needed by GITM. Both TIEGCM and GITM use the obs_def_upper_atm_mod.f90
+public :: get_gridsize,           &
+          get_grid_val
+
 ! version controlled file description for error handling, do not edit
 character(len=128), parameter :: &
    source   = "$URL$", &
@@ -162,7 +168,7 @@ logical                               :: first_pert_call = .true.
 type(random_seq_type)                 :: random_seq
 !------------------------------------------------------------------
 
-character(len = 129) :: msgstring
+character(len = 129) :: msgstring, msgstring2, msgstring3
 logical, save :: module_initialized = .false.
 
 contains
@@ -2448,6 +2454,60 @@ endif
 
 end subroutine get_close_obs
 
+
+!===================================================================
+! PUBLIC interfaces ... for obs_def_upper_atm_mod.f90
+!===================================================================
+
+
+subroutine get_gridsize(num_LON, num_LAT, num_ALT )
+!------------------------------------------------------------------
+! obs_def_upper_atm_mod.f90 requires this for operators not tested
+! with TIEGCM.
+
+integer, intent(out) :: num_LON, num_LAT, num_ALT
+logical, save :: warned = .false.
+
+if ( .not. module_initialized ) call static_init_model
+if ( .not. warned ) then
+   msgstring  = 'Routine not tested ... use at you own risk.'
+   msgstring2 = 'used in obs_def_upper_atm_mod.f90:get_expected_gnd_gps_vtec()'
+   call error_handler(E_MSG,'get_gridsize',msgstring,source,revision,revdate,&
+        text2=msgstring2)
+   warned = .true.
+endif
+
+num_LON = nlon
+num_LAT = nlat
+num_ALT = nlev
+
+end subroutine get_gridsize
+
+
+
+subroutine get_grid_val( lon_a, lat_a, alt_a )
+!------------------------------------------------------------------
+! obs_def_upper_atm_mod.f90 requires this for operators not tested
+! with TIEGCM.
+
+real(r8), dimension(:), intent(out) :: lon_a, lat_a, alt_a
+logical, save :: warned = .false.
+
+if ( .not. module_initialized ) call static_init_model
+if ( .not. warned ) then
+   msgstring  = 'Routine not tested ... use at you own risk.'
+   msgstring2 = 'used in obs_def_upper_atm_mod.f90:get_expected_gnd_gps_vtec()'
+   msgstring3 = 'particularly check the units of the levels.'
+   call error_handler(E_MSG,'get_grid_val',msgstring,source,revision,revdate,&
+        text2=msgstring2, text3=msgstring3)
+   warned = .true.
+endif
+
+lon_a = lons(:)
+lat_a = lats(:)
+alt_a = levs(:)
+
+end subroutine get_grid_val
 
 
 !===================================================================
