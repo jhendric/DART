@@ -22,15 +22,11 @@ function h = SimpleMap(fname, varname, time, copystring, level)
 % level   = 1;        % index into level array
 % h = SimpleMap(fname,varname,time,copy,level);
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 if (exist(fname,'file') ~= 2), error('%s does not exist.',fname); end
 
@@ -191,3 +187,11 @@ for i = 1:stride:nlevels
    set(h1,'FontSize',8,'HorizontalAlignment','right')
    set(h2,'FontSize',8,'HorizontalAlignment','right')
 end
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
+

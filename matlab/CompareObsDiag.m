@@ -10,23 +10,17 @@ function CompareObsDiag(file1,file2)
 % checks only the FIRST 21 copies and uses a snctools get_var instead
 % of the native Matlab netcdf.getVar().
 %
-% $Id$
-%
 % Example:
 %
 % file1 = 'obs_diag_output.nc';
 % file2 = 'obs_diag_output_proposed.nc';
 % CompareObsDiag(file1,file2)
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 fid = fopen('CompareObsDiag_results.txt','a+');
 fprintf(fid,'\n---\n');
@@ -120,6 +114,7 @@ data = netcdf.getVar(ncid, varid, start, count);
 if ( ~ isempty(FillValue) )
    data(data == FillValue) = NaN;
 end
+
 
 % <next few lines under version control, do not edit>
 % $URL$

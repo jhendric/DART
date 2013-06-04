@@ -5,15 +5,11 @@ function [vrbl, vrbl_inds] = ParseAlphaNumerics(IDstring)
 % alpha = 'X'
 % numerics = [1 3 4 89];
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 inds       = find(IDstring == ',');     % find all commas
 IDstring(inds) = ' ';
@@ -25,4 +21,11 @@ vrbl_inds = cast(zeros(1,nwords-1),'int32');
 for i = 2:nwords
    vrbl_inds(i-1) = sscanf(words{i},'%d');
 end
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

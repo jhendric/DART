@@ -3,15 +3,11 @@ function BgridTotalError( pinfo )
 % Plot the total area-weighted error for each variable.
 %---------------------------------------------------------------------
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/matlab/BgridTotalError.m $
 % $Id: BgridTotalError.m 5655 2012-04-05 23:17:16Z thoar $
-% $Revision: 5655 $
-% $Date: 2012-04-05 17:17:16 -0600 (Thu, 05 Apr 2012) $
 
 % Get the indices for the true state, ensemble mean and spread
 % The metadata is queried to determine which "copy" is appropriate.
@@ -145,4 +141,11 @@ else
    xlabelstring = sprintf('%s start',monstr);
 end
 xlabel(xlabelstring)
+
+
+% <next few lines under version control, do not edit>
+% $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/matlab/BgridTotalError.m $
+% $Id: BgridTotalError.m 5655 2012-04-05 23:17:16Z thoar $
+% $Revision: 5655 $
+% $Date: 2012-04-05 17:17:16 -0600 (Thu, 05 Apr 2012) $
 

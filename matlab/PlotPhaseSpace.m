@@ -42,15 +42,11 @@ function PlotPhaseSpace( pinfo )
 %
 % note the legend has both lines annotated.
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 if ( exist(pinfo.fname,'file') ~= 2 ), error('file %s does not exist.',pinfo.fname), end
 
@@ -340,3 +336,11 @@ if ( (pinfo.var3ind > Z.num_vars) || (pinfo.var3ind < 1) )
    fprintf('%d  <= ''var3'' <= %d\n',1,Z.num_vars)
    error('var3 (%d) out of range',pinfo.var3ind)
 end
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
+

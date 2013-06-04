@@ -8,15 +8,11 @@ function [ens_size, ens_indices] = get_ensemble_indices(fname)
 % Example to return just the size ...
 % [ens_size, ~] = get_ensemble_indices(fname);
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/matlab/get_ensemble_indices.m $
 % $Id: get_ensemble_indices.m 5616 2012-03-22 22:42:39Z thoar $
-% $Revision: 5616 $
-% $Date: 2012-03-22 16:42:39 -0600 (Thu, 22 Mar 2012) $
 
 if ( exist(fname,'file') ~= 2 ), error('%s does not exist.',fname); end
 
@@ -47,4 +43,11 @@ if (isempty(ens_indices))
 else
    ens_size = length(ens_indices);
 end
+
+
+% <next few lines under version control, do not edit>
+% $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/matlab/get_ensemble_indices.m $
+% $Id: get_ensemble_indices.m 5616 2012-03-22 22:42:39Z thoar $
+% $Revision: 5616 $
+% $Date: 2012-03-22 16:42:39 -0600 (Thu, 22 Mar 2012) $
 

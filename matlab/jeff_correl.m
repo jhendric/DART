@@ -4,15 +4,11 @@ function corr = jeff_correl(base_ens, comp_ens)
 %  base_ens    is the ensemble state at many times for a given location
 %  comp_ens   is another ensemble state at many times and a location.
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 [base_nT, base_ens_size] = size(base_ens);
 [comp_nT, comp_ens_size] = size(comp_ens);
@@ -31,4 +27,11 @@ for i = 1:base_nT
    x = corrcoef(base_ens(i,:), comp_ens(i, :));
    corr(i) = x(1, 2);
 end 
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

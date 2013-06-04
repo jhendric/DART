@@ -5,15 +5,11 @@
 % num_lags   = 10;
 % plot_total_err
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 lag_file   = 'Lag_%05d_Diag.nc'; % pattern for lag file names
 
@@ -70,3 +66,11 @@ for lag=1:num_lags
 end
 
 clear pinfo
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
+

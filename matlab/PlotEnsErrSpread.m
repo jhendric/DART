@@ -48,15 +48,11 @@ function PlotEnsErrSpread( pinfo )
 % pinfo.longitude  = 45.67;
 % PlotEnsErrSpread(pinfo)
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 % Get the indices for the true state, ensemble mean and spread
 % The metadata is queried to determine which "copy" is appropriate.
@@ -258,4 +254,11 @@ else
    monstr = datestr(dates(1),31);
    xlabel(sprintf('month.day.HH - %s start',monstr))
 end
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

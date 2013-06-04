@@ -16,15 +16,11 @@ function DiffnetCDFstate(file1,file2,outfile)
 % outfile = 'test1_2.diff';
 % DiffnetCDFstate(file1,file2,outfile)
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 %----------------------------------------------------------------------
 % Check for the existence of the two input files.
@@ -74,4 +70,11 @@ else
 end
 
 fclose(fid);
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

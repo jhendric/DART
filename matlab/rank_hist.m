@@ -9,15 +9,11 @@ function bins = rank_hist(ens, verif)
 % diagn_file = 'Prior_Diag.nc';
 % plot_bins
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 % Determine how long the time series is
 num_times = size(ens, 1);
@@ -36,4 +32,11 @@ for i = 1:num_times
    end
    bins(count+1) = bins(count+1) + 1;
 end
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

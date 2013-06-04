@@ -4,11 +4,7 @@
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 %-15     -10     dark green
 %-10     -6      dark olive green
@@ -89,3 +85,11 @@ dbz_color = dbz_color/255;
 colormap(dbz_color)
 
 caxis([-18, 81]);
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
+

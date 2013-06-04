@@ -2,15 +2,11 @@
 %
 %
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 KIND_U = 1;
 KIND_V = 2;
@@ -200,3 +196,11 @@ xlim([(x(1)-0.5) (max(x)+0.5)])
 xlabel(time_unit,'Fontsize',12)
 
 legend('U','V','T')
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
+

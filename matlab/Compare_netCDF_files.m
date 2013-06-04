@@ -9,17 +9,17 @@ function Compare_netCDF_files(file1,file2)
 % If called with two arguments, Compare_netCDF_files will subtract each numeric variable
 % and print a summary of the min/max differences for each variable.
 %
-% $Id$
-%
 % Example:
 %
 % file1   = '/glade/scratch/thoar/clm_2day1hop/run/clm_2day1hop.clm2_0004.r.2000-02-02-00000.nc';
 % file2   = '/glade/scratch/thoar/clm_2day2hop/run/clm_2day2hop.clm2_0004.r.2000-02-02-00000.nc';
 % Compare_netCDF_files(file1,file2)
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
+%
+% $Id$
 
 fid = fopen('Compare_netCDF_files_results.txt','a+');
 fprintf(fid,'\n---\n');
@@ -159,6 +159,7 @@ data = netcdf.getVar(ncid, varid);
 if ( ~ isempty(FillValue) )
    data(data == FillValue) = NaN;
 end
+
 
 % <next few lines under version control, do not edit>
 % $URL$

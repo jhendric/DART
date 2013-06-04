@@ -8,15 +8,11 @@ function pinfo_out = CheckModelCompatibility(arg1, arg2)
 % [start,count] indices for each array (indexing starts at 1,N).
 % It is an error situation if there is no overlap ([-1,-1] for both).
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 if (nargin == 1)      % better be a pinfo struct with at least these fields
   file1 = arg1.truth_file;  % string
@@ -302,4 +298,11 @@ switch lower(modelname)
 	 x = 1;
 
 end
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

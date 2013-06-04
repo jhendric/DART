@@ -5,15 +5,11 @@
 % The beauty of addpath is that if the desired directory is already
 % in your path, nothing happens, so there is no harm trying.
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 %% Adds the netCDF operators if possible
 
@@ -95,4 +91,11 @@ fprintf('the default data directory is          %s\n',mydir)
 fprintf('which means your default TRUTH file is %s\n',truth_file)
 fprintf('and your default    DIAGNOSTIC file is %s\n',diagn_file)
 disp('To change your defaults, set ''truth_file'' and/or ''diagn_file'' accordingly.')
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

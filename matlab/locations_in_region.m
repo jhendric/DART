@@ -19,15 +19,11 @@ function inds = locations_in_region(locations, region)
 % EXAMPLE: vertical subsetting
 % inds = locations_in_region(locations,[0 360 -90 90 0 1000]); % Everything  between 0,1000
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 if (length(region) == 6)
    zmin = min(region(5:6));
@@ -67,3 +63,11 @@ end
 inds = find( (lonlogical .* latlogical .* lvllogical) > 0 );
 
 function a = ReadObsSeq(fname)
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
+

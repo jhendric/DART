@@ -9,15 +9,11 @@ function ens = get_ens_series(fname, varname, state_var_index, tstartind, tendin
 % state_var_index = 3;
 % ens = get_ens_series(fname,varname,state_var_index);
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 
 disp('get_ens_series() is deprecated, use get_hyperslab() instead.')
@@ -63,4 +59,11 @@ ens       = state_vec(:,copyindices);
 
 fprintf('Read %d ensemble members for variable %d in %s\n', ...
              ens_num, state_var_index,fname);
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 
