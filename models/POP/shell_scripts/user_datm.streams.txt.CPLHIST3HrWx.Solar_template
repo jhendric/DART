@@ -1,5 +1,6 @@
-<comment>
+      <comment>
          AK 9/12/13: Stream description template file for CAMASSIM CPL history daily Solar data at 0.9x1.25 resolution for POPDART testing
+      $Id$
       </comment>
       <dataSource>
          CPL
