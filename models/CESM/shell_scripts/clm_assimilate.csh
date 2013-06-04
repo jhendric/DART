@@ -38,7 +38,7 @@ switch ("`hostname`")
       set   LINK = 'ln -fvs'
       set REMOVE = 'rm -fr'
 
-      set BASEOBSDIR = /glade/p/image/Observations/FluxTower
+      set BASEOBSDIR = /glade/p/image/Observations/land
       set DARTDIR    = ${HOME}/svn/DART/dev
       set LAUNCHCMD  = mpirun.lsf
    breaksw
@@ -268,7 +268,7 @@ if ( $PRIOR_INF > 0 ) then
       echo "inf_flavor(1) = $PRIOR_INF, using namelist values."
    else
       # Look for the output from the previous assimilation
-      (ls -rt1 ../clm_${PRIOR_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../clm_${PRIOR_INF_OFNAME}.* | tail -n 1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
@@ -295,7 +295,7 @@ if ( $POSTE_INF > 0 ) then
    else
 
       # Look for the output from the previous assimilation
-      (ls -rt1 ../clm_${POSTE_INF_OFNAME}.* | tail -1 >! latestfile) > & /dev/null
+      (ls -rt1 ../clm_${POSTE_INF_OFNAME}.* | tail -n 1 >! latestfile) > & /dev/null
       set nfiles = `cat latestfile | wc -l`
 
       # If one exists, use it as input for this assimilation
