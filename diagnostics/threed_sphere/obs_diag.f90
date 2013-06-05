@@ -2317,7 +2317,8 @@ MetaDataLoop : do i=1, get_num_copies(seq)
    if(index(metadata,'posterior ensemble spread') > 0) posterior_spread_index = i
    if(index(metadata,'posterior ensemble spread') > 0) posterior_spread_index = i
 
-   if(index(metadata, 'prior ensemble member') > 0) then
+   if(index(metadata, 'prior ensemble member') > 0 .and. &
+      create_rank_histogram ) then
       ens_count = ens_count + 1
       ens_copy_index(ens_count) = i
    endif
