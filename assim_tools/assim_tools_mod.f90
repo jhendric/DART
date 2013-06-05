@@ -358,10 +358,14 @@ endif
 ! performance by rejecting namelist combinations that do unneeded work.
 if (sort_obs_inc) then
    if(deterministic_inflate(inflate) .and. ((filter_kind == 1) .or. (filter_kind == 8))) then
-      write(msgstring,  *) 'sort_obs_inc is unneeded with deterministic filter_kind ', filter_kind
-      write(msgstring2, *) 'the increments are already sorted when inflation is deterministic'
-      call error_handler(E_ERR,'filter_assim:', msgstring, source, revision, revdate, &
-                         text2=msgstring2)
+      write(msgstring,  *) 'With a deterministic filter [assim_tools_nml:filter_kind = ',filter_kind,']'
+      write(msgstring2, *) 'and deterministic inflation [filter_nml:inf_deterministic = .TRUE.]'
+      write(msgstring3, *) 'assim_tools_nml:sort_obs_inc = .TRUE. is not needed and is expensive.'
+      call error_handler(E_MSG,'', '')  ! whitespace
+      call error_handler(E_MSG,'WARNING filter_assim:', msgstring, source, revision, revdate, &
+                         text2=msgstring2,text3=msgstring3)
+      call error_handler(E_MSG,'', '')  ! whitespace
+      sort_obs_inc = .FALSE.
    endif
 endif
 
