@@ -82,7 +82,7 @@
    filter_kind                     = 1,
    cutoff                          = 1.00,
    allow_missing_in_state          = .true.,
-   sort_obs_inc                    = .true.,
+   sort_obs_inc                    = .false.,
    spread_restoration              = .false.,
    sampling_error_correction       = .false.,
    adaptive_localization_threshold = -1,
