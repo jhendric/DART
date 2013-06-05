@@ -118,25 +118,20 @@ computed increment as the distance increases between the obs
 and the state vector item.
 Most users use type 1 localization.
 <table border=0 summary="" cellpadding=0>
-<tr>
-<td>
-<ul>
-<li>Type 1 (Gaspari-Cohn) has a value of 1 at 0 distance, 0 at 2*cutoff, and
-decreases in an approximation of a gaussian in between.
-<br /> <br />
-<li>Type 2 (Boxcar) is 1 from 0 to 2*cutoff, and then 0 beyond.  
-<br /> <br />
-<li>Type 3 (Ramped Boxcar) is 1 to cutoff and then ramps linearly down to 0 at 2*cutoff.
-</ul>   
-</td>
-<td>
-<a href="../doc/images/cutoff_fig.png">
-<img src="../doc/images/cutoff_fig.png" alt="Shapes of Cutoff curves" height=240 border=0 />
-</a>
+<tr><td><ul>
+        <li>Type 1 (Gaspari-Cohn) has a value of 1 at 0 distance, 0 at 2*cutoff, and
+            decreases in an approximation of a gaussian in between.
+            <br /> <br />
+        <li>Type 2 (Boxcar) is 1 from 0 to 2*cutoff, and then 0 beyond.  
+        <br /> <br />
+        <li>Type 3 (Ramped Boxcar) is 1 to cutoff and then ramps linearly down to 0 at 2*cutoff.
+        </ul>   
+    </td>
+    <td><a href="../doc/images/cutoff_fig.png">
+<img src="../doc/images/cutoff_fig.png" alt="Shapes of Cutoff curves" height=240 border=0 /></a>
+     <br />Click image for larger version.
 </tr>
 </table>
-Click image for larger version.
-<br /> <br />
 <dt>
 <em>&amp;location_nml :: horiz_dist_only</em><br />
 valid values:  .true., .false.
@@ -317,7 +312,7 @@ This namelist is read in a file called <em class=file>input.nml</em>
     <!--descript--><TD>Selects the variant of filter 
         to be used. 1=EAKF, 2=ENKF, 3=Kernel filter, 
         4=particle filter,  7=Boxcar kernel filter,
-        8=Rank Histogram Filter. 
+        8=Rank Histogram Filter.
         Default: 1.</TD></TR>
 
 <TR><!--contents--><TD valign=top>cutoff     </TD>
@@ -329,17 +324,20 @@ This namelist is read in a file called <em class=file>input.nml</em>
 
 <TR><!--contents--><TD valign=top>sort_obs_inc </TD>
     <!--  type  --><TD valign=top>logical      </TD>
-    <!--descript--><TD> If true, the final increments from obs_increment are
-                        sorted so that the mean increment value is as small
-                        as possible. This minimizes regression errors when
-                        non-deterministic filter or error correction algorithms
-                        are applied. Default: false.</TD></TR>
+    <!--descript--><TD> If .TRUE., the final increments from obs_increment are
+    sorted so that the mean increment value is as small as possible. This minimizes 
+    regression errors when non-deterministic filters or error correction algorithms 
+    are applied. HOWEVER, when using deterministic filters (filter_kind == 1 or 8) 
+    with no inflation or a combination of a determinstic filter and deterministic 
+    inflation (filter_nml:inf_deterministic = .TRUE.) sorting the increments is 
+    both unnecessary and expensive. A warning is printed to stdout and the log and
+    the sorting is skipped. Default: .FALSE.</TD></TR>
  
 <TR><!--contents--><TD valign=top>spread_restoration </TD>
     <!--  type  --><TD valign=top>logical            </TD>
     <!--descript--><TD> True turns on algorithm to restore amount of spread that would be
              expected to be lost if underlying obs/state variable correlation were really
-             0.  Default: false </TD></TR>
+             0.  Default: .FALSE. </TD></TR>
 
 <TR><!--contents--><TD valign=top>sampling_error_correction</TD>
     <!--  type  --><TD valign=top>logical                  </TD>
@@ -351,7 +349,7 @@ This namelist is read in a file called <em class=file>input.nml</em>
      There is no dependence on which model is being used, only on the number of
      ensemble members.  The input file must exist in the directory where the filter
      program is executing.
-               Default: false </TD></TR>
+               Default: .FALSE. </TD></TR>
 
 <TR><!--contents--><TD valign=top>adaptive_localization_threshold</TD>
     <!--  type  --><TD valign=top>integer</TD>
@@ -383,7 +381,7 @@ This namelist is read in a file called <em class=file>input.nml</em>
      so this file could get very large.  With adaptive localization enabled,
      there will only be one line per observation where the radius is changed,
      so the size of the file will depend on the number of changed cutoffs.
-               Default: .false. </TD></TR>
+               Default: .FALSE. </TD></TR>
 
 <TR><!--contents--><TD valign=top>localization_diagnostics_file</TD>
     <!--  type  --><TD valign=top>character(len=129)</TD>
