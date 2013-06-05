@@ -42,15 +42,11 @@ function plotdat = plot_spread_xxx_evolution(fname, copystring, varargin)
 % obstype    = 'MOORING_TEMPERATURE';
 % plotdat    = plot_spread_xxx_evolution(fname, copystring, obstype);
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 if nargin == 2
    nvars = 0;
@@ -526,3 +522,8 @@ xtrcpt  = ylimits(2) -slope*Dlimits(2);
 yticks        = slope*DYticks + xtrcpt;
 newticklabels = num2str(round(10*yticks')/10);
 
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$

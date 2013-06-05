@@ -18,16 +18,11 @@ function plotdat = plot_rmse_xxx_profile(fname,copystring)
 % copystring = 'totalspread';   % 'copy' string == quantity of interest
 % plotdat = plot_rmse_xxx_profile(fname,copystring);
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL:
-% https://proxy.subversion.ucar.edu/DAReS/DART/trunk/diagnostics/matlab/plot_rmse_xxx_profile.m $
 % $Id$
-% $Revision$
-% $Date$
 
 if (exist(fname,'file') ~= 2)
    error('file/fname <%s> does not exist',fname)
@@ -521,4 +516,11 @@ xtrcpt  = xlimits(2) -slope*Dlimits(2);
 
 xticks        = slope*DXticks + xtrcpt;
 newticklabels = num2str(round(10*xticks')/10);
+
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

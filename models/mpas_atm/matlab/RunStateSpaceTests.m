@@ -1,18 +1,11 @@
 function RunStateSpaceTests(dummy)
 %% RunStateSpaceTests.m
 
-%------------------------------------------------------------
-% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL:
-% https://subversion.ucar.edu/DAReS/DART/branches/mpas/models/cam/matlab/RunStateSpaceTests.m $
 % $Id$
-% $Revision$
-% $Date$
-%------------------------------------------------------------
 
 if (nargin() > 0)
    interactive = 1;
@@ -272,4 +265,10 @@ end
  fprintf('Starting %s\n','PlotJeffCorrel');
  PlotJeffCorrel(pinfo)
  fprintf('Finished %s\n','PlotJeffCorrel')
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

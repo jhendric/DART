@@ -3,7 +3,12 @@ function x = hotres
 %
 % hotres returns a colormap the same size as the current colormap,
 % within reason. 
+
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
+% provided by UCAR, "as is", without charge, subject to all terms of use at
+% http://www.image.ucar.edu/DAReS/DART/DART_download
 %
+% $Id$
 
 x = [ ...
    0 0 1
@@ -206,3 +211,10 @@ x = [ ...
  0.3803922 0 0.5019608
  0.3607843 0 0.5176471
  0.3411765 0 0.5333334];
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
+

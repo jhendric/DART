@@ -42,15 +42,11 @@ function plotdat = plot_evolution(fname, copystring, varargin)
 % copystring = 'rmse';                 % 'copy' string == quantity of interest
 % plotdat    = plot_evolution(fname, copystring, 'RADIOSONDE_TEMPERATURE');
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 if nargin == 2
    nvars = 0;
@@ -549,4 +545,10 @@ else
    fprintf('function not supported for local variables, only global atts.\n')
 end
 
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

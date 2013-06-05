@@ -12,7 +12,7 @@ function [ens_size, ens_indices] = get_ensemble_indices(fname)
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% $Id: get_ensemble_indices.m 5616 2012-03-22 22:42:39Z thoar $
+% $Id$
 
 if ( exist(fname,'file') ~= 2 ), error('%s does not exist.',fname); end
 
@@ -46,8 +46,8 @@ end
 
 
 % <next few lines under version control, do not edit>
-% $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/matlab/get_ensemble_indices.m $
-% $Id: get_ensemble_indices.m 5616 2012-03-22 22:42:39Z thoar $
-% $Revision: 5616 $
-% $Date: 2012-03-22 16:42:39 -0600 (Thu, 22 Mar 2012) $
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

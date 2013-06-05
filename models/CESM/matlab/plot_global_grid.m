@@ -12,15 +12,11 @@ function plot_global_grid(ugrid_file, tgrid_file)
 % plot_global_grid(2); % to plot dipole x3 grid output
 % plot_global_grid(3); % to plot regular grid with same grid as x3 in SH
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 u = read_file(ugrid_file);
 t = read_file(tgrid_file);
@@ -56,3 +52,9 @@ h = plot(chunk.lons, chunk.lats,'.'); set(h,'MarkerSize',0.2)
 h = title(chunk.fname); set(h,'Interpreter','none')
 xlabel(sprintf('%d longitudes',chunk.nx))
 ylabel(sprintf('%d latitudes',chunk.ny))
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$

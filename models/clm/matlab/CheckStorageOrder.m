@@ -5,16 +5,11 @@ function bob = CheckStorageOrder(fname,varname)
 % varname = 'H2OSOI_LIQ';
 % x = CheckStorageOrder(fname,varname);
 
-
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 sparselat = nc_varget(fname,'cols1d_lat');
 sparselon = nc_varget(fname,'cols1d_lon');
@@ -30,3 +25,9 @@ for i = 1:6
    set(h,'Interpreter','none');
    hold on; worldmap; grid; view(0,90)
 end
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$

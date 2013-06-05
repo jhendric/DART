@@ -7,7 +7,7 @@ function CAMTotalError( pinfo )
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% $Id: CAMTotalError.m 5655 2012-04-05 23:17:16Z thoar $
+% $Id$
 
 % Since the models are "compatible", get the info from either one.
 lons       = nc_varget(pinfo.truth_file, 'lon');
@@ -117,8 +117,8 @@ xlabel(xlabelstring)
 
 
 % <next few lines under version control, do not edit>
-% $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/matlab/CAMTotalError.m $
-% $Id: CAMTotalError.m 5655 2012-04-05 23:17:16Z thoar $
-% $Revision: 5655 $
-% $Date: 2012-04-05 17:17:16 -0600 (Thu, 05 Apr 2012) $
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

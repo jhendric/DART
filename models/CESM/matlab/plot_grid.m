@@ -5,15 +5,11 @@ function plot_grid(fname)
 % plot_grid(fname)
 %
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 ulat = nc_varget(fname,'ULAT') * 180/pi;;
 ulon = nc_varget(fname,'ULON') * 180/pi;;
@@ -108,3 +104,9 @@ function myplot(i1,iN,j1,jN,ulon,ulat,tlon,tlat)
 %   h = [h1 h2];
 %  legend('U,V Grid','S,T Grid')
 %  legend boxoff
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$

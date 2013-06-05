@@ -7,7 +7,7 @@ function WRFTotalError( pinfo )
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% $Id: WRFTotalError.m 5686 2012-04-11 00:01:13Z thoar $
+% $Id$
 
 % Get the indices for the true state, ensemble mean and spread
 % The metadata is queried to determine which "copy" is appropriate.
@@ -88,8 +88,8 @@ xlabel(xlabelstring)
 
 
 % <next few lines under version control, do not edit>
-% $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/matlab/WRFTotalError.m $
-% $Id: WRFTotalError.m 5686 2012-04-11 00:01:13Z thoar $
-% $Revision: 5686 $
-% $Date: 2012-04-10 18:01:13 -0600 (Tue, 10 Apr 2012) $
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

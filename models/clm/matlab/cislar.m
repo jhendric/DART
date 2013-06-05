@@ -1,7 +1,12 @@
 function cislar(timeindex)
+%%
+%
 
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
+% provided by UCAR, "as is", without charge, subject to all terms of use at
+% http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-%
+% $Id$
 
 priorfname = '/glade/user/thoar/CLM_leafc/Prior_Diag.nc';
 postefname = '/glade/user/thoar/CLM_leafc/Posterior_Diag.nc';
@@ -53,4 +58,10 @@ function h3 = myplot(x)
 %  set(hx,'FontSize',14)
 %  set(hy,'FontSize',14)
 %  set(h3,'Position',cbarpos)
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
 

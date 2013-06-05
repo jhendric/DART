@@ -1,6 +1,11 @@
 function inds = pmo_explore(experiment,baseday,compday)
+
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
+% provided by UCAR, "as is", without charge, subject to all terms of use at
+% http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-%
+% $Id$
+
 % baseday = 5;
 % compday = 6;
 % cam4_d5 = pmo_explore('CAM4',baseday,compday)
@@ -108,3 +113,9 @@ if (isempty(y))
 else
    z = y(1);
 end
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$

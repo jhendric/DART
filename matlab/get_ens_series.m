@@ -15,9 +15,7 @@ function ens = get_ens_series(fname, varname, state_var_index, tstartind, tendin
 %
 % $Id$
 
-
 disp('get_ens_series() is deprecated, use get_hyperslab() instead.')
-
 
 if (nargin == 3) 
   tstartind =  1;

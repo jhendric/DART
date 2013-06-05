@@ -7,15 +7,11 @@
 % I want to use something more robust than using snlsno == 0 to identify all columns
 % that have no snow.
 
-%% DART software - Copyright 2004 - 2011 UCAR. This open source software is
+%% DART software - Copyright 2004 - 2013 UCAR. This open source software is
 % provided by UCAR, "as is", without charge, subject to all terms of use at
 % http://www.image.ucar.edu/DAReS/DART/DART_download
 %
-% <next few lines under version control, do not edit>
-% $URL$
 % $Id$
-% $Revision$
-% $Date$
 
 % add the 'easy' netcdf support
 
@@ -167,3 +163,9 @@ for i = 1:length(vars2d)
    disp('pausing, hit any key to continue ...'), pause
 
 end
+
+% <next few lines under version control, do not edit>
+% $URL$
+% $Id$
+% $Revision$
+% $Date$
