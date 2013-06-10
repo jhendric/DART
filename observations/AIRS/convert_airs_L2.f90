@@ -1,6 +1,8 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 program convert_airs_L2
 
@@ -32,10 +34,10 @@ type(obs_sequence_type) :: seq
 integer :: io, iunit, index
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 ! ----------------------------------------------------------------------
 ! Declare namelist parameters
@@ -147,4 +149,3 @@ end program convert_airs_L2
 ! $Id$
 ! $Revision$
 ! $Date$
-

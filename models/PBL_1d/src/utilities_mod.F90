@@ -1,14 +1,10 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 module utilities_mod
-
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
 
 !-----------------------------------------------------------------------
 !
@@ -78,10 +74,10 @@ public :: file_exist, get_unit, open_file, timestamp, set_tasknum, &
        DEBUG, MESSAGE, WARNING, FATAL
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 logical, save :: module_initialized = .false.
 integer, save :: logfileunit = -1
@@ -1022,3 +1018,8 @@ end subroutine check_namelist_read
 
 end module utilities_mod
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

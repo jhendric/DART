@@ -1,7 +1,7 @@
-MODULE module_snd_init_and_bc
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_snd_init_and_bc
   USE types_mod,             only: r8
   USE time_manager_mod,      only: time_type, GREGORIAN, &
                                    set_calendar_type, print_time, &
@@ -976,3 +976,8 @@ print*,'got them all? ',got_all_soundings
 
 END MODULE module_snd_init_and_bc
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

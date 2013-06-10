@@ -1,7 +1,7 @@
-MODULE module_initialize
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_initialize
 
   USE module_model_constants
   USE module_ideal
@@ -1392,4 +1392,8 @@ CONTAINS
 
 END MODULE module_initialize
 
-
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

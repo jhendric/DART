@@ -1,7 +1,8 @@
-module module_gfs_physcons
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+module module_gfs_physcons
+
   use module_gfs_machine,only:kind_phys
 !  Physical constants as set in NMC handbook from Smithsonian tables.
 !  Physical constants are given to 5 places.
@@ -41,3 +42,9 @@ module module_gfs_physcons
   real(kind=kind_phys),parameter:: con_xpona   =-con_dldt/con_rv
   real(kind=kind_phys),parameter:: con_xponb   =-con_dldt/con_rv+con_hvap/(con_rv*con_ttp)
 end module module_gfs_physcons
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

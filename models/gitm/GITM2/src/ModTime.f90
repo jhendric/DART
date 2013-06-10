@@ -1,3 +1,7 @@
+! This code may (or may not) be part of the GITM distribution,
+! So it is not protected by the DART copyright agreement.
+!
+! DART $Id$
 
 module ModTime
 
@@ -191,3 +195,9 @@ module ModTime
 !  end subroutine time_real_to_int
 
 end module ModTime
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

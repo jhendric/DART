@@ -1,11 +1,12 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:MODEL_LAYER:PHYSICS
 
 ! Force restore model based on surface energy balance
 ! based on slab with additions
 
 MODULE module_sf_force_restore
-
-! DART $Id$
 
 REAL, PARAMETER :: DIFSL=5.e-7
 
@@ -603,3 +604,9 @@ CONTAINS
 
 
 END MODULE module_sf_force_restore
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

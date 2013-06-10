@@ -1,8 +1,8 @@
-!LWRF:MODEL_LAYER:PHYSICS
-!
-MODULE module_bl_gfs
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
+
+!LWRF:MODEL_LAYER:PHYSICS
+MODULE module_bl_gfs
 !
 CONTAINS
 
@@ -1133,3 +1133,9 @@ CONTAINS
 !-----------------------------------------------------------------------
 
       END MODULE module_bl_gfs
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

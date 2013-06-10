@@ -1,6 +1,8 @@
-!WRF:MODEL_MP:PHYSICS
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
+
+!
+!WRF:MODEL_MP:PHYSICS
 !
 MODULE module_mp_etanew
       USE module_misc, only : wrf_dm_on_monitor
@@ -160,3 +162,9 @@ MODULE module_mp_etanew
 !
   END SUBROUTINE ETAMP_NEW
       END MODULE module_mp_etanew
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

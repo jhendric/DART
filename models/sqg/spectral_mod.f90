@@ -1,3 +1,6 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !============================================================
 ! a module to be used with spectral surface-based models.
 !============================================================
@@ -72,8 +75,7 @@ END MODULE spectral_mod
 !============================================================
 
 ! <next few lines under version control, do not edit>
-! $Date$
-! $Author$
-! $Revision$
+! $URL$
 ! $Id$
-
+! $Revision$
+! $Date$

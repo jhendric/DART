@@ -1,3 +1,9 @@
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
+! provided by UCAR, "as is", without charge, subject to all terms of use at
+! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
+
 program model_to_dart
 
 use        types_mod, only : r8
@@ -10,10 +16,11 @@ use time_manager_mod, only : time_type, set_time
 
 implicit none
 
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+! version controlled file description for error handling, do not edit
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 type(time_type)        :: model_time, target_time
 real(r8), allocatable  :: x_state(:)
@@ -43,3 +50,9 @@ call close_restart(file_unit)
 deallocate(x_state)
 
 end program model_to_dart
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

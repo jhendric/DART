@@ -1,3 +1,6 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !+---+-----------------------------------------------------------------+
 !.. This subroutine computes the moisture tendencies of water vapor,
 !.. cloud droplets, rain, cloud ice (pristine), snow, and graupel.
@@ -21,8 +24,6 @@
 !..
 !..Author: Greg Thompson, NCAR-RAL, gthompsn@ucar.edu, 303-497-2805
 !..Last modified: 26 Oct 2006
-!
-! DART $Id$
 !
 !+---+-----------------------------------------------------------------+
 !wrft:model_layer:physics
@@ -3030,7 +3031,7 @@
 
       END FUNCTION RSIF
 !+---+-----------------------------------------------------------------+
-END MODULE module_mp_thompson
+      END MODULE module_mp_thompson
 !+---+-----------------------------------------------------------------+
 !
 ! MODIFICATIONS TO MAKE IN OTHER MODULES
@@ -3075,3 +3076,9 @@ END MODULE module_mp_thompson
 !
 !    CASE (THOMPSON)
 !        CALL thompson_init
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

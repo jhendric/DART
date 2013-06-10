@@ -1,3 +1,8 @@
+! This code may (or may not) be part of the GITM distribution,
+! So it is not protected by the DART copyright agreement.
+!
+! DART $Id$
+
 !^CFG COPYRIGHT UM
 !BOP
 !MODULE: ModKind - define various precisions in a machine independent way
@@ -27,3 +32,9 @@ module ModKind
 
   !EOP
 end module ModKind
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

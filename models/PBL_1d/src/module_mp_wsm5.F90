@@ -1,8 +1,8 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !Including inline expansion statistical function 
 MODULE module_mp_wsm5
-!
-! DART $Id$
-!
    USE module_misc
 !
 !
@@ -141,3 +141,9 @@ CONTAINS
 
   END SUBROUTINE wsm5
 END MODULE module_mp_wsm5
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

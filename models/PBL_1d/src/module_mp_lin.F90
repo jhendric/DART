@@ -1,9 +1,9 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:MODEL_LAYER:PHYSICS
 !
 MODULE module_mp_lin
-!
-! DART $Id$
-!
 
    USE     module_wrf_error
 !
@@ -2485,3 +2485,8 @@ CONTAINS
 
 END MODULE module_mp_lin
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

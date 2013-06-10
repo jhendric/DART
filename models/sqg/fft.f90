@@ -1,3 +1,6 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 ! ======================================================================
 ! NIST Guide to Available Math Software.
 ! Source for module FFT from package GO.
@@ -559,4 +562,3 @@
 ! $Id$
 ! $Revision$
 ! $Date$
-

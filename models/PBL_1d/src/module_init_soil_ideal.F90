@@ -1,7 +1,7 @@
-MODULE module_init_soil_ideal
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_init_soil_ideal
 
 ! Module takes care of driving the soil initialization for the ideal
 ! case.
@@ -278,3 +278,8 @@ END SUBROUTINE init_soil_ideal
 
 END MODULE module_init_soil_ideal
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

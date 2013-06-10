@@ -1,8 +1,9 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:MODEL_LAYER:PHYSICS
 !
 MODULE module_sf_slab
-!
-! DART $Id$
 !
 !---SPECIFY CONSTANTS AND LAYERS FOR SOIL MODEL
 !---SOIL DIFFUSION CONSTANT SET (M^2/S)
@@ -538,3 +539,9 @@ CONTAINS
 !-------------------------------------------------------------------          
 
 END MODULE module_sf_slab
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

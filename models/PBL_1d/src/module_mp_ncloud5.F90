@@ -1,7 +1,7 @@
-MODULE module_mp_ncloud5
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_mp_ncloud5
    REAL, PARAMETER, PRIVATE :: dtcldcr     = 240.
    INTEGER, PARAMETER, PRIVATE :: mstepmax = 100
 
@@ -945,3 +945,8 @@ CONTAINS
 
 END MODULE module_mp_ncloud5
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

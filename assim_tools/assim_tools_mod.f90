@@ -1,14 +1,11 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 module assim_tools_mod
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
  
 ! A variety of operations required by assimilation.
 
@@ -79,12 +76,13 @@ character(len = 255)   :: msgstring, msgstring2, msgstring3
 
 ! Need to read in table for off-line based sampling correction and store it
 logical                :: first_get_correction = .true.
-real(r8)               :: exp_true_correl(200), alpha(200)                                                                      
+real(r8)               :: exp_true_correl(200), alpha(200)
+
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 !============================================================================
 
@@ -2583,3 +2581,9 @@ end function count_close
 !========================================================================
 
 end module assim_tools_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

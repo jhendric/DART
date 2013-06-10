@@ -1,7 +1,8 @@
-      MODULE MODULE_GFS_MACHINE
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+      MODULE MODULE_GFS_MACHINE
+
       IMPLICIT NONE
       SAVE
 !  Machine dependant constants
@@ -16,3 +17,9 @@
       parameter(mprec  = 1.e-12 )
 
       END MODULE MODULE_GFS_MACHINE
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

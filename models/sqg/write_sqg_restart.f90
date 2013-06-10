@@ -1,9 +1,15 @@
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
+! provided by UCAR, "as is", without charge, subject to all terms of use at
+! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
+
+program write_sqg_restart
+
 !============================================================
 ! read in the model state from a netCDF file and write out 
 ! to a DART readable restart file
 !============================================================
-
-program write_sqg_restart
 
    use        types_mod, only : r8
    use    utilities_mod, only : initialize_utilities, finalize_utilities
@@ -15,6 +21,12 @@ program write_sqg_restart
    use          sqg_mod, only : init, xy_to_sp, sp_to_xy, write_diag
 
    implicit none
+
+! version controlled file description for error handling, do not edit
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
    integer :: model_unit, model_size, model_days, model_seconds
 
@@ -130,4 +142,3 @@ end program write_sqg_restart
 ! $Id$
 ! $Revision$
 ! $Date$
-

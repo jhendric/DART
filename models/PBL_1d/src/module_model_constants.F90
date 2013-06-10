@@ -1,7 +1,8 @@
-!WRF:MODEL_LAYER:CONSTANTS
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+!WRF:MODEL_LAYER:CONSTANTS
+
  MODULE module_model_constants
 
    !  2. Following are constants for use in defining real number bounds.
@@ -136,3 +137,9 @@
    SUBROUTINE init_module_model_constants
    END SUBROUTINE init_module_model_constants
  END MODULE module_model_constants
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

@@ -1,4 +1,8 @@
+C This code is not protected by the DART copyright agreement.
+C DART $Id$
+
       program grabbufr
+
 C$$$  MAIN PROGRAM DOCUMENTATION BLOCK
 C
 C MAIN PROGRAM:  grabbufr
@@ -407,3 +411,9 @@ C-----------------------------------------------------------------------
  
       RETURN
       END
+
+C <next few lines under version control, do not edit>
+C $URL$
+C $Id$
+C $Revision$
+C $Date$

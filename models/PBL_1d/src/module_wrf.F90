@@ -1,7 +1,7 @@
-MODULE module_wrf
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_wrf
 ! Primary WRF column model driver.  All memory allocations are done in here.
 
   USE module_model_constants
@@ -3077,3 +3077,9 @@ END SUBROUTINE output_wrf_profiles
 
 
 END MODULE module_wrf
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

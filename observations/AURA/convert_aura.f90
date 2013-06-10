@@ -1,8 +1,12 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !     Nick Pedatella
 !     Program to convert Aura Temperature data to DART Observation
 !     sequence files. 
 
 program convert_aura
+
 use        types_mod, only : r8
 use time_manager_mod, only : time_type, set_calendar_type, GREGORIAN, set_time,&
                              increment_time, get_time, set_date, operator(-),  &
@@ -30,10 +34,10 @@ use           netcdf
 implicit none
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 integer, parameter :: num_copies = 1,   &   ! number of copies in sequence
                       num_qc     = 1        ! number of QC entries
@@ -327,3 +331,8 @@ end subroutine
 
 end program
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

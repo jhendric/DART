@@ -1,7 +1,7 @@
-MODULE module_mp_wsm3
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_mp_wsm3
    USE module_misc
 !
 !
@@ -135,3 +135,9 @@ CONTAINS
   
   END SUBROUTINE wsm3
 END MODULE module_mp_wsm3
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

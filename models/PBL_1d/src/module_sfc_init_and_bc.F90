@@ -1,7 +1,7 @@
-MODULE module_sfc_init_and_bc
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_sfc_init_and_bc
   USE time_manager_mod,      only: time_type, GREGORIAN, &
                                    set_calendar_type, print_time, &
                                    print_date, set_date, set_time, &
@@ -381,3 +381,9 @@ stop 'sfc_init_and_bc'
 !------------------------------------------------------------------------
 
 END MODULE module_sfc_init_and_bc
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

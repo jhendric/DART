@@ -1,14 +1,10 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
  
 PROGRAM dart_to_wrf
-
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
 
 use        types_mod, only : r8, missing_r8, PI, DEG2RAD
 use time_manager_mod, only : time_type, write_time, get_date, julian_day, &
@@ -30,10 +26,10 @@ use                          netcdf
 implicit none
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 !-----------------------------------------------------------------------
 ! dart_to_wrf namelist parameters with default values.
@@ -375,3 +371,9 @@ write(logfileunit,*)
 call finalize_utilities('dart_to_wrf')   ! closes log file.
 
 end PROGRAM dart_to_wrf
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

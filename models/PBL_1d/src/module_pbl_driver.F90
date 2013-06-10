@@ -1,9 +1,9 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:MEDIATION_LAYER:PHYSICS
 !
 MODULE module_pbl_driver
-!
-! DART $Id$
-!
 CONTAINS
 
 !------------------------------------------------------------------
@@ -553,3 +553,9 @@ CONTAINS
 !
    END SUBROUTINE pbl_driver
 END MODULE module_pbl_driver
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

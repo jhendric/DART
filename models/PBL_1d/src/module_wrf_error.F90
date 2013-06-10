@@ -1,10 +1,10 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:DRIVER_LAYER:UTIL
 !
 
 MODULE module_wrf_error
-!
-! DART $Id$
-!
 INTEGER           :: wrf_debug_level = 0
 CHARACTER*256     :: wrf_err_message
 
@@ -93,3 +93,8 @@ SUBROUTINE wrf_abort
       STOP 'wrf_abort'
 END SUBROUTINE wrf_abort
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

@@ -1,7 +1,8 @@
-MODULE module_wrf_init_and_bc
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_wrf_init_and_bc
+
   USE types_mod,             only: r8
   USE time_manager_mod,      only: time_type, GREGORIAN, &
                                    set_calendar_type, print_time, &
@@ -1904,4 +1905,8 @@ CONTAINS
 
 END MODULE module_wrf_init_and_bc
 
-  
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

@@ -1,7 +1,7 @@
-MODULE module_namelist
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_namelist
   USE module_model_constants
 
   IMPLICIT NONE
@@ -259,3 +259,8 @@ CONTAINS
 
 END MODULE module_namelist
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

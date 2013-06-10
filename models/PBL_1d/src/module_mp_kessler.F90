@@ -1,7 +1,10 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
+!
 !WRF:MODEL_LAYER:PHYSICS
 !
-! DART $Id$
-!
+
 MODULE module_mp_kessler
 
 CONTAINS
@@ -243,3 +246,9 @@ CONTAINS
   END SUBROUTINE kessler
 
 END MODULE module_mp_kessler
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

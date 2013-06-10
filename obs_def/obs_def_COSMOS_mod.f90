@@ -1,6 +1,8 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 !----------------------------------------------------------------------
 ! This module provides support for observations from COSMOS.
@@ -66,12 +68,6 @@
 ! BEGIN DART PREPROCESS MODULE CODE
 module obs_def_COSMOS_mod
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use        types_mod, only : r8, PI, metadatalength, MISSING_R8
 use    utilities_mod, only : register_module, error_handler, E_ERR, E_WARN, E_MSG, &
                              logfileunit, get_unit, open_file, close_file, nc_check, &
@@ -97,10 +93,10 @@ public ::            set_cosmos_metadata, &
           get_expected_neutron_intensity
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 character(len=256) :: string1, string2
 logical, save      :: module_initialized = .false.
@@ -781,3 +777,8 @@ end module obs_def_COSMOS_mod
 
 ! END DART PREPROCESS MODULE CODE
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

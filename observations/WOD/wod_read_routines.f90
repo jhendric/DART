@@ -1,10 +1,7 @@
-     module WOD_read_routines_mod      
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
+     module WOD_read_routines_mod      
 
 !    calls the subroutine WODread (WODread200X if the data file are in WOD05
 !    or WOD01 format or the subroutine WODread1998 if the data are in WOD98
@@ -934,3 +931,9 @@ private
       end subroutine
 
       end module WOD_read_routines_mod      
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

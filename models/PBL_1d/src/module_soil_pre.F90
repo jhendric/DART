@@ -1,7 +1,7 @@
-MODULE module_soil_pre
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_soil_pre
 CONTAINS
 
    SUBROUTINE process_percent_cat ( xland , &
@@ -1102,3 +1102,9 @@ END SUBROUTINE init_soil_0_real
    END FUNCTION char2int2
 
 END MODULE module_soil_pre
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

@@ -1,3 +1,6 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !========================================================================
 ! Uniform-PV two-surface QG+1 model in spectral form (Hakim 2000)
 !========================================================================
@@ -1505,8 +1508,7 @@ END MODULE sqg_mod
 !========================================================================
 
 ! <next few lines under version control, do not edit>
-! $Date$
-! $Author$
-! $Revision$
+! $URL$
 ! $Id$
-
+! $Revision$
+! $Date$

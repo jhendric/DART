@@ -1,8 +1,9 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !----------------------------------------------------------------------
 !
 MODULE MODULE_SF_MYJSFC_fluxforce
-!
-! DART $Id$
 !
 !----------------------------------------------------------------------
 !
@@ -1035,3 +1036,9 @@ CONTAINS
     END MODULE MODULE_SF_MYJSFC_FLUXFORCE
 !
 !----------------------------------------------------------------------
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

@@ -1,6 +1,8 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 ! BEGIN DART PREPROCESS KIND LIST
 ! RAW_STATE_VARIABLE,    KIND_RAW_STATE_VARIABLE, COMMON_CODE
@@ -35,12 +37,6 @@
 ! BEGIN DART PREPROCESS MODULE CODE
 module obs_def_1d_state_mod
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 ! This code currently does not require a namelist, but to add one search for
 ! the string 'NML' and comment in the code lines in the 4 marked sections.
 
@@ -73,11 +69,11 @@ integer,  allocatable :: localization_type(:)  ! ditto
 logical :: debug = .false.
 
 
-! Version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+! version controlled file description for error handling, do not edit
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 logical, save :: module_initialized = .false.
 
@@ -408,4 +404,11 @@ end subroutine
 !----------------------------------------------------------------------
 
 end module obs_def_1d_state_mod
+
 ! END DART PREPROCESS MODULE CODE
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

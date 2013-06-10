@@ -1,8 +1,7 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
 
 MODULE module_ra_rrtm
-!
-! DART $Id$
-!
 ! Parameters
 
       INTEGER, PRIVATE :: IDATA
@@ -7420,3 +7419,9 @@ IMPLICIT NONE
 !------------------------------------------------------------------
 
 END MODULE module_ra_rrtm
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

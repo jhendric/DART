@@ -1,6 +1,8 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 program restart_file_tool
 
@@ -34,10 +36,10 @@ use mpi_utilities_mod,    only : initialize_mpi_utilities, task_count,     &
 implicit none
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 integer                 :: iunit, model_size, io, member
 type(ensemble_type)     :: ens_handle
@@ -405,4 +407,3 @@ end program restart_file_tool
 ! $Id$
 ! $Revision$
 ! $Date$
-

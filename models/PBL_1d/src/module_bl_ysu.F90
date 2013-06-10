@@ -1,8 +1,9 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !wrf:model_layer:physics
 !
 module module_bl_ysu
-!
-! DART $Id$
 !
 contains
 !
@@ -1363,3 +1364,9 @@ contains
    end subroutine ysuinit
 !-------------------------------------------------------------------
 end module module_bl_ysu
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

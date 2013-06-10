@@ -1,8 +1,9 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:MODEL_LAYER:PHYSICS
 !
 MODULE module_sf_sfcdiags
-!
-! DART $Id$
 !
 CONTAINS
 
@@ -47,3 +48,9 @@ CONTAINS
   END SUBROUTINE SFCDIAGS
 
 END MODULE module_sf_sfcdiags
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

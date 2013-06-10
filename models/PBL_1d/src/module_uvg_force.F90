@@ -1,7 +1,8 @@
-MODULE module_uvg_force
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_uvg_force
+
   USE time_manager_mod,      only: time_type, GREGORIAN, &
                                    set_calendar_type, print_time, &
                                    print_date, set_date, set_time, &
@@ -1006,3 +1007,8 @@ CONTAINS
 
 END MODULE module_uvg_force
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

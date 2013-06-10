@@ -1,7 +1,7 @@
-MODULE module_nr_procedures
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_nr_procedures
   IMPLICIT NONE
 
 CONTAINS
@@ -262,3 +262,9 @@ CONTAINS
 11    continue
       return
     END SUBROUTINE rank
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

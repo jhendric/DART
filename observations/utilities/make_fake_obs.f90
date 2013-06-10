@@ -1,6 +1,8 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 program make_fake_obs
 
@@ -37,14 +39,11 @@ use      obs_kind_mod, only : PRESSURE,                   &
 
 implicit none
 
-!-------------------------------------------------------------------------------
 ! version controlled file description for error handling, do not edit
-!-------------------------------------------------------------------------------
-
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 character(len=256) :: string1, string2, string3
 integer, parameter :: stringlength = 32
@@ -500,4 +499,3 @@ end program make_fake_obs
 ! $Id$
 ! $Revision$
 ! $Date$
-

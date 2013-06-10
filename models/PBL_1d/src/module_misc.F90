@@ -1,7 +1,9 @@
-MODULE module_misc
-! miscellaneous subroutines and functions for WRF compatibility
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
+
+MODULE module_misc
+!
+! miscellaneous subroutines and functions for WRF compatibility
 !
 CONTAINS
 
@@ -396,3 +398,8 @@ CONTAINS
 
 END MODULE module_misc
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

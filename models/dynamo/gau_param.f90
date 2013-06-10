@@ -1,8 +1,14 @@
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
+! provided by UCAR, "as is", without charge, subject to all terms of use at
+! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
+
+module gau_param
+
 ! Update vector with a Gaussian noise.
 ! x(i) *= (1. + G * gaussian)
  
-module gau_param
-
 use random_seq_mod, only : random_seq_type, init_random_seq, random_gaussian
 
 implicit none
@@ -83,3 +89,9 @@ call march_ahead( )
 call model_output( )
 
 end program gau_param_main
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

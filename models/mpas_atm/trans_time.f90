@@ -1,14 +1,10 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 program trans_time
-
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
 
 !----------------------------------------------------------------------
 ! purpose: extract two times from the start of a DART 'state vector'
@@ -32,10 +28,10 @@ use time_manager_mod, only : time_type, read_time, write_time, &
 implicit none
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 integer :: in_unit, out_unit, year, month, day, hour, minute, second
 integer :: ios_out
@@ -159,3 +155,9 @@ end function open_restart_for_time
 
 
 end program trans_time
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

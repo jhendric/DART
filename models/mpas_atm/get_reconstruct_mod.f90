@@ -1,15 +1,9 @@
-!
 ! This code may (or may not) be part of the MPAS distribution,
 ! So it is not protected by the DART copyright agreement.
 !
+! DART $Id$
 
 module get_reconstruct_mod
-
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
 
   use types_mod, only : r8
   use get_coeff_mod
@@ -158,3 +152,9 @@ module get_reconstruct_mod
   end subroutine get_reconstruct
 
 end module get_reconstruct_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

@@ -1,8 +1,9 @@
-!WRF:MEDIATION_LAYER:PHYSICS
-!
-MODULE module_radiation_driver
-
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
+
+!WRF:MEDIATION_LAYER:PHYSICS
+
+MODULE module_radiation_driver
 
 CONTAINS
 !BOP
@@ -1294,3 +1295,9 @@ CONTAINS
    END SUBROUTINE cal_cldfra2
 
 END MODULE module_radiation_driver
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

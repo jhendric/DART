@@ -1,7 +1,8 @@
-MODULE module_ideal
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_ideal
+
 REAL,PARAMETER :: PI=3.1415926
 
 CONTAINS
@@ -64,3 +65,9 @@ CONTAINS
   END FUNCTION qsat
   
 END MODULE module_ideal
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

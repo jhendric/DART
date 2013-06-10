@@ -1,9 +1,9 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:MODEL_LAYER:PHYSICS
 !
 MODULE module_ra_sw
-!
-! DART $Id$
-!
 ! REAL,PRIVATE,SAVE :: CSSCA
   REAL,SAVE :: CSSCA
 
@@ -491,3 +491,9 @@ CONTAINS
    END SUBROUTINE swinit
 
 END MODULE module_ra_sw
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

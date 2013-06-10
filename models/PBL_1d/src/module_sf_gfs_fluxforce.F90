@@ -1,9 +1,10 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:MODEL_LAYER:PHYSICS
 !
 MODULE module_sf_gfs_fluxforce
-!
-! DART $Id$
-!
+
 USE module_sf_gfs
 
 CONTAINS
@@ -1596,3 +1597,9 @@ CONTAINS
 !
 
     END MODULE module_sf_gfs_fluxforce
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

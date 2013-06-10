@@ -1,9 +1,9 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:MEDIATION_LAYER:PHYSICS
 !
-
 MODULE module_surface_driver
-!
-! DART $Id$
 !
 USE module_ideal
 
@@ -1062,3 +1062,8 @@ CONTAINS
    
  END MODULE module_surface_driver
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

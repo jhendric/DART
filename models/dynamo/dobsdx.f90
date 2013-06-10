@@ -1,9 +1,16 @@
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
+! provided by UCAR, "as is", without charge, subject to all terms of use at
+! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
+
+program prog_dobsdx
+
 !-----------------------------------------------------------
 ! Numerically differentiate the observation values for small
 ! change in input vector component. Used to interpolate 
 ! observation.
 
-program prog_dobsdx
 implicit none
 real(8)        :: deltax = 0.1_8, x
 real(8),allocatable :: obsx(:), obsxpd(:), dobsdx(:), locx(:)
@@ -11,6 +18,7 @@ character(128) :: file_in ='obsval.dat.bck'
 character(128) :: file_out ='obsval.dat'
 character(128) :: file_x ='model.in.bck'
 integer :: nobs,i,j
+
 nobs = 0
 open(11,file=trim(file_in),status='old')
 do
@@ -37,3 +45,9 @@ do i = 1, nobs
 enddo
 close(12)
 end program prog_dobsdx
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

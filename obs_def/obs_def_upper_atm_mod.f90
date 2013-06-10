@@ -1,6 +1,8 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 ! BEGIN DART PREPROCESS KIND LIST
 ! SAT_TEMPERATURE,           KIND_TEMPERATURE,           COMMON_CODE
@@ -115,10 +117,10 @@ public :: get_expected_upper_atm_density, &
           get_expected_vtec
 
 ! version controlled file description for error handling, do not edit
-character(len=128) :: &
-source   = "$URL$", &
-revision = "$Revision$", &
-revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 
 real(r8), PARAMETER       :: universal_gas_constant = 8314.0_r8 ! [J/K/kmol]
@@ -267,11 +269,11 @@ call error_handler(E_ERR, 'get_expected_vtec', 'routine needs to be written', &
 
 end subroutine get_expected_vtec
 
+end module obs_def_upper_atm_mod
+! END DART PREPROCESS MODULE CODE      
+
 ! <next few lines under version control, do not edit>
 ! $URL$
 ! $Id$
 ! $Revision$
 ! $Date$
-
-end module obs_def_upper_atm_mod
-! END DART PREPROCESS MODULE CODE      

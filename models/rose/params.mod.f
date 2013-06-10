@@ -1,3 +1,5 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
 
 ! This is the only file from the rose source distribution needed
 ! for the DART interfaces. It is included only so that we can build
@@ -48,4 +50,3 @@
 ! $Id$
 ! $Revision$
 ! $Date$
-

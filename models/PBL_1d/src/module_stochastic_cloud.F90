@@ -1,8 +1,8 @@
-!
-MODULE module_stochastic_cloud
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_stochastic_cloud
+
 CONTAINS
 !---------------------------------------------------------------------
 ! 
@@ -247,3 +247,9 @@ CONTAINS
 !---------------------------------------------------------------------
 !---------------------------------------------------------------------
 END MODULE module_stochastic_cloud
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

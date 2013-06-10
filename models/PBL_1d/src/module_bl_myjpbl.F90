@@ -1,3 +1,6 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !-----------------------------------------------------------------------
 !
       MODULE MODULE_BL_MYJPBL
@@ -19,8 +22,6 @@
 !     THE SURFACE AND FOR ALL LAYER INTERFACES ARE COMPUTED FROM
 !     MONIN-OBUKHOV THEORY.
 !     THE TURBULENT VERTICAL EXCHANGE IS THEN EXECUTED.
-!
-! DART $Id$
 !
 !-----------------------------------------------------------------------
 !
@@ -1597,7 +1598,7 @@
       ENDDO
 !----------------------------------------------------------------------
 !
-    END SUBROUTINE VDIFH_FLUXFORCE
+      END SUBROUTINE VDIFH_FLUXFORCE
 
 
 
@@ -1606,3 +1607,9 @@
       END MODULE MODULE_BL_MYJPBL
 !
 !-----------------------------------------------------------------------
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

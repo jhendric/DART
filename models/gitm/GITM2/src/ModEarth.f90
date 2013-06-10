@@ -1,3 +1,7 @@
+! This code may (or may not) be part of the GITM distribution,
+! So it is not protected by the DART copyright agreement.
+!
+! DART $Id$
 
 module ModPlanet
 
@@ -303,3 +307,9 @@ contains
   end subroutine init_topography
 
 end module ModPlanet
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

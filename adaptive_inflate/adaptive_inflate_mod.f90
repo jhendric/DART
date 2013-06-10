@@ -1,15 +1,11 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$ 
 
 module adaptive_inflate_mod
 
-! <next few lines under version control, do not edit>
-! $URL$ 
-! $Id$ 
-! $Revision$ 
-! $Date$ 
-!
 ! Operations and storage required for various adaptive inflation algorithms
 
 use types_mod,            only : r8, PI, missing_r8
@@ -33,10 +29,10 @@ public :: update_inflation,           adaptive_inflate_end,          do_obs_infl
 
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 ! Manages both observation space and state space inflation
 ! Handles initial values and restarts, diagnostic output, and computations
@@ -979,3 +975,9 @@ end subroutine solve_quadratic
 !========================================================================
 
 end module adaptive_inflate_mod
+
+! <next few lines under version control, do not edit>
+! $URL$ 
+! $Id$ 
+! $Revision$ 
+! $Date$ 

@@ -1,7 +1,7 @@
-MODULE module_init_soil_real_fluxforce
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_init_soil_real_fluxforce
 
 ! Module takes care of driving the soil initialization for the ideal
 ! case.
@@ -171,3 +171,8 @@ CONTAINS
 
 END MODULE module_init_soil_real_fluxforce
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

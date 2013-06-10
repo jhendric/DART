@@ -1,7 +1,8 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !-------------------------------------------------------------------------------
 module module_gfs_funcphys
-!
-! DART $Id$
 !
 !$$$  Module Documentation Block
 !
@@ -2936,3 +2937,9 @@ contains
   end subroutine
 !-------------------------------------------------------------------------------
 end module module_gfs_funcphys
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

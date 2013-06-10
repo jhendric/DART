@@ -1,12 +1,12 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 MODULE module_sf_urban
 
 !===============================================================================
 ! Single-Layer Urban Canopy Model for WRF Noah-LSM
 ! Original Version: 2002/11/06 by Hiroyuki Kusaka
 ! Last Update:      2006/08/24 by Fei Chen and Mukul Tewari (NCAR/RAL)  
-!
-! DART $Id$
-!
 !===============================================================================
 
    CHARACTER(LEN=4)                :: LU_DATA_TYPE
@@ -1696,3 +1696,9 @@ ENDIF
 END SUBROUTINE bisection
 !===========================================================================
 END MODULE module_sf_urban
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

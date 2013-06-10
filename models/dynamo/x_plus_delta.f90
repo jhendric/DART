@@ -1,6 +1,13 @@
-! Just add deltax to x, to calculate d/dx (observation)
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
+! provided by UCAR, "as is", without charge, subject to all terms of use at
+! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 program x_plus_delta
+
+! Just add deltax to x, to calculate d/dx (observation)
+
 implicit none
 integer, parameter   :: r8 = selected_real_kind(14,30)
 
@@ -27,3 +34,9 @@ close(11)
 close(12)
 
 end program x_plus_delta
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

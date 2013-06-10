@@ -1,7 +1,8 @@
-MODULE module_sf_noahlsm
-! 
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_sf_noahlsm
+
   USE module_misc
   USE module_model_constants
 
@@ -5390,3 +5391,9 @@ CONTAINS
 ! ----------------------------------------------------------------------         
 
 END MODULE module_sf_noahlsm
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

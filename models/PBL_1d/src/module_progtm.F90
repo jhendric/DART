@@ -1,7 +1,8 @@
-      module module_progtm
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+      module module_progtm
+
       USE MODULE_GFS_MACHINE , ONLY : kind_phys
       implicit none
       SAVE
@@ -94,3 +95,9 @@
       END SUBROUTINE
 !
       end module module_progtm
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

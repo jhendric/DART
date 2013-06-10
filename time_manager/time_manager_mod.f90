@@ -1,14 +1,10 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 module time_manager_mod
-
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
 
 use     types_mod, only : missing_i, digits12, i8
 use utilities_mod, only : error_handler, E_DBG, E_MSG, E_WARN, E_ERR, &
@@ -92,10 +88,10 @@ public :: time_manager_init, print_time, print_date
 public :: write_time, read_time, interactive_time
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 ! Global data to define calendar type
 integer, parameter :: THIRTY_DAY_MONTHS = 1,      JULIAN = 2, &
@@ -3233,3 +3229,8 @@ end subroutine time_index_sort
 
 end module time_manager_mod
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

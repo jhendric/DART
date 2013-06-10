@@ -1,14 +1,10 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 program level4_to_obs
-
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
 
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 !
@@ -46,14 +42,11 @@ use      obs_kind_mod, only : TOWER_SENSIBLE_HEAT_FLUX, &
 
 implicit none
 
-!-----------------------------------------------------------------------
 ! version controlled file description for error handling, do not edit
-!-----------------------------------------------------------------------
-
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 !-----------------------------------------------------------------------
 ! Namelist with default values
@@ -803,3 +796,9 @@ end program level4_to_obs
 !                    3 = not filled using ANN due to one or more input missed but filled with the MDS method
 ! - GPP_or_ ANN    : Gross Primary Production calculated as GPP_or_ ANN = Reco_or - NEE_or_ ANN
 !                    [umolCO2 m-2 s-1]
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

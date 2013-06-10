@@ -1,16 +1,10 @@
-!
 ! This code may (or may not) be part of the MPAS distribution,
 ! So it is not protected by the DART copyright agreement.
 !
+! DART $Id$
 
   module get_coeff_mod
 
-! <next few lines under version control, do not edit>
-! $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/models/mpas_atm/get_coeff_mod.f90 $
-! $Id: get_coeff_mod.f90 5529 2012-01-24 20:44:43Z mpratola $
-! $Revision: 5529 $
-! $Date: 2012-01-24 13:44:43 -0700 (Tue, 24 Jan 2012) $
- 
   use types_mod, only : r8
   use utilities_mod, only : error_handler, E_ERR
 
@@ -21,12 +15,10 @@
   public :: mpas_rbf_interp_func_3D_plane_vec_const_dir_comp_coeffs
 
 ! version controlled file description for error handling, do not edit
-
-   character(len=128), parameter :: &
-   source   = '$URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/models/mpas_atm/get_coeff_mod.f90 $', &
-   revision = '$Revision: 5529 $', &
-   revdate  = '$Date: 2012-01-24 13:44:43 -0700 (Tue, 24 Jan 2012) $'
-
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
   character(len=256) :: string1
 
@@ -300,3 +292,9 @@ subroutine elgs (A,N,INDX)
 END subroutine elgs
 
 end module get_coeff_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

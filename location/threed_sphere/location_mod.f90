@@ -1,14 +1,10 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 module location_mod
-
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
 
 ! Implements location interfaces for a three dimensional spherical shell 
 ! with a pressure vertical coordinate plus
@@ -49,10 +45,10 @@ public :: location_type, get_location, set_location, &
           VERTISHEIGHT, VERTISSCALEHEIGHT, print_get_close_type, horiz_dist_only
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$URL$", &
-   revision = "$Revision$", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 ! The possible values for the location_type%which_vert component.
 ! These are intended to be PRIVATE to this module. Do not make public.
@@ -2246,3 +2242,9 @@ end function has_vertical_localization
 !----------------------------------------------------------------------------
 
 end module location_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

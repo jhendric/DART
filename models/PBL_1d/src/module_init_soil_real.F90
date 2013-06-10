@@ -1,7 +1,7 @@
-MODULE module_init_soil_real
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_init_soil_real
 
 ! Module takes care of driving the soil initialization for the ideal
 ! case.
@@ -755,3 +755,8 @@ print*,tslb_init_f(:,itime_f)
 
 END MODULE module_init_soil_real
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

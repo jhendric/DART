@@ -1,6 +1,8 @@
-! DART software - Copyright 2004 - 2011 UCAR. This open source software is
+! DART software - Copyright 2004 - 2013 UCAR. This open source software is
 ! provided by UCAR, "as is", without charge, subject to all terms of use at
 ! http://www.image.ucar.edu/DAReS/DART/DART_download
+!
+! $Id$
 
 ! BEGIN DART PREPROCESS KIND LIST
 ! TEMPERATURE,          KIND_TEMPERATURE,         COMMON_CODE
@@ -43,12 +45,6 @@
 ! BEGIN DART PREPROCESS MODULE CODE
 module obs_def_TES_nadir_mod
 
-! <next few lines under version control, do not edit>
-! $URL$
-! $Id$
-! $Revision$
-! $Date$
-
 use        types_mod, only : r8, missing_r8, PI, DEG2RAD
 use    utilities_mod, only : register_module, error_handler, E_ERR, E_WARN, E_MSG, &
                              check_namelist_read, find_namelist_in_file, &
@@ -74,10 +70,10 @@ public :: set_TES_nadir, get_TES_nadir, write_TES_nadir_obs, read_TES_nadir_obs,
           interactive_TES_nadir_obs, get_expected_TES_nadir_obs
 
 ! version controlled file description for error handling, do not edit
-character(len=128), parameter :: &
-   source   = "$ /export/scratch01/wglawson/dart_080723/obs_def/obs_def_TES_nadir_mod.f90 $", &
-   revision = "$NOT committed yet $", &
-   revdate  = "$Date$"
+character(len=256), parameter :: source   = &
+   "$URL$"
+character(len=32 ), parameter :: revision = "$Revision$"
+character(len=128), parameter :: revdate  = "$Date$"
 
 logical, save :: module_initialized = .false.
 
@@ -1306,5 +1302,8 @@ end module obs_def_TES_nadir_mod
 
 ! END DART PREPROCESS MODULE CODE
 
-
-
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

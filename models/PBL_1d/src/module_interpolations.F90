@@ -1,7 +1,7 @@
-MODULE module_interpolations
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_interpolations
 
 public spline, linear, seval
 private
@@ -242,3 +242,9 @@ CONTAINS
   END FUNCTION linear
   
 END MODULE module_interpolations
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

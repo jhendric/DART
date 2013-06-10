@@ -1,15 +1,9 @@
-!
 ! This code may (or may not) be part of the MPAS distribution,
 ! So it is not protected by the DART copyright agreement.
 ! 
+! DART $Id$
 
 module get_geometry_mod
-
-! <next few lines under version control, do not edit>
-! $URL: https://proxy.subversion.ucar.edu/DAReS/DART/branches/mpas/models/mpas_atm/get_geometry_mod.f90 $
-! $Id: get_geometry_mod.f90 5528 2012-01-24 17:34:35Z nancy $
-! $Revision: 5528 $
-! $Date: 2012-01-24 10:34:35 -0700 (Tue, 24 Jan 2012) $
 
    use types_mod, only : r8
 
@@ -111,3 +105,9 @@ module get_geometry_mod
   end subroutine mpas_cross_product_in_r3
 
 end module get_geometry_mod
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

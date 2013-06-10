@@ -1,3 +1,7 @@
+! This code is not protected by the DART copyright agreement.
+!
+! DART $Id$
+
 !dis
 !dis    Open Source License/Disclaimer, Forecast Systems Laboratory
 !dis    NOAA/OAR/FSL, 325 Broadway Boulder, CO 80305
@@ -962,3 +966,9 @@ CONTAINS
   END SUBROUTINE gridwind_to_truewind
 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!         
 END MODULE map_utils
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

@@ -1,10 +1,11 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:MEDIATION_LAYER:PHYSICS
 ! *** add new modules of schemes here
 !
 MODULE module_microphysics_driver
-!
-! DART $Id$
-!
+
 CONTAINS
 
 SUBROUTINE microphysics_driver(                                          &
@@ -575,3 +576,8 @@ SUBROUTINE microphysics_driver(                                          &
 
 END MODULE module_microphysics_driver
 
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

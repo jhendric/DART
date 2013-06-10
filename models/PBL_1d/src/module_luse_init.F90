@@ -1,7 +1,7 @@
-MODULE module_luse_init
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE module_luse_init
 
 CONTAINS
 
@@ -244,3 +244,9 @@ CONTAINS
 
 
 END MODULE module_luse_init
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

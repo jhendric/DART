@@ -1,8 +1,9 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 !WRF:MODEL_LAYER:PHYSICS
 !
 MODULE module_sf_sfclay
-!
-! DART $Id$
 !
  REAL    , PARAMETER ::  VCONVC=1.
  REAL    , PARAMETER ::  CZO=0.0185
@@ -782,3 +783,9 @@ CONTAINS
 !-------------------------------------------------------------------          
 
 END MODULE module_sf_sfclay
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

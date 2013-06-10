@@ -1,10 +1,11 @@
+! This code is not protected by the DART copyright agreement.
+! DART $Id$
+
 #define LSMRUC_DBG_LVL 3000
 !WRF:MODEL_LAYER:PHYSICS
-!
+
 MODULE module_sf_ruclsm
-!
-! DART $Id$
-!
+
 USE module_wrf_error
 
 CONTAINS
@@ -4385,3 +4386,9 @@ print *, 'D9SN,SOILT,TSOB : ', D9SN,SOILT,TSOB
   END SUBROUTINE SOILIN
 
 END MODULE module_sf_ruclsm
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

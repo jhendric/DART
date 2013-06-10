@@ -1,7 +1,8 @@
-MODULE  module_getsm
-!
+! This code is not protected by the DART copyright agreement.
 ! DART $Id$
-!
+
+MODULE  module_getsm
+
 CONTAINS
 
   SUBROUTINE getsmlsm (MMINLU, isltyp, ivgtyp, smcmin, smcmax)
@@ -91,3 +92,9 @@ CONTAINS
   END SUBROUTINE getsmruclsm
     
 END MODULE module_getsm
+
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$

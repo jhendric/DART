@@ -1,3 +1,8 @@
+! This code may (or may not) be part of the GITM distribution,
+! So it is not protected by the DART copyright agreement.
+!
+! DART $Id$
+
 integer function jday(year, mon, day) result(Julian_Day)
 
   implicit none
@@ -164,5 +169,8 @@ subroutine time_real_to_int(timereal, itime)
 
 end subroutine time_real_to_int
 
-
-
+! <next few lines under version control, do not edit>
+! $URL$
+! $Id$
+! $Revision$
+! $Date$
