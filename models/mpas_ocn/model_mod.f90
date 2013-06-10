@@ -4023,7 +4023,7 @@ do while ( trim(bounds_table(1,n)) /= 'NULL' )
         progvar(ivar)%clamping = .true.
         progvar(ivar)%range    = (/ lower_bound, upper_bound /)
 
-        if ( debug ) then
+        if ((debug > 0) .and. do_output()) then
            write(*,*) 'In get_variable_bounds assigned ', trim(progvar(ivar)%varname)
            write(*,*) ' clamping range  ',progvar(ivar)%range
         endif
