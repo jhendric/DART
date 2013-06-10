@@ -311,15 +311,16 @@ subroutine convert_day(iyear,idoy,imonth,iday)
 
 end subroutine
 
-subroutine saber_error(pres,err)
-implicit none
 
-real(r8) :: pres,err
+subroutine saber_error(pres,err)
+
+real(r8), intent(in)  :: pres
+real(r8), intent(out) :: err
 
 ! NMP - simple function to calculate the error based on height
 !  function loosely based on Remsberg et al (2008JGR)
 
-err = 1.6718 + -0.4281*log(pres) + 0.0977*log(pres)**2
+err = 1.6718_r8 - 0.4281_r8*log(pres) + 0.0977_r8*log(pres)**2
 
 end subroutine
 
