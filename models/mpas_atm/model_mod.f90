@@ -3994,7 +3994,7 @@ real(r8)                      :: lower_bound, upper_bound
 integer                       :: n
 
 n = 1
-do while ( trim(bounds_table(1,n)) /= 'NULL' )
+do while ( trim(bounds_table(1,n)) /= 'NULL' .and. trim(bounds_table(1,n)) /= '' )
 
    bounds_varname = trim(bounds_table(1,n))
 
