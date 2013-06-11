@@ -86,8 +86,6 @@
 #     -assume  byterecl ... more 'industry-standard' direct-access behavior
 #              controls what units the RECL (record length) specifier returns.
 #
-# The PBL_1d model needs this flag added to whatever others are used:
-# FFLAGS = -r8
 #
 # IF YOU HAVE MORE CURRENT COMPILER INFORMATION, PLEASE SHARE IT WITH US.
 
