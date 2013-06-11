@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../mkmf/mkmf -p nml_test -t ../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../mkmf/mkmf -p nml_test -t ../../mkmf/mkmf.template   \
  -a "../.." path_names_nml_test
 
 exit $status

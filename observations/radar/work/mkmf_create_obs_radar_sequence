@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p create_obs_radar_sequence -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p create_obs_radar_sequence -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_create_obs_radar_sequence
 
 exit $status

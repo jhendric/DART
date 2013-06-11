@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p dobsdx -t ../../../mkmf/mkmf.template -c "-Duse_netCDF" \
+../../../mkmf/mkmf -p dobsdx -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_dobsdx
 
 exit $status

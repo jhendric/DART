@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p gtspp_to_obs -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p gtspp_to_obs -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_gtspp_to_obs
 
 exit $status

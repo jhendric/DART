@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p clm_ens_avg -t ../../../mkmf/mkmf.template -c "-Duse_netCDF" \
+../../../mkmf/mkmf -p clm_ens_avg -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_clm_ens_avg
 
 exit $status

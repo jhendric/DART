@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p location_test -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p location_test -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_location_test
 
 exit $status

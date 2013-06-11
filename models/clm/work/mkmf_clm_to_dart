@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p clm_to_dart -t ../../../mkmf/mkmf.template -c "-Duse_netCDF" \
+../../../mkmf/mkmf -p clm_to_dart -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_clm_to_dart
 
 exit $status

@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p ensemble_init -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p ensemble_init -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_ensemble_init
 
 exit $status

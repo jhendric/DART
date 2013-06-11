@@ -53,7 +53,7 @@ endif
 # remove temp file and now really call mkmf to generate makefile
 rm -f ${path_name}.back
 
-../../../mkmf/mkmf -p scale_nogaps_perts -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p scale_nogaps_perts -t ../../../mkmf/mkmf.template   \
         -a "../../.." ${wrapper_arg} ${path_name}
 
 exit $status

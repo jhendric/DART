@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p obs_seq_verify -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p obs_seq_verify -t ../../../mkmf/mkmf.template   \
  -a "../../.." $* path_names_obs_seq_verify
 
 exit $status

@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p COSMOS_development -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p COSMOS_development -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_COSMOS_development
 
 exit $status

@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../mkmf/mkmf -p test_corr -t ../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../mkmf/mkmf -p test_corr -t ../../mkmf/mkmf.template   \
  -a "../../" path_names_test_corr
 
 exit $status

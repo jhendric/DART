@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p add_pert_where_high_refl -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p add_pert_where_high_refl -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_add_pert_where_high_refl
 
 exit $status

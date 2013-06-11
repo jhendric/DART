@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p convert_madis_acars -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p convert_madis_acars -t ../../../mkmf/mkmf.template   \
  -x -a "../../.." path_names_convert_madis_acars
 
 exit $status

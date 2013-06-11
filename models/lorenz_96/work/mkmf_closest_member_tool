@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p closest_member_tool -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p closest_member_tool -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_closest_member_tool
 
 exit $status

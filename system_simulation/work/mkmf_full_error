@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../mkmf/mkmf -p full_error -t ../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../mkmf/mkmf -p full_error -t ../../mkmf/mkmf.template   \
  -a "../.." path_names_full_error
 
 exit $status

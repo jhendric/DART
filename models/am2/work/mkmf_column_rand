@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p column_rand -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p column_rand -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_column_rand
 
 exit $status

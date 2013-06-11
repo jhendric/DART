@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p convert_saber_cdf -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p convert_saber_cdf -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_convert_saber_cdf
 
 exit $status

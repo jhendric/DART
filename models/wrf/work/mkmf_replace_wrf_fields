@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p replace_wrf_fields -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p replace_wrf_fields -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_replace_wrf_fields
 
 exit $status

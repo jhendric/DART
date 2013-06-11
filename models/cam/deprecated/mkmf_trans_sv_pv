@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p trans_sv_pv -t ../../../mkmf/mkmf.template -c "-Duse_netCDF" \
+../../../mkmf/mkmf -p trans_sv_pv -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_trans_sv_pv
 
 exit $status

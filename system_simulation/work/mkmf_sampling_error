@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../mkmf/mkmf -p sampling_error -t ../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../mkmf/mkmf -p sampling_error -t ../../mkmf/mkmf.template   \
  -a "../.." path_names_sampling_error
 
 exit $status

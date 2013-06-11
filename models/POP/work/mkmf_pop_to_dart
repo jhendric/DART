@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p pop_to_dart -t ../../../mkmf/mkmf.template -c "-Duse_netCDF" \
+../../../mkmf/mkmf -p pop_to_dart -t ../../../mkmf/mkmf.template   \
  -a "../../.." path_names_pop_to_dart
 
 exit $status

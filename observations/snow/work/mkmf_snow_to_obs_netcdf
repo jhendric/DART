@@ -6,7 +6,7 @@
 #
 # DART $Id$
 
-../../../mkmf/mkmf -p snow_to_obs_netcdf -t ../../../mkmf/mkmf.template -c"-Duse_netCDF" \
+../../../mkmf/mkmf -p snow_to_obs_netcdf -t ../../../mkmf/mkmf.template   \
  -x -a "../../.." path_names_snow_to_obs_netcdf
 
 exit $status
