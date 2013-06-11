@@ -133,10 +133,10 @@ endif
 ! Log what we think we're doing, and exit.
 !----------------------------------------------------------------------
 
-call print_date( model_time,'dart_to_model:model model date')
-call print_time( model_time,'dart_to_model:DART model time')
-call print_date( model_time,'dart_to_model:model model date',logfileunit)
-call print_time( model_time,'dart_to_model:DART model time',logfileunit)
+call print_date( model_time,'dart_to_model:model date')
+call print_time( model_time,'dart_to_model:model time')
+call print_date( model_time,'dart_to_model:model date',logfileunit)
+call print_time( model_time,'dart_to_model:model time',logfileunit)
 
 if ( advance_time_present ) then
 call print_time(adv_to_time,'dart_to_model:advance_to time')
