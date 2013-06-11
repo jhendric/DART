@@ -3979,32 +3979,36 @@ do while ( trim(bounds_table(1,n)) /= 'NULL' .and. trim(bounds_table(1,n)) /= ''
    if ( bounds_varname == trim(progvar(ivar)%varname) ) then
 
         bound = trim(bounds_table(2,n))
-        if ( bound  /= 'NULL' ) then
+        if ( bound /= 'NULL' .and. bound /= '' ) then
              read(bound,'(d16.8)') lower_bound
         else
              lower_bound = missing_r8
         endif
 
         bound = trim(bounds_table(3,n))
-        if ( bound  /= 'NULL' ) then
+        if ( bound /= 'NULL' .and. bound /= '' ) then
              read(bound,'(d16.8)') upper_bound
         else
              upper_bound = missing_r8
         endif
 
-        ! Do we want to clamp the field (.true.) or fail (.false.) the whole process?
+        ! How do we want to handle out of range values?
+        ! Set them to predefined limits (clamp) or simply fail (fail).
         clamp_or_fail = trim(bounds_table(4,n))
-        if ( clamp_or_fail == 'NULL' ) then
-             call error_handler(E_ERR,'get_variable_bounds','instructions for CLAMP_or_FAIL &
-                  on '//trim(bounds_varname)//' are required',source,revision,revdate)
+        if ( clamp_or_fail == 'NULL' .or. clamp_or_fail == '') then
+             write(string1, *) 'instructions for CLAMP_or_FAIL on ', &
+                                trim(bounds_varname), ' are required'
+             call error_handler(E_ERR,'get_variable_bounds',string1, &
+                                source,revision,revdate)
         else if ( clamp_or_fail == 'CLAMP' ) then
              progvar(ivar)%out_of_range_fail = .FALSE.
         else if ( clamp_or_fail == 'FAIL' ) then
              progvar(ivar)%out_of_range_fail = .TRUE.
         else
-             call error_handler(E_ERR,'get_variable_bounds','last column must be "CLAMP" or "FAIL" &
-                  for '//trim(bounds_varname)//' ',source,revision,revdate, &
-                  text2='found '//trim(clamp_or_fail))
+             write(string1, *) 'last column must be "CLAMP" or "FAIL" for ', &
+                  trim(bounds_varname)
+             call error_handler(E_ERR,'get_variable_bounds',string1, &
+                  source,revision,revdate, text2='found '//trim(clamp_or_fail))
         endif
 
         ! Assign the clamping information into the variable
