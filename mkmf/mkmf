@@ -1,8 +1,7 @@
 #!/usr/bin/perl
 #
-# DART software - Copyright 2004 - 2011 UCAR. This open source software is
-# provided by UCAR, "as is", without charge, subject to all terms of use at
-# http://www.image.ucar.edu/DAReS/DART/DART_download
+# This file is not protected by the DART copyright agreement.
+# DART $Id$
 
 #-----------------------------------------------------------------------
 #              mkmf: Perl script for makefile construction
@@ -468,7 +467,6 @@ exec 'make', '-f', $opt_m if $opt_x;
 
 # <next few lines under version control, do not edit>
 # $URL$
-# $Id$
 # $Revision$
 # $Date$
 

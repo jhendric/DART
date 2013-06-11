@@ -1,14 +1,17 @@
 #!/bin/csh
-################################################################################
-# madis_archive.csh
-# core mechanics from Ryan Torn, SUNY Albany
-# adapted by G. Romine to get a full obs set from MADIS archive
-# 
-# DART software - Copyright 2004 - 2011 UCAR. This open source software is
+#
+# DART software - Copyright 2004 - 2013 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
 # DART $Id$
+#
+################################################################################
+#
+# madis_archive.csh
+#
+# core mechanics from Ryan Torn, SUNY Albany
+# adapted by G. Romine to get a full obs set from MADIS archive
 #
 # calls the get_madis routine for input - EDIT for your acct info,
 # give this script an analysis date in yyyymmddhh format as an argument
@@ -27,6 +30,7 @@
 #
 # The output should be a single obs_sequence file for each analysis time 
 # placed in outputdir/datea
+#
 ################################################################################
 
    set datea            = ${1}
@@ -277,4 +281,10 @@ EOF
 
    ${MOVE} obs_seq.new ${OUTPUT_DIR}/${datea}/obs_seq.out
 
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

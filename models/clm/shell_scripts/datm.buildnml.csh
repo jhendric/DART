@@ -1,4 +1,9 @@
 #! /bin/csh -f
+#
+# This code may (or may not) be part of the CESM distribution,
+# So it is not protected by the DART copyright agreement.
+#
+# DART $Id$
 
 set exedir = $RUNDIR; cd $exedir
 
@@ -339,4 +344,9 @@ EOF1
 
     @ atm_inst_counter = $atm_inst_counter + 1
 end
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

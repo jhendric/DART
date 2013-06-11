@@ -1,4 +1,8 @@
 #!/bin/sh
+#
+# This code is part of the CESM distribution,
+# So it is not protected by the DART copyright agreement.
+# DART $Id$
 
 #short-term archive script - move model output out of run directory
 #to free disc space for next invocation of model run
@@ -190,7 +194,7 @@ do
     set ${CASE}.wrf.h3aux01.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
     set ${CASE}.wrf.h3aux02.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
     set ${CASE}.wrf.h3aux03.*;                                                                                                     dispose ifiles_n ${sta}/atm/hist $*
- 
+
     IDX=`expr $IDX + 1`
 done
 

@@ -1,11 +1,15 @@
 #!/bin/sh
+#
+# DART software - Copyright 2004 - 2013 UCAR. This open source software is
+# provided by UCAR, "as is", without charge, subject to all terms of use at
+# http://www.image.ucar.edu/DAReS/DART/DART_download
+#
+# DART $Id$
 
 #short-term archive script - move model output out of run directory
 #to free disc space for next invocation of model run
 #must be executed from run directory
-#
-# DART $Id$
-#
+
 # This must exist as ${CASEROOT}/Tools/st_archive.sh 
 # ./xmlchange -file env_run.xml -id DOUT_S_SAVE_INT_REST_FILES -val 'TRUE'
 #
@@ -284,3 +288,9 @@ rm -fr ${sta}
 echo "st_archive.sh: short-term archiving completed successfully"
 
 exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
+

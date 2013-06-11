@@ -1,4 +1,11 @@
 #!/bin/bash
+#
+# DART software - Copyright 2004 - 2013 UCAR. This open source software is
+# provided by UCAR, "as is", without charge, subject to all terms of use at
+# http://www.image.ucar.edu/DAReS/DART/DART_download
+#
+# DART $Id$
+ 
 
 ele=`expr $1 - 1`
 
@@ -6,3 +13,11 @@ v1=( -77.64109263 -78.26319591 -78.88378501 -79.50144611 -80.11477639 -80.722389
 
 
 echo ${v1[$ele]}
+
+exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
+

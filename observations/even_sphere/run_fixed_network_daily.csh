@@ -1,16 +1,14 @@
 #!/bin/csh
+#
+# DART software - Copyright 2004 - 2013 UCAR. This open source software is
+# provided by UCAR, "as is", without charge, subject to all terms of use at
+# http://www.image.ucar.edu/DAReS/DART/DART_download
+#
+# DART $Id$
 
 # loop, calling ./create_fixed_network_seq to create separate
 # files for each time period.  edit the values below to change
 # the dates and intervals.
-
-#
-# DART software - Copyright 2004 - 2011 UCAR. This open source software is
-# provided by UCAR, "as is", without charge, subject to all terms of use at
-# http://www.image.ucar.edu/DAReS/DART/DART_download
-#
-# $Id$
-
 
 @ month = 8
 @ day   = 1
@@ -34,4 +32,9 @@ while($day <= $ndays)
 end
 
 exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
 

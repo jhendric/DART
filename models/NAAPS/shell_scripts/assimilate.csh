@@ -1,10 +1,10 @@
 #!/bin/tcsh 
 #
-# DART software - Copyright 2004 - 2011 UCAR. This open source software is
+# DART software - Copyright 2004 - 2013 UCAR. This open source software is
 # provided by UCAR, "as is", without charge, subject to all terms of use at
 # http://www.image.ucar.edu/DAReS/DART/DART_download
 #
-# $Id$
+# DART $Id$
 
 # The FORCE options are not optional. 
 # the VERBOSE options are useful for debugging.

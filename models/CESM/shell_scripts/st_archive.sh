@@ -1,4 +1,9 @@
 #!/bin/sh
+#
+# This code is part of the CESM distribution,
+# So it is not protected by the DART copyright agreement.
+#
+# DART $Id$
 
 #short-term archive script - move model output out of run directory
 #to free disc space for next invocation of model run
@@ -309,3 +314,9 @@ rm -fr ${sta}
 echo "st_archive.sh: short-term archiving completed successfully"
 
 exit 0
+
+# <next few lines under version control, do not edit>
+# $URL$
+# $Revision$
+# $Date$
+
