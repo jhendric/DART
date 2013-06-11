@@ -154,7 +154,6 @@ type(random_seq_type) :: random_seq
 type(xyz_get_close_type)             :: cc_gc
 type(xyz_location_type), allocatable :: cell_locs(:)
 
-logical :: log_vert_interp = .true.  ! if true, interpolate vertical in log space
 
 ! variables which are in the module namelist
 integer            :: vert_localization_coord = VERTISHEIGHT
@@ -163,6 +162,7 @@ integer            :: assimilation_period_seconds = 60
 real(r8)           :: model_perturbation_amplitude = 0.0001   ! tiny amounts
 real(r8)           :: highest_obs_pressure_mb   = 100.0_r8    ! do not assimilate obs higher than this level.
 logical            :: output_state_vector = .false.  ! output prognostic variables (if .false.)
+logical            :: log_p_vert_interp = .true.     ! if true, interpolate vertical pressure in log space
 integer            :: debug = 0   ! turn up for more and more debug messages
 integer            :: xyzdebug = 0
 character(len=32)  :: calendar = 'Gregorian'
@@ -195,6 +195,7 @@ namelist /model_nml/             &
    assimilation_period_days,     &
    assimilation_period_seconds,  &
    model_perturbation_amplitude, &
+   log_p_vert_interp,            &
    calendar,                     &
    debug,                        &
    xyzdebug,                     &
@@ -1825,6 +1826,8 @@ if (allocated(zEdge))          deallocate(zEdge)
 if (allocated(latEdge))        deallocate(latEdge)
 if (allocated(lonEdge))        deallocate(lonEdge)
 
+call finalize_closest_center()
+
 end subroutine end_model
 
 
@@ -2195,10 +2198,11 @@ call nc_check(nf90_open(trim(filename), NF90_NOWRITE, ncid), &
 
 model_time = get_analysis_time(ncid, filename)
 
-if (do_output()) &
-    call print_time(model_time,'time in restart file '//trim(filename))
-if (do_output()) &
-    call print_date(model_time,'date in restart file '//trim(filename))
+! let the calling program print out the time information it wants.
+!if (do_output()) &
+!    call print_time(model_time,'time in restart file '//trim(filename))
+!if (do_output()) &
+!    call print_date(model_time,'date in restart file '//trim(filename))
 
 ! Start counting and filling the state vector one item at a time,
 ! repacking the Nd arrays into a single 1d list of numbers.
@@ -2268,10 +2272,6 @@ do ivar=1, nfields
         start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
             'analysis_file_to_statevector', 'get_var '//trim(varname))
 
-      write(string1, '(A,A32,2F16.7)') 'data min/max ', trim(varname), minval(data_1d_array), maxval(data_1d_array)
-      call error_handler(E_MSG, '', string1, &
-                        source,revision,revdate)
-
       call prog_var_to_vector(data_1d_array, state_vector, ivar)
       deallocate(data_1d_array)
 
@@ -2283,10 +2283,6 @@ do ivar=1, nfields
       call nc_check(nf90_get_var(ncid, VarID, data_2d_array, &
         start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
             'analysis_file_to_statevector', 'get_var '//trim(varname))
-
-      write(string1, '(A,A32,2F16.7)') 'data min/max ', trim(varname), minval(data_2d_array), maxval(data_2d_array)
-      call error_handler(E_MSG, '', string1, &
-                        source,revision,revdate)
 
       call prog_var_to_vector(data_2d_array, state_vector, ivar)
       deallocate(data_2d_array)
@@ -2300,10 +2296,6 @@ do ivar=1, nfields
       call nc_check(nf90_get_var(ncid, VarID, data_3d_array, &
         start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
             'analysis_file_to_statevector', 'get_var '//trim(varname))
-
-      write(string1, '(A,A32,2F16.7)') 'data min/max ', trim(varname), minval(data_3d_array), maxval(data_3d_array)
-      call error_handler(E_MSG, '', string1, &
-                        source,revision,revdate)
 
       call prog_var_to_vector(data_3d_array, state_vector, ivar)
       deallocate(data_3d_array)
@@ -2374,10 +2366,11 @@ if ( model_time /= statetime ) then
    call error_handler(E_ERR,'statevector_to_analysis_file',string1,source,revision,revdate)
 endif
 
-if (do_output()) &
-    call print_time(statetime,'time of DART file '//trim(filename))
-if (do_output()) &
-    call print_date(statetime,'date of DART file '//trim(filename))
+! let the calling program print out the time information it wants.
+!if (do_output()) &
+!    call print_time(statetime,'time of DART file '//trim(filename))
+!if (do_output()) &
+!    call print_date(statetime,'date of DART file '//trim(filename))
 
 ! The DART prognostic variables are only defined for a single time.
 ! We already checked the assumption that variables are xy2d or xyz3d ...
@@ -2461,10 +2454,6 @@ PROGVARLOOP : do ivar=1, nfields
       allocate(data_1d_array(mycount(1)))
       call vector_to_prog_var(state_vector, ivar, data_1d_array)
 
-      write(string1, '(A,A32,2(1x,E22.14))') 'min/max ', trim(varname), &
-                                minval(data_1d_array), maxval(data_1d_array)
-      call error_handler(E_MSG, '', string1, source,revision,revdate)
-
       ! did the user specify lower and/or upper bounds for this variable?
       ! if so, follow the instructions to either fail on out-of-range values,
       ! or set out-of-range values to the given min or max vals
@@ -2483,10 +2472,6 @@ PROGVARLOOP : do ivar=1, nfields
       allocate(data_2d_array(mycount(1), mycount(2)))
       call vector_to_prog_var(state_vector, ivar, data_2d_array)
 
-      write(string1, '(A,A32,2(1x,E22.14))') 'min/max ', trim(varname), &
-                                minval(data_2d_array), maxval(data_2d_array)
-      call error_handler(E_MSG, '', trim(string1), source,revision,revdate)
-
       ! did the user specify lower and/or upper bounds for this variable?
       ! if so, follow the instructions to either fail on out-of-range values,
       ! or set out-of-range values to the given min or max vals
@@ -2504,10 +2489,6 @@ PROGVARLOOP : do ivar=1, nfields
 
       allocate(data_3d_array(mycount(1), mycount(2), mycount(3)))
       call vector_to_prog_var(state_vector, ivar, data_3d_array)
-
-      write(string1, '(A,A32,2(1x,E22.14))') 'min/max ', trim(varname), &
-                                minval(data_3d_array), maxval(data_3d_array)
-      call error_handler(E_MSG, '', string1, source,revision,revdate)
 
       ! did the user specify lower and/or upper bounds for this variable?
       ! if so, follow the instructions to either fail on out-of-range values,
@@ -2599,7 +2580,7 @@ if (dimsize == 1) then
 
    endif ! max range set
 
-   write(string1, *) 'after clamping min/max ', trim(varname), &
+   write(string1, '(A,A32,2F16.7)') 'BOUND min/max ', trim(varname), &
                       minval(array_1d), maxval(array_1d)
    call error_handler(E_MSG, '', string1, source,revision,revdate)
 
@@ -2643,7 +2624,7 @@ else if (dimsize == 2) then
 
    endif ! max range set
 
-   write(string1, *) 'after clamping min/max ', trim(varname), &
+   write(string1, '(A,A32,2F16.7)') 'BOUND min/max ', trim(varname), &
                       minval(array_2d), maxval(array_2d)
    call error_handler(E_MSG, '', string1, source,revision,revdate)
 
@@ -2687,7 +2668,7 @@ else if (dimsize == 3) then
 
    endif ! max range set
 
-   write(string1, *) 'after clamping min/max ', trim(varname), &
+   write(string1, '(A,A32,2F16.7)') 'BOUND min/max ', trim(varname), &
                       minval(array_3d), maxval(array_3d)
    call error_handler(E_MSG, '', string1, source,revision,revdate)
 
@@ -3912,15 +3893,11 @@ subroutine print_minmax(ivar, x)
 integer,  intent(in) :: ivar
 real(r8), intent(in) :: x(:)
 
-write(logfileunit,*) 'variable ',trim(progvar(ivar)%varname), &
-           ' min/max = ', &
+write(string1, '(A,A32,2F16.7)') 'data  min/max ', trim(progvar(ivar)%varname), &
            minval(x(progvar(ivar)%index1:progvar(ivar)%indexN)), &
            maxval(x(progvar(ivar)%index1:progvar(ivar)%indexN))
 
-write(    *      ,*) 'variable ',trim(progvar(ivar)%varname), &
-           ' min/max = ', &
-           minval(x(progvar(ivar)%index1:progvar(ivar)%indexN)), &
-           maxval(x(progvar(ivar)%index1:progvar(ivar)%indexN))
+call error_handler(E_MSG, '', string1, source,revision,revdate)
 
 end subroutine print_minmax
 
@@ -4822,9 +4799,9 @@ do i = 2, nbounds
       upper = i
       if (pressure(i) == pressure(i-1)) then
          fract = 0.0_r8
-      else if (log_vert_interp) then
-         fract = exp(log(p) - log(pressure(i-1))) / &
-                    (log(pressure(i)) - log(pressure(i-1)))
+      else if (log_p_vert_interp) then
+         fract = exp((log(p) - log(pressure(i-1))) / &
+                    (log(pressure(i)) - log(pressure(i-1))))
       else
          fract = (p - pressure(i-1)) / (pressure(i) - pressure(i-1))
       endif
@@ -6026,8 +6003,13 @@ do i=1, nedges
                          source, revision, revdate, text2=string1)
    endif
    ! FIXME: should this be a log interpolation since we know this is going
-   ! to be used for pressure only?
-   x = (x1 + x2) / 2.0_r8
+   ! to be used for pressure only?  it's in the horizontal so the values
+   ! shouldn't be too different, but still for consistency...
+   !if (log_p_vert_interp) then
+   !   x = exp((log(x1) + log(x2)) / 2.0_r8)
+   ! else
+       x = (x1 + x2) / 2.0_r8
+   ! endif
    lower(i) = aint(x)
    upper(i) = lower(i) + 1
    fract(i) = x - lower(i)
