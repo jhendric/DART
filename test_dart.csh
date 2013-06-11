@@ -217,7 +217,9 @@ echo "not have all the necessary supporting libraries.  So errors here"
 echo "are not fatal."
 
 cd ${DARTHOME}/observations
-./buildall.csh
+if ( 1 == 1 ) then
+  ./buildall.csh
+endif
 
 echo
 echo "=================================================================="
@@ -234,7 +236,9 @@ echo "=================================================================="
 echo
 
 cd ${DARTHOME}/location
-./testall.csh
+if ( 1 == 1 ) then
+  ./testall.csh
+endif
 
 echo
 echo "=================================================================="
@@ -425,6 +429,7 @@ echo '/num_groups'                    >> vi_script
 echo ':s/1/4/'                        >> vi_script
 echo '/save_reg_diagnostics'          >> vi_script
 echo ':s/false/true/'                 >> vi_script
+echo ':g/silence/s/false/true/'       >> vi_script
 echo ':wq'                            >> vi_script
 
 (${VI} input.nml < vi_script)
@@ -870,7 +875,7 @@ echo ':s/80/20/'                              >> vi_script
 echo '/num_groups'                            >> vi_script
 echo ':s/4/1/'                                >> vi_script
 echo '/inf_flavor'                            >> vi_script
-echo ':s/0/1/'                                >> vi_script
+echo ':s/2/1/'                                >> vi_script
 echo '/inf_initial'                           >> vi_script
 echo ':s/1\.0/1\.05/'                         >> vi_script
 echo ':wq'                                    >> vi_script
