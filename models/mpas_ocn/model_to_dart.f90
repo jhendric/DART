@@ -23,9 +23,11 @@ program model_to_dart
 
 use        types_mod, only : r8
 use    utilities_mod, only : initialize_utilities, finalize_utilities, &
-                             find_namelist_in_file, check_namelist_read
+                             find_namelist_in_file, check_namelist_read, &
+                             logfileunit
 use        model_mod, only : get_model_size, analysis_file_to_statevector, &
-                             get_model_analysis_filename, static_init_model
+                             get_model_analysis_filename, static_init_model, &
+                             print_variable_ranges
 use  assim_model_mod, only : awrite_state_restart, open_restart_write, close_restart
 use time_manager_mod, only : time_type, print_time, print_date
 
@@ -42,9 +44,11 @@ character(len=128), parameter :: revdate  = "$Date$"
 !-----------------------------------------------------------------------
 
 character(len=128) :: model_to_dart_output_file  = 'dart.ud'
+logical            :: print_data_ranges          = .true.
 
 namelist /model_to_dart_nml/    &
-     model_to_dart_output_file
+     model_to_dart_output_file, &
+     print_data_ranges
 
 !----------------------------------------------------------------------
 ! global storage
@@ -81,13 +85,19 @@ allocate(statevector(x_size))
 write(*,*)
 write(*,*) 'model_to_dart: converting model analysis file ', &
            "'"//trim(model_analysis_filename)//"'" 
-write(*,*) '                                 to DART file ', &
-           "'"//trim(model_to_dart_output_file)//"'"
+write(*,*) ' to DART file ', "'"//trim(model_to_dart_output_file)//"'"
 
 !----------------------------------------------------------------------
 ! Read the valid time and the state from the MPAS netcdf file
 !----------------------------------------------------------------------
 call analysis_file_to_statevector(model_analysis_filename, statevector, model_time) 
+
+!----------------------------------------------------------------------
+! if requested, print out the data ranges variable by variable
+!----------------------------------------------------------------------
+if (print_data_ranges) then
+    call print_variable_ranges(statevector)
+endif
 
 !----------------------------------------------------------------------
 ! Write the valid time and the state to the dart restart file
@@ -101,8 +111,11 @@ call close_restart(iunit)
 ! finish up
 !----------------------------------------------------------------------
 
-call print_date(model_time, str='model_to_dart:model model date')
-call print_time(model_time, str='model_to_dart:DART model time')
+call print_date(model_time, 'model_to_dart:model date')
+call print_time(model_time, 'model_to_dart:model time')
+call print_date(model_time, 'model_to_dart:model date',logfileunit)
+call print_time(model_time, 'model_to_dart:model time',logfileunit)
+
 call finalize_utilities()
 
 end program model_to_dart

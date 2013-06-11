@@ -31,7 +31,7 @@ use time_manager_mod, only : time_type, print_time, print_date, operator(-), &
                              get_time, get_date
 use        model_mod, only : static_init_model, statevector_to_analysis_file, &
                              get_model_size, get_model_analysis_filename,     &
-                             write_model_time
+                             write_model_time, print_variable_ranges
 
 implicit none
 
@@ -48,10 +48,12 @@ character(len=128), parameter :: revdate  = "$Date$"
 character(len=256)  :: dart_to_model_input_file = 'dart.ic'
 logical             :: advance_time_present     = .false.
 character(len=256)  :: time_filename            = 'mpas_time'
+logical             :: print_data_ranges        = .true.
 
 namelist /dart_to_model_nml/ dart_to_model_input_file, &
-                             advance_time_present,      &
-                             time_filename
+                             advance_time_present,     &
+                             time_filename,            &
+                             print_data_ranges
 
 !----------------------------------------------------------------------
 
@@ -84,10 +86,8 @@ x_size = get_model_size()
 allocate(statevector(x_size))
 
 write(*,*)
-write(*,*) 'dart_to_model: converting DART file ', &
-           "'"//trim(dart_to_model_input_file)//"'"
-write(*,*) '             to model analysis file ', &
-           "'"//trim(model_analysis_filename)//"'" 
+write(*,*) 'dart_to_model: converting DART file ', "'"//trim(dart_to_model_input_file)//"'"
+write(*,*) 'to model analysis file ', "'"//trim(model_analysis_filename)//"'" 
 
 !----------------------------------------------------------------------
 ! Reads the valid time, the state, and the target time.
@@ -101,6 +101,16 @@ else
    call aread_state_restart(model_time, statevector, iunit)
 endif
 call close_restart(iunit)
+
+!----------------------------------------------------------------------
+! if requested, print out the data ranges variable by variable
+! (note if we are clamping data values, that happens in the
+! conversion routine and these values are before the clamping happens.)
+!----------------------------------------------------------------------
+if (print_data_ranges) then
+    call print_variable_ranges(statevector)
+endif
+
 
 !----------------------------------------------------------------------
 ! update the current model state vector
@@ -123,10 +133,10 @@ endif
 ! Log what we think we're doing, and exit.
 !----------------------------------------------------------------------
 
-call print_date( model_time,'dart_to_model:model model date')
-call print_time( model_time,'dart_to_model:DART model time')
-call print_date( model_time,'dart_to_model:model model date',logfileunit)
-call print_time( model_time,'dart_to_model:DART model time',logfileunit)
+call print_date( model_time,'dart_to_model:model date')
+call print_time( model_time,'dart_to_model:model time')
+call print_date( model_time,'dart_to_model:model date',logfileunit)
+call print_time( model_time,'dart_to_model:model time',logfileunit)
 
 if ( advance_time_present ) then
 call print_time(adv_to_time,'dart_to_model:advance_to time')

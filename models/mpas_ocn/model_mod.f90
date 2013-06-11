@@ -60,12 +60,12 @@ use    utilities_mod, only : register_module, error_handler,                   &
                              open_file, file_exist, find_textfile_dims,        &
                              file_to_text, close_file, do_nml_file, do_nml_term
 
-use     obs_kind_mod, only : paramname_length,           &
-                             get_raw_obs_kind_index,     &
-                             get_raw_obs_kind_name,      &
-                             KIND_VERTICAL_VELOCITY,     &
+use     obs_kind_mod, only : paramname_length,        &
+                             get_raw_obs_kind_index,  &
+                             get_raw_obs_kind_name,   &
+                             KIND_VERTICAL_VELOCITY,  &
                              KIND_POTENTIAL_TEMPERATURE, &
-                             KIND_TEMPERATURE,           &
+                             KIND_TEMPERATURE,        &
                              KIND_SALINITY,              &
                              KIND_DRY_LAND,              &
                              KIND_EDGE_NORMAL_SPEED,     &
@@ -165,7 +165,10 @@ type(random_seq_type) :: random_seq
 type(xyz_get_close_type)             :: cc_gc
 type(xyz_location_type), allocatable :: cell_locs(:)
 
-logical :: log_vert_interp = .false.  ! if true, interpolate vertical in log space
+! not part of the namelist because in the ocean it's not clear
+! that we need to worry about log pressure in the vertical.
+! if this makes a difference, set this to .true.
+logical :: log_p_vert_interp = .false.  ! if true, interpolate vertical pressure in log space
 
 ! variables which are in the module namelist
 integer            :: vert_localization_coord = VERTISHEIGHT
@@ -1770,6 +1773,8 @@ if (allocated(zEdge))          deallocate(zEdge)
 if (allocated(latEdge))        deallocate(latEdge)
 if (allocated(lonEdge))        deallocate(lonEdge)
 
+call finalize_closest_center()
+
 end subroutine end_model
 
 
@@ -2106,12 +2111,6 @@ subroutine analysis_file_to_statevector(filename, state_vector, model_time)
 
 ! Reads the current time and state variables from a mpas analysis
 ! file and packs them into a dart state vector.
-!
-! FIXME: The MPAS_OCEAN data files have 'missing' values in them but do
-! not (as of Oct 2012) have a 'missing_value' attribute.
-! Must make an implicit assumption about the value, how to convert it
-! to DART MISSING_XXX and how to convert back!
-! The CLM model interface has something along these lines.
 
 character(len=*), intent(in)    :: filename
 real(r8),         intent(inout) :: state_vector(:)
@@ -2146,10 +2145,11 @@ call nc_check(nf90_open(trim(filename), NF90_NOWRITE, ncid), &
 
 model_time = get_analysis_time(ncid, filename)
 
-if (do_output()) &
-    call print_time(model_time,'time in restart file '//trim(filename))
-if (do_output()) &
-    call print_date(model_time,'date in restart file '//trim(filename))
+! let the calling program print out the time information it wants.
+!if (do_output()) &
+!    call print_time(model_time,'time in restart file '//trim(filename))
+!if (do_output()) &
+!    call print_date(model_time,'date in restart file '//trim(filename))
 
 ! Start counting and filling the state vector one item at a time,
 ! repacking the Nd arrays into a single 1d list of numbers.
@@ -2219,10 +2219,6 @@ do ivar=1, nfields
         start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
             'analysis_file_to_statevector', 'get_var '//trim(varname))
 
-      write(string1, '(A,A32,2F16.7)') 'data min/max ', trim(varname), minval(data_1d_array), maxval(data_1d_array)
-      call error_handler(E_MSG, '', string1, &
-                        source,revision,revdate)
-
       call prog_var_to_vector(data_1d_array, state_vector, ivar)
       deallocate(data_1d_array)
 
@@ -2234,10 +2230,6 @@ do ivar=1, nfields
       call nc_check(nf90_get_var(ncid, VarID, data_2d_array, &
         start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
             'analysis_file_to_statevector', 'get_var '//trim(varname))
-
-      write(string1, '(A,A32,2F16.7)') 'data min/max ', trim(varname), minval(data_2d_array), maxval(data_2d_array)
-      call error_handler(E_MSG, '', string1, &
-                        source,revision,revdate)
 
       call prog_var_to_vector(data_2d_array, state_vector, ivar)
       deallocate(data_2d_array)
@@ -2251,10 +2243,6 @@ do ivar=1, nfields
       call nc_check(nf90_get_var(ncid, VarID, data_3d_array, &
         start=mystart(1:ncNdims), count=mycount(1:ncNdims)), &
             'analysis_file_to_statevector', 'get_var '//trim(varname))
-
-      write(string1, '(A,A32,2F16.7)') 'data min/max ', trim(varname), minval(data_3d_array), maxval(data_3d_array)
-      call error_handler(E_MSG, '', string1, &
-                        source,revision,revdate)
 
       call prog_var_to_vector(data_3d_array, state_vector, ivar)
       deallocate(data_3d_array)
@@ -2325,10 +2313,11 @@ if ( model_time /= statetime ) then
    call error_handler(E_ERR,'statevector_to_analysis_file',string1,source,revision,revdate)
 endif
 
-if (do_output()) &
-    call print_time(statetime,'time of DART file '//trim(filename))
-if (do_output()) &
-    call print_date(statetime,'date of DART file '//trim(filename))
+! let the calling program print out the time information it wants.
+!if (do_output()) &
+!    call print_time(statetime,'time of DART file '//trim(filename))
+!if (do_output()) &
+!    call print_date(statetime,'date of DART file '//trim(filename))
 
 ! The DART prognostic variables are only defined for a single time.
 ! We already checked the assumption that variables are xy2d or xyz3d ...
@@ -2412,10 +2401,6 @@ PROGVARLOOP : do ivar=1, nfields
       allocate(data_1d_array(mycount(1)))
       call vector_to_prog_var(state_vector, ivar, data_1d_array)
 
-      write(string1, '(A,A32,2(1x,E22.14))') 'min/max ', trim(varname), &
-                                minval(data_1d_array), maxval(data_1d_array)
-      call error_handler(E_MSG, '', string1, source,revision,revdate)
-
       ! did the user specify lower and/or upper bounds for this variable?
       ! if so, follow the instructions to either fail on out-of-range values,
       ! or set out-of-range values to the given min or max vals
@@ -2434,10 +2419,6 @@ PROGVARLOOP : do ivar=1, nfields
       allocate(data_2d_array(mycount(1), mycount(2)))
       call vector_to_prog_var(state_vector, ivar, data_2d_array)
 
-      write(string1, '(A,A32,2(1x,E22.14))') 'min/max ', trim(varname), &
-                                minval(data_2d_array), maxval(data_2d_array)
-      call error_handler(E_MSG, '', trim(string1), source,revision,revdate)
-
       ! did the user specify lower and/or upper bounds for this variable?
       ! if so, follow the instructions to either fail on out-of-range values,
       ! or set out-of-range values to the given min or max vals
@@ -2455,10 +2436,6 @@ PROGVARLOOP : do ivar=1, nfields
 
       allocate(data_3d_array(mycount(1), mycount(2), mycount(3)))
       call vector_to_prog_var(state_vector, ivar, data_3d_array)
-
-      write(string1, '(A,A32,2(1x,E22.14))') 'min/max ', trim(varname), &
-                                minval(data_3d_array), maxval(data_3d_array)
-      call error_handler(E_MSG, '', string1, source,revision,revdate)
 
       ! did the user specify lower and/or upper bounds for this variable?
       ! if so, follow the instructions to either fail on out-of-range values,
@@ -2550,7 +2527,7 @@ if (dimsize == 1) then
 
    endif ! max range set
 
-   write(string1, *) 'after clamping min/max ', trim(varname), &
+   write(string1, '(A,A32,2F16.7)') 'BOUND min/max ', trim(varname), &
                       minval(array_1d), maxval(array_1d)
    call error_handler(E_MSG, '', string1, source,revision,revdate)
 
@@ -2594,7 +2571,7 @@ else if (dimsize == 2) then
 
    endif ! max range set
 
-   write(string1, *) 'after clamping min/max ', trim(varname), &
+   write(string1, '(A,A32,2F16.7)') 'BOUND min/max ', trim(varname), &
                       minval(array_2d), maxval(array_2d)
    call error_handler(E_MSG, '', string1, source,revision,revdate)
 
@@ -2638,7 +2615,7 @@ else if (dimsize == 3) then
 
    endif ! max range set
 
-   write(string1, *) 'after clamping min/max ', trim(varname), &
+   write(string1, '(A,A32,2F16.7)') 'BOUND min/max ', trim(varname), &
                       minval(array_3d), maxval(array_3d)
    call error_handler(E_MSG, '', string1, source,revision,revdate)
 
@@ -2956,7 +2933,7 @@ call nc_check(nf90_inquire_dimension(grid_id, dimid, len=nVertLevels), &
 
 if( nf90_inq_dimid(grid_id, 'nVertLevelsP1', dimid) == NF90_NOERR ) then
    call nc_check(nf90_inquire_dimension(grid_id, dimid, len=nVertLevelsP1), &
-         'read_grid_dims','inquire_dimension nVertLevelsP1 '//trim(grid_definition_filename))
+            'read_grid_dims','inquire_dimension nVertLevelsP1 '//trim(grid_definition_filename))
 else
    nVertLevelsP1 = nVertLevels + 1
 endif
@@ -3867,10 +3844,8 @@ write(     *     ,*) '  clmp range  ',progvar(ivar)%range
 write(logfileunit,*) '  clmp fail   ',progvar(ivar)%out_of_range_fail
 write(     *     ,*) '  clmp fail   ',progvar(ivar)%out_of_range_fail
 do i = 1,progvar(ivar)%numdims
-   write(logfileunit,*) '  dimension/length/name ',i, &
-                           progvar(ivar)%dimlens(i),trim(progvar(ivar)%dimname(i))
-   write(     *     ,*) '  dimension/length/name ',i, &
-                           progvar(ivar)%dimlens(i),trim(progvar(ivar)%dimname(i))
+   write(logfileunit,*) '  dimension/length/name ',i,progvar(ivar)%dimlens(i),trim(progvar(ivar)%dimname(i))
+   write(     *     ,*) '  dimension/length/name ',i,progvar(ivar)%dimlens(i),trim(progvar(ivar)%dimname(i))
 enddo
 
 end subroutine dump_progvar
@@ -3902,15 +3877,11 @@ subroutine print_minmax(ivar, x)
 integer,  intent(in) :: ivar
 real(r8), intent(in) :: x(:)
 
-write(logfileunit,*) 'variable ',trim(progvar(ivar)%varname), &
-           ' min/max = ', &
+write(string1, '(A,A32,2F16.7)') 'data  min/max ', trim(progvar(ivar)%varname), &
            minval(x(progvar(ivar)%index1:progvar(ivar)%indexN)), &
            maxval(x(progvar(ivar)%index1:progvar(ivar)%indexN))
 
-write(    *      ,*) 'variable ',trim(progvar(ivar)%varname), &
-           ' min/max = ', &
-           minval(x(progvar(ivar)%index1:progvar(ivar)%indexN)), &
-           maxval(x(progvar(ivar)%index1:progvar(ivar)%indexN))
+call error_handler(E_MSG, '', string1, source,revision,revdate)
 
 end subroutine print_minmax
 
@@ -4675,7 +4646,7 @@ call error_handler(E_ERR,'find_vert_level',string1,source,revision,revdate)
 
    do i=1, nc
       call find_pressure_bounds(x, vert, ids(i), nVertLevels, &
-         pt_base_offset, density_base_offset, qv_base_offset,  &
+            pt_base_offset, density_base_offset, qv_base_offset,  &
             lower(i), upper(i), fract(i), ier)
       if ((debug > 9) .and. do_output()) &
          print '(A,5(1x,I5),1x,F10.4)', &
@@ -4804,9 +4775,9 @@ do i = 2, nbounds
       upper = i
       if (pressure(i) == pressure(i-1)) then
          fract = 0.0_r8
-      else if (log_vert_interp) then
-            fract = exp(log(p) - log(pressure(i-1))) / &
-                       (log(pressure(i)) - log(pressure(i-1)))
+      else if (log_p_vert_interp) then
+         fract = exp((log(p) - log(pressure(i-1))) / &
+                    (log(pressure(i)) - log(pressure(i-1))))
       else
          fract = (p - pressure(i-1)) / (pressure(i) - pressure(i-1))
       endif
@@ -6033,8 +6004,13 @@ do i=1, nedges
                          source, revision, revdate, text2=string1)
    endif
    ! FIXME: should this be a log interpolation since we know this is going
-   ! to be used for pressure only?
-   x = (x1 + x2) / 2.0_r8
+   ! to be used for pressure only?  it's in the horizontal so the values
+   ! shouldn't be too different, but still for consistency...
+   !if (log_p_vert_interp) then
+   !   x = exp((log(x1) + log(x2)) / 2.0_r8)
+   ! else
+       x = (x1 + x2) / 2.0_r8
+   ! endif
    lower(i) = aint(x)
    upper(i) = lower(i) + 1
    fract(i) = x - lower(i)
