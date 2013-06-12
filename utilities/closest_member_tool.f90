@@ -17,7 +17,7 @@ use utilities_mod,     only : register_module, do_output,                &
                               find_namelist_in_file,          &
                               check_namelist_read, logfileunit,          &
                               do_nml_file, do_nml_term, open_file, close_file
-                                
+
 use  location_mod,     only : location_type
 
 use  obs_kind_mod,     only : get_num_raw_obs_kinds, get_raw_obs_kind_index, &
