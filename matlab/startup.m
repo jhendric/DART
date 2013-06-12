@@ -23,7 +23,7 @@ elseif ( exist('/usr/local/matlab/ncstartup.m','file') == 2 )
    ncstartup;
 end
 
-% See if we have succeeded in adding the netcdf operators.
+%% See if we have succeeded in adding the netcdf operators.
 
 if ( exist('nc_varget','file') ~= 2 )
    disp('Sorry. Unable to locate the snctools matlab operators.')
@@ -71,7 +71,6 @@ end
 % If the cwd is a '<model>/work' directory, check to see if there is a
 % parallel '<model>/matlab' directory.
 
-mydir    = pwd;
 dartloc  = strfind(mydir,'/work')-1;
 if ( ~isempty(dartloc) )
    dartpath = sprintf('%s/matlab',mydir(1:dartloc));
@@ -81,7 +80,7 @@ if ( ~isempty(dartloc) )
    end
 end
 
-% Customizations specific for DART:
+% summarize
 
 truth_file = fullfile(mydir,'True_State.nc');
 diagn_file = fullfile(mydir,'Prior_Diag.nc');
@@ -91,7 +90,6 @@ fprintf('the default data directory is          %s\n',mydir)
 fprintf('which means your default TRUTH file is %s\n',truth_file)
 fprintf('and your default    DIAGNOSTIC file is %s\n',diagn_file)
 disp('To change your defaults, set ''truth_file'' and/or ''diagn_file'' accordingly.')
-
 
 % <next few lines under version control, do not edit>
 % $URL$

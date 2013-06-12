@@ -203,7 +203,7 @@ integer, parameter, public :: &
 integer, parameter, public :: &
     KIND_EXNER_FUNCTION              = 85, &
     KIND_TURBULENT_KINETIC_ENERGY    = 86, &
-    KIND_TOTAL_PRECIPITABLE_WATER    = 87, &
+    KIND_TOTAL_PRECIPITABLE_WATER    = 87, & ! kind for accumulated value - total water in a column
     KIND_VERTLEVEL                   = 88, &
     KIND_MICROWAVE_BRIGHT_TEMP       = 89
 
